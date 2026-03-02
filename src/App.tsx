@@ -30,24 +30,36 @@ import {
   FileDown,
   ExternalLink,
   Send,
-  BarChart3
+  BarChart3,
+  MessageCircle,
+  Heart,
+  PieChart,
+  Wrench,
+  Sun,
+  Moon,
+  Search
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from "jspdf";
-import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest } from './types';
+import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest, ChatThread, ChatMessage, ConciergeAvailability, Appointment } from './types';
 
 // --- Constants ---
 const COMPANY_INFO = {
-  name: "Antonio Bellanova Vault",
+  name: "Juwelen & Schmuckatelier Antonio Bellanova",
   owner: "Antonio Bellanova",
-  address: "Aaronstraße 8, 50076, Köln, Deutschland",
-  iban: "DE12 3456 7890 1234 5678 90"
+  address: "Ahorstraße 8, 50765 Köln, Deutschland",
+  iban: "DE12 3456 7890 1234 5678 90",
+  vatId: "DE457682154"
 };
 
 const LANGUAGES = [
   { code: 'de', name: 'Deutsch' },
   { code: 'en', name: 'English' },
-  { code: 'it', name: 'Italiano' }
+  { code: 'fr', name: 'Français' },
+  { code: 'it', name: 'Italiano' },
+  { code: 'ar', name: 'العربية' },
+  { code: 'zh', name: '中文' },
+  { code: 'es', name: 'Español' }
 ];
 
 const TRANSLATIONS: any = {
@@ -67,6 +79,7 @@ const TRANSLATIONS: any = {
     reserved: "Reserviert",
     sold: "Verkauft",
     resale_pending: "Wiederverkauf ausstehend",
+    resale_review: "In Prüfung",
     sign_out: "Abmelden",
     my_pieces: "Meine Stücke",
     contracts: "Verträge",
@@ -76,6 +89,7 @@ const TRANSLATIONS: any = {
     vip: "VIP",
     view: "Ansehen",
     sign_digitally: "Digital unterzeichnen",
+    accept_contract: "Vertrag annehmen",
     signed_on: "Unterzeichnet am",
     list_resale: "Zum Wiederverkauf anbieten",
     resale_pending_approval: "Wiederverkauf wartet auf Genehmigung",
@@ -109,7 +123,266 @@ const TRANSLATIONS: any = {
     payment_available: "Zahlung verfügbar",
     piece_reserved: "Stück reserviert",
     payment_pending: "Zahlung ausstehend",
-    completed: "Abgeschlossen"
+    completed: "Abgeschlossen",
+    signed: "Unterzeichnet",
+    login: "Anmelden",
+    register: "Registrieren",
+    email: "E-Mail",
+    password: "Passwort",
+    name: "Name",
+    address: "Adresse",
+    language: "Sprache",
+    role: "Rolle",
+    cancel: "Abbrechen",
+    save: "Speichern",
+    submit: "Absenden",
+    "roles.client": "Kunde",
+    "roles.investor": "Investor",
+    "roles.vip": "VIP",
+    "roles.corporate": "Unternehmen",
+    "roles.reseller": "Wiederverkäufer",
+    "roles.atelier_partner": "Atelier-Partner",
+    "roles.viewer": "Betrachter (nur Lese)",
+    "auth.full_legal_name": "Vollständiger Name",
+    "auth.name_placeholder_id": "Name wie im Ausweis",
+    "auth.your_signature": "Ihre Unterschrift",
+    "auth.verification_code_sent": "Ein Bestätigungscode wird an Ihre E-Mail gesendet.",
+    "auth.sending": "Wird gesendet…",
+    "auth.verified": "Verifiziert",
+    "auth.send_verification_code": "Bestätigungscode senden",
+    "auth.full_name": "Vollständiger Name",
+    "auth.name_placeholder": "Antonio Bellanova",
+    "auth.address_placeholder": "Ahorstraße 8, 50765 Köln",
+    "auth.access_role": "Zugangsrolle",
+    "auth.email_placeholder": "name@vault.com",
+    "auth.email_or_username": "E-Mail oder Anmeldename",
+    "auth.username": "Anmeldename",
+    "auth.username_placeholder": "z. B. max_mustermann",
+    "auth.password_placeholder": "••••••••",
+    "auth.apply_vip": "VIP-Mitgliedschaft beantragen",
+    "auth.processing": "Wird verarbeitet…",
+    "auth.sign_in": "Anmelden",
+    "auth.create_account": "Konto erstellen",
+    "auth.register_success": "Registrierung erfolgreich. Bitte warten Sie auf die Freigabe.",
+    "clear_signature": "Unterschrift löschen",
+    "cert.generated": "Echtheitszertifikat wurde erstellt und im Tresor gespeichert.",
+    "cert.title": "Echtheitszertifikat",
+    "investor.title": "Investor",
+    "investor.insights": "Einblicke",
+    "investor.dataroom": "Data Room",
+    "investor.request_access": "Zugang anfordern",
+    "investor.request_allocation": "Zuteilung anfragen",
+    "investor.request_allocation_desc": "Prioritätszugang zu kommenden Drops.",
+    "investor.schedule_meeting": "Termin vereinbaren",
+    "investor.schedule_meeting_desc": "Direkte Beratung mit Antonio Bellanova.",
+    "investor.vip_preview": "VIP-Vorschau",
+    "investor.vip_preview_desc": "Frühzugang zu physischen Ausstellungen.",
+    "investor.request_share": "Anteil kaufen",
+    "investor.request_share_desc": "In Anteile eines physischen Meisterstücks investieren.",
+    "investor.fractional_offers": "Verfügbare Anteile",
+    "investor.request_share_pct": "Anteil anfragen (%)",
+    "investor.no_fractional_offers": "Derzeit keine Anteile zum Verkauf.",
+    "investor.request_submitted": "Anfrage gesendet. Unser Team meldet sich in Kürze.",
+    "admin.piece_created": "Meisterwerk erfolgreich erstellt.",
+    "admin.auction_created": "Auktion erfolgreich erstellt.",
+    "admin.piece_assigned": "Stück erfolgreich zugewiesen.",
+    "admin.client_added": "Kunde angelegt. Zugangstoken erstellt.",
+    "admin.add_client": "Neuen Kunden hinzufügen",
+    "admin.vip_status": "VIP-Status",
+    "admin.create_client_btn": "Kunde anlegen & Tresor erstellen",
+    "admin.create_auction": "Auktion erstellen",
+    "admin.select_masterpiece": "Meisterstück auswählen",
+    "admin.choose_piece": "Stück wählen…",
+    "admin.start_price": "Startpreis (€)",
+    "admin.end_time": "Endzeitpunkt",
+    "admin.auction_terms": "Auktionsbedingungen (Terms)",
+    "admin.terms_placeholder": "Standard-Luxus-Auktionsbedingungen…",
+    "admin.vip_only": "Nur VIP-Frühzugang",
+    "admin.start_auction": "Auktion starten",
+    "admin.assign_piece": "Stück manuell zuweisen",
+    "admin.select_user": "Nutzer auswählen",
+    "admin.choose_user": "Nutzer wählen…",
+    "admin.assign_ownership": "Besitz zuweisen",
+    "admin.pending_purchases": "Ausstehende Käufe",
+    "admin.approve": "Genehmigen",
+    "admin.reject": "Ablehnen",
+    "admin.deposit_contract": "Anzahlungsvertrag",
+    "admin.deposit_draft": "Entwurf",
+    "admin.deposit_signed": "Unterzeichnet",
+    "admin.no_pending_purchases": "Keine ausstehenden Käufe.",
+    "admin.active_workflows": "Aktive Workflows",
+    "admin.resale_requests": "Wiederverkaufsanfragen",
+    "admin.resale_price": "Wiederverkaufspreis",
+    "admin.no_resale_requests": "Keine ausstehenden Wiederverkaufsanfragen.",
+    "admin.commission": "Provision",
+    "admin.commission_pct": "Provision (%)",
+    "admin.min_price": "Mindestpreis",
+    "admin.adjust_commission": "Provision anpassen",
+    "admin.prioritize_auction": "Auktion priorisieren",
+    "admin.decision_curated": "Kuratierter Marktplatz",
+    "admin.decision_auction": "Private Auktion",
+    "admin.decision_offer": "Privates Angebot",
+    "admin.decision_buyback": "Maison Rückkauf",
+    "admin.send_buyback_offer": "Rückkaufangebot senden",
+    "admin.price_recommendation": "Preisempfehlung",
+    "admin.market_stability": "Marktstabilität",
+    "admin.pending_payments": "Ausstehende Zahlungen",
+    "admin.confirm_payment": "Zahlung bestätigen",
+    "admin.user_approvals": "Nutzer-Genehmigungen",
+    "admin.wants_vip": "Wünscht VIP",
+    "admin.no_pending_users": "Keine ausstehenden Registrierungen.",
+    "admin.investor_requests": "Investor-Anfragen",
+    "admin.request_type": "Anfrage",
+    "admin.investor_label": "Investor",
+    "admin.no_investor_requests": "Keine Investor-Anfragen.",
+    "admin.approve_request": "Genehmigen",
+    "admin.reject_request": "Ablehnen",
+    "admin.fractional_offers": "Anteils-Angebote",
+    "admin.set_fractional_offer": "Anteile anbieten",
+    "admin.available_pct": "Verfügbar (%)",
+    "admin.price_per_pct": "Preis pro % (€)",
+    "admin.request_approved_msg": "Anfrage genehmigt. Zugang gewährt.",
+    "admin.request_rejected_msg": "Anfrage abgelehnt.",
+    "admin.signed_contracts": "Unterzeichnete Verträge",
+    "admin.deposit_contract_type": "Anzahlungsvertrag",
+    "admin.purchase_contract_type": "Kaufvertrag",
+    "admin.customer": "Kunde",
+    "admin.piece_label": "Stück",
+    "admin.signed_at": "Unterzeichnet am",
+    "admin.no_signed_contracts": "Noch keine unterzeichneten Verträge.",
+    "admin.tab_overview": "Übersicht",
+    "admin.tab_inventory": "Inventar",
+    "admin.tab_users": "Nutzer",
+    "admin.tab_resale": "Wiederverkauf",
+    "admin.tab_appointments": "Termine",
+    "admin.tab_settings": "Einstellungen",
+    "admin.stat_revenue": "Gesamtumsatz",
+    "admin.stat_active_users": "Aktive Nutzer",
+    "admin.stat_pending_approvals": "Ausstehende Genehmigungen",
+    "admin.stat_masterpieces": "Meisterstücke",
+    "admin.stat_views": "Aufrufe gesamt",
+    "admin.stat_contact_requests": "Kontaktanfragen",
+    "admin.stat_last_30_days": "davon letzte 30 Tage",
+    "admin.popular_pieces_title": "Beliebte Stücke (Aufrufe + Favoriten)",
+    "admin.export_inventory_csv": "Inventar CSV",
+    "admin.appointments": "Termine",
+    "admin.schedule_appointment": "Termin eintragen",
+    "admin.appointment_date": "Datum",
+    "admin.appointment_time": "Uhrzeit",
+    "admin.appointment_title": "Titel",
+    "admin.appointment_notes": "Notizen",
+    "admin.new_appointment": "Neuer Termin",
+    "admin.no_appointments": "Keine Termine.",
+    "appointments.proposed": "Vorgeschlagen",
+    "appointments.confirmed": "Bestätigt",
+    "appointments.cancelled": "Abgesagt",
+    "appointments.my_appointments": "Deine Termine",
+    "appointments.accept": "Annehmen",
+    "appointments.decline": "Absagen",
+    "appointments.no_appointments_user": "Keine Termine.",
+    "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
+    "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
+    "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
+    "auctions.private_auctions": "Private Auktionen",
+    "auctions.subtitle": "Live-Gebote für seltene und einzigartige Meisterwerke.",
+    "auctions.no_active": "Derzeit keine aktiven Auktionen.",
+    "vault.no_pieces": "Sie besitzen noch keine Stücke.",
+    "vault.no_certs": "Noch keine Zertifikate ausgestellt.",
+    "vault.reminder_unsigned": "warten auf Ihre Unterschrift.",
+    "common.learn_more": "Mehr erfahren",
+    "common.pdf": "PDF",
+    "common.serial_id": "Seriennummer",
+    "common.signed": "Unterzeichnet",
+    "vip.contact_for_details": "Bitte kontaktieren Sie Antonio Bellanova für VIP-Details.",
+    "vip.benefit_early_access": "Zugang und Gebote bei privaten Auktionen 48 Stunden vor dem Start.",
+    "vip.private_previews": "Private Vorschauen",
+    "vip.benefit_previews": "Einladungen zu exklusiven Preview-Events in Köln und Mailand.",
+    "vip.extended_warranty": "Erweiterte Garantie",
+    "vip.benefit_warranty": "Lebenslange Echtheitsgarantie und kostenlose Wartung.",
+    "vip.resale_priority": "Wiederverkaufs-Priorität",
+    "vip.benefit_resale": "Prioritätslistung und geringere Provisionen beim Weiterverkauf.",
+    "concierge.placeholder": "Wie können wir Sie heute unterstützen?",
+    "chat.concierge": "Concierge",
+    "chat.maison_concierge": "Maison Concierge",
+    "chat.concierge_available": "Concierge verfügbar",
+    "chat.concierge_busy": "Concierge beschäftigt",
+    "chat.status_active": "Active",
+    "chat.status_reviewing": "Reviewing",
+    "chat.status_preparing": "Preparing Response",
+    "chat.priority_channel_active": "Priority Channel Active",
+    "chat.direct_line": "Direct Line",
+    "chat.new_conversation": "Neue Unterhaltung",
+    "chat.thread_asset": "Asset-Kommunikation",
+    "chat.thread_vault": "Tresor-Anfrage",
+    "chat.send": "Senden",
+    "chat.type_message": "Nachricht eingeben…",
+    "chat.no_threads": "Noch keine Gespräche.",
+    "chat.priority": "Priorität",
+    "chat.maison_typing": "Maison bereitet Antwort vor.",
+    "ceremony.title": "Eigentumsübertragung",
+    "ceremony.subtitle": "Antonio Bellanova Atelier",
+    "ceremony.acquired_by": "Erworben von",
+    "ceremony.quote": "Wahrer Luxus ist nicht nur der Besitz eines Objekts, sondern die Bewahrung eines Erbes. Heute werden Sie Hüter eines einzigartigen Meisterwerks.",
+    "ceremony.enter_vault": "Zum Tresor",
+    "ceremony.view_certificate": "Echtheitszertifikat ansehen",
+    "resale.request_submitted": "Wiederverkauf zur Admin-Genehmigung eingereicht.",
+    "resale.extern_transferred": "Extern transferiert",
+    "resale.warranty_void": "Garantie erloschen",
+    "resale.mark_external": "Als extern verkauft melden",
+    "view.dashboard": "Dashboard",
+    "view.marketplace": "Marktplatz",
+    "view.auctions": "Auktionen",
+    "view.vault": "Tresor",
+    "view.admin": "Verwaltung",
+    "view.portfolio": "Portfolio",
+    "view.fractional": "Anteile",
+    "view.investor": "Investor",
+    "view.concierge": "Concierge",
+    "view.login": "Anmelden",
+    "view.register": "Registrieren",
+    "errors.invalid_credentials": "Ungültige Anmeldedaten.",
+    "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
+    "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
+    "errors.generic": "Ein Fehler ist aufgetreten.",
+    "dashboard.welcome_subtitle": "Ihr Zugang zu den exklusivsten Schmuck- und Sammlerstücken. Verwalten Sie Ihre Werte, nehmen Sie an privaten Auktionen teil und entdecken Sie den Tresor.",
+    "dashboard.member_since": "Mitglied seit",
+    "dashboard.portfolio_value": "Portfolio-Wert",
+    "dashboard.recent_views": "Zuletzt angesehen",
+    "dashboard.favorites": "Favoriten",
+    "dashboard.remove_favorite": "Favorit entfernen",
+    "search.placeholder": "Stück suchen…",
+    "trust.secured_by": "Gesichert durch Antonio Bellanova",
+    "trust.ssl_encrypted": "SSL verschlüsselt",
+    "trust.dsgvo_compliant": "DSGVO-konform",
+    "wishlist.on_list": "auf Wunschliste",
+    "loading.please_wait": "Bitte warten",
+    "offline.banner": "Sie sind offline. Einige Funktionen sind eingeschränkt.",
+    "notifications.title": "Benachrichtigungen",
+    "notifications.description": "Wählen Sie, wann Sie per E-Mail informiert werden möchten.",
+    "notifications.email_messages": "Nachrichten & Concierge",
+    "notifications.email_contracts": "Verträge & Dokumente",
+    "notifications.email_auctions": "Auktionen & Gebote",
+    "notifications.close": "Schließen",
+    "notifications.change_password": "Passwort ändern",
+    "filter.favorites_only": "Nur Favoriten",
+    "filter.recent_only": "Nur zuletzt angesehen",
+    "concierge.cta_title": "Maison Concierge",
+    "concierge.cta_subtitle": "Persönliche Beratung, Termine & exklusive Anfragen — jederzeit für Sie da.",
+    "auth.forgot_password": "Passwort vergessen",
+    "auth.forgot_password_link": "Passwort vergessen?",
+    "auth.preferred_language": "Bevorzugte Sprache",
+    "auth.reset_invalid_token": "Kein gültiger Token. Nutzen Sie „Passwort vergessen“, um einen neuen Link zu erhalten.",
+    "auth.back_to_login": "Zurück zum Login",
+    "legal.ssl": "SSL verschlüsselt",
+    "legal.secure_payment": "Sichere Zahlung",
+    "legal.imprint": "Impressum",
+    "legal.privacy": "Datenschutz",
+    "legal.terms": "AGB",
+    "legal.contact": "Kontakt",
+    "legal.directions": "Anfahrt",
+    "common.settings": "Einstellungen",
+    "common.settings_saved": "Einstellungen gespeichert.",
+    "common.views": "Aufrufe"
   },
   en: {
     dashboard: "Dashboard",
@@ -127,6 +400,7 @@ const TRANSLATIONS: any = {
     reserved: "Reserved",
     sold: "Sold",
     resale_pending: "Resale Pending",
+    resale_review: "In Review",
     sign_out: "Sign Out",
     view_details: "View Details",
     materials: "Materials",
@@ -150,7 +424,266 @@ const TRANSLATIONS: any = {
     payment_available: "Payment Available",
     piece_reserved: "Piece Reserved",
     payment_pending: "Payment Pending",
-    completed: "Completed"
+    completed: "Completed",
+    signed: "Signed",
+    login: "Log In",
+    register: "Register",
+    email: "Email",
+    password: "Password",
+    name: "Name",
+    address: "Address",
+    language: "Language",
+    role: "Role",
+    cancel: "Cancel",
+    save: "Save",
+    submit: "Submit",
+    "roles.client": "Client",
+    "roles.investor": "Investor",
+    "roles.vip": "VIP",
+    "roles.corporate": "Corporate",
+    "roles.reseller": "Reseller",
+    "roles.atelier_partner": "Atelier Partner",
+    "roles.viewer": "Viewer (Read-only)",
+    "auth.full_legal_name": "Full Legal Name",
+    "auth.name_placeholder_id": "Name as on your ID",
+    "auth.your_signature": "Your Signature",
+    "auth.verification_code_sent": "A verification code will be sent to your registered email address.",
+    "auth.sending": "Sending…",
+    "auth.verified": "Verified",
+    "auth.send_verification_code": "Send Verification Code",
+    "auth.full_name": "Full Name",
+    "auth.name_placeholder": "Antonio Bellanova",
+    "auth.address_placeholder": "Ahorstraße 8, 50765 Cologne",
+    "auth.access_role": "Access Role",
+    "auth.email_placeholder": "name@vault.com",
+    "auth.email_or_username": "Email or username",
+    "auth.username": "Username",
+    "auth.username_placeholder": "e.g. john_doe",
+    "auth.password_placeholder": "••••••••",
+    "auth.apply_vip": "Apply for VIP Membership",
+    "auth.processing": "Processing…",
+    "auth.sign_in": "Sign In",
+    accept_contract: "Accept contract",
+    "auth.create_account": "Create Account",
+    "auth.register_success": "Registration successful. Please wait for admin approval.",
+    "clear_signature": "Clear Signature",
+    "cert.generated": "Certificate of Authenticity generated and stored in the user's vault.",
+    "cert.title": "Certificate of Authenticity",
+    "investor.title": "Investor",
+    "investor.insights": "Insights",
+    "investor.dataroom": "Data Room",
+    "investor.request_access": "Request Access",
+    "investor.request_allocation": "Request Allocation",
+    "investor.request_allocation_desc": "Apply for priority access to upcoming drops.",
+    "investor.schedule_meeting": "Schedule Meeting",
+    "investor.schedule_meeting_desc": "Direct consultation with Antonio Bellanova.",
+    "investor.vip_preview": "VIP Preview",
+    "investor.vip_preview_desc": "Request early access to physical exhibitions.",
+    "investor.request_share": "Buy share",
+    "investor.request_share_desc": "Invest in fractional ownership of a physical masterpiece.",
+    "investor.fractional_offers": "Available shares",
+    "investor.request_share_pct": "Request share (%)",
+    "investor.no_fractional_offers": "No shares currently offered for sale.",
+    "investor.request_submitted": "Request submitted successfully. Our team will contact you shortly.",
+    "admin.piece_created": "Masterpiece created successfully.",
+    "admin.auction_created": "Auction created successfully.",
+    "admin.piece_assigned": "Piece assigned successfully.",
+    "admin.client_added": "Client added successfully. Access token created.",
+    "admin.add_client": "Add New Client",
+    "admin.vip_status": "VIP Status",
+    "admin.create_client_btn": "Create Client & Vault",
+    "admin.create_auction": "Create Auction",
+    "admin.select_masterpiece": "Select Masterpiece",
+    "admin.choose_piece": "Choose piece…",
+    "admin.start_price": "Start Price (€)",
+    "admin.end_time": "End Time",
+    "admin.auction_terms": "Auction Terms",
+    "admin.terms_placeholder": "Standard luxury auction terms apply…",
+    "admin.vip_only": "VIP Early Access Only",
+    "admin.start_auction": "Start Auction",
+    "admin.assign_piece": "Assign Piece Manually",
+    "admin.select_user": "Select User",
+    "admin.choose_user": "Choose user…",
+    "admin.assign_ownership": "Assign Ownership",
+    "admin.pending_purchases": "Pending Purchases",
+    "admin.approve": "Approve",
+    "admin.reject": "Reject",
+    "admin.deposit_contract": "Deposit Contract",
+    "admin.deposit_draft": "Draft",
+    "admin.deposit_signed": "Signed",
+    "admin.no_pending_purchases": "No pending purchases.",
+    "admin.active_workflows": "Active Workflows",
+    "admin.resale_requests": "Resale Requests",
+    "admin.resale_price": "Resale Price",
+    "admin.no_resale_requests": "No pending resale requests.",
+    "admin.commission": "Commission",
+    "admin.commission_pct": "Commission (%)",
+    "admin.min_price": "Minimum price",
+    "admin.adjust_commission": "Adjust commission",
+    "admin.prioritize_auction": "Prioritize auction",
+    "admin.decision_curated": "Curated Marketplace",
+    "admin.decision_auction": "Private Auction",
+    "admin.decision_offer": "Private Offer",
+    "admin.decision_buyback": "Maison Buyback",
+    "admin.send_buyback_offer": "Send buyback offer",
+    "admin.price_recommendation": "Price recommendation",
+    "admin.market_stability": "Market stability",
+    "admin.pending_payments": "Pending Payments",
+    "admin.confirm_payment": "Confirm Payment",
+    "admin.user_approvals": "User Approvals",
+    "admin.wants_vip": "Wants VIP",
+    "admin.no_pending_users": "No pending registrations.",
+    "admin.investor_requests": "Investor Requests",
+    "admin.request_type": "Request",
+    "admin.investor_label": "Investor",
+    "admin.no_investor_requests": "No investor requests.",
+    "admin.approve_request": "Approve",
+    "admin.reject_request": "Reject",
+    "admin.fractional_offers": "Fractional offers",
+    "admin.set_fractional_offer": "Offer shares",
+    "admin.available_pct": "Available (%)",
+    "admin.price_per_pct": "Price per % (€)",
+    "admin.request_approved_msg": "Request approved. Access granted.",
+    "admin.request_rejected_msg": "Request rejected.",
+    "admin.signed_contracts": "Signed Contracts",
+    "admin.deposit_contract_type": "Deposit Contract",
+    "admin.purchase_contract_type": "Purchase Contract",
+    "admin.customer": "Customer",
+    "admin.piece_label": "Piece",
+    "admin.signed_at": "Signed on",
+    "admin.no_signed_contracts": "No signed contracts yet.",
+    "admin.tab_overview": "Overview",
+    "admin.tab_inventory": "Inventory",
+    "admin.tab_users": "Users",
+    "admin.tab_resale": "Resale",
+    "admin.tab_appointments": "Appointments",
+    "admin.tab_settings": "Settings",
+    "admin.stat_revenue": "Total revenue",
+    "admin.stat_active_users": "Active users",
+    "admin.stat_pending_approvals": "Pending approvals",
+    "admin.stat_masterpieces": "Masterpieces",
+    "admin.stat_views": "Total views",
+    "admin.stat_contact_requests": "Contact requests",
+    "admin.stat_last_30_days": "last 30 days",
+    "admin.popular_pieces_title": "Popular pieces (views + favorites)",
+    "admin.export_inventory_csv": "Inventory CSV",
+    "admin.appointments": "Appointments",
+    "admin.schedule_appointment": "Schedule appointment",
+    "admin.appointment_date": "Date",
+    "admin.appointment_time": "Time",
+    "admin.appointment_title": "Title",
+    "admin.appointment_notes": "Notes",
+    "admin.new_appointment": "New appointment",
+    "admin.no_appointments": "No appointments.",
+    "appointments.proposed": "Proposed",
+    "appointments.confirmed": "Confirmed",
+    "appointments.cancelled": "Cancelled",
+    "appointments.my_appointments": "Your appointments",
+    "appointments.accept": "Accept",
+    "appointments.decline": "Decline",
+    "appointments.no_appointments_user": "No appointments.",
+    "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
+    "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
+    "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
+    "auctions.private_auctions": "Private Auctions",
+    "auctions.subtitle": "Live bidding on rare and unique masterpieces.",
+    "auctions.no_active": "No active auctions at this time.",
+    "vault.no_pieces": "You don't own any pieces yet.",
+    "vault.no_certs": "No certificates issued yet.",
+    "common.learn_more": "Learn More",
+    "common.pdf": "PDF",
+    "common.serial_id": "Serial ID",
+    "common.signed": "Signed",
+    "vip.contact_for_details": "Please contact Antonio Bellanova for VIP application details.",
+    "vip.benefit_early_access": "View and bid on private auctions 48 hours before the general public.",
+    "vip.private_previews": "Private Previews",
+    "vip.benefit_previews": "Receive invitations to exclusive physical previews in Cologne and Milan.",
+    "vip.extended_warranty": "Extended Warranty",
+    "vip.benefit_warranty": "Lifetime authenticity guarantee and complimentary maintenance for all pieces.",
+    "vip.resale_priority": "Resale Priority",
+    "vip.benefit_resale": "Priority listing and lower commission rates for secondary market sales.",
+    "concierge.placeholder": "How can we assist you today?",
+    "chat.concierge": "Concierge",
+    "chat.maison_concierge": "Maison Concierge",
+    "chat.concierge_available": "Concierge Available",
+    "chat.concierge_busy": "Concierge busy",
+    "chat.status_active": "Active",
+    "chat.status_reviewing": "Reviewing",
+    "chat.status_preparing": "Preparing Response",
+    "chat.priority_channel_active": "Priority Channel Active",
+    "chat.direct_line": "Direct Line",
+    "chat.new_conversation": "New conversation",
+    "chat.thread_asset": "Asset communication",
+    "chat.thread_vault": "Vault request",
+    "chat.send": "Send",
+    "chat.type_message": "Type a message…",
+    "chat.no_threads": "No conversations yet.",
+    "chat.priority": "Priority",
+    "chat.maison_typing": "Maison is preparing a response.",
+    "ceremony.title": "Ownership Transfer Ceremony",
+    "ceremony.subtitle": "Antonio Bellanova Atelier",
+    "ceremony.acquired_by": "Acquired by",
+    "ceremony.quote": "True luxury is not merely the possession of an object, but the stewardship of a legacy. Today, you become the custodian of a singular masterpiece, handcrafted with precision and passion.",
+    "ceremony.enter_vault": "Enter the Vault",
+    "ceremony.view_certificate": "View Certificate of Authenticity",
+    "resale.request_submitted": "Resale request submitted for admin approval.",
+    "resale.extern_transferred": "Externally transferred",
+    "resale.warranty_void": "Warranty void",
+    "resale.mark_external": "Mark as externally sold",
+    "view.dashboard": "Dashboard",
+    "view.marketplace": "Marketplace",
+    "view.auctions": "Auctions",
+    "view.vault": "Vault",
+    "view.admin": "Management",
+    "view.portfolio": "Portfolio",
+    "view.fractional": "Shares",
+    "view.investor": "Investor",
+    "view.concierge": "Concierge",
+    "view.login": "Log In",
+    "view.register": "Register",
+    "errors.invalid_credentials": "Invalid credentials.",
+    "errors.cert_failed": "Failed to generate certificate.",
+    "errors.piece_create_failed": "Failed to create masterpiece.",
+    "errors.generic": "Something went wrong.",
+    "dashboard.welcome_subtitle": "Your portal to the world's most exclusive jewelry and collectible masterpieces. Manage your assets, participate in private auctions, and explore the vault.",
+    "dashboard.member_since": "Member since",
+    "dashboard.portfolio_value": "Portfolio Value",
+    "dashboard.recent_views": "Recently viewed",
+    "dashboard.favorites": "Favorites",
+    "dashboard.remove_favorite": "Remove from favorites",
+    "search.placeholder": "Search pieces…",
+    "trust.secured_by": "Secured by Antonio Bellanova",
+    "trust.ssl_encrypted": "SSL Encrypted",
+    "trust.dsgvo_compliant": "GDPR Compliant",
+    "wishlist.on_list": "on wishlist",
+    "loading.please_wait": "Please wait",
+    "offline.banner": "You are offline. Some features are limited.",
+    "notifications.title": "Notifications",
+    "notifications.description": "Choose when you want to be notified by email.",
+    "notifications.email_messages": "Messages & Concierge",
+    "notifications.email_contracts": "Contracts & Documents",
+    "notifications.email_auctions": "Auctions & Bids",
+    "notifications.close": "Close",
+    "notifications.change_password": "Change password",
+    "filter.favorites_only": "Favorites only",
+    "filter.recent_only": "Recently viewed only",
+    "concierge.cta_title": "Maison Concierge",
+    "concierge.cta_subtitle": "Personal advice, appointments & exclusive requests — here for you anytime.",
+    "auth.forgot_password": "Forgot password",
+    "auth.forgot_password_link": "Forgot password?",
+    "auth.preferred_language": "Preferred language",
+    "auth.reset_invalid_token": "Invalid token. Use \"Forgot password\" to get a new link.",
+    "auth.back_to_login": "Back to login",
+    "legal.ssl": "SSL Encrypted",
+    "legal.secure_payment": "Secure payment",
+    "legal.imprint": "Imprint",
+    "legal.privacy": "Privacy",
+    "legal.terms": "Terms & Conditions",
+    "legal.contact": "Contact",
+    "legal.directions": "Directions",
+    "common.settings": "Settings",
+    "common.settings_saved": "Settings saved.",
+    "common.views": "Views"
   },
   it: {
     dashboard: "Dashboard",
@@ -168,23 +701,298 @@ const TRANSLATIONS: any = {
     reserved: "Riservato",
     sold: "Venduto",
     resale_pending: "Rivendita in Sospeso",
-    sign_out: "Disconnetti"
-  }
+    resale_review: "In Revisione",
+    sign_out: "Disconnetti",
+    signed: "Firmato",
+    login: "Accedi",
+    register: "Registrati",
+    email: "Email",
+    password: "Password",
+    name: "Nome",
+    address: "Indirizzo",
+    language: "Lingua",
+    role: "Ruolo",
+    cancel: "Annulla",
+    save: "Salva",
+    submit: "Invia",
+    "roles.client": "Cliente",
+    "roles.investor": "Investitore",
+    "roles.vip": "VIP",
+    "roles.corporate": "Azienda",
+    "roles.reseller": "Rivenditore",
+    "roles.atelier_partner": "Partner Atelier",
+    "roles.viewer": "Solo lettura",
+    "auth.full_legal_name": "Nome completo",
+    "auth.name_placeholder_id": "Nome come sul documento",
+    "auth.your_signature": "La tua firma",
+    "auth.verification_code_sent": "Un codice di verifica verrà inviato alla tua email.",
+    "auth.sending": "Invio…",
+    "auth.verified": "Verificato",
+    "auth.send_verification_code": "Invia codice di verifica",
+    "auth.full_name": "Nome completo",
+    "auth.name_placeholder": "Antonio Bellanova",
+    "auth.address_placeholder": "Ahorstraße 8, 50765 Colonia",
+    "auth.access_role": "Ruolo di accesso",
+    "auth.email_placeholder": "name@vault.com",
+    "auth.email_or_username": "Email o nome utente",
+    "auth.username": "Nome utente",
+    "auth.username_placeholder": "es. mario_rossi",
+    "auth.password_placeholder": "••••••••",
+    "auth.apply_vip": "Richiedi adesione VIP",
+    "auth.processing": "Elaborazione…",
+    "auth.sign_in": "Accedi",
+    accept_contract: "Accetta contratto",
+    "auth.create_account": "Crea account",
+    "auth.register_success": "Registrazione completata. Attendere l'approvazione.",
+    "clear_signature": "Cancella firma",
+    "cert.generated": "Certificato di autenticità generato e salvato nel caveau.",
+    "cert.title": "Certificato di autenticità",
+    "investor.title": "Investitore",
+    "investor.insights": "Approfondimenti",
+    "investor.dataroom": "Data Room",
+    "investor.request_access": "Richiedi accesso",
+    "investor.request_allocation": "Richiedi allocazione",
+    "investor.request_allocation_desc": "Accesso prioritario ai prossimi drop.",
+    "investor.schedule_meeting": "Pianifica incontro",
+    "investor.schedule_meeting_desc": "Consulenza diretta con Antonio Bellanova.",
+    "investor.vip_preview": "Anteprima VIP",
+    "investor.vip_preview_desc": "Accesso anticipato alle mostre.",
+    "investor.request_share": "Acquista quota",
+    "investor.request_share_desc": "Investi in quote di un capolavoro fisico.",
+    "investor.fractional_offers": "Quote disponibili",
+    "investor.request_share_pct": "Richiedi quota (%)",
+    "investor.no_fractional_offers": "Nessuna quota in vendita al momento.",
+    "investor.request_submitted": "Richiesta inviata. Il nostro team ti contatterà a breve.",
+    "admin.piece_created": "Opera creata con successo.",
+    "admin.auction_created": "Asta creata con successo.",
+    "admin.piece_assigned": "Opera assegnata con successo.",
+    "admin.client_added": "Cliente aggiunto. Token di accesso creato.",
+    "admin.add_client": "Aggiungi cliente",
+    "admin.vip_status": "Stato VIP",
+    "admin.create_client_btn": "Crea cliente e caveau",
+    "admin.create_auction": "Crea asta",
+    "admin.select_masterpiece": "Seleziona opera",
+    "admin.choose_piece": "Scegli opera…",
+    "admin.start_price": "Prezzo di partenza (€)",
+    "admin.end_time": "Data di fine",
+    "admin.auction_terms": "Condizioni d'asta",
+    "admin.terms_placeholder": "Condizioni standard asta luxury…",
+    "admin.vip_only": "Solo accesso anticipato VIP",
+    "admin.start_auction": "Avvia asta",
+    "admin.assign_piece": "Assegna opera",
+    "admin.select_user": "Seleziona utente",
+    "admin.choose_user": "Scegli utente…",
+    "admin.assign_ownership": "Assegna proprietà",
+    "admin.pending_purchases": "Acquisti in sospeso",
+    "admin.approve": "Approva",
+    "admin.reject": "Rifiuta",
+    "admin.deposit_contract": "Contratto di acconto",
+    "admin.deposit_draft": "Bozza",
+    "admin.deposit_signed": "Firmato",
+    "admin.no_pending_purchases": "Nessun acquisto in sospeso.",
+    "admin.active_workflows": "Workflow attivi",
+    "admin.resale_requests": "Richieste di rivendita",
+    "admin.resale_price": "Prezzo di rivendita",
+    "admin.no_resale_requests": "Nessuna richiesta di rivendita.",
+    "admin.commission": "Commissione",
+    "admin.commission_pct": "Commissione (%)",
+    "admin.min_price": "Prezzo minimo",
+    "admin.adjust_commission": "Modifica commissione",
+    "admin.prioritize_auction": "Priorità asta",
+    "admin.decision_curated": "Mercato curato",
+    "admin.decision_auction": "Asta privata",
+    "admin.decision_offer": "Offerta privata",
+    "admin.decision_buyback": "Riacquisto Maison",
+    "admin.send_buyback_offer": "Invia offerta di riacquisto",
+    "admin.price_recommendation": "Prezzo consigliato",
+    "admin.market_stability": "Stabilità mercato",
+    "admin.pending_payments": "Pagamenti in sospeso",
+    "admin.confirm_payment": "Conferma pagamento",
+    "admin.user_approvals": "Approvazioni utenti",
+    "admin.wants_vip": "Desidera VIP",
+    "admin.no_pending_users": "Nessuna registrazione in sospeso.",
+    "admin.investor_requests": "Richieste investitori",
+    "admin.request_type": "Richiesta",
+    "admin.investor_label": "Investitore",
+    "admin.no_investor_requests": "Nessuna richiesta investitori.",
+    "admin.approve_request": "Approva",
+    "admin.reject_request": "Rifiuta",
+    "admin.fractional_offers": "Offerte quote",
+    "admin.set_fractional_offer": "Offri quote",
+    "admin.available_pct": "Disponibile (%)",
+    "admin.price_per_pct": "Prezzo per % (€)",
+    "admin.request_approved_msg": "Richiesta approvata. Accesso concesso.",
+    "admin.request_rejected_msg": "Richiesta rifiutata.",
+    "admin.signed_contracts": "Contratti firmati",
+    "admin.deposit_contract_type": "Contratto di acconto",
+    "admin.purchase_contract_type": "Contratto di acquisto",
+    "admin.customer": "Cliente",
+    "admin.piece_label": "Opera",
+    "admin.signed_at": "Firmato il",
+    "admin.no_signed_contracts": "Nessun contratto firmato.",
+    "admin.tab_overview": "Panoramica",
+    "admin.tab_inventory": "Inventario",
+    "admin.tab_users": "Utenti",
+    "admin.tab_resale": "Rivendita",
+    "admin.tab_appointments": "Appuntamenti",
+    "admin.tab_settings": "Impostazioni",
+    "admin.stat_revenue": "Fatturato totale",
+    "admin.stat_active_users": "Utenti attivi",
+    "admin.stat_pending_approvals": "Approvazioni in sospeso",
+    "admin.stat_masterpieces": "Capolavori",
+    "admin.stat_views": "Visualizzazioni totali",
+    "admin.stat_contact_requests": "Richieste di contatto",
+    "admin.stat_last_30_days": "ultimi 30 giorni",
+    "admin.popular_pieces_title": "Opere popolari (visualizzazioni + preferiti)",
+    "admin.export_inventory_csv": "Inventario CSV",
+    "admin.appointments": "Appuntamenti",
+    "admin.schedule_appointment": "Fissa appuntamento",
+    "admin.appointment_date": "Data",
+    "admin.appointment_time": "Ora",
+    "admin.appointment_title": "Titolo",
+    "admin.appointment_notes": "Note",
+    "admin.new_appointment": "Nuovo appuntamento",
+    "admin.no_appointments": "Nessun appuntamento.",
+    "appointments.proposed": "Proposto",
+    "appointments.confirmed": "Confermato",
+    "appointments.cancelled": "Annullato",
+    "appointments.my_appointments": "I tuoi appuntamenti",
+    "appointments.accept": "Accetta",
+    "appointments.decline": "Rifiuta",
+    "appointments.no_appointments_user": "Nessun appuntamento.",
+    "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
+    "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
+    "marketplace.subtitle": "Opere pregiate disponibili per acquisizione immediata.",
+    "auctions.private_auctions": "Aste private",
+    "auctions.subtitle": "Offerte in diretta su opere rare e uniche.",
+    "auctions.no_active": "Nessuna asta attiva.",
+    "vault.no_pieces": "Non possiedi ancora opere.",
+    "vault.no_certs": "Nessun certificato emesso.",
+    "common.learn_more": "Scopri di più",
+    "common.pdf": "PDF",
+    "common.serial_id": "Numero di serie",
+    "common.signed": "Firmato",
+    "vip.contact_for_details": "Contatta Antonio Bellanova per i dettagli VIP.",
+    "vip.benefit_early_access": "Accesso e offerte 48 ore prima del pubblico.",
+    "vip.private_previews": "Anteprime private",
+    "vip.benefit_previews": "Inviti a preview esclusive a Colonia e Milano.",
+    "vip.extended_warranty": "Garanzia estesa",
+    "vip.benefit_warranty": "Garanzia di autenticità a vita e manutenzione inclusa.",
+    "vip.resale_priority": "Priorità rivendita",
+    "vip.benefit_resale": "Listing prioritario e commissioni ridotte.",
+    "concierge.placeholder": "Come possiamo assisterti?",
+    "chat.concierge": "Concierge",
+    "chat.maison_concierge": "Maison Concierge",
+    "chat.concierge_available": "Concierge disponibile",
+    "chat.concierge_busy": "Concierge occupato",
+    "chat.status_active": "Attivo",
+    "chat.status_reviewing": "In revisione",
+    "chat.status_preparing": "Preparazione risposta",
+    "chat.priority_channel_active": "Canale prioritario attivo",
+    "chat.direct_line": "Linea diretta",
+    "chat.new_conversation": "Nuova conversazione",
+    "chat.thread_asset": "Comunicazione asset",
+    "chat.thread_vault": "Richiesta caveau",
+    "chat.send": "Invia",
+    "chat.type_message": "Scrivi un messaggio…",
+    "chat.no_threads": "Nessuna conversazione.",
+    "chat.priority": "Priorità",
+    "chat.maison_typing": "La Maison sta preparando una risposta.",
+    "ceremony.title": "Cerimonia di trasferimento proprietà",
+    "ceremony.subtitle": "Antonio Bellanova Atelier",
+    "ceremony.acquired_by": "Acquistato da",
+    "ceremony.quote": "Il vero lusso non è possedere un oggetto, ma custodire un'eredità. Oggi diventi custode di un capolavoro unico.",
+    "ceremony.enter_vault": "Entra nel caveau",
+    "ceremony.view_certificate": "Vedi certificato di autenticità",
+    "resale.request_submitted": "Richiesta di rivendita inviata per approvazione.",
+    "resale.extern_transferred": "Trasferito esternamente",
+    "resale.warranty_void": "Garanzia decaduta",
+    "resale.mark_external": "Segnala come venduto esternamente",
+    "view.dashboard": "Dashboard",
+    "view.marketplace": "Mercato",
+    "view.auctions": "Aste",
+    "view.vault": "Caveau",
+    "view.admin": "Gestione",
+    "view.portfolio": "Portafoglio",
+    "view.fractional": "Quote",
+    "view.investor": "Investitore",
+    "view.concierge": "Concierge",
+    "view.login": "Accedi",
+    "view.register": "Registrati",
+    "errors.invalid_credentials": "Credenziali non valide.",
+    "errors.cert_failed": "Impossibile generare il certificato.",
+    "errors.piece_create_failed": "Impossibile creare l'opera.",
+    "errors.generic": "Si è verificato un errore.",
+    "dashboard.welcome_subtitle": "Il vostro accesso ai gioielli e ai capolavori da collezione più esclusivi. Gestite i vostri beni, partecipate alle aste private ed esplorate il caveau.",
+    "dashboard.member_since": "Membro dal",
+    "dashboard.portfolio_value": "Valore portafoglio",
+    "dashboard.recent_views": "Visti di recente",
+    "dashboard.favorites": "Preferiti",
+    "dashboard.remove_favorite": "Rimuovi dai preferiti",
+    "search.placeholder": "Cerca opere…",
+    "trust.secured_by": "Sicuro con Antonio Bellanova",
+    "trust.ssl_encrypted": "Crittografia SSL",
+    "trust.dsgvo_compliant": "Conforme GDPR",
+    "wishlist.on_list": "in lista desideri",
+    "loading.please_wait": "Attendere prego",
+    "offline.banner": "Siete offline. Alcune funzioni sono limitate.",
+    "notifications.title": "Notifiche",
+    "notifications.description": "Scegliete quando volete ricevere notifiche via email.",
+    "notifications.email_messages": "Messaggi e Concierge",
+    "notifications.email_contracts": "Contratti e documenti",
+    "notifications.email_auctions": "Aste e offerte",
+    "notifications.close": "Chiudi",
+    "notifications.change_password": "Cambia password",
+    "filter.favorites_only": "Solo preferiti",
+    "filter.recent_only": "Solo visti di recente",
+    "concierge.cta_title": "Maison Concierge",
+    "concierge.cta_subtitle": "Consulenza personale, appuntamenti e richieste esclusive — sempre a vostra disposizione.",
+    "auth.forgot_password": "Password dimenticata",
+    "auth.forgot_password_link": "Password dimenticata?",
+    "auth.preferred_language": "Lingua preferita",
+    "auth.reset_invalid_token": "Token non valido. Usate \"Password dimenticata\" per ottenere un nuovo link.",
+    "auth.back_to_login": "Torna al login",
+    "legal.ssl": "Crittografia SSL",
+    "legal.secure_payment": "Pagamento sicuro",
+    "legal.imprint": "Impronta",
+    "legal.privacy": "Privacy",
+    "legal.terms": "Termini e condizioni",
+    "legal.contact": "Contatto",
+    "legal.directions": "Come arrivare",
+    "common.settings": "Impostazioni",
+    "common.settings_saved": "Impostazioni salvate.",
+    "common.views": "Visualizzazioni"
+  },
+  fr: {} as Record<string, string>,
+  ar: {} as Record<string, string>,
+  zh: {} as Record<string, string>,
+  es: {} as Record<string, string>
 };
+// Fill fr, ar, zh, es from en so all languages have keys; override with translations below
+(function () {
+  const en = TRANSLATIONS.en as Record<string, string>;
+  const fill = (lang: 'fr' | 'ar' | 'zh' | 'es', overrides: Record<string, string>) => {
+    TRANSLATIONS[lang] = { ...en, ...overrides };
+  };
+  fill('fr', { dashboard: "Tableau de bord", marketplace: "Marché", auctions: "Enchères", vault: "Coffre", management: "Gestion", welcome: "Bienvenue à l'Atelier", login: "Connexion", register: "S'inscrire", "auth.sign_in": "Connexion", "auth.create_account": "Créer un compte", "view.portfolio": "Portefeuille", "view.admin": "Gestion", "investor.title": "Investisseur", "cert.title": "Certificat d'authenticité", "ceremony.enter_vault": "Entrer dans le coffre", "ceremony.view_certificate": "Voir le certificat", sign_out: "Déconnexion", "auth.processing": "Traitement…", "admin.approve": "Approuver", "admin.reject": "Refuser" });
+  fill('ar', { dashboard: "لوحة التحكم", marketplace: "السوق", auctions: "المزادات", vault: "الخزينة", login: "تسجيل الدخول", register: "التسجيل", "auth.sign_in": "تسجيل الدخول", "auth.create_account": "إنشاء حساب", "cert.title": "شهادة الأصالة", "view.portfolio": "المحفظة", "view.admin": "الإدارة", "investor.title": "مستثمر", "ceremony.enter_vault": "الدخول إلى الخزينة", "ceremony.view_certificate": "عرض شهادة الأصالة", sign_out: "تسجيل الخروج", "auth.processing": "جاري المعالجة…", "admin.approve": "موافقة", "admin.reject": "رفض" });
+  fill('zh', { dashboard: "仪表板", marketplace: "市场", auctions: "拍卖", vault: "金库", login: "登录", register: "注册", "auth.sign_in": "登录", "auth.create_account": "创建账户", "cert.title": "真品证书", "view.portfolio": "投资组合", "view.admin": "管理", "investor.title": "投资者", "ceremony.enter_vault": "进入金库", "ceremony.view_certificate": "查看真品证书", sign_out: "退出", "auth.processing": "处理中…", "admin.approve": "批准", "admin.reject": "拒绝" });
+  fill('es', { dashboard: "Panel", marketplace: "Mercado", auctions: "Subastas", vault: "Bóveda", login: "Iniciar sesión", register: "Registrarse", "auth.sign_in": "Iniciar sesión", "auth.create_account": "Crear cuenta", "cert.title": "Certificado de autenticidad", "view.portfolio": "Cartera", "view.admin": "Gestión", "investor.title": "Inversor", "ceremony.enter_vault": "Entrar en la bóveda", "ceremony.view_certificate": "Ver certificado", sign_out: "Cerrar sesión", "auth.processing": "Procesando…", "admin.approve": "Aprobar", "admin.reject": "Rechazar" });
+})();
 
 // --- Components ---
 
-const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false }: any) => {
-  const base = "px-6 py-3 rounded-full font-medium transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
+  const base = "px-6 py-3 rounded-full font-medium transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]";
   const variants: any = {
-    primary: "bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-900/20",
+    primary: "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20 hover:shadow-amber-600/25",
     secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700",
-    outline: "bg-transparent border border-amber-600/50 text-amber-500 hover:bg-amber-600/10",
+    outline: "bg-transparent border border-amber-600/50 text-amber-500 hover:bg-amber-600/10 hover:border-amber-500/60",
     ghost: "bg-transparent text-zinc-400 hover:text-white hover:bg-white/5",
     danger: "bg-red-600/10 text-red-500 border border-red-600/20 hover:bg-red-600/20"
   };
   return (
-    <button disabled={disabled} onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+    <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
       {children}
     </button>
   );
@@ -206,27 +1014,55 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon,
   </div>
 );
 
-const Card = ({ children, className = '' }: any) => (
-  <div className={`bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-3xl p-6 ${className}`}>
+const Card = ({ children, className = '', hoverGlow }: any) => (
+  <div className={`bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-3xl p-6 transition-all duration-300 ${hoverGlow ? 'card-hover-glow' : ''} ${className}`}>
     {children}
   </div>
 );
 
-const Badge = ({ children, variant = 'default' }: any) => {
+const SkeletonCard = () => (
+  <div className="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-3xl overflow-hidden">
+    <div className="aspect-square skeleton" />
+    <div className="p-6 space-y-3">
+      <div className="h-5 w-3/4 skeleton rounded" />
+      <div className="h-4 w-1/2 skeleton rounded" />
+      <div className="h-3 w-full skeleton rounded" />
+      <div className="h-3 w-2/3 skeleton rounded" />
+      <div className="h-10 w-full skeleton rounded-full mt-4" />
+    </div>
+  </div>
+);
+
+const PremiumEmptyState = ({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) => (
+  <div className="py-12 px-6 text-center">
+    <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4">
+      <Icon className="w-8 h-8 text-amber-500/70" />
+    </div>
+    <p className="font-serif italic text-zinc-400 text-lg">{title}</p>
+    {subtitle && <p className="text-xs text-zinc-600 uppercase tracking-widest mt-2">{subtitle}</p>}
+  </div>
+);
+
+const Badge = ({ children, variant = 'default', icon: Icon }: any) => {
   const variants: any = {
     default: "bg-zinc-800 text-zinc-400",
     amber: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
     emerald: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
-    red: "bg-red-500/10 text-red-500 border border-red-500/20"
+    red: "bg-red-500/10 text-red-500 border border-red-500/20",
+    vip: "bg-gradient-to-r from-amber-600/20 to-amber-500/10 text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-900/20",
+    verified: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
+    outline: "bg-transparent border border-zinc-700 text-zinc-400",
+    zinc: "bg-zinc-800/80 text-zinc-400 border border-zinc-700"
   };
   return (
-    <span className={`px-2 py-0.5 rounded text-[10px] uppercase tracking-widest font-bold ${variants[variant]}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-widest font-bold ${variants[variant] || variants.default}`}>
+      {Icon && <Icon className="w-3 h-3" />}
       {children}
     </span>
   );
 };
 
-const SignaturePad = ({ onSave, onClear }: any) => {
+const SignaturePad = ({ onSave, onClear, t }: { onSave: (v: string) => void; onClear: () => void; t?: (k: string) => string }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
@@ -295,21 +1131,39 @@ const SignaturePad = ({ onSave, onClear }: any) => {
           className="w-full h-[200px]"
         />
       </div>
-      <button onClick={clear} className="text-xs text-zinc-500 hover:text-amber-500 transition-colors uppercase tracking-widest font-bold">Clear Signature</button>
+      <button onClick={clear} className="text-xs text-zinc-500 hover:text-amber-500 transition-colors uppercase tracking-widest font-bold">{t ? t('clear_signature') : 'Clear Signature'}</button>
     </div>
   );
 };
 
-const SignatureModal = ({ contract, onClose, onSign, t }: any) => {
+const SignatureModal = ({ contract, onClose, onSign, t, signError }: any) => {
   const [method, setMethod] = useState<'typed' | 'drawn' | 'email'>('typed');
   const [typedName, setTypedName] = useState('');
   const [drawnData, setDrawnData] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSign = () => {
-    const data = method === 'typed' ? typedName : method === 'drawn' ? drawnData : 'verified-email';
+    setLocalError(null);
+    if (!hasReviewed) {
+      setLocalError(t ? (t('confirm_review') || 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.') : 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.');
+      return;
+    }
+    const data = method === 'typed' ? typedName.trim() : method === 'drawn' ? drawnData : 'verified-email';
+    if (method === 'typed' && data.length < 2) {
+      setLocalError(t ? (t('auth.full_legal_name') || 'Bitte geben Sie Ihren vollständigen Namen ein.') : 'Bitte geben Sie Ihren vollständigen Namen ein.');
+      return;
+    }
+    if (method === 'drawn' && data.length < 100) {
+      setLocalError(t ? (t('clear_signature') ? 'Bitte zeichnen Sie Ihre Signatur.' : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.') : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.');
+      return;
+    }
+    if (method === 'email' && !emailVerified) {
+      setLocalError(t ? (t('auth.verification_code_sent') || 'Bitte bestätigen Sie Ihre E-Mail.') : 'Bitte bestätigen Sie Ihre E-Mail.');
+      return;
+    }
     onSign(contract.id, method, data);
   };
 
@@ -380,20 +1234,20 @@ const SignatureModal = ({ contract, onClose, onSign, t }: any) => {
               {method === 'typed' && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <Input 
-                    label="Full Legal Name" 
-                    placeholder="Enter your name as it appears on your ID" 
+                    label={t('auth.full_legal_name')} 
+                    placeholder={t('auth.name_placeholder_id')} 
                     value={typedName} 
                     onChange={(e: any) => setTypedName(e.target.value)}
                   />
                   <div className="p-6 border border-zinc-800 border-dashed rounded-2xl text-center">
-                    <p className="font-serif italic text-3xl text-zinc-400 opacity-50 select-none">{typedName || 'Your Signature'}</p>
+                    <p className="font-serif italic text-3xl text-zinc-400 opacity-50 select-none">{typedName || t('auth.your_signature')}</p>
                   </div>
                 </div>
               )}
 
               {method === 'drawn' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2">
-                  <SignaturePad onSave={setDrawnData} onClear={() => setDrawnData('')} />
+                  <SignaturePad onSave={setDrawnData} onClear={() => setDrawnData('')} t={t} />
                 </div>
               )}
 
@@ -401,7 +1255,7 @@ const SignatureModal = ({ contract, onClose, onSign, t }: any) => {
                 <div className="space-y-6 text-center animate-in fade-in slide-in-from-bottom-2">
                   <div className="p-8 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
                     <Mail className="w-12 h-12 text-amber-500 mx-auto opacity-50" />
-                    <p className="text-zinc-400 text-sm">A verification code will be sent to your registered email address.</p>
+                    <p className="text-zinc-400 text-sm">{t('auth.verification_code_sent')}</p>
                     <Button 
                       variant="outline" 
                       className="mx-auto" 
@@ -414,7 +1268,7 @@ const SignatureModal = ({ contract, onClose, onSign, t }: any) => {
                         }, 1500);
                       }}
                     >
-                      {isVerifying ? 'Sending...' : emailVerified ? 'Verified' : 'Send Verification Code'}
+                      {isVerifying ? t('auth.sending') : emailVerified ? t('auth.verified') : t('auth.send_verification_code')}
                     </Button>
                   </div>
                 </div>
@@ -423,47 +1277,231 @@ const SignatureModal = ({ contract, onClose, onSign, t }: any) => {
           </div>
         </div>
 
-        <div className="p-8 bg-zinc-950 border-t border-zinc-800 flex gap-4">
-          <Button variant="ghost" onClick={onClose} className="flex-1">Cancel</Button>
-          <Button 
-            variant="primary" 
-            disabled={!canSign} 
-            onClick={handleSign}
-            className="flex-[2]"
-          >
-            <Signature className="w-4 h-4" />
-            {t('sign_digitally')}
-          </Button>
+        <div className="p-8 bg-zinc-950 border-t border-zinc-800 space-y-4">
+          {(signError || localError) && (
+            <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3" role="alert">
+              {signError || localError}
+            </p>
+          )}
+          <div className="flex gap-4">
+            <Button variant="ghost" onClick={onClose} className="flex-1">{t('cancel')}</Button>
+            <Button 
+              variant="primary" 
+              disabled={!canSign} 
+              onClick={handleSign}
+              className="flex-[2]"
+            >
+              <Signature className="w-4 h-4" />
+              {t('sign_digitally')}
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>
   );
 };
 
+function ForgotPasswordForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<'idle' | 'success' | 'error'>('idle');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading(true);
+    setMessage('idle');
+    try {
+      const res = await fetch('/api/forgot-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }), credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMessage('success');
+        setTimeout(onSuccess, 2000);
+      } else {
+        setMessage('error');
+      }
+    } catch {
+      setMessage('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <p className="text-sm text-zinc-400">Geben Sie Ihre E-Mail ein. Wir senden Ihnen einen Link zum Zurücksetzen des Passworts.</p>
+      <Input label="E-Mail" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="ihre@email.de" required />
+      {message === 'success' && <p className="text-sm text-emerald-500">Falls ein Konto existiert, wurde ein Link versendet. Prüfen Sie Ihr Postfach.</p>}
+      {message === 'error' && <p className="text-sm text-red-400">Fehler beim Senden. Bitte später erneut versuchen.</p>}
+      <div className="flex gap-3">
+        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>Zurück</Button>
+        <Button type="submit" disabled={loading}>{loading ? 'Wird gesendet…' : 'Link anfordern'}</Button>
+      </div>
+    </form>
+  );
+}
+
+function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack: () => void; onSuccess: () => void }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPassword.length < 6) { setError('Mindestens 6 Zeichen.'); return; }
+    if (newPassword !== confirm) { setError('Passwörter stimmen nicht überein.'); return; }
+    if (!token) { setError('Kein gültiger Link. Bitte fordern Sie einen neuen an.'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, newPassword }), credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        onSuccess();
+      } else {
+        setError(data.error || 'Link abgelaufen oder ungültig.');
+      }
+    } catch {
+      setError('Netzwerkfehler. Bitte erneut versuchen.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  if (!token) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-zinc-400">{t('auth.reset_invalid_token')}</p>
+        <Button variant="outline" onClick={onBack}>{t('auth.back_to_login')}</Button>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <Input label="Neues Passwort" type="password" value={newPassword} onChange={(e: any) => setNewPassword(e.target.value)} placeholder="Min. 6 Zeichen" required />
+      <Input label="Passwort bestätigen" type="password" value={confirm} onChange={(e: any) => setConfirm(e.target.value)} placeholder="Wiederholen" required />
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      <div className="flex gap-3">
+        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>Abbrechen</Button>
+        <Button type="submit" disabled={loading}>{loading ? 'Wird gespeichert…' : 'Passwort setzen'}</Button>
+      </div>
+    </form>
+  );
+}
+
 // --- Main App ---
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'dashboard' | 'marketplace' | 'auctions' | 'vault' | 'admin' | 'portfolio' | 'investor'>('login');
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'vip' | 'investor_insights' | 'dataroom'>('pieces');
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'vault' | 'admin' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+    if (typeof window === 'undefined') return 'login';
+    const params = new URLSearchParams(window.location.search);
+    const v = params.get('view');
+    if (v === 'reset-password' && params.get('token')) return 'reset-password';
+    if (v === 'forgot-password') return 'forgot-password';
+    return 'login';
+  });
+  const [resetPasswordToken, setResetPasswordToken] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('token') || '';
+  });
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom'>('pieces');
+  const [serviceRequestForm, setServiceRequestForm] = useState({ masterpieceId: '' as number | '', type: 'restoration', description: '' });
   const [loading, setLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [masterpieces, setMasterpieces] = useState<Masterpiece[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
-  const [vaultData, setVaultData] = useState<{ pieces: Masterpiece[], certs: Certificate[], contracts: Contract[] }>({ pieces: [], certs: [], contracts: [] });
+  const [myBids, setMyBids] = useState<any[]>([]);
+  const [vaultData, setVaultData] = useState<{ pieces: Masterpiece[], certs: Certificate[], contracts: Contract[], portfolio_hidden_ids?: number[] }>({ pieces: [], certs: [], contracts: [] });
   const [payments, setPayments] = useState<Payment[]>([]);
   const [adminStats, setAdminStats] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [adminContracts, setAdminContracts] = useState<any[]>([]);
   const [language, setLanguage] = useState('de');
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => (typeof window !== 'undefined' && (localStorage.getItem('vault-theme') as 'dark' | 'light')) || 'dark');
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Masterpiece | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [workflows, setWorkflows] = useState<Record<number, PurchaseWorkflow>>({});
   const [showNotifications, setShowNotifications] = useState(false);
   const [contractToSign, setContractToSign] = useState<Contract | null>(null);
+  const [contractSignError, setContractSignError] = useState<string | null>(null);
   const [investorAnalytics, setInvestorAnalytics] = useState<InvestorAnalytics | null>(null);
   const [investorRequests, setInvestorRequests] = useState<InvestorRequest[]>([]);
   const [adminInvestorRequests, setAdminInvestorRequests] = useState<any[]>([]);
+  const [adminResaleListings, setAdminResaleListings] = useState<any[]>([]);
+  const [adminAppointments, setAdminAppointments] = useState<Appointment[]>([]);
+  const [adminAuditLogs, setAdminAuditLogs] = useState<any[]>([]);
+  const [adminRevenue, setAdminRevenue] = useState<any>(null);
+  const [adminCashflow, setAdminCashflow] = useState<any>(null);
+  const [adminResaleRevenue, setAdminResaleRevenue] = useState<any>(null);
+  const [adminBankConfig, setAdminBankConfig] = useState<any>({});
+  const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
+  const [adminServiceRequests, setAdminServiceRequests] = useState<any[]>([]);
+  const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
+  const [appointmentModalRequest, setAppointmentModalRequest] = useState<any>(null);
+  const [appointmentScheduleForm, setAppointmentScheduleForm] = useState({ date: '', time: '09:00', title: '', notes: '' });
+  const [newAppointmentForm, setNewAppointmentForm] = useState({ userId: '', date: '', time: '09:00', title: '', notes: '' });
+  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
+  const [selectedChatThread, setSelectedChatThread] = useState<ChatThread | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [conciergeStatus, setConciergeStatus] = useState<ConciergeAvailability[]>([]);
+  const [chatDraft, setChatDraft] = useState('');
+  const selectedThreadIdRef = useRef<number | null>(null);
+  selectedThreadIdRef.current = selectedChatThread?.id ?? null;
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+  const [dataroomContent, setDataroomContent] = useState<any>(null);
+  const [dataroomPieceId, setDataroomPieceId] = useState<number | ''>('');
+  const [exitSimulation, setExitSimulation] = useState<any>(null);
+  const [investorPortfolio, setInvestorPortfolio] = useState<{ shares: any[]; total_fractional_value: number } | null>(null);
+  const [fractionalOffers, setFractionalOffers] = useState<any[]>([]);
+  const [adminFractionalOffers, setAdminFractionalOffers] = useState<any[]>([]);
+  const [shareRequestForm, setShareRequestForm] = useState({ masterpieceId: '' as number | '', percentage: 5 });
+  const [fractionalOfferForm, setFractionalOfferForm] = useState({ masterpieceId: '' as number | '', available_pct: 20, price_per_pct: '' as number | '' });
+  const [filterSearch, setFilterSearch] = useState('');
+  const [filterRarity, setFilterRarity] = useState('');
+  const [filterMarketScope, setFilterMarketScope] = useState<'all' | 'favorites' | 'recent'>('all');
+  const [sortMarket, setSortMarket] = useState<'newest' | 'price_asc' | 'price_desc' | 'title'>('newest');
+  const assetViewStartRef = useRef<number | null>(null);
+  const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem('vault-recently-viewed') || '[]'); } catch { return []; } });
+  const [verifyCertId, setVerifyCertId] = useState<string | null>(null);
+  const [verifyData, setVerifyData] = useState<{ cert: any; piece: any; owner_name: string | null } | null>(null);
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState<{ message: string } | null>(null);
+  const [notificationPrefs, setNotificationPrefs] = useState<{ email_messages: boolean; email_contracts: boolean; email_auctions: boolean }>({ email_messages: true, email_contracts: true, email_auctions: true });
+  const [atelierMoments, setAtelierMoments] = useState<{ id: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
+  const [showNotificationPrefsModal, setShowNotificationPrefsModal] = useState(false);
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [changePasswordForm, setChangePasswordForm] = useState({ current: '', new: '', confirm: '' });
+  const [changePasswordSubmitting, setChangePasswordSubmitting] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [adminContactRequests, setAdminContactRequests] = useState<{ id: number; name: string; email: string; subject: string | null; message: string; created_at: string }[]>([]);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [contactFormSubmitting, setContactFormSubmitting] = useState(false);
+  const [contactFormSent, setContactFormSent] = useState(false);
+  const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
+  const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'settings'>('overview');
+  const [adminAtelierSaving, setAdminAtelierSaving] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const filterMasterpieces = (list: Masterpiece[], statusFilter?: string) => {
+    let out = list;
+    if (statusFilter) out = out.filter(p => p.status === statusFilter);
+    if (filterSearch.trim()) {
+      const q = filterSearch.trim().toLowerCase();
+      out = out.filter(p => (p.title?.toLowerCase().includes(q)) || (p.serial_id?.toLowerCase().includes(q)) || (p.category?.toLowerCase().includes(q)));
+    }
+    if (filterRarity) out = out.filter(p => p.rarity === filterRarity);
+    if (filterMarketScope === 'favorites' && user) out = out.filter(p => favoriteIds.includes(p.id));
+    if (filterMarketScope === 'recent' && user) out = out.filter(p => recentlyViewedIds.includes(p.id));
+    if (sortMarket === 'price_asc') out = [...out].sort((a, b) => (Number(a.valuation) || 0) - (Number(b.valuation) || 0));
+    else if (sortMarket === 'price_desc') out = [...out].sort((a, b) => (Number(b.valuation) || 0) - (Number(a.valuation) || 0));
+    else if (sortMarket === 'title') out = [...out].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+    else out = [...out].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    return out;
+  };
 
   const handleGenerateCertificate = async (masterpieceId: number) => {
     if (!user) return;
@@ -475,23 +1513,24 @@ export default function App() {
         body: JSON.stringify({ masterpieceId, adminId: user.id })
       });
       if (res.ok) {
-        alert("Certificate of Authenticity generated and stored in the user's vault.");
+        notifyUser(t('cert.generated'), 'success');
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to generate certificate");
+        notifyUser(err.error || t('errors.cert_failed'), 'error');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  const t = (key: string) => TRANSLATIONS[language]?.[key] || key;
+  const t = (key: string) => TRANSLATIONS[language]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
 
   // Forms
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [address, setAddress] = useState('');
   const [wantsVip, setWantsVip] = useState(false);
   const [selectedRole, setSelectedRole] = useState<UserRole>(UserRole.CLIENT);
@@ -522,14 +1561,151 @@ export default function App() {
   const ws = useRef<WebSocket | null>(null);
 
   useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    const m = hash.match(/^#?\/?verify\/(.+)/);
+    if (m) {
+      setView('verify');
+      setVerifyCertId(decodeURIComponent(m[1].replace(/\/$/, '')));
+      return;
+    }
+    fetch('/api/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setUser(data);
+          setLanguage(data.language || 'de');
+          setView('dashboard');
+          if (data.notification_prefs) {
+            try {
+              const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
+              if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
+            } catch (_) {}
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (verifyCertId) {
+      fetch(`/api/verify/certificate/${encodeURIComponent(verifyCertId)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(setVerifyData)
+        .catch(() => setVerifyData(null));
+    } else setVerifyData(null);
+  }, [verifyCertId]);
+
+  useEffect(() => {
+    try { localStorage.setItem('vault-recently-viewed', JSON.stringify(recentlyViewedIds.slice(0, 6))); } catch (_) {}
+  }, [recentlyViewedIds]);
+
+  useEffect(() => {
+    document.title = view === 'login' || view === 'register' ? 'Juwelen & Schmuckatelier Antonio Bellanova' : view === 'verify' ? 'Zertifikat prüfen' : `${(view as string).replace(/_/g, ' ')} · Juwelen & Schmuckatelier Antonio Bellanova`;
+  }, [view]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedPiece) closePieceDetail();
+        else if (contractToSign) setContractToSign(null);
+        else if (showNotifications) setShowNotifications(false);
+        else if (showNotificationPrefsModal) setShowNotificationPrefsModal(false);
+        else if (showPasswordChangeModal) setShowPasswordChangeModal(false);
+        else if (showShortcutsModal) setShowShortcutsModal(false);
+        else if (selectedCert) setSelectedCert(null);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        (document.querySelector('.global-search-input') as HTMLInputElement)?.focus();
+      }
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey) setShowShortcutsModal(prev => !prev);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedPiece, contractToSign, showNotifications, showNotificationPrefsModal, showPasswordChangeModal, showShortcutsModal, selectedCert]);
+
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(typeof window !== 'undefined' && window.scrollY > 400);
+    window.addEventListener('scroll', onScroll);
+    onScroll();
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
     if (user) {
       fetchData();
       setupWebSocket();
-      // Expose handleGenerateCertificate to window for the child component
       (window as any).handleGenerateCertificate = handleGenerateCertificate;
     }
     return () => ws.current?.close();
   }, [user]);
+
+  useEffect(() => {
+    if (!user || view !== 'concierge') return;
+    fetch(`/api/communication/threads?userId=${user.id}`).then(r => r.json()).then(setChatThreads).catch(() => {});
+    fetch(`/api/communication/concierge/status`).then(r => r.json()).then(setConciergeStatus).catch(() => {});
+  }, [user, view]);
+
+  useEffect(() => {
+    if (!selectedChatThread || !user) {
+      setChatMessages([]);
+      return;
+    }
+    fetch(`/api/communication/threads/${selectedChatThread.id}/messages?userId=${user.id}`).then(r => r.json()).then(setChatMessages).catch(() => setChatMessages([]));
+  }, [selectedChatThread?.id, user]);
+
+  useEffect(() => {
+    if (user) fetch(`/api/analytics/favorites?userId=${user.id}`).then(r => r.json()).then(setFavoriteIds).catch(() => {});
+  }, [user?.id]);
+  const prevViewRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevViewRef.current !== 'admin' && view === 'admin') setAdminAtelierMoments([...atelierMoments]);
+    prevViewRef.current = view;
+  }, [view, atelierMoments]);
+
+  useEffect(() => {
+    if (selectedPiece?.id) {
+      setRecentlyViewedIds(prev => [selectedPiece.id, ...prev.filter(id => id !== selectedPiece.id)].slice(0, 6));
+    }
+  }, [selectedPiece?.id]);
+
+  useEffect(() => {
+    const pieceId = selectedPiece?.id;
+    if (pieceId && user) assetViewStartRef.current = Date.now();
+    return () => {
+      if (user?.id && pieceId && assetViewStartRef.current) {
+        const durationSeconds = Math.round((Date.now() - assetViewStartRef.current) / 1000);
+        fetch('/api/analytics/asset-view', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id, masterpieceId: pieceId, durationSeconds })
+        }).catch(() => {});
+        assetViewStartRef.current = null;
+      }
+    };
+  }, [selectedPiece?.id, user?.id]);
+
+  const closePieceDetail = () => {
+    if (user && selectedPiece && assetViewStartRef.current) {
+      const durationSeconds = Math.round((Date.now() - assetViewStartRef.current) / 1000);
+      fetch('/api/analytics/asset-view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, masterpieceId: selectedPiece.id, durationSeconds })
+      }).catch(() => {});
+      assetViewStartRef.current = null;
+    }
+    setSelectedPiece(null);
+  };
 
   const setupWebSocket = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -544,18 +1720,31 @@ export default function App() {
             ? { ...a, current_bid: data.amount, highest_bidder_id: data.userId } 
             : a
         ));
+      } else if (data.type === 'CHAT_MESSAGE' && data.message) {
+        setChatMessages(prev => (data.threadId === selectedThreadIdRef.current ? [...prev, data.message] : prev));
+      } else if (data.type === 'CONCIERGE_STATUS') {
+        setConciergeStatus(prev => {
+          const next = prev.filter((c: ConciergeAvailability) => c.admin_id !== data.adminId);
+          next.push({ id: 0, admin_id: data.adminId, status: data.status, updated_at: new Date().toISOString() });
+          return next;
+        });
       } else {
         fetchData(); // Refresh on other updates
       }
     };
   };
 
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notifyUser = (msg: string, type: 'success' | 'error' = 'success') => {
-    alert(msg);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ msg, type });
+    toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
   };
 
   const fetchData = async () => {
     if (!user) return;
+    setListLoading(true);
     try {
       const [piecesRes, auctionsRes, vaultRes, payRes, notifRes] = await Promise.all([
         fetch('/api/masterpieces'),
@@ -572,40 +1761,231 @@ export default function App() {
       if (notifRes.ok) setNotifications(await notifRes.json());
 
       if (user.role === UserRole.ADMIN) {
-        const [statsRes, usersRes, contractsRes, invReqRes] = await Promise.all([
+        const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes] = await Promise.all([
           fetch('/api/admin/stats'),
           fetch('/api/admin/users'),
           fetch('/api/admin/contracts'),
-          fetch('/api/admin/investor-requests')
+          fetch('/api/admin/investor-requests'),
+          fetch('/api/admin/resale-listings'),
+          fetch('/api/admin/appointments'),
+          fetch('/api/admin/audit-logs?limit=100'),
+          fetch('/api/admin/revenue-dashboard'),
+          fetch('/api/admin/cashflow'),
+          fetch('/api/admin/resale-revenue'),
+          fetch('/api/admin/bank-config'),
+          fetch('/api/admin/gdpr/data-requests'),
+          fetch('/api/admin/fractional-offers'),
+          fetch('/api/admin/service-requests'),
+          fetch('/api/admin/contact-requests')
         ]);
         if (statsRes.ok) setAdminStats(await statsRes.json());
         if (usersRes.ok) setAllUsers(await usersRes.json());
         if (contractsRes.ok) setAdminContracts(await contractsRes.json());
         if (invReqRes.ok) setAdminInvestorRequests(await invReqRes.json());
+        if (resaleListingsRes.ok) setAdminResaleListings(await resaleListingsRes.json());
+        if (appointmentsRes.ok) setAdminAppointments(await appointmentsRes.json());
+        if (auditRes.ok) setAdminAuditLogs(await auditRes.json());
+        if (revenueRes.ok) setAdminRevenue(await revenueRes.json());
+        if (cashflowRes.ok) setAdminCashflow(await cashflowRes.json());
+        if (resaleRevRes.ok) setAdminResaleRevenue(await resaleRevRes.json());
+        if (bankRes.ok) setAdminBankConfig(await bankRes.json());
+        if (gdprRes.ok) setAdminGdprRequests(await gdprRes.json());
+        if (fracOffersRes.ok) setAdminFractionalOffers(await fracOffersRes.json());
+        if (serviceReqRes.ok) setAdminServiceRequests(await serviceReqRes.json());
+        if (contactReqRes.ok) setAdminContactRequests(await contactReqRes.json());
       }
 
+      const apptsRes = await fetch(`/api/appointments?userId=${user.id}`);
+      if (apptsRes.ok) setUserAppointments(await apptsRes.json());
+
+      const recentViewsRes = await fetch('/api/recent-views', { credentials: 'include' });
+      if (recentViewsRes.ok) {
+        const recentPieces = await recentViewsRes.json();
+        if (Array.isArray(recentPieces) && recentPieces.length > 0)
+          setRecentlyViewedIds(recentPieces.map((p: { id: number }) => p.id));
+      }
+
+      const myBidsRes = await fetch(`/api/auctions/my-bids?userId=${user.id}`);
+      if (myBidsRes.ok) setMyBids(await myBidsRes.json());
+
       if (user.role === UserRole.INVESTOR) {
-        const [analyticsRes] = await Promise.all([
-          fetch('/api/investor/analytics')
+        const [analyticsRes, myReqsRes, offersRes, portfolioRes] = await Promise.all([
+          fetch('/api/investor/analytics'),
+          fetch(`/api/investor/my-requests?userId=${user.id}`),
+          fetch('/api/investor/fractional-offers'),
+          fetch(`/api/investor/portfolio/${user.id}`)
         ]);
         if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
+        if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
+        if (offersRes.ok) setFractionalOffers(await offersRes.json());
+        if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
       }
+      if (user.role === UserRole.CLIENT) {
+        const offersRes = await fetch('/api/investor/fractional-offers');
+        if (offersRes.ok) setFractionalOffers(await offersRes.json());
+      }
+      fetch('/api/atelier-moments').then(r => r.ok ? r.json() : []).then(setAtelierMoments).catch(() => {});
     } catch (e) {
       console.error("Fetch error", e);
+    } finally {
+      setListLoading(false);
     }
   };
 
-  const handleInvestorRequest = async (type: 'allocation' | 'meeting' | 'preview' | 'dataroom', message: string) => {
+  const handleInvestorRequestReview = async (requestId: number, approve: boolean) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/investor-requests/${requestId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approve }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const [updated, offers] = await Promise.all([
+          fetch('/api/admin/investor-requests', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
+          fetch('/api/admin/fractional-offers', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
+        ]);
+        setAdminInvestorRequests(updated);
+        setAdminFractionalOffers(offers);
+        notifyUser(approve ? "Anfrage genehmigt." : "Anfrage abgelehnt.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApproveMeetingWithAppointment = (req: any) => {
+    setAppointmentModalRequest(req);
+    setAppointmentScheduleForm({ date: '', time: '09:00', title: '', notes: '' });
+  };
+
+  const handleScheduleAppointmentSubmit = async (payload: { date: string; time: string; title: string; notes: string }) => {
+    if (!user || user.role !== UserRole.ADMIN || !appointmentModalRequest) return;
+    const dateStr = payload.date && payload.date.includes('-') ? payload.date : payload.date.split('.').reverse().join('-');
+    const scheduled_at = `${dateStr}T${(payload.time || '09:00').substring(0, 5)}:00`;
+    setLoading(true);
+    try {
+      const reviewRes = await fetch(`/api/admin/investor-requests/${appointmentModalRequest.id}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approve: true }),
+        credentials: 'include'
+      });
+      if (!reviewRes.ok) {
+        notifyUser("Genehmigung fehlgeschlagen.", "error");
+        return;
+      }
+      const apptRes = await fetch('/api/admin/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: user.id,
+          userId: appointmentModalRequest.user_id,
+          requestId: appointmentModalRequest.id,
+          scheduled_at,
+          title: payload.title || (t('investor.schedule_meeting') as string),
+          notes: payload.notes || null
+        }),
+        credentials: 'include'
+      });
+      if (apptRes.ok) {
+        setAppointmentModalRequest(null);
+        setAppointmentScheduleForm({ date: '', time: '09:00', title: '', notes: '' });
+        const [invReq, appts] = await Promise.all([
+          fetch('/api/admin/investor-requests', { credentials: 'include' }).then(r => r.ok ? r.json() : []),
+          fetch('/api/admin/appointments', { credentials: 'include' }).then(r => r.ok ? r.json() : [])
+        ]);
+        setAdminInvestorRequests(invReq);
+        setAdminAppointments(appts);
+        notifyUser("Anfrage genehmigt und Termin eingetragen.", "success");
+      } else {
+        const err = await apptRes.json().catch(() => ({}));
+        notifyUser(err?.error || "Termin konnte nicht erstellt werden.", "error");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateAppointmentFromForm = async () => {
+    if (!user || user.role !== UserRole.ADMIN) return;
+    const { userId, date, time, title, notes } = newAppointmentForm;
+    if (!userId || !date) { notifyUser("Bitte Kunde und Datum angeben.", "error"); return; }
+    const dateStr = date.includes('-') ? date : date.split('.').reverse().join('-');
+    const scheduled_at = `${dateStr}T${(time || '09:00').substring(0, 5)}:00`;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: user.id, userId: Number(userId), scheduled_at, title: title || null, notes: notes || null }),
+        credentials: 'include'
+      });
+      if (res.ok) {
+        setNewAppointmentForm({ userId: '', date: '', time: '', title: '', notes: '' });
+        const list = await fetch('/api/admin/appointments', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+        setAdminAppointments(list);
+        notifyUser("Termin erstellt.", "success");
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notifyUser(err?.error || "Termin konnte nicht erstellt werden.", "error");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAppointmentRespond = async (appointmentId: number, status: 'confirmed' | 'cancelled') => {
     if (!user) return;
     setLoading(true);
     try {
+      const res = await fetch(`/api/appointments/${appointmentId}/respond`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, status }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const list = await fetch(`/api/appointments?userId=${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+        setUserAppointments(list);
+        notifyUser(status === 'confirmed' ? "Termin angenommen." : "Termin abgesagt.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInvestorRequest = async (type: 'allocation' | 'meeting' | 'preview' | 'dataroom' | 'share', message: string, masterpieceId?: number, percentage?: number) => {
+    if (!user) return;
+    if (type === 'share' && !masterpieceId) return;
+    setLoading(true);
+    try {
+      const body: any = { userId: user.id, type, message };
+      if (type === 'share') {
+        body.masterpiece_id = masterpieceId;
+        body.request_metadata = { percentage: percentage ?? shareRequestForm.percentage };
+      }
       const res = await fetch('/api/investor/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, type, message })
+        body: JSON.stringify(body),
+        credentials: 'include'
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        alert("Request submitted successfully. Our team will contact you shortly.");
+        notifyUser(t('investor.request_submitted'), 'success');
+        if (type === 'share') setShareRequestForm({ masterpieceId: '', percentage: 5 });
+        const myReqsRes = await fetch(`/api/investor/my-requests?userId=${user.id}`, { credentials: 'include' });
+        if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
       }
     } finally {
       setLoading(false);
@@ -627,22 +2007,35 @@ export default function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoginError(null);
+    const emailTrim = (email || '').toString().trim();
+    const passwordVal = (password || '').toString();
+    if (!emailTrim || !passwordVal) {
+      setLoginError('Bitte E-Mail und Passwort eingeben.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: emailTrim, password: passwordVal }),
+        credentials: 'include'
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         setUser(data);
         setLanguage(data.language);
         setView('dashboard');
       } else {
-        const err = await res.json();
-        alert(err.error || "Invalid credentials");
+        const msg = (data && data.error) || t('errors.invalid_credentials');
+        setLoginError(msg);
+        notifyUser(msg, 'error');
       }
+    } catch (err) {
+      const msg = 'Verbindungsfehler. Ist der Server gestartet? (npm run dev)';
+      setLoginError(msg);
+      notifyUser(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -655,11 +2048,14 @@ export default function App() {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, address, wantsVip, language, role: selectedRole })
+        body: JSON.stringify({ email, password, name, username: username.trim() || undefined, address, wantsVip, language, role: selectedRole })
       });
       if (res.ok) {
-        alert("Registration successful. Please wait for admin approval.");
+        notifyUser(t('auth.register_success'), 'success');
         setView('login');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        notifyUser(data?.error || t('errors.generic'), 'error');
       }
     } finally {
       setLoading(false);
@@ -680,7 +2076,7 @@ export default function App() {
         })
       });
       if (res.ok) {
-        alert("Masterpiece created successfully.");
+        notifyUser(t('admin.piece_created'), 'success');
         setNewPiece({ 
           title: '', 
           serial_id: '', 
@@ -698,7 +2094,7 @@ export default function App() {
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to create masterpiece");
+        notifyUser(err.error || t('errors.piece_create_failed'), 'error');
       }
     } finally {
       setLoading(false);
@@ -718,7 +2114,7 @@ export default function App() {
         })
       });
       if (res.ok) {
-        alert("Auction created successfully.");
+        notifyUser(t('admin.auction_created'), 'success');
         setNewAuction({ masterpieceId: '', startPrice: '', endTime: '', vipOnly: false });
         fetchData();
       }
@@ -739,7 +2135,7 @@ export default function App() {
         })
       });
       if (res.ok) {
-        alert("Stück erfolgreich zugewiesen.");
+        notifyUser(t('admin.piece_assigned'), 'success');
         setAssignPiece({ userId: '', masterpieceId: '' });
         fetchData();
       }
@@ -755,11 +2151,15 @@ export default function App() {
       const res = await fetch('/api/marketplace/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, masterpieceId: pieceId })
+        body: JSON.stringify({ userId: user.id, masterpieceId: pieceId }),
+        credentials: 'include'
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        alert("Kaufanfrage gesendet. Warten auf Admin-Genehmigung.");
+        notifyUser(t('marketplace.request_sent'), 'success');
         fetchData();
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
       }
     } finally {
       setLoading(false);
@@ -772,9 +2172,16 @@ export default function App() {
       const res = await fetch('/api/admin/approve-purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masterpieceId: pieceId, approve, adminId })
+        body: JSON.stringify({ masterpieceId: pieceId, approve, adminId }),
+        credentials: 'include'
       });
-      if (res.ok) fetchData();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser(approve ? "Kauf genehmigt." : "Kauf abgelehnt.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -787,148 +2194,205 @@ export default function App() {
       const res = await fetch('/api/admin/workflow/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ masterpieceId: pieceId, step, adminId: user.id })
+        body: JSON.stringify({ masterpieceId: pieceId, step, adminId: user.id }),
+        credentials: 'include'
       });
-      if (res.ok) fetchData();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Workflow-Schritt aktualisiert.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  const downloadPDF = (title: string, content: string, piece?: Masterpiece) => {
+  const downloadPDF = (title: string, content: string, piece?: Masterpiece, options?: { docRef?: string; fileName?: string; contractType?: string }) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 26;
 
     // Soft Ivory Background
     doc.setFillColor(253, 252, 251);
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
     
-    // Subtle Watermark
-    doc.setFontSize(60);
-    doc.setTextColor(245, 245, 245);
+    // Very faint watermark
+    doc.setFontSize(44);
+    doc.setTextColor(248, 248, 248);
     doc.setFont("times", "italic");
     doc.text("ANTONIO BELLANOVA", pageWidth / 2, pageHeight / 2, { align: "center", angle: 45 });
 
-    // Vertical Brand Typography
-    doc.setFontSize(6);
-    doc.setTextColor(220, 220, 220);
+    // Vertical text: very light, minimal distraction
+    doc.setFontSize(5);
+    doc.setTextColor(238, 238, 238);
     doc.setFont("helvetica", "normal");
-    doc.text("ANTONIO BELLANOVA ATELIER • PRIVATE VAULT INSTRUMENT", 10, pageHeight / 2, { angle: 90, charSpace: 2 });
-    doc.text("EST. 2024 • HAUTE JOAILLERIE • KÖLN • DEUTSCHLAND", pageWidth - 10, pageHeight / 2, { angle: -90, charSpace: 2 });
+    doc.text("PRIVATE VAULT", 10, pageHeight / 2, { angle: 90 });
+    doc.text("KÖLN", pageWidth - 10, pageHeight / 2, { angle: -90 });
 
-    // Header Logo
+    // Header (compact)
     doc.setFont("times", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(197, 160, 89); // Subtle Gold
-    doc.text("ANTONIO BELLANOVA", pageWidth / 2, 35, { align: "center", charSpace: 4 });
-    
-    // Document Title
-    doc.setFont("times", "normal");
-    doc.setFontSize(38);
+    doc.setFontSize(9);
+    doc.setTextColor(197, 160, 89);
+    doc.text("ANTONIO BELLANOVA", pageWidth / 2, 24, { align: "center", charSpace: 3 });
+    doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
-    doc.text(title.toUpperCase(), pageWidth / 2, 60, { align: "center", charSpace: 1 });
+    doc.text(title.toUpperCase(), pageWidth / 2, 40, { align: "center", charSpace: 1 });
     
-    // Metadata Block
-    doc.setDrawColor(245, 245, 245);
-    doc.setLineWidth(0.1);
-    doc.line(40, 75, pageWidth - 40, 75);
-    doc.line(40, 90, pageWidth - 40, 90);
-    
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(0.2);
+    doc.line(margin, 46, pageWidth - margin, 46);
+    doc.line(margin, 58, pageWidth - margin, 58);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6);
-    doc.setTextColor(150, 150, 150);
-    doc.text("DOCUMENT REF", 45, 80);
-    doc.text("CLIENT REF", 85, 80);
-    doc.text("VERSION", 125, 80);
-    doc.text("DATE", 155, 80);
-    
+    doc.setTextColor(120, 120, 120);
+    doc.text("DOCUMENT REF", margin, 52);
+    doc.text("CLIENT REF", margin + 38, 52);
+    doc.text("VERSION", margin + 72, 52);
+    doc.text("DATE", margin + 98, 52);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
-    doc.setTextColor(50, 50, 50);
-    const docRef = `REF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-    doc.text(docRef, 45, 86);
-    doc.text(`CL-${user?.id || '000'}`, 85, 86);
-    doc.text("v1.0", 125, 86);
-    doc.text(new Date().toLocaleDateString(), 155, 86);
+    doc.setTextColor(40, 40, 40);
+    const docRef = options?.docRef || `REF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    doc.text(docRef, margin, 56);
+    doc.text(`CL-${user?.id ?? '—'}`, margin + 38, 56);
+    doc.text("v1.0", margin + 72, 56);
+    doc.text(new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric', year: 'numeric' }), margin + 98, 56);
 
-    let currentY = 110;
+    let currentY = 68;
 
-    if (piece) {
-        // Hero Image Placeholder (if we had base64, we'd put it here)
-        // For now, we use a refined text block
-        doc.setFont("times", "normal");
-        doc.setFontSize(22);
-        doc.setTextColor(0, 0, 0);
-        doc.text(piece.title, pageWidth / 2, currentY, { align: "center" });
-        
-        currentY += 8;
-        doc.setFont("helvetica", "italic");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`Serial Identification: ${piece.serial_id}`, pageWidth / 2, currentY, { align: "center", charSpace: 1 });
-        
-        currentY += 20;
-        
-        // Pricing Block
-        doc.setFillColor(250, 250, 250);
-        doc.rect(40, currentY, pageWidth - 80, 40, 'F');
-        doc.setDrawColor(240, 240, 240);
-        doc.rect(40, currentY, pageWidth - 80, 40, 'D');
-        
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6);
-        doc.setTextColor(197, 160, 89);
-        doc.text("ASSET SPECIFICATIONS", 45, currentY + 10);
-        doc.text("FINANCIAL VALUATION", pageWidth / 2 + 5, currentY + 10);
-        
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(60, 60, 60);
-        doc.text(piece.materials, 45, currentY + 18);
-        doc.text(piece.gemstones, 45, currentY + 24);
-        
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`${Number(piece.valuation).toLocaleString()} EUR`, pageWidth / 2 + 5, currentY + 22);
-        
-        currentY += 60;
+    // Asset block (compact)
+    if (piece && (piece.title || piece.serial_id)) {
+      const displayTitle = (piece.title && piece.title.length > 1) ? piece.title : (piece.serial_id ? `Serial ${piece.serial_id}` : 'Masterpiece');
+      doc.setFont("times", "normal");
+      doc.setFontSize(13);
+      doc.setTextColor(0, 0, 0);
+      doc.text(displayTitle, pageWidth / 2, currentY, { align: "center" });
+      currentY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Serial: ${piece.serial_id || '—'}`, pageWidth / 2, currentY, { align: "center" });
+      currentY += 10;
+      const blockH = 26;
+      doc.setFillColor(250, 249, 247);
+      doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'F');
+      doc.setDrawColor(235, 230, 220);
+      doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'D');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      doc.setTextColor(197, 160, 89);
+      doc.text("ASSET SPECIFICATIONS", margin + 3, currentY + 7);
+      doc.text("FINANCIAL SUMMARY", pageWidth / 2 + 3, currentY + 7);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(60, 60, 60);
+      doc.text((piece.materials && piece.materials.length > 1) ? piece.materials : '—', margin + 3, currentY + 14);
+      doc.text((piece.gemstones && piece.gemstones.length > 1) ? piece.gemstones : '—', margin + 3, currentY + 20);
+      const val = piece.valuation != null && Number(piece.valuation) > 0 ? Number(piece.valuation).toLocaleString('de-DE') + ' EUR' : '—';
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text(val, pageWidth / 2 + 3, currentY + 16);
+      currentY += blockH + 8;
     }
 
-    // Content
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    
-    const cleanContent = content
+    // Body: use tidy generated text when we have piece + contractType, else stripped HTML
+    let bodyText: string;
+    const typ = (options?.contractType || '').toLowerCase();
+    if (piece && typ) {
+      const serial = piece.serial_id || '—';
+      const valuation = piece.valuation != null && Number(piece.valuation) > 0 ? `${Number(piece.valuation).toLocaleString('de-DE')} EUR` : '—';
+      const pct = piece.deposit_pct ?? 10;
+      const depositAmount = piece.valuation != null ? ((piece.valuation * pct) / 100).toLocaleString('de-DE') : '—';
+      const titlePiece = (piece.title && piece.title.length > 1) ? piece.title : serial;
+      if (typ === 'deposit') {
+        bodyText = `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required to initiate bespoke production. The asset remains secured within the Antonio Bellanova Vault. Ownership remains with the Atelier until final settlement and transfer of title.\n\nBy signing, the Client acknowledges the terms and commits to the deposit payment. Governing law: Germany. Jurisdiction: Cologne.`;
+      } else if (typ === 'invoice') {
+        bodyText = `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. The remaining balance is due as per the payment instructions. Upon full payment and confirmation, ownership will be transferred and a Certificate of Authenticity will be issued.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+      } else if (typ === 'resale_commission' || typ === 'resale') {
+        bodyText = `Resale Commission Agreement for the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. This agreement governs the secondary market sale of the asset through the Antonio Bellanova Vault platform. Commission and payout terms apply as per the signed agreement. Platform resale ensures Registry update, new Certificate, and warranty continuity.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+      } else if (typ === 'vip') {
+        bodyText = `VIP Membership Agreement. Annual membership benefits: 48h Early Access, Private Auction Access, Concierge Service, repair priority, reduced resale commission, invite-only events. Terms and cancellation as per Platform Terms.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+      } else if (typ === 'fractional') {
+        bodyText = `Fractional Ownership Agreement for participation in the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. The physical asset remains in the custody of the Antonio Bellanova Vault. Exit and secondary trading as per platform rules.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+      } else {
+        bodyText = title + '. This document forms part of your contractual relationship with Antonio Bellanova Atelier. Governing law: Germany. Jurisdiction: Cologne.';
+      }
+    } else {
+      let cleanContent = content
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<\/?(div|p|h[1-6]|li|tr|section)[^>]*>/gi, '\n')
       .replace(/<br\s*\/?>/gi, '\n')
       .replace(/<\/p>/gi, '\n\n')
       .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/(\d+)\.\s*/g, '\n$1. ')
       .trim();
+      if (!cleanContent || cleanContent.length < 15) cleanContent = title + '. Document on file. Governing law: Germany. Jurisdiction: Cologne.';
+      bodyText = cleanContent;
+    }
 
-    const splitText = doc.splitTextToSize(cleanContent, pageWidth - 80);
-    doc.text(splitText, 40, currentY, { align: "justify", lineHeightFactor: 1.8 });
-
-    // Signature Area
-    const sigY = pageHeight - 50;
-    doc.setFont("times", "italic");
-    doc.setFontSize(20);
-    doc.setTextColor(0, 0, 0);
-    doc.text("Antonio Bellanova", 40, sigY);
-    
-    doc.setDrawColor(197, 160, 89);
-    doc.setLineWidth(0.1);
-    doc.line(40, sigY + 3, 90, sigY + 3);
-    
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    doc.setTextColor(150, 150, 150);
-    doc.text("ATELIER DIRECTOR", 40, sigY + 8, { charSpace: 2 });
+    doc.setFontSize(9);
+    doc.setTextColor(30, 30, 30);
+    const lineHeight = 4.8;
+    const sigY = pageHeight - 42;
+    const maxBodyY = sigY - 14;
+    const splitText = doc.splitTextToSize(bodyText, pageWidth - 2 * margin - 4);
+    let page = 1;
+    for (let i = 0; i < splitText.length; i++) {
+      if (currentY + lineHeight > maxBodyY && page === 1) {
+        doc.addPage();
+        page++;
+        doc.setFillColor(253, 252, 251);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        doc.setFontSize(5);
+        doc.setTextColor(238, 238, 238);
+        doc.text("PRIVATE VAULT", 12, pageHeight / 2, { angle: 90 });
+        doc.text("KÖLN", pageWidth - 12, pageHeight / 2, { angle: -90 });
+        currentY = margin;
+      } else if (currentY + lineHeight > pageHeight - margin && page > 1) {
+        doc.addPage();
+        page++;
+        doc.setFillColor(253, 252, 251);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        currentY = margin;
+      }
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(30, 30, 30);
+      doc.text(splitText[i], margin, currentY, { align: "justify" });
+      currentY += lineHeight;
+    }
 
-    doc.line(pageWidth - 90, sigY + 3, pageWidth - 40, sigY + 3);
-    doc.text("CLIENT ENDORSEMENT", pageWidth - 90, sigY + 8, { charSpace: 2 });
+    const signAtY = page > 1 ? currentY + 12 : sigY;
+    if (page > 1) doc.setPage(page);
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(0.2);
+    doc.line(margin, signAtY - 10, pageWidth - margin, signAtY - 10);
+    doc.setFont("times", "italic");
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Antonio Bellanova", margin, signAtY);
+    doc.setDrawColor(197, 160, 89);
+    doc.setLineWidth(0.2);
+    doc.line(margin, signAtY + 3, margin + 55, signAtY + 3);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5);
+    doc.setTextColor(120, 120, 120);
+    doc.text("ATELIER DIRECTOR", margin, signAtY + 8);
+    doc.line(pageWidth - margin - 55, signAtY + 3, pageWidth - margin, signAtY + 3);
+    doc.text("CLIENT ENDORSEMENT", pageWidth - margin - 55, signAtY + 8);
 
-    doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
+    const fileName = options?.fileName || `${title.replace(/\s+/g, '_')}.pdf`;
+    doc.save(fileName);
   };
 
   const handleBid = async (auctionId: number, amount: number) => {
@@ -938,13 +2402,16 @@ export default function App() {
       const res = await fetch('/api/auctions/bid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auctionId, userId: user.id, amount })
+        body: JSON.stringify({ auctionId, userId: user.id, amount }),
+        credentials: 'include'
       });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.error);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Gebot abgegeben.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
       }
-      fetchData();
     } finally {
       setLoading(false);
     }
@@ -956,9 +2423,16 @@ export default function App() {
       const res = await fetch('/api/admin/confirm-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentId })
+        body: JSON.stringify({ paymentId }),
+        credentials: 'include'
       });
-      if (res.ok) fetchData();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Zahlung bestätigt.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -974,12 +2448,12 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
-        alert(`Client added successfully. Access Token: ${data.token}`);
+        notifyUser(t('admin.client_added'), 'success');
         setNewClient({ name: '', email: '', address: '', role: 'client', isVip: false });
         fetchData();
       } else {
         const err = await res.json();
-        alert(err.error || "Failed to add client");
+        notifyUser(err.error || "Failed to add client", 'error');
       }
     } finally {
       setLoading(false);
@@ -1003,61 +2477,126 @@ export default function App() {
   const [showCeremony, setShowCeremony] = useState<Masterpiece | null>(null);
 
   const handleSignContract = async (contractId: number, method: string, data: string) => {
+    setContractSignError(null);
+    if (!data || (method === 'drawn' && data.length < 100) || (method === 'typed' && data.trim().length < 2)) {
+      setContractSignError("Bitte prüfen Sie die Checkbox und geben Sie eine gültige Signatur ein.");
+      notifyUser("Bitte prüfen Sie die Checkbox und geben Sie eine gültige Signatur ein.", "error");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/contracts/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractId, method, data })
+        body: JSON.stringify({ contractId, method, data }),
+        credentials: 'include'
       });
+      const result = await res.json().catch(() => ({}));
       if (res.ok) {
-        const result = await res.json();
+        setContractSignError(null);
         fetchData();
         setContractToSign(null);
-        notifyUser("Agreement executed successfully.", "success");
-        
-        // Emotional reinforcement for completion
-        if (result.status === 'COMPLETED') {
+        notifyUser("Vertrag angenommen und unterzeichnet.", "success");
+        setShowSuccessOverlay({ message: "Vertrag unterzeichnet" });
+        setTimeout(() => setShowSuccessOverlay(null), 2200);
+        if (result.masterpieceId) {
           const piece = masterpieces.find(m => m.id === result.masterpieceId);
           if (piece) setShowCeremony(piece);
         }
+      } else {
+        const msg = result.error || (res.status === 401 ? "Bitte erneut anmelden." : res.status === 403 ? "Sie sind nicht berechtigt, diesen Vertrag zu unterzeichnen." : "Unterzeichnung fehlgeschlagen.");
+        setContractSignError(msg);
+        notifyUser(msg, "error");
       }
+    } catch (err) {
+      const msg = "Unterzeichnung fehlgeschlagen. Bitte prüfen Sie die Verbindung.";
+      setContractSignError(msg);
+      notifyUser(msg, "error");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleReviewContract = async (contractId: number) => {
-    try {
-      await fetch('/api/contracts/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractId })
-      });
-      fetchData();
-    } catch (e) {
-      console.error(e);
     }
   };
 
   const handleListResale = async (masterpieceId: number) => {
     if (!user) return;
-    const price = prompt("Enter resale price (€):");
-    if (!price) return;
+    let suggestedPrice = '';
+    try {
+      const sug = await fetch(`/api/masterpieces/${masterpieceId}/resale-suggestion`).then(r => r.ok ? r.json() : null);
+      if (sug?.price_recommendation) suggestedPrice = ` (Empfehlung: ${Number(sug.price_recommendation).toLocaleString('de-DE')} €)`;
+    } catch (_) {}
+    const price = prompt(t('admin.resale_price') + ' (€):' + suggestedPrice);
+    if (!price || isNaN(parseFloat(price))) return;
+    const askingPrice = parseFloat(price);
+    if (askingPrice <= 0) return;
     
     setLoading(true);
     try {
-      const res = await fetch('/api/resale/list', {
+      const res = await fetch('/api/resale/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, masterpieceId, price: parseFloat(price) })
+        body: JSON.stringify({ userId: user.id, masterpieceId, askingPrice, saleMethod: 'marketplace' }),
+        credentials: 'include'
       });
-      if (res.ok) {
-        alert("Resale request submitted for admin approval.");
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.contractId && data.contract) {
+        setContractToSign({
+          id: data.contractId,
+          user_id: user.id,
+          masterpiece_id: masterpieceId,
+          type: 'resale',
+          doc_ref: data.contract.doc_ref || '',
+          content: data.contract.content || '',
+          signed_at: null,
+          status: 'draft',
+          version: 1,
+          parent_id: null,
+          created_at: ''
+        });
+      } else if (res.ok) {
+        notifyUser(t('resale.request_submitted'), 'success');
         fetchData();
+      } else {
+        const msg = data.error || (res.status === 403 ? 'Nur der Eigentümer kann dieses Stück zum Wiederverkauf anbieten.' : res.status === 401 ? 'Bitte erneut anmelden.' : 'Wiederverkauf konnte nicht gestartet werden.');
+        notifyUser(msg, 'error');
       }
+    } catch (e) {
+      notifyUser('Verbindungsfehler. Bitte prüfen Sie die Internetverbindung.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const visiblePortfolioPieces = vaultData.pieces.filter((p: Masterpiece) => !(vaultData.portfolio_hidden_ids || []).includes(p.id));
+  const hiddenPortfolioPieces = vaultData.pieces.filter((p: Masterpiece) => (vaultData.portfolio_hidden_ids || []).includes(p.id));
+
+  const handleRemoveFromPortfolio = async (masterpieceId: number) => {
+    try {
+      const res = await fetch('/api/portfolio/hide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpieceId }), credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setVaultData(prev => ({ ...prev, portfolio_hidden_ids: [...(prev.portfolio_hidden_ids || []), masterpieceId] }));
+        notifyUser('Stück aus der Portfolio-Anzeige entfernt.', 'success');
+      } else {
+        const msg = res.status === 403 ? (data.error || 'Nur das eigene Stück kann ausgeblendet werden.') : (data.error || 'Fehler beim Entfernen.');
+        notifyUser(msg, 'error');
+      }
+    } catch {
+      notifyUser('Fehler beim Entfernen.', 'error');
+    }
+  };
+
+  const handleUnhideFromPortfolio = async (masterpieceId: number) => {
+    try {
+      const res = await fetch('/api/portfolio/unhide', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpieceId }), credentials: 'include' });
+      if (res.ok) {
+        setVaultData(prev => ({ ...prev, portfolio_hidden_ids: (prev.portfolio_hidden_ids || []).filter(id => id !== masterpieceId) }));
+        notifyUser('Stück wieder in der Portfolio-Anzeige.', 'success');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        notifyUser(data.error || 'Fehler.', 'error');
+      }
+    } catch {
+      notifyUser('Fehler.', 'error');
     }
   };
 
@@ -1075,6 +2614,129 @@ export default function App() {
     }
   };
 
+  const handleRejectResaleListing = async (resaleListingId: number) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/resale/reject', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resaleListingId, adminId: user.id })
+      });
+      if (res.ok) fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAdjustResaleListing = async (resaleListingId: number) => {
+    if (!user) return;
+    const commissionPct = prompt(t('admin.commission_pct') + ' (%)', '8');
+    if (commissionPct == null) return;
+    const cp = parseFloat(commissionPct);
+    const minPrice = prompt(t('admin.min_price') + ' (€, optional)', '');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/resale/adjust', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resaleListingId,
+          adminId: user.id,
+          commissionPct: isNaN(cp) ? undefined : cp,
+          minPrice: minPrice !== '' && !isNaN(parseFloat(minPrice)) ? parseFloat(minPrice) : undefined
+        })
+      });
+      if (res.ok) fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePrioritizeAuctionResale = async (resaleListingId: number) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/resale/prioritize-auction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resaleListingId, adminId: user.id })
+      });
+      if (res.ok) fetchData();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResaleDecision = async (resaleListingId: number, decision: string) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/resale/decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resaleListingId, adminId: user.id, decision }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Entscheidung gespeichert.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkExternal = async (masterpieceId: number) => {
+    if (!user) return;
+    if (!confirm(t('resale.mark_external') + ' — ' + (t('resale.warranty_void') + '?'))) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/masterpieces/${masterpieceId}/mark-external`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Als extern übertragen markiert.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendBuybackOffer = async (resaleListingId: number) => {
+    if (!user) return;
+    const amount = prompt(t('admin.send_buyback_offer') + ' — ' + t('admin.resale_price') + ' (€)');
+    if (amount == null || isNaN(parseFloat(amount))) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/resale/buyback-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resaleListingId, adminId: user.id, offeredAmount: parseFloat(amount) }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        fetchData();
+        notifyUser("Rückkaufangebot gesendet.", "success");
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleConcierge = async (message: string) => {
     if (!user) return;
     setLoading(true);
@@ -1086,7 +2748,7 @@ export default function App() {
       });
       if (res.ok) {
         const data = await res.json();
-        alert(data.response);
+        notifyUser(data.response ?? 'Gesendet.', 'success');
       }
     } finally {
       setLoading(false);
@@ -1104,6 +2766,135 @@ export default function App() {
     }
   };
 
+  if (view === 'verify') {
+    return (
+      <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col items-center justify-center p-6`}>
+        <div className="w-full max-w-lg text-center space-y-6">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-8 h-8 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-serif italic">Zertifikat prüfen</h1>
+          {verifyData ? (
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 text-left space-y-4">
+              <div className="flex items-center gap-2 text-emerald-500">
+                <CheckCircle className="w-5 h-5" />
+                <span className="font-semibold uppercase tracking-widest text-xs">Verifiziert · Antonio Bellanova</span>
+              </div>
+              <p className="text-zinc-400 text-sm">Dieses Zertifikat ist gültig und dem Atelier zugeordnet.</p>
+              <div className="pt-4 border-t border-zinc-800 space-y-2">
+                <p><span className="text-zinc-500 text-xs uppercase">Stück</span><br /><span className="text-zinc-200">{verifyData.piece?.title ?? '—'}</span></p>
+                <p><span className="text-zinc-500 text-xs uppercase">Seriennummer</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.serial_id ?? '—'}</span></p>
+                <p><span className="text-zinc-500 text-xs uppercase">Registriert auf</span><br /><span className="text-zinc-300">{verifyData.owner_name ?? '—'}</span></p>
+                {verifyData.cert?.blockchain_hash && <p><span className="text-zinc-500 text-xs uppercase">Blockchain</span><br /><span className="font-mono text-[10px] text-zinc-500 break-all">{verifyData.cert.blockchain_hash}</span></p>}
+              </div>
+            </div>
+          ) : verifyCertId && verifyData === null ? (
+            <p className="text-zinc-500">Lade …</p>
+          ) : verifyCertId ? (
+            <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6">
+              <p className="text-amber-500/90">Zertifikat nicht gefunden oder ungültig.</p>
+              <p className="text-zinc-500 text-xs mt-2">Prüfen Sie die URL oder wenden Sie sich an das Atelier.</p>
+            </div>
+          ) : null}
+          <button type="button" onClick={() => { setView('login'); setVerifyCertId(null); setVerifyData(null); }} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400">← Zur Startseite</button>
+        </div>
+      </div>
+    );
+  }
+
+  const legalAndContactViews = ['impressum', 'datenschutz', 'agb', 'kontakt', 'anfahrt'] as const;
+  if (legalAndContactViews.includes(view as any)) {
+    const isLegal = view === 'impressum' || view === 'datenschutz' || view === 'agb';
+    const titles: Record<string, string> = { impressum: t('legal.imprint'), datenschutz: t('legal.privacy'), agb: t('legal.terms'), kontakt: t('legal.contact'), anfahrt: t('legal.directions') };
+    return (
+      <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col`}>
+        <div className="p-6 max-w-3xl mx-auto w-full flex-1">
+          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400 mb-8">← {user ? 'Dashboard' : 'Zur Startseite'}</button>
+          <h1 className="text-2xl font-serif italic mb-6">{titles[view]}</h1>
+          {view === 'impressum' && (
+            <div className="prose prose-invert max-w-none text-sm space-y-4">
+              <p><strong>Angaben gemäß § 5 TMG</strong></p>
+              <p>{COMPANY_INFO.name}<br />{COMPANY_INFO.address}</p>
+              <p><strong>Kontakt</strong><br />E-Mail: atelier@bellanova.com (Beispiel)</p>
+              <p><strong>Umsatzsteuer-ID</strong><br />Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: {COMPANY_INFO.vatId}</p>
+              <p><strong>Verantwortlich für den Inhalt</strong><br />{COMPANY_INFO.owner}, {COMPANY_INFO.address}</p>
+              <p><strong>Haftungsausschluss</strong><br />Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen.</p>
+            </div>
+          )}
+          {view === 'datenschutz' && (
+            <div className="prose prose-invert max-w-none text-sm space-y-4">
+              <p><strong>Datenschutzerklärung</strong></p>
+              <p>Verantwortlicher: {COMPANY_INFO.name}, {COMPANY_INFO.address}.</p>
+              <p>Wir erheben und verarbeiten personenbezogene Daten nur im Rahmen der gesetzlichen Vorgaben (DSGVO, BDSG). Daten werden zur Vertragserfüllung, Kundenkommunikation und zur Bereitstellung des Portals genutzt. Eine Weitergabe an Dritte erfolgt nur bei gesetzlicher Verpflichtung oder mit Ihrer Einwilligung.</p>
+              <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung sowie auf Datenübertragbarkeit. Beschwerden können Sie bei einer Aufsichtsbehörde geltend machen.</p>
+              <p>Kontakt für Datenschutzanfragen: atelier@bellanova.com</p>
+            </div>
+          )}
+          {view === 'agb' && (
+            <div className="prose prose-invert max-w-none text-sm space-y-4">
+              <p><strong>Allgemeine Geschäftsbedingungen</strong></p>
+              <p>Geltungsbereich: Diese AGB gelten für alle Geschäfte zwischen {COMPANY_INFO.name} und dem Kunden.</p>
+              <p>Vertragsschluss: Durch Bestellung bzw. Unterzeichnung von Verträgen kommt ein verbindlicher Kauf- oder Dienstvertrag zustande. Preise verstehen sich in Euro inkl. gesetzlicher MwSt., sofern nicht anders angegeben.</p>
+              <p>Zahlung: Die Zahlungsmodalitäten ergeben sich aus dem jeweiligen Vertrag (Anzahlung, Restzahlung, Raten). Bei Verzug können Verzugszinsen geltend gemacht werden.</p>
+              <p>Eigentumsvorbehalt: Bis zur vollständigen Bezahlung bleibt die Ware Eigentum des Ateliers.</p>
+              <p>Gerichtsstand und anwendbares Recht: Es gilt das Recht der Bundesrepublik Deutschland. Gerichtsstand ist Köln, sofern der Kunde Kaufmann ist.</p>
+            </div>
+          )}
+          {view === 'kontakt' && (
+            <div className="space-y-6">
+              <p className="text-zinc-400">{COMPANY_INFO.name}, {COMPANY_INFO.address}</p>
+              <p className="text-sm text-zinc-500">Für Anfragen nutzen Sie bitte das Kontaktformular oder die Concierge-Funktion nach dem Login.</p>
+              {user && (
+                <Button variant="primary" className="text-sm" onClick={() => setView('concierge')}>Zum Concierge</Button>
+              )}
+              {!contactFormSent ? (
+                <form className="grid gap-4 max-w-md" onSubmit={async (e) => {
+                  e.preventDefault();
+                  setContactFormSubmitting(true);
+                  try {
+                    const res = await fetch('/api/contact', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(contactForm),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.success) {
+                      setContactFormSent(true);
+                      setContactForm({ name: '', email: '', subject: '', message: '' });
+                    } else {
+                      notifyUser(data.error || 'Fehler beim Senden.', 'error');
+                    }
+                  } catch {
+                    notifyUser('Fehler beim Senden.', 'error');
+                  } finally {
+                    setContactFormSubmitting(false);
+                  }
+                }}>
+                  <input type="text" placeholder="Name *" value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} className="input" required />
+                  <input type="email" placeholder="E-Mail *" value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} className="input" required />
+                  <input type="text" placeholder="Betreff" value={contactForm.subject} onChange={e => setContactForm(f => ({ ...f, subject: e.target.value }))} className="input" />
+                  <textarea placeholder="Nachricht *" value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} className="input min-h-[120px]" required />
+                  <Button type="submit" variant="primary" disabled={contactFormSubmitting}>{contactFormSubmitting ? 'Wird gesendet…' : 'Nachricht senden'}</Button>
+                </form>
+              ) : (
+                <p className="text-amber-500/90">Vielen Dank. Ihre Nachricht wurde gesendet. Wir melden uns in Kürze.</p>
+              )}
+            </div>
+          )}
+          {view === 'anfahrt' && (
+            <div className="space-y-6">
+              <p className="text-zinc-200">{COMPANY_INFO.name}<br />{COMPANY_INFO.address}</p>
+              <p className="text-sm text-zinc-500">Öffentliche Verkehrsmittel: Haltestellen in der Nähe prüfen Sie bitte in Ihrer Verkehrsauskunft.</p>
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(COMPANY_INFO.address)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm uppercase tracking-widest">
+                <MapPin className="w-4 h-4" /> In Google Maps öffnen
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-black text-zinc-100 flex items-center justify-center p-6 font-sans selection:bg-amber-500/30">
@@ -1118,61 +2909,98 @@ export default function App() {
               <Diamond className="w-8 h-8 text-amber-500" />
             </div>
             <h1 className="text-4xl font-serif italic tracking-tight text-white">Antonio Bellanova</h1>
-            <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">Luxury Asset Platform</p>
+            <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">Juwelen & Schmuckatelier</p>
           </div>
 
           <Card className="p-8">
             <div className="flex gap-4 mb-8">
-              <button onClick={() => setView('login')} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'login' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>Login</button>
-              <button onClick={() => setView('register')} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'register' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>Register</button>
+              <button type="button" onClick={() => { setView('login'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'login' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('login')}</button>
+              <button type="button" onClick={() => { setView('register'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'register' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('register')}</button>
+              <button type="button" onClick={() => { setView('forgot-password'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'forgot-password' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('auth.forgot_password')}</button>
             </div>
 
+            {view === 'forgot-password' && (
+              <ForgotPasswordForm onBack={() => setView('login')} onSuccess={() => setView('login')} />
+            )}
+            {view === 'reset-password' && (
+              <ResetPasswordForm token={resetPasswordToken} onBack={() => setView('login')} onSuccess={() => { setView('login'); setResetPasswordToken(''); }} />
+            )}
+            {view !== 'forgot-password' && view !== 'reset-password' && (
             <form onSubmit={view === 'login' ? handleLogin : handleRegister} className="space-y-6">
               {view === 'register' && (
                 <>
-                  <Input label="Full Name" icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Antonio Bellanova" />
-                  <Input label="Address" icon={MapPin} value={address} onChange={(e: any) => setAddress(e.target.value)} placeholder="Aaronstraße 8, 50076, Köln" />
+                  <Input label={t('auth.full_name')} icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} placeholder={t('auth.name_placeholder')} />
+                  <Input label={t('auth.username')} icon={UserIcon} value={username} onChange={(e: any) => setUsername(e.target.value)} placeholder={t('auth.username_placeholder')} autoComplete="username" />
+                  <Input label={t('address')} icon={MapPin} value={address} onChange={(e: any) => setAddress(e.target.value)} placeholder={t('auth.address_placeholder')} />
                   <div className="space-y-1.5">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Access Role</label>
+                    <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('auth.access_role')}</label>
                     <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
                       <option value={UserRole.CLIENT}>Collector (Client)</option>
                       <option value={UserRole.INVESTOR}>Investor</option>
-                      <option value={UserRole.VIEWER}>Viewer (Read-only)</option>
+                      <option value={UserRole.VIEWER}>{t('roles.viewer')}</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Preferred Language</label>
+                    <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('auth.preferred_language')}</label>
                     <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
                       {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
                     </select>
                   </div>
                 </>
               )}
-              <Input label="Email Address" icon={Mail} type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="name@vault.com" />
-              <Input label="Password" icon={Lock} type="password" value={password} onChange={(e: any) => setPassword(e.target.value)} placeholder="••••••••" />
-              
+              <Input label={t('auth.email_or_username')} icon={Mail} type="text" value={email} onChange={(e: any) => { setEmail(e.target.value); setLoginError(null); }} placeholder={t('auth.email_placeholder')} autoComplete="username" />
+              <Input label={t('password')} icon={Lock} type="password" value={password} onChange={(e: any) => { setPassword(e.target.value); setLoginError(null); }} placeholder={t('auth.password_placeholder')} />
+              {view === 'login' && loginError && (
+                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3" role="alert">
+                  {loginError}
+                </p>
+              )}
               {view === 'register' && (
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <div className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${wantsVip ? 'bg-amber-600 border-amber-600' : 'border-zinc-700 bg-zinc-800'}`}>
                     {wantsVip && <CheckCircle className="w-3 h-3 text-white" />}
                   </div>
                   <input type="checkbox" className="hidden" checked={wantsVip} onChange={() => setWantsVip(!wantsVip)} />
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">Apply for VIP Membership</span>
+                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">{t('auth.apply_vip')}</span>
                 </label>
               )}
 
-              <Button disabled={loading} className="w-full mt-4">
-                {loading ? "Processing..." : view === 'login' ? "Sign In" : "Create Account"}
+              <Button type="submit" disabled={loading} className="w-full mt-4">
+                {loading ? t('auth.processing') : view === 'login' ? t('auth.sign_in') : t('auth.create_account')}
               </Button>
+              {view === 'login' && (
+                <p className="text-center mt-4">
+                  <button type="button" onClick={() => setView('forgot-password')} className="text-sm text-amber-500 hover:text-amber-400">{t('auth.forgot_password_link')}</button>
+                </p>
+              )}
             </form>
+            )}
           </Card>
+          <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-amber-500/70" /> {t('legal.ssl')}</span>
+            <span>{t('trust.dsgvo_compliant')}</span>
+            <span>{t('legal.secure_payment')}</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-[10px] text-zinc-600">
+            <button type="button" onClick={() => setView('impressum')} className="hover:text-amber-500/80">{t('legal.imprint')}</button>
+            <span>·</span>
+            <button type="button" onClick={() => setView('datenschutz')} className="hover:text-amber-500/80">{t('legal.privacy')}</button>
+            <span>·</span>
+            <button type="button" onClick={() => setView('agb')} className="hover:text-amber-500/80">{t('legal.terms')}</button>
+          </div>
         </motion.div>
       </div>
     );
   }
 
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    try { localStorage.setItem('vault-theme', next); } catch (_) {}
+  };
+
   return (
-    <div className="min-h-screen bg-[#050505] text-zinc-100 font-sans selection:bg-amber-500/30">
+    <div className={`min-h-screen font-sans selection:bg-amber-500/30 ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`} data-theme={theme}>
       {/* Sidebar */}
       <nav className="fixed left-0 top-0 h-full w-20 md:w-64 bg-zinc-950 border-r border-zinc-900 z-50 flex flex-col">
         <div className="p-6 flex items-center gap-3 mb-8">
@@ -1187,9 +3015,18 @@ export default function App() {
           <NavItem active={view === 'marketplace'} icon={ShoppingBag} label={t('marketplace')} onClick={() => setView('marketplace')} />
           <NavItem active={view === 'auctions'} icon={Gavel} label={t('auctions')} onClick={() => setView('auctions')} />
           <NavItem active={view === 'vault'} icon={ShieldCheck} label={t('vault')} onClick={() => setView('vault')} />
-          <NavItem active={view === 'portfolio'} icon={Award} label="Portfolio" onClick={() => setView('portfolio')} />
+          {user.role !== 'black' && user.role !== UserRole.BLACK && (
+            <NavItem active={view === 'concierge'} icon={MessageCircle} label={t('chat.concierge')} onClick={() => setView('concierge')} />
+          )}
+          {(user.role === 'black' || user.role === UserRole.BLACK) && (
+            <NavItem active={view === 'concierge'} icon={MessageCircle} label={t('chat.direct_line')} onClick={() => setView('concierge')} />
+          )}
+          <NavItem active={view === 'portfolio'} icon={Award} label={t('view.portfolio')} onClick={() => setView('portfolio')} />
+          {user.role !== UserRole.ADMIN && (
+            <NavItem active={view === 'fractional'} icon={PieChart} label={t('view.fractional')} onClick={() => setView('fractional')} />
+          )}
           {user.role === UserRole.INVESTOR && (
-            <NavItem active={view === 'investor'} icon={BarChart3} label="Investor" onClick={() => setView('investor')} />
+            <NavItem active={view === 'investor'} icon={BarChart3} label={t('investor.title')} onClick={() => setView('investor')} />
           )}
           {user.role === UserRole.ADMIN && (
             <NavItem active={view === 'admin'} icon={Users} label={t('management')} onClick={() => setView('admin')} />
@@ -1197,7 +3034,7 @@ export default function App() {
         </div>
 
         <div className="p-4 border-t border-zinc-900">
-          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={() => setUser(null)}>
+          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); }}>
             <LogOut className="w-5 h-5 text-zinc-500" />
             <span className="hidden md:block text-sm text-zinc-400">{t('sign_out')}</span>
           </div>
@@ -1206,11 +3043,43 @@ export default function App() {
 
       {/* Main Content */}
       <main className="pl-20 md:pl-64 min-h-screen">
-        <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-8 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-40">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-serif italic text-white capitalize">{view}</h2>
+        <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-8 glass sticky top-0 z-40">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <h2 className="text-xl font-serif italic text-white capitalize shrink-0">{(t as (k: string) => string)(`view.${view}`) || view}</h2>
+            {user && (
+              <div className="relative max-w-xs w-full hidden sm:block">
+                <input
+                  type="text"
+                  placeholder={t('search.placeholder')}
+                  value={globalSearchQuery}
+                  onChange={(e) => { setGlobalSearchQuery(e.target.value); setShowSearchResults(true); }}
+                  onFocus={() => setShowSearchResults(true)}
+                  onBlur={() => setTimeout(() => setShowSearchResults(false), 180)}
+                  className="global-search-input w-full bg-zinc-800/80 border border-zinc-700 rounded-lg py-2 pl-3 pr-8 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-amber-600/50"
+                />
+                <Search className="w-4 h-4 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                {showSearchResults && globalSearchQuery.trim().length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+                    {(() => {
+                      const q = globalSearchQuery.trim().toLowerCase();
+                      const filtered = masterpieces.filter(p => (p.title?.toLowerCase().includes(q) || (p.serial_id && String(p.serial_id).toLowerCase().includes(q))));
+                      if (filtered.length === 0) return <p className="px-4 py-3 text-sm text-zinc-500">Keine Stücke gefunden.</p>;
+                      return filtered.slice(0, 10).map(piece => (
+                        <button key={piece.id} type="button" onClick={() => { setView('marketplace'); setSelectedPiece(piece); setGlobalSearchQuery(''); setShowSearchResults(false); }} className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 flex items-center gap-3 border-b border-zinc-800/50 last:border-0">
+                          {piece.image_url ? <img src={piece.image_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" /> : <div className="w-10 h-10 rounded bg-zinc-800 shrink-0" />}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
+                            <p className="text-xs text-zinc-500">{piece.serial_id} · {Number(piece.valuation || 0).toLocaleString('de-DE')} €</p>
+                          </div>
+                        </button>
+                      ));
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-6 shrink-0">
             <div className="relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
@@ -1230,18 +3099,27 @@ export default function App() {
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     className="absolute right-0 mt-2 w-80 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl z-[60] overflow-hidden"
                   >
-                    <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-                      <h4 className="text-xs uppercase tracking-widest font-bold text-zinc-400">Notifications</h4>
-                      <button className="text-[10px] text-amber-500 hover:text-amber-400">Mark all as read</button>
+                    <div className="p-4 border-b border-zinc-800 flex justify-between items-center flex-wrap gap-2">
+                      <h4 className="text-xs uppercase tracking-widest font-bold text-zinc-400">{t('notifications.title')}</h4>
+                      <div className="flex gap-2">
+                        <button className="text-[10px] text-zinc-500 hover:text-amber-500" onClick={() => { setShowNotifications(false); setShowNotificationPrefsModal(true); }}>{t('common.settings')}</button>
+                        {notifications.some(n => !n.is_read) && (
+                          <button className="text-[10px] text-amber-500 hover:text-amber-400" onClick={async () => {
+                            if (!user) return;
+                            await fetch(`/api/notifications/${user.id}/read-all`, { method: 'POST' });
+                            fetchData();
+                          }}>Alle gelesen</button>
+                        )}
+                      </div>
                     </div>
                     <div className="max-h-96 overflow-y-auto">
-                      {notifications.length > 0 ? notifications.map(n => (
+                      {notifications.length > 0 ? notifications.slice(0, 15).map(n => (
                         <div key={n.id} className="p-4 border-b border-zinc-800/50 hover:bg-white/5 transition-colors">
                           <p className="text-xs text-zinc-200 leading-relaxed">{n.message}</p>
-                          <p className="text-[10px] text-zinc-500 mt-2">{new Date(n.created_at).toLocaleString()}</p>
+                          <p className="text-[10px] text-zinc-500 mt-2">{new Date(n.created_at).toLocaleString('de-DE')}</p>
                         </div>
                       )) : (
-                        <div className="p-8 text-center text-zinc-600 italic text-xs">No notifications</div>
+                        <PremiumEmptyState icon={Bell} title="Keine Benachrichtigungen" subtitle="Sie sind auf dem neuesten Stand" />
                       )}
                     </div>
                   </motion.div>
@@ -1249,43 +3127,331 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            <div className="flex items-center gap-2 px-3 py-1 bg-zinc-900 rounded-full border border-zinc-800">
-              <Globe className="w-3 h-3 text-zinc-500" />
-              <span className="text-[10px] uppercase font-bold text-zinc-400">{language}</span>
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+              {theme === 'dark' ? <Sun className="w-5 h-5 text-zinc-400 hover:text-amber-500" /> : <Moon className="w-5 h-5 text-zinc-500 hover:text-amber-600" />}
+            </button>
+            <div className="flex items-center gap-2">
+              <Globe className="w-3 h-3 text-zinc-500 shrink-0" />
+              <select value={language} onChange={(e) => {
+                const lang = e.target.value;
+                setLanguage(lang);
+                if (user?.id) fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, language: lang }) }).catch(() => {});
+              }} className="bg-transparent border-none text-[10px] uppercase font-bold text-zinc-400 focus:ring-0 focus:outline-none cursor-pointer hover:text-amber-500/80 appearance-none pr-6 py-1" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center', backgroundSize: '14px' }}>
+                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+              </select>
             </div>
+            <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title="Tastaturkürzel">?</button>
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-zinc-200">{user.name}</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <p className="text-sm font-medium text-zinc-200">{user.name}</p>
+                  {(user.role === 'vip' || user.role === UserRole.VIP || user.is_vip) && <Badge variant="vip" icon={Diamond}>VIP</Badge>}
+                </div>
                 <p className="text-[10px] uppercase tracking-widest text-amber-500">{user.role}</p>
               </div>
-              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center ring-2 ring-transparent hover:ring-amber-500/20 transition-all">
                 <UserIcon className="w-5 h-5 text-zinc-400" />
               </div>
             </div>
           </div>
         </header>
 
+        {/* Premium Trust Bar */}
+        {user && (
+          <div className="trust-bar px-8 py-2 flex flex-wrap items-center justify-center gap-6 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+            <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-amber-500/70" /> {t('trust.secured_by')}</span>
+            <span>{t('trust.ssl_encrypted')}</span>
+            <span>{t('trust.dsgvo_compliant')}</span>
+            {visiblePortfolioPieces.length > 0 && (
+              <span className="text-amber-500/90 font-semibold">
+                Portfolio · {visiblePortfolioPieces.reduce((sum: number, p: any) => sum + (Number(p.valuation) || 0), 0).toLocaleString('de-DE')} €
+              </span>
+            )}
+            {favoriteIds.length > 0 && (
+              <button type="button" onClick={() => setView('marketplace')} className="text-amber-500/90 hover:text-amber-400 font-semibold">
+                {favoriteIds.length} {t('wishlist.on_list')}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Global loading overlay */}
+        <AnimatePresence>
+          {loading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] premium-loading-overlay flex items-center justify-center"
+            >
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-12 h-12 rounded-full border-2 border-amber-500/30 border-t-amber-500 animate-spin" />
+                <p className="text-xs uppercase tracking-widest text-zinc-400">{t('loading.please_wait')}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Offline banner */}
+        {!isOnline && (
+          <div className="sticky top-0 z-[45] bg-amber-500/90 text-black text-center py-2 text-xs font-bold uppercase tracking-widest">
+            {t('offline.banner')}
+          </div>
+        )}
+
+        {/* Success overlay */}
+        <AnimatePresence>
+          {showSuccessOverlay && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[190] bg-black/80 backdrop-blur-sm flex items-center justify-center">
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-8 flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-emerald-500" />
+                </div>
+                <p className="text-xl font-serif italic text-zinc-100">{showSuccessOverlay.message}</p>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notification prefs modal */}
+        <AnimatePresence>
+          {showNotificationPrefsModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowNotificationPrefsModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+                <h4 className="text-lg font-serif italic">{t('notifications.title')}</h4>
+                <p className="text-xs text-zinc-500">{t('notifications.description')}</p>
+                {['email_messages', 'email_contracts', 'email_auctions'].map(key => (
+                  <label key={key} className="flex items-center justify-between gap-4 cursor-pointer">
+                    <span className="text-sm text-zinc-300">{key === 'email_messages' ? t('notifications.email_messages') : key === 'email_contracts' ? t('notifications.email_contracts') : t('notifications.email_auctions')}</span>
+                    <input type="checkbox" checked={(notificationPrefs as any)[key]} onChange={e => setNotificationPrefs(p => ({ ...p, [key]: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
+                  </label>
+                ))}
+                <div className="flex gap-2 pt-2">
+                  <p className="text-xs text-zinc-500 pt-2 border-t border-zinc-800 mt-2">
+                    <button type="button" onClick={() => { setShowNotificationPrefsModal(false); setShowPasswordChangeModal(true); }} className="text-amber-500 hover:text-amber-400">{t('notifications.change_password')}</button>
+                  </p>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="ghost" className="flex-1" onClick={() => setShowNotificationPrefsModal(false)}>{t('notifications.close')}</Button>
+                  <Button variant="primary" className="flex-1" onClick={async () => {
+                    if (user) await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, notification_prefs: JSON.stringify(notificationPrefs) }) });
+                    setShowNotificationPrefsModal(false);
+                    notifyUser(t('common.settings_saved'), 'success');
+                  }}>Speichern</Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Passwort ändern modal */}
+        <AnimatePresence>
+          {showPasswordChangeModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowPasswordChangeModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+                <h4 className="text-lg font-serif italic">Passwort ändern</h4>
+                <Input type="password" label="Aktuelles Passwort" value={changePasswordForm.current} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, current: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <Input type="password" label="Neues Passwort (min. 6 Zeichen)" value={changePasswordForm.new} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, new: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <Input type="password" label="Neues Passwort bestätigen" value={changePasswordForm.confirm} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, confirm: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                {changePasswordError && <p className="text-sm text-red-400">{changePasswordError}</p>}
+                <div className="flex gap-2 pt-2">
+                  <Button variant="ghost" className="flex-1" onClick={() => { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); }}>Abbrechen</Button>
+                  <Button variant="primary" className="flex-1" disabled={changePasswordSubmitting} onClick={async () => {
+                    setChangePasswordError('');
+                    if (changePasswordForm.new.length < 6) { setChangePasswordError('Neues Passwort mindestens 6 Zeichen.'); return; }
+                    if (changePasswordForm.new !== changePasswordForm.confirm) { setChangePasswordError('Passwörter stimmen nicht überein.'); return; }
+                    setChangePasswordSubmitting(true);
+                    try {
+                      const res = await fetch('/api/users/me/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: changePasswordForm.current, newPassword: changePasswordForm.new }), credentials: 'include' });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok) { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); notifyUser('Passwort wurde geändert.', 'success'); }
+                      else setChangePasswordError(data.error || 'Fehler beim Ändern.');
+                    } catch { setChangePasswordError('Netzwerkfehler.'); }
+                    finally { setChangePasswordSubmitting(false); }
+                  }}>{changePasswordSubmitting ? 'Wird geändert…' : 'Passwort ändern'}</Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Shortcuts modal */}
+        <AnimatePresence>
+          {showShortcutsModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowShortcutsModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
+                <h4 className="text-lg font-serif italic">Tastaturkürzel</h4>
+                <div className="space-y-2 text-sm text-zinc-400">
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> Modals schließen</p>
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> Suche fokussieren</p>
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> Diese Hilfe</p>
+                </div>
+                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>Schließen</Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Breadcrumbs */}
+        {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
+          <div className="px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
+            <button type="button" onClick={() => setView('dashboard')} className="hover:text-amber-500/80">Dashboard</button>
+            <span>/</span>
+            {view === 'vault' ? (
+              <>
+                <button type="button" onClick={() => setView('vault')} className="hover:text-amber-500/80">{t('vault')}</button>
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? 'Service' : vaultTab === 'vip' ? t('vip') : vaultTab}</span></>}
+              </>
+            ) : (
+              <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
+            )}
+          </div>
+        )}
+
         <div className="p-8 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <Card className="lg:col-span-2 space-y-6">
+                  <Card className="lg:col-span-2 space-y-6" hoverGlow>
                     <h3 className="text-3xl font-serif italic">{t('welcome')}, {user.name.split(' ')[0]}</h3>
-                    <p className="text-zinc-400">Your portal to the world's most exclusive jewelry and collectible masterpieces. Manage your assets, participate in private auctions, and explore the vault.</p>
-                    <div className="grid grid-cols-3 gap-4">
-                      <StatCard label={t('my_assets')} value={vaultData.pieces.length} icon={Award} />
+                    <p className="text-zinc-400">{t('dashboard.welcome_subtitle')}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <StatCard label={t('my_assets')} value={visiblePortfolioPieces.length} icon={Award} />
                       <StatCard label={t('certificates')} value={vaultData.certs.length} icon={ShieldCheck} />
                       <StatCard label={t('active_bids')} value={auctions.filter(a => a.highest_bidder_id === user.id).length} icon={Gavel} />
+                      <StatCard label={t('dashboard.portfolio_value')} value={visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || 0), 0).toLocaleString('de-DE') + ' €'} icon={Diamond} />
                     </div>
                   </Card>
-                  <Card className="flex flex-col justify-center items-center text-center space-y-4 border-amber-500/20 bg-amber-500/5">
+                  <Card className="flex flex-col justify-center items-center text-center space-y-4 border-amber-500/20 bg-amber-500/5" hoverGlow>
                     <Award className="w-12 h-12 text-amber-500" />
                     <h4 className="text-xl font-serif italic">{t('membership')}</h4>
                     <Badge variant="amber">{user.role}</Badge>
-                    <p className="text-xs text-zinc-500">Member since {new Date(user.created_at).toLocaleDateString()}</p>
+                    <p className="text-xs text-zinc-500">{t('dashboard.member_since')} {new Date(user.created_at).toLocaleDateString()}</p>
                   </Card>
                 </div>
+
+                {/* Concierge CTA — Premium */}
+                {user.role !== UserRole.ADMIN && (
+                  <Card className="border-amber-500/15 bg-gradient-to-br from-amber-500/5 to-transparent overflow-hidden" hoverGlow>
+                    <div className="flex flex-wrap items-center justify-between gap-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+                          <MessageCircle className="w-7 h-7 text-amber-500" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-serif italic text-zinc-100">{t('concierge.cta_title')}</h4>
+                          <p className="text-xs text-zinc-500 mt-0.5">{t('concierge.cta_subtitle')}</p>
+                        </div>
+                      </div>
+                      <Button variant="primary" className="shrink-0 text-xs font-bold uppercase tracking-widest" onClick={() => setView('concierge')}>
+                        <MessageCircle className="w-4 h-4" /> {t('chat.concierge')}
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {user.role !== UserRole.ADMIN && userAppointments.length > 0 && (
+                  <Card className="space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('appointments.my_appointments')}</h4>
+                    <div className="space-y-3">
+                      {userAppointments.map(a => (
+                        <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                          <div>
+                            <p className="text-sm text-zinc-200">{(a as any).admin_name} · {new Date(a.scheduled_at).toLocaleString()}</p>
+                            {a.title && <p className="text-xs text-zinc-500">{a.title}</p>}
+                          </div>
+                          <div className="flex gap-2">
+                            {a.status === 'proposed' && (
+                              <>
+                                <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleAppointmentRespond(a.id, 'confirmed')}>{t('appointments.accept')}</Button>
+                                <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleAppointmentRespond(a.id, 'cancelled')}>{t('appointments.decline')}</Button>
+                              </>
+                            )}
+                            {a.status !== 'proposed' && <Badge variant={a.status === 'confirmed' ? 'emerald' : 'red'}>{a.status}</Badge>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Zuletzt angesehen */}
+                {recentlyViewedIds.length > 0 && (
+                  <Card className="space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('dashboard.recent_views')}</h4>
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                      {recentlyViewedIds.map(id => {
+                        const piece = masterpieces.find(p => p.id === id);
+                        if (!piece) return null;
+                        return (
+                          <button key={piece.id} type="button" onClick={() => setSelectedPiece(piece)} className="shrink-0 w-32 text-left group">
+                            <div className="aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2 group-hover:ring-2 ring-amber-500/30 transition-all">
+                              <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            </div>
+                            <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
+                            <p className="text-[10px] text-amber-500">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
+
+                {favoriteIds.length > 0 && (
+                  <Card className="space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('dashboard.favorites')}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {masterpieces.filter(p => favoriteIds.includes(p.id)).map(piece => (
+                        <div key={piece.id} className="relative group p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
+                          {piece.image_url && <img src={piece.image_url} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />}
+                          <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
+                          <p className="text-xs text-zinc-500">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                          <Button variant="ghost" className="mt-2 text-xs py-1" onClick={() => {
+                            fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add: false }) })
+                              .then(() => setFavoriteIds(prev => prev.filter(id => id !== piece.id)));
+                          }}>{t('dashboard.remove_favorite')}</Button>
+                          <Button variant="ghost" className="mt-1 text-xs py-1 ml-2" onClick={() => setSelectedPiece(piece)}>{t('view')}</Button>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {recentlyViewedIds.length > 0 && (
+                  <Card className="space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('dashboard.recent_views')}</h4>
+                    <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                      {recentlyViewedIds.map(id => masterpieces.find(p => p.id === id)).filter(Boolean).map((piece: Masterpiece) => (
+                        <button key={piece.id} type="button" onClick={() => setSelectedPiece(piece)} className="shrink-0 w-32 text-left group">
+                          <div className="aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2">
+                            <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          </div>
+                          <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
+                          <p className="text-[10px] text-amber-500/90">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                        </button>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {atelierMoments.length > 0 && (
+                  <Card className="space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">Atelier-Momente</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {atelierMoments.slice(0, 4).map((m: any, i: number) => (
+                        <div key={m.id || i} className="rounded-2xl border border-zinc-800 overflow-hidden bg-zinc-950">
+                          {m.image_url && <img src={m.image_url} alt="" className="w-full aspect-video object-cover" />}
+                          <div className="p-4">
+                            <p className="font-serif italic text-zinc-200">{m.title}</p>
+                            {m.subtitle && <p className="text-xs text-zinc-500 mt-1">{m.subtitle}</p>}
+                            {m.body && <p className="text-xs text-zinc-400 mt-2 line-clamp-2">{m.body}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
 
                 <div className="space-y-4">
                   <h4 className="text-sm uppercase tracking-widest text-zinc-500 font-bold">{t('featured')}</h4>
@@ -1294,6 +3460,13 @@ export default function App() {
                       <PieceCard 
                         key={piece.id} 
                         piece={piece} 
+                        t={t}
+                        isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                        onToggleFavorite={user ? () => {
+                          const add = !favoriteIds.includes(piece.id);
+                          fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
+                            .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
+                        } : undefined}
                         onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
@@ -1308,47 +3481,298 @@ export default function App() {
 
             {view === 'marketplace' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-                <div className="flex justify-between items-end">
+                <div className="flex justify-between items-end flex-wrap gap-4">
                   <div className="space-y-2">
-                    <h3 className="text-3xl font-serif italic">Marketplace</h3>
-                    <p className="text-zinc-500">Exquisite pieces available for immediate acquisition.</p>
+                    <h3 className="text-3xl font-serif italic">{t('marketplace')}</h3>
+                    <p className="text-zinc-500">{t('marketplace.subtitle')}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <input type="text" placeholder="Suche (Titel, Serial, Kategorie)" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
+                    <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                      <option value="">Alle Rarity</option>
+                      <option value="Unikat">Unikat</option>
+                      <option value="Limitiert">Limitiert</option>
+                      <option value="Selten">Selten</option>
+                    </select>
+                    <select value={sortMarket} onChange={e => setSortMarket(e.target.value as typeof sortMarket)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                      <option value="newest">Neueste</option>
+                      <option value="price_asc">Preis aufsteigend</option>
+                      <option value="price_desc">Preis absteigend</option>
+                      <option value="title">Titel A–Z</option>
+                    </select>
+                    {user && (
+                      <select value={filterMarketScope} onChange={e => setFilterMarketScope(e.target.value as typeof filterMarketScope)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                        <option value="all">Alle Stücke</option>
+                        <option value="favorites">{t('filter.favorites_only')}</option>
+                        <option value="recent">{t('filter.recent_only')}</option>
+                      </select>
+                    )}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {masterpieces.filter(p => p.status === 'available').map(piece => (
-                    <PieceCard 
-                      key={piece.id} 
-                      piece={piece} 
-                      onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
-                      onViewDetails={(p) => {
-                        setSelectedPiece(p);
-                        if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                      }} 
-                    />
-                  ))}
-                  {masterpieces.filter(p => p.status === 'available').length === 0 && (
-                    <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
-                      <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-                      <p className="text-zinc-500">No masterpieces currently available in the marketplace.</p>
-                    </div>
+                  {listLoading && masterpieces.length === 0 ? (
+                    [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                  ) : (
+                    <>
+                      {filterMasterpieces(masterpieces, 'available').map(piece => (
+                        <PieceCard 
+                          key={piece.id} 
+                          piece={piece} 
+                          t={t}
+                          isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                          onToggleFavorite={user ? () => {
+                            const add = !favoriteIds.includes(piece.id);
+                            fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
+                              .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
+                          } : undefined}
+                          onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
+                          onViewDetails={(p) => {
+                            setSelectedPiece(p);
+                            if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                          }} 
+                        />
+                      ))}
+                      {filterMasterpieces(masterpieces, 'available').length === 0 && (
+                        <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
+                          <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                          <p className="text-zinc-500">{(filterSearch || filterRarity) ? 'Keine Treffer.' : t('marketplace.no_pieces')}</p>
+                        </div>
+                      )}
+                    </>
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {view === 'concierge' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2 }}
+                className="flex flex-col h-[calc(100vh-12rem)] min-h-[400px]"
+              >
+                {/* Maison Concierge header — dark luxury, serif, status, priority */}
+                <header className="mb-8">
+                  <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+                    <h2 className="font-serif text-2xl md:text-3xl text-zinc-100 tracking-tight italic">
+                      {t('chat.maison_concierge')}
+                    </h2>
+                    <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+                      {conciergeStatus.some(c => c.status === 'available') && (
+                        <span className="text-zinc-400">{t('chat.status_active')}</span>
+                      )}
+                      {conciergeStatus.some(c => c.status === 'busy') && (
+                        <span className="text-amber-600/90">{t('chat.status_reviewing')}</span>
+                      )}
+                      {(conciergeStatus.length === 0 || conciergeStatus.every(c => c.status === 'away')) && selectedChatThread && (
+                        <span className="text-zinc-500">{t('chat.status_preparing')}</span>
+                      )}
+                      {selectedChatThread && selectedChatThread.priority > 1 && (
+                        <span className="text-amber-500/80 border-b border-amber-500/30 pb-0.5">
+                          {t('chat.priority_channel_active')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </header>
+
+                <div className="flex flex-1 min-h-0 border border-zinc-800/80 rounded-sm overflow-hidden bg-zinc-950/80">
+                  {/* Thread list — minimal, generous whitespace */}
+                  <aside className="w-64 md:w-72 border-r border-zinc-800/80 flex flex-col flex-shrink-0">
+                    <div className="p-4 border-b border-zinc-800/80">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!user) return;
+                          const res = await fetch('/api/communication/threads', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id, type: 'concierge' })
+                          });
+                          if (res.ok) {
+                            const { id } = await res.json();
+                            if (id) {
+                              const list = await fetch(`/api/communication/threads?userId=${user.id}`).then(r => r.json()).catch(() => []);
+                              setChatThreads(list);
+                              const thread = list.find((t: ChatThread) => t.id === id);
+                              if (thread) setSelectedChatThread(thread);
+                            }
+                          }
+                        }}
+                        className="w-full py-2.5 text-left text-[13px] font-medium text-zinc-400 hover:text-amber-500/90 transition-colors duration-200"
+                      >
+                        {t('chat.new_conversation')}
+                      </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto">
+                      {chatThreads.length === 0 && (
+                        <p className="p-6 text-zinc-600 text-[13px] leading-relaxed">{t('chat.no_threads')}</p>
+                      )}
+                      {chatThreads.map(th => (
+                        <button
+                          key={th.id}
+                          type="button"
+                          onClick={() => setSelectedChatThread(th)}
+                          className={`w-full text-left px-5 py-4 border-b border-zinc-800/50 transition-colors duration-200 ${selectedChatThread?.id === th.id ? 'bg-zinc-800/40 text-zinc-100' : 'hover:bg-zinc-800/20 text-zinc-500 hover:text-zinc-300'}`}
+                        >
+                          <span className="block text-[13px] font-normal truncate">{th.type === 'concierge' ? t('chat.concierge') : th.masterpiece_title || th.type}</span>
+                          {(th.serial_id || th.priority > 1) && (
+                            <span className="mt-1 block text-[11px] text-zinc-600">
+                              {th.serial_id || (th.priority > 1 ? t('chat.priority') : '')}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </aside>
+
+                  {/* Message area — no bubbles, minimalist lines, role-based styling */}
+                  <div className="flex-1 flex flex-col min-w-0 bg-zinc-950/50">
+                    {selectedChatThread ? (
+                      <>
+                        <div className="flex-1 overflow-y-auto px-8 py-10 space-y-8">
+                          {chatMessages.map((m, i) => {
+                            const isOwn = m.sender_id === user?.id;
+                            const role = (user?.role as string) || 'client';
+                            const isVip = role === 'vip' || role === UserRole.VIP;
+                            const isRoyal = role === 'royal' || role === UserRole.ROYAL;
+                            const isBlack = role === 'black' || role === UserRole.BLACK;
+                            const isAdmin = role === 'admin' || role === UserRole.ADMIN;
+                            const ownBorder = isBlack ? 'border-zinc-600' : isRoyal ? 'border-amber-600/50' : isVip ? 'border-amber-500/30' : isAdmin ? 'border-zinc-500' : 'border-zinc-600/80';
+                            const ownText = isBlack ? 'text-zinc-300' : isRoyal ? 'text-amber-100/95' : isVip ? 'text-amber-50/90' : isAdmin ? 'text-zinc-200' : 'text-zinc-200';
+                            return (
+                              <motion.div
+                                key={m.id}
+                                initial={{ opacity: 0, y: 6 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25, ease: 'easeOut' }}
+                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                              >
+                                <div className={`max-w-[75%] ${isOwn ? 'text-right' : 'text-left'}`}>
+                                  <div
+                                    className={`py-2 ${isOwn ? `pl-4 border-r-2 ${ownBorder} ${ownText} ${isRoyal ? 'shadow-[0_0_24px_rgba(180,140,60,0.06)]' : ''} ${isBlack ? 'shadow-[0_0_20px_rgba(0,0,0,0.15)]' : ''}` : 'pr-4 border-l-2 border-zinc-600/80 text-zinc-300'}`}
+                                  >
+                                    <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words font-normal">
+                                      {m.content}
+                                    </p>
+                                    <p className="mt-2 text-[10px] uppercase tracking-wider text-zinc-600">
+                                      {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                    </p>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                          {/* Subtle typing indicator when Maison status is not available */}
+                          {selectedChatThread && chatMessages.length > 0 && !conciergeStatus.some(c => c.status === 'available') && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.2 }}
+                              className="flex justify-start"
+                            >
+                              <div className="py-2 pr-4 border-l-2 border-zinc-600/60 text-zinc-500">
+                                <p className="text-[12px] italic">{t('chat.maison_typing')}</p>
+                                <span className="inline-flex gap-1 mt-1">
+                                  {[0, 1, 2].map(j => (
+                                    <motion.span
+                                      key={j}
+                                      className="w-1 h-1 rounded-full bg-zinc-600"
+                                      animate={{ opacity: [0.4, 1, 0.4] }}
+                                      transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }}
+                                    />
+                                  ))}
+                                </span>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                        <div className="border-t border-zinc-800/80 p-4">
+                          <div className="flex gap-3 max-w-2xl mx-auto">
+                            <input
+                              type="text"
+                              value={chatDraft}
+                              onChange={e => setChatDraft(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  if (chatDraft.trim() && user) {
+                                    fetch(`/api/communication/threads/${selectedChatThread.id}/messages`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ userId: user.id, content: chatDraft.trim(), contentLang: language })
+                                    }).then(r => r.json()).then(msg => {
+                                      if (msg.id) setChatMessages(prev => [...prev, msg]);
+                                      setChatDraft('');
+                                    }).catch(() => {});
+                                  }
+                                }
+                              }}
+                              placeholder={t('chat.type_message')}
+                              className="flex-1 bg-transparent border border-zinc-700 rounded-sm px-4 py-2.5 text-[14px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors duration-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!chatDraft.trim() || !user) return;
+                                fetch(`/api/communication/threads/${selectedChatThread.id}/messages`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ userId: user.id, content: chatDraft.trim(), contentLang: language })
+                                }).then(r => r.json()).then(msg => {
+                                  if (msg.id) setChatMessages(prev => [...prev, msg]);
+                                  setChatDraft('');
+                                }).catch(() => {});
+                              }}
+                              className="px-4 py-2.5 border border-zinc-600 text-zinc-300 hover:border-amber-600/50 hover:text-amber-500/90 transition-colors duration-200 text-[13px] uppercase tracking-widest"
+                            >
+                              {t('chat.send')}
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex-1 flex items-center justify-center text-zinc-600">
+                        <p className="text-[13px]">{t('chat.no_threads')}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}
 
             {view === 'auctions' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-                <div className="space-y-2">
-                  <h3 className="text-3xl font-serif italic">Private Auctions</h3>
-                  <p className="text-zinc-500">Live bidding on rare and unique masterpieces.</p>
+                <div className="flex flex-wrap justify-between items-end gap-4">
+                  <div className="space-y-2">
+                    <h3 className="text-3xl font-serif italic">{t('auctions.private_auctions')}</h3>
+                    <p className="text-zinc-500">{t('auctions.subtitle')}</p>
+                  </div>
+                  {user && (
+                    <select value={filterMarketScope} onChange={e => setFilterMarketScope(e.target.value as typeof filterMarketScope)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                      <option value="all">Alle Auktionen</option>
+                      <option value="favorites">{t('filter.favorites_only')}</option>
+                      <option value="recent">{t('filter.recent_only')}</option>
+                    </select>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {auctions.map(auction => (
+                  {listLoading && auctions.length === 0 ? (
+                    [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                  ) : (
+                    <>
+                  {(filterMarketScope === 'all' ? auctions : filterMarketScope === 'favorites' ? auctions.filter(a => favoriteIds.includes(a.masterpiece_id)) : auctions.filter(a => recentlyViewedIds.includes(a.masterpiece_id))).map(auction => (
                     <AuctionCard 
                       key={auction.id} 
                       auction={auction} 
                       onBid={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : (amt) => handleBid(auction.id, amt)} 
                       userId={user.id} 
+                      isFavorite={user ? favoriteIds.includes(auction.masterpiece_id) : false}
+                      onToggleFavorite={user ? () => {
+                        const add = !favoriteIds.includes(auction.masterpiece_id);
+                        fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: auction.masterpiece_id, add }) })
+                          .then(() => setFavoriteIds(prev => add ? [...prev, auction.masterpiece_id] : prev.filter(id => id !== auction.masterpiece_id)));
+                      } : undefined}
                       onViewDetails={(pId) => {
                         const p = masterpieces.find(m => m.id === pId);
                         if (p) {
@@ -1361,8 +3785,10 @@ export default function App() {
                   {auctions.length === 0 && (
                     <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
                       <Gavel className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-                      <p className="text-zinc-500">No active auctions at this time.</p>
+                      <p className="text-zinc-500">{t('auctions.no_active')}</p>
                     </div>
+                  )}
+                    </>
                   )}
                 </div>
               </motion.div>
@@ -1370,6 +3796,16 @@ export default function App() {
 
             {view === 'vault' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                {vaultData.contracts.filter((c: Contract) => c.status === 'draft').length > 0 && (
+                  <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between flex-wrap gap-3">
+                    <p className="text-sm text-amber-200">
+                      {vaultData.contracts.filter((c: Contract) => c.status === 'draft').length} {t('contracts')} {t('vault.reminder_unsigned')}
+                    </p>
+                    <Button variant="outline" className="border-amber-500/50 text-amber-200 text-xs" onClick={() => setVaultTab('contracts')}>
+                      {t('contracts')} anzeigen
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   <TabButton active={vaultTab === 'pieces'} label={t('my_pieces')} onClick={() => setVaultTab('pieces')} icon={Award} />
                   <TabButton active={vaultTab === 'certs'} label={t('certificates')} onClick={() => setVaultTab('certs')} icon={ShieldCheck} />
@@ -1377,20 +3813,91 @@ export default function App() {
                   <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => setVaultTab('payments')} icon={CreditCard} />
                   <TabButton active={vaultTab === 'auctions'} label={t('my_bids')} onClick={() => setVaultTab('auctions')} icon={Gavel} />
                   <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
+                  <TabButton active={vaultTab === 'service'} label="Service" onClick={() => setVaultTab('service')} icon={Wrench} />
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
+                </div>
+
+                <div className="flex flex-wrap gap-2 pb-4 border-b border-zinc-800/50">
+                  <Button variant="outline" className="text-xs" onClick={() => {
+                    const doc = new jsPDF();
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    doc.setFillColor(253, 252, 251);
+                    doc.rect(0, 0, pageWidth, doc.internal.pageSize.getHeight(), 'F');
+                    doc.setFontSize(10);
+                    doc.setTextColor(197, 160, 89);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('ANTONIO BELLANOVA', pageWidth / 2, 20, { align: 'center' });
+                    doc.setFontSize(16);
+                    doc.setTextColor(0, 0, 0);
+                    doc.text('Portfolio-Übersicht', pageWidth / 2, 32, { align: 'center' });
+                    doc.setFontSize(9);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(`${user?.name ?? ''} · ${new Date().toLocaleDateString('de-DE')}`, pageWidth / 2, 40, { align: 'center' });
+                    let y = 52;
+                    const total = visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || 0), 0);
+                    visiblePortfolioPieces.forEach((p: any) => {
+                      doc.setFont('helvetica', 'normal');
+                      doc.setFontSize(9);
+                      doc.setTextColor(0, 0, 0);
+                      doc.text(`${p.title ?? ''} (${p.serial_id ?? ''})`, 20, y);
+                      doc.text(`${Number(p.valuation || 0).toLocaleString('de-DE')} €`, pageWidth - 20, y, { align: 'right' });
+                      y += 7;
+                    });
+                    doc.setDrawColor(200, 200, 200);
+                    doc.line(20, y, pageWidth - 20, y);
+                    y += 8;
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Gesamtwert', 20, y);
+                    doc.text(`${total.toLocaleString('de-DE')} €`, pageWidth - 20, y, { align: 'right' });
+                    doc.save(`Antonio-Bellanova-Portfolio-${new Date().toISOString().slice(0, 10)}.pdf`);
+                  }}>
+                    <Download className="w-3 h-3" /> Portfolio (PDF)
+                  </Button>
+                  <Button variant="outline" className="text-xs" onClick={async () => {
+                    if (!user) return;
+                    const r = await fetch(`/api/portfolio/export?userId=${user.id}`, { credentials: 'include' });
+                    const blob = await r.blob();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-portfolio-${user.id}.csv`; a.click(); URL.revokeObjectURL(a.href);
+                  }}>
+                    <FileDown className="w-3 h-3" /> Portfolio CSV
+                  </Button>
+                  <Button variant="outline" className="text-xs" onClick={async () => {
+                    if (!user) return;
+                    const r = await fetch(`/api/me/export?userId=${user.id}`);
+                    const blob = await r.blob();
+                    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-daten-${user.id}.json`; a.click(); URL.revokeObjectURL(a.href);
+                  }}>
+                    <FileDown className="w-3 h-3" /> Meine Daten exportieren (DSGVO)
+                  </Button>
                 </div>
 
                 <div className="min-h-[400px]">
                   {vaultTab === 'pieces' && (
                     <div className="space-y-8">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {vaultData.pieces.map(piece => (
+                        {listLoading && vaultData.pieces.length === 0 ? (
+                          [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                        ) : (
+                        <>
+                        {vaultData.pieces.map(piece => {
+                          const isHiddenFromPortfolio = (vaultData.portfolio_hidden_ids || []).includes(piece.id);
+                          return (
                           <div key={piece.id} className="space-y-4">
-                            <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} />
+                            <div className="flex flex-col gap-2">
+                              <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} />
+                              {isHiddenFromPortfolio ? (
+                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleUnhideFromPortfolio(piece.id)}>Wieder im Portfolio anzeigen</Button>
+                              ) : (
+                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleRemoveFromPortfolio(piece.id)}>Aus Portfolio entfernen</Button>
+                              )}
+                            </div>
                             <WorkflowTimeline masterpieceId={piece.id} />
                           </div>
-                        ))}
-                        {vaultData.pieces.length === 0 && <EmptyState icon={Award} text="You don't own any pieces yet." />}
+                          );
+                        })}
+                        {vaultData.pieces.length === 0 && <EmptyState icon={Award} text={t('vault.no_pieces')} />}
+                        </>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1409,12 +3916,12 @@ export default function App() {
                             <Button variant="outline" className="flex-1 py-2 text-xs" onClick={() => setSelectedCert(cert)}><Eye className="w-3 h-3" /> {t('view')}</Button>
                             <Button variant="outline" className="flex-1 py-2 text-xs" onClick={() => {
                               const p = masterpieces.find(m => m.id === cert.masterpiece_id);
-                              downloadPDF("Certificate of Authenticity", cert.content, p);
-                            }}><FileDown className="w-3 h-3" /> PDF</Button>
+                              downloadPDF(t('cert.title'), cert.content, p);
+                            }}><FileDown className="w-3 h-3" /> {t('common.pdf')}</Button>
                           </div>
                         </Card>
                       ))}
-                      {vaultData.certs.length === 0 && <EmptyState icon={ShieldCheck} text="No certificates issued yet." />}
+                      {vaultData.certs.length === 0 && <EmptyState icon={ShieldCheck} text={t('vault.no_certs')} />}
                     </div>
                   )}
                   {vaultTab === 'contracts' && (
@@ -1435,26 +3942,29 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex items-center gap-4">
-                              <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" onClick={() => {
-                                const p = masterpieces.find(m => m.id === contract.masterpiece_id);
-                                downloadPDF(`${contract.type} Agreement`, contract.content, p);
+                              {contract.status === 'draft' ? (
+                                <Button variant="primary" className="py-2.5 px-6 text-xs font-bold uppercase tracking-widest" onClick={() => setContractToSign(contract)}>
+                                  <Signature className="w-4 h-4" /> {t('accept_contract')}
+                                </Button>
+                              ) : null}
+                              <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" title="Vertrag als PDF herunterladen" onClick={() => {
+                                const piece = contract.masterpiece_id
+                                  ? (vaultData.pieces.find((p: Masterpiece) => p.id === contract.masterpiece_id) || masterpieces.find(m => m.id === contract.masterpiece_id))
+                                  : undefined;
+                                const title = (contract.type && typeof contract.type === 'string' ? contract.type : 'Contract') + ' Agreement';
+                                const docRef = contract.doc_ref != null ? String(contract.doc_ref) : undefined;
+                                const fileName = `Antonio-Bellanova-${docRef || `Vertrag-${contract.id}`}.pdf`;
+                                downloadPDF(title, contract.content || '', piece, { docRef, fileName, contractType: contract.type });
                               }}><FileDown className="w-5 h-5" /></Button>
                               
-                              {contract.status === 'draft' ? (
-                                <Button variant="primary" className="py-2.5 px-6 text-xs font-bold uppercase tracking-widest" onClick={() => {
-                                  handleReviewContract(contract.id);
-                                  setContractToSign(contract);
-                                }}>
-                                  <Signature className="w-4 h-4" /> {t('sign_digitally')}
-                                </Button>
-                              ) : (
+                              {contract.status === 'signed' ? (
                                 <div className="flex flex-col items-end">
                                   <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-bold uppercase tracking-widest mb-1">
                                     <CheckCircle className="w-4 h-4" /> {t('signed')}
                                   </div>
                                   <p className="text-[9px] text-zinc-600 uppercase tracking-widest">{new Date(contract.signed_at!).toLocaleDateString()}</p>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           </div>
                           
@@ -1476,17 +3986,32 @@ export default function App() {
                   )}
                   {vaultTab === 'resale' && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {vaultData.pieces.map(piece => (
+                      {visiblePortfolioPieces.map(piece => (
                         <PieceCard 
                           key={piece.id} 
                           piece={piece} 
+                          t={t}
                           hideAction 
                           onViewDetails={setSelectedPiece}
                           extraAction={
-                            piece.status === 'sold' ? (
-                              <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={() => handleListResale(piece.id)}>
+                            piece.transfer_type === 'external' || piece.warranty_void === 1 ? (
+                              <div className="w-full mt-4 space-y-1">
+                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('resale.extern_transferred')}</div>
+                                <div className="text-[10px] text-zinc-600">{t('resale.warranty_void')}</div>
+                              </div>
+                            ) : piece.status === 'sold' ? (
+                              <div className="w-full mt-4 space-y-2">
+                                <Button variant="outline" className="w-full py-2 text-xs" onClick={() => handleListResale(piece.id)}>
                                 <TrendingUp className="w-4 h-4" /> {t('list_resale')}
                               </Button>
+                                <button type="button" onClick={() => handleMarkExternal(piece.id)} className="w-full py-1.5 text-[10px] text-zinc-500 hover:text-zinc-400 uppercase tracking-wider">
+                                  {t('resale.mark_external')}
+                                </button>
+                              </div>
+                            ) : piece.status === 'resale_review' ? (
+                              <div className="w-full py-2 text-center bg-zinc-800/50 rounded-lg text-zinc-400 text-[10px] mt-4 font-bold uppercase tracking-widest">
+                                {t('resale_review')}
+                              </div>
                             ) : piece.status === 'resell_pending' ? (
                               <div className="w-full py-2 text-center bg-zinc-800/50 rounded-lg text-amber-500 text-[10px] mt-4 font-bold uppercase tracking-widest">
                                 {t('resale_pending_approval')}
@@ -1495,8 +4020,41 @@ export default function App() {
                           }
                         />
                       ))}
-                      {vaultData.pieces.length === 0 && <EmptyState icon={TrendingUp} text="No pieces available for resale." />}
+                      {visiblePortfolioPieces.length === 0 && <EmptyState icon={TrendingUp} text="No pieces available for resale." />}
                     </div>
+                  )}
+                  {vaultTab === 'service' && (
+                    <Card className="max-w-lg p-6 space-y-4">
+                      <h4 className="text-lg font-serif italic">Service anfragen</h4>
+                      <p className="text-sm text-zinc-500">Stellen Sie eine Anfrage zu Restaurierung, Transport, Versicherung oder anderem.</p>
+                      <div>
+                        <label className="block text-xs text-zinc-500 mb-1">Stück (optional)</label>
+                        <select value={serviceRequestForm.masterpieceId || ''} onChange={e => setServiceRequestForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                          <option value="">— Kein bestimmtes Stück —</option>
+                          {visiblePortfolioPieces.map((p: Masterpiece) => (
+                            <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-zinc-500 mb-1">Typ</label>
+                        <select value={serviceRequestForm.type} onChange={e => setServiceRequestForm(f => ({ ...f, type: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                          <option value="restoration">Restaurierung</option>
+                          <option value="transport">Transport</option>
+                          <option value="insurance">Versicherung</option>
+                          <option value="other">Sonstiges</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-zinc-500 mb-1">Beschreibung</label>
+                        <textarea value={serviceRequestForm.description} onChange={e => setServiceRequestForm(f => ({ ...f, description: e.target.value }))} placeholder="Kurze Beschreibung Ihrer Anfrage…" rows={3} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm placeholder-zinc-600 resize-none" />
+                      </div>
+                      <Button variant="primary" className="w-full py-2.5 text-xs font-bold uppercase tracking-widest" onClick={async () => {
+                        if (!user) return;
+                        const r = await fetch('/api/service/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: serviceRequestForm.masterpieceId || null, type: serviceRequestForm.type, description: serviceRequestForm.description || null }) });
+                        if (r.ok) { notifyUser('Service-Anfrage gesendet.', 'success'); setServiceRequestForm({ masterpieceId: '', type: 'restoration', description: '' }); } else notifyUser('Fehler beim Senden.', 'error');
+                      }}><Send className="w-4 h-4" /> Anfrage senden</Button>
+                    </Card>
                   )}
                   {vaultTab === 'payments' && (
                     <div className="space-y-4">
@@ -1534,6 +4092,28 @@ export default function App() {
                       {payments.length === 0 && <EmptyState icon={CreditCard} text="No payment history." />}
                     </div>
                   )}
+                  {vaultTab === 'auctions' && (
+                    <div className="space-y-4">
+                      <p className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{t('my_bids')}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {myBids.map((a: any) => (
+                          <Card key={a.id} className="p-4 flex flex-col sm:flex-row gap-4">
+                            {a.image_url && <img src={a.image_url} alt="" className="w-24 h-24 rounded-xl object-cover shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-zinc-200 truncate">{a.title}</h4>
+                              <p className="text-sm text-zinc-500 mt-1">Dein Gebot: {Number(a.my_bid_amount || 0).toLocaleString('de-DE')} €</p>
+                              <p className="text-xs text-zinc-600">Aktuell: {Number(a.current_bid || 0).toLocaleString('de-DE')} €</p>
+                              <div className="flex gap-2 mt-2">
+                                <Badge variant={a.is_leading ? 'emerald' : 'amber'}>{a.is_leading ? 'Führend' : 'Überboten'}</Badge>
+                                <Button variant="ghost" className="py-1 px-2 text-xs" onClick={() => { setView('auctions'); setVaultTab('pieces'); }}>{t('view')}</Button>
+                              </div>
+                            </div>
+                          </Card>
+                        ))}
+                        {myBids.length === 0 && <EmptyState icon={Gavel} text="Keine aktiven Gebote." />}
+                      </div>
+                    </div>
+                  )}
                   {vaultTab === 'vip' && (
                     <div className="space-y-8">
                       {user.role !== 'vip' ? (
@@ -1541,7 +4121,7 @@ export default function App() {
                           <Diamond className="w-12 h-12 text-zinc-800 mx-auto" />
                           <h4 className="text-xl font-serif italic">VIP Membership Required</h4>
                           <p className="text-zinc-500 max-w-md mx-auto">Exclusive benefits and concierge services are reserved for our VIP members. Apply for membership to unlock these features.</p>
-                          <Button variant="outline" onClick={() => alert("Please contact Antonio Bellanova for VIP application details.")}>Learn More</Button>
+                          <Button variant="outline" onClick={() => notifyUser(t('vip.contact_for_details'), 'success')}>{t('common.learn_more')}</Button>
                         </Card>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1556,10 +4136,10 @@ export default function App() {
                               </div>
                             </div>
                             <ul className="space-y-4">
-                              <BenefitItem icon={Clock} title="Early Access" description="View and bid on private auctions 48 hours before the general public." />
-                              <BenefitItem icon={Award} title="Private Previews" description="Receive invitations to exclusive physical previews in Cologne and Milan." />
-                              <BenefitItem icon={ShieldCheck} title="Extended Warranty" description="Lifetime authenticity guarantee and complimentary maintenance for all pieces." />
-                              <BenefitItem icon={TrendingUp} title="Resale Priority" description="Priority listing and lower commission rates for secondary market sales." />
+                              <BenefitItem icon={Clock} title={t('investor.early_access')} description={t('vip.benefit_early_access')} />
+                              <BenefitItem icon={Award} title={t('vip.private_previews')} description={t('vip.benefit_previews')} />
+                              <BenefitItem icon={ShieldCheck} title={t('vip.extended_warranty')} description={t('vip.benefit_warranty')} />
+                              <BenefitItem icon={TrendingUp} title={t('vip.resale_priority')} description={t('vip.benefit_resale')} />
                             </ul>
                           </Card>
 
@@ -1577,7 +4157,7 @@ export default function App() {
                             <div className="space-y-4">
                               <textarea 
                                 id="concierge-msg"
-                                placeholder="How can we assist you today?" 
+                                placeholder={t('concierge.placeholder')} 
                                 className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-sm text-zinc-200 focus:outline-none focus:border-amber-600/50 h-32 resize-none"
                               />
                               <Button className="w-full" onClick={() => {
@@ -1600,8 +4180,74 @@ export default function App() {
                   <h3 className="text-5xl font-serif italic text-white">The Curated Collection</h3>
                   <p className="text-zinc-500 text-lg">A selection of Antonio Bellanova's most significant works, showcasing the pinnacle of craftsmanship and luxury design.</p>
                 </div>
+                <div className="flex flex-wrap gap-2 justify-center items-center">
+                  <input type="text" placeholder="Suche (Titel, Serial, Kategorie)" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
+                  <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                    <option value="">Alle Rarity</option>
+                    <option value="Unikat">Unikat</option>
+                    <option value="Limitiert">Limitiert</option>
+                    <option value="Selten">Selten</option>
+                  </select>
+                  <Button variant="outline" className="text-xs" onClick={() => {
+                    const doc = new jsPDF();
+                    doc.setFontSize(18);
+                    doc.text('Antonio Bellanova — Portfolio', 20, 22);
+                    doc.setFontSize(10);
+                    doc.setTextColor(100, 100, 100);
+                    doc.text(new Date().toLocaleDateString('de-DE'), 20, 30);
+                    const list = filterMasterpieces(masterpieces);
+                    let y = 42;
+                    list.slice(0, 25).forEach((p: Masterpiece, i: number) => {
+                      doc.setFontSize(10);
+                      doc.setTextColor(0, 0, 0);
+                      doc.text(`${i + 1}. ${(p.title || '').substring(0, 40)}`, 20, y);
+                      doc.text(`${p.serial_id || '—'} · ${(p.valuation != null ? Number(p.valuation).toLocaleString('de-DE') + ' €' : '—')}`, 120, y);
+                      y += 8;
+                    });
+                    if (list.length > 25) doc.text(`… und ${list.length - 25} weitere`, 20, y);
+                    doc.save('Antonio-Bellanova-Portfolio.pdf');
+                  }}>Portfolio als PDF</Button>
+                </div>
+
+                {user && vaultData.pieces.length > 0 && (
+                  <Card className="p-6 border-amber-500/20 bg-amber-500/5">
+                    <h4 className="text-lg font-serif italic text-amber-500/90 mb-4">Deine Stücke</h4>
+                    <p className="text-sm text-zinc-500 mb-4">Stücke aus deiner Sammlung kannst du hier aus der Portfolio-Anzeige nehmen oder wieder anzeigen.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                      {visiblePortfolioPieces.map(piece => (
+                        <div key={piece.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                          {piece.image_url ? <img src={piece.image_url} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" /> : <div className="w-12 h-12 rounded-lg bg-zinc-800 shrink-0" />}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
+                            <p className="text-xs text-zinc-500">{piece.serial_id}</p>
+                          </div>
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 shrink-0" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                        </div>
+                      ))}
+                    </div>
+                    {hiddenPortfolioPieces.length > 0 && (
+                      <div className="pt-4 border-t border-zinc-800/50">
+                        <p className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Ausgeblendet</p>
+                        <ul className="space-y-2">
+                          {hiddenPortfolioPieces.map(p => (
+                            <li key={p.id} className="flex items-center justify-between gap-3 py-2 border-b border-zinc-800/50 last:border-0">
+                              <span className="text-sm text-zinc-400 truncate">{p.title} ({p.serial_id})</span>
+                              <Button variant="outline" className="text-xs shrink-0" onClick={() => handleUnhideFromPortfolio(p.id)}>Wieder anzeigen</Button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </Card>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
-                  {masterpieces.map(piece => (
+                  {filterMasterpieces(masterpieces).map(piece => {
+                    const isOwnPiece = user && piece.current_owner_id === user.id;
+                    const isHiddenFromPortfolio = (vaultData.portfolio_hidden_ids || []).includes(piece.id);
+                    const canRemoveFromPortfolio = isOwnPiece && !isHiddenFromPortfolio;
+                    const canShowAgain = isOwnPiece && isHiddenFromPortfolio;
+                    return (
                     <div key={piece.id} className="group cursor-pointer" onClick={() => setSelectedPiece(piece)}>
                       <div className="aspect-[3/4] overflow-hidden rounded-3xl bg-zinc-900 mb-6 relative">
                         <img 
@@ -1610,8 +4256,14 @@ export default function App() {
                           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-end p-8">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-8 gap-3">
                           <p className="text-white text-sm font-serif italic">{piece.description.substring(0, 100)}...</p>
+                          {canRemoveFromPortfolio && (
+                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                          )}
+                          {canShowAgain && (
+                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>Wieder anzeigen</Button>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -1620,10 +4272,44 @@ export default function App() {
                           <Badge variant="outline" className="border-zinc-800 text-zinc-500">{piece.category}</Badge>
                         </div>
                         <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">{piece.rarity} Edition</p>
+                        {canRemoveFromPortfolio && (
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                        )}
+                        {canShowAgain && (
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>Wieder anzeigen</Button>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
+              </motion.div>
+            )}
+
+            {view === 'fractional' && user.role !== UserRole.ADMIN && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <Card className="p-6">
+                  <h3 className="text-xl font-serif italic mb-4">{t('investor.fractional_offers')}</h3>
+                  {fractionalOffers.length === 0 ? (
+                    <p className="text-zinc-500 text-sm italic">{t('investor.no_fractional_offers')}</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {fractionalOffers.map((off: any) => (
+                        <div key={off.id} className="p-4 bg-zinc-950 rounded-xl border border-zinc-800 flex flex-wrap items-center gap-4">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-zinc-200">{off.title}</p>
+                            <p className="text-xs text-zinc-500">Verfügbar: {Number(off.available_pct || 0).toFixed(0)}% {off.price_per_pct != null ? ` · ${Number(off.price_per_pct).toLocaleString('de-DE')} €/%` : ''}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="number" min={1} max={Math.min(100, off.available_pct || 100)} value={shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5} onChange={(e) => setShareRequestForm(f => ({ ...f, masterpieceId: off.id, percentage: Math.min(100, Math.max(1, Number(e.target.value) || 5)) }))} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-2 text-zinc-200 text-sm" />
+                            <span className="text-zinc-500 text-xs">%</span>
+                            <Button variant="primary" className="py-2 px-4 text-sm" onClick={() => handleInvestorRequest('share', t('investor.request_share'), off.id, shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5)} disabled={loading}>{t('investor.request_share_pct')}</Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
               </motion.div>
             )}
 
@@ -1652,13 +4338,34 @@ export default function App() {
                   </Card>
                 </div>
 
+                {investorPortfolio && investorPortfolio.shares.length > 0 && (
+                  <Card className="p-6">
+                    <h4 className="text-lg font-serif italic mb-4">Meine Anteile</h4>
+                    <div className="space-y-3">
+                      {investorPortfolio.shares.map((s: any) => (
+                        <div key={s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-200">{s.title}</p>
+                            <p className="text-xs text-zinc-500">{s.serial_id} · {s.percentage}%</p>
+                          </div>
+                          <p className="text-amber-500 font-bold">{s.valuation != null ? (Number(s.valuation) * s.percentage / 100).toLocaleString('de-DE') : '—'} €</p>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t border-zinc-800 flex justify-between text-sm">
+                        <span className="text-zinc-500">Gesamtwert Anteile</span>
+                        <span className="text-amber-500 font-bold">{Number(investorPortfolio.total_fractional_value || 0).toLocaleString('de-DE')} €</span>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <Card className="lg:col-span-2 space-y-6">
                     <div className="flex justify-between items-center">
                       <h4 className="text-xl font-serif italic">Market Performance</h4>
                       <div className="flex gap-2">
-                        <TabButton active={vaultTab === 'investor_insights'} label="Insights" onClick={() => setVaultTab('investor_insights')} icon={TrendingUp} />
-                        <TabButton active={vaultTab === 'dataroom'} label="Data Room" onClick={() => setVaultTab('dataroom')} icon={Lock} />
+                        <TabButton active={vaultTab === 'investor_insights'} label={t('investor.insights')} onClick={() => setVaultTab('investor_insights')} icon={TrendingUp} />
+                        <TabButton active={vaultTab === 'dataroom'} label={t('investor.dataroom')} onClick={() => setVaultTab('dataroom')} icon={Lock} />
                       </div>
                     </div>
 
@@ -1691,13 +4398,47 @@ export default function App() {
                           </div>
                         </div>
                       </div>
+                    ) : investorRequests.some((r: any) => r.type === 'dataroom' && r.status === 'approved') ? (
+                      <div className="space-y-6">
+                        <p className="text-xs text-emerald-500 font-bold uppercase tracking-widest">Zugang gewährt</p>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Stück wählen</label>
+                          <select value={dataroomPieceId} onChange={async (e) => {
+                            const id = e.target.value ? Number(e.target.value) : '';
+                            setDataroomPieceId(id);
+                            if (id) {
+                              const r = await fetch(`/api/investor/dataroom/${id}`);
+                              if (r.ok) setDataroomContent(await r.json());
+                            } else setDataroomContent(null);
+                          }} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">—</option>
+                            {masterpieces.slice(0, 50).map(p => (
+                              <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
+                            ))}
+                          </select>
+                        </div>
+                        {dataroomContent && (
+                          <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-4 text-left">
+                            <h5 className="text-sm font-bold text-zinc-300">{dataroomContent.masterpiece?.title}</h5>
+                            <p className="text-xs text-zinc-500">Bewertung: {dataroomContent.masterpiece?.valuation != null ? Number(dataroomContent.masterpiece.valuation).toLocaleString('de-DE') + ' €' : '—'}</p>
+                            {(dataroomContent.ownership_history?.length > 0 || dataroomContent.contracts?.length > 0) && (
+                              <>
+                                <p className="text-[10px] uppercase tracking-widest text-zinc-500">Besitzhistorie / Verträge</p>
+                                <pre className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                                  {JSON.stringify({ ownership_history: dataroomContent.ownership_history?.length ?? 0, contracts: dataroomContent.contracts?.length ?? 0, service_history: dataroomContent.service_history?.length ?? 0 }, null, 2)}
+                                </pre>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <div className="space-y-6">
                         <div className="p-12 text-center space-y-4 border border-dashed border-zinc-800 rounded-3xl">
                           <Lock className="w-12 h-12 text-zinc-800 mx-auto" />
                           <h5 className="text-lg font-serif italic">Restricted Data Room</h5>
                           <p className="text-sm text-zinc-500 max-w-xs mx-auto">Access to detailed financial reports, production pipelines, and brand audits requires specific authorization.</p>
-                          <Button variant="primary" onClick={() => handleInvestorRequest('dataroom', 'Requesting access to the private data room for due diligence.')}>Request Access</Button>
+                          <Button variant="primary" onClick={() => handleInvestorRequest('dataroom', t('investor.request_access'))}>{t('investor.request_access')}</Button>
                         </div>
                       </div>
                     )}
@@ -1706,14 +4447,58 @@ export default function App() {
                   <Card className="space-y-6">
                     <h4 className="text-xl font-serif italic">Investor Actions</h4>
                     <div className="space-y-3">
-                      <InvestorActionButton icon={Diamond} title="Request Allocation" description="Apply for priority access to upcoming drops." onClick={() => handleInvestorRequest('allocation', 'Requesting allocation for the next major release.')} />
-                      <InvestorActionButton icon={Users} title="Schedule Meeting" description="Direct consultation with Antonio Bellanova." onClick={() => handleInvestorRequest('meeting', 'Requesting a private consultation meeting.')} />
-                      <InvestorActionButton icon={Eye} title="VIP Preview" description="Request early access to physical exhibitions." onClick={() => handleInvestorRequest('preview', 'Requesting VIP preview access for the next exhibition.')} />
+                      <InvestorActionButton icon={Diamond} title={t('investor.request_allocation')} description={t('investor.request_allocation_desc')} onClick={() => handleInvestorRequest('allocation', t('investor.request_allocation'))} />
+                      <InvestorActionButton icon={Users} title={t('investor.schedule_meeting')} description={t('investor.schedule_meeting_desc')} onClick={() => handleInvestorRequest('meeting', t('investor.schedule_meeting'))} />
+                      <InvestorActionButton icon={Eye} title={t('investor.vip_preview')} description={t('investor.vip_preview_desc')} onClick={() => handleInvestorRequest('preview', t('investor.vip_preview'))} />
+                    </div>
+                    <div className="pt-4 border-t border-zinc-900 space-y-4">
+                      <h5 className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('investor.fractional_offers')}</h5>
+                      {fractionalOffers.length === 0 ? (
+                        <p className="text-zinc-500 text-sm italic">{t('investor.no_fractional_offers')}</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {fractionalOffers.map((off: any) => (
+                            <div key={off.id} className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 flex flex-wrap items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-zinc-200 truncate">{off.title}</p>
+                                <p className="text-xs text-zinc-500">Verfügbar: {Number(off.available_pct || 0).toFixed(0)}% {off.price_per_pct != null ? ` · ${Number(off.price_per_pct).toLocaleString('de-DE')} €/%` : ''}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input type="number" min={1} max={Math.min(100, off.available_pct || 100)} value={shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5} onChange={(e) => setShareRequestForm(f => ({ ...f, masterpieceId: off.id, percentage: Math.min(100, Math.max(1, Number(e.target.value) || 5)) }))} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-sm" />
+                                <span className="text-zinc-500 text-xs">%</span>
+                                <Button variant="primary" className="py-1.5 px-3 text-xs" onClick={() => handleInvestorRequest('share', t('investor.request_share'), off.id, shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5)} disabled={loading}>{t('investor.request_share_pct')}</Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="pt-4 border-t border-zinc-900 space-y-2">
+                      <h5 className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Exit-Simulation</h5>
+                      <select className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" onChange={async (e) => {
+                        const id = e.target.value ? Number(e.target.value) : '';
+                        if (id && user) {
+                          const r = await fetch(`/api/investor/exit-simulation?userId=${user.id}&masterpieceId=${id}`);
+                          if (r.ok) setExitSimulation(await r.json());
+                        } else setExitSimulation(null);
+                      }}>
+                        <option value="">Stück wählen</option>
+                        {masterpieces.slice(0, 30).map(p => (
+                          <option key={p.id} value={p.id}>{p.title}</option>
+                        ))}
+                      </select>
+                      {exitSimulation && (
+                        <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800 text-xs">
+                          <p className="text-zinc-400">{exitSimulation.title}</p>
+                          <p className="text-amber-500 font-bold mt-1">Geschätzer Exit-Wert: {Number(exitSimulation.estimated_exit_value || 0).toLocaleString('de-DE')} €</p>
+                          <p className="text-zinc-500">Bewertung: {Number(exitSimulation.valuation || 0).toLocaleString('de-DE')} € · Anteil: {exitSimulation.share_pct}%</p>
+                        </div>
+                      )}
                     </div>
                     <div className="pt-6 border-t border-zinc-900">
                       <h5 className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold mb-4">Recent Activity</h5>
                       <div className="space-y-4">
-                        {adminInvestorRequests.filter(r => r.user_id === user.id).slice(0, 3).map(req => (
+                        {(user.role === UserRole.ADMIN ? adminInvestorRequests.filter((r: any) => r.user_id === user.id) : investorRequests).slice(0, 3).map((req: any) => (
                           <div key={req.id} className="flex gap-3">
                             <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0">
                               <Clock className="w-4 h-4 text-zinc-600" />
@@ -1734,15 +4519,83 @@ export default function App() {
 
             {view === 'admin' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
+                <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
+                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'settings'] as const).map(tab => (
+                    <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : t('admin.tab_settings')}
+                    </button>
+                  ))}
+                </div>
+                {(adminTab === 'overview') && (
+                <>
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">Gesamtumsatz</p><p className="text-3xl font-bold text-amber-500">{adminStats?.totalRevenue.toLocaleString()} €</p></Card>
-                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">Aktive Nutzer</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.activeUsers}</p></Card>
-                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">Ausstehende Genehmigungen</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.pendingApprovals}</p></Card>
-                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">Meisterstücke</p><p className="text-3xl font-bold text-zinc-100">{masterpieces.length}</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_revenue')}</p><p className="text-3xl font-bold text-amber-500">{adminStats?.totalRevenue?.toLocaleString?.() ?? 0} €</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_active_users')}</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.activeUsers ?? 0}</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_pending_approvals')}</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.pendingApprovals ?? 0}</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_masterpieces')}</p><p className="text-3xl font-bold text-zinc-100">{masterpieces.length}</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_views')}</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.pieceViewsTotal ?? 0}</p></Card>
+                  <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_contact_requests')}</p><p className="text-3xl font-bold text-zinc-100">{adminStats?.contactRequestsCount ?? 0}</p><p className="text-[10px] text-zinc-500 mt-1">{t('admin.stat_last_30_days')}: {adminStats?.contactRequestsLast30Days ?? 0}</p></Card>
                 </div>
+                {Array.isArray(adminStats?.popularPieces) && adminStats.popularPieces.length > 0 && (
+                  <Card className="p-4">
+                    <h3 className="text-sm font-serif italic text-amber-500/90 mb-3">{t('admin.popular_pieces_title')}</h3>
+                    <ul className="space-y-2 text-sm">
+                      {adminStats.popularPieces.slice(0, 5).map((p: any) => (
+                        <li key={p.masterpiece_id} className="flex justify-between items-center">
+                          <span className="text-zinc-300 truncate">{p.title || p.serial_id || p.masterpiece_id}</span>
+                          <span className="text-zinc-500 shrink-0 ml-2">{p.views ?? 0} {t('common.views')} · {p.favorites ?? 0} {t('dashboard.favorites')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
 
-                    {/* Masterpiece Creation */}
+                {/* Offene Aufgaben */}
+                <Card className="p-4 border-amber-500/20 bg-amber-500/5">
+                  <h3 className="text-sm font-serif italic text-amber-500/90 mb-3">Offene Aufgaben</h3>
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <span className="text-zinc-400">User-Genehmigungen: <strong className="text-zinc-200">{allUsers.filter(u => u.status === 'pending').length}</strong></span>
+                    <span className="text-zinc-400">Offene Zahlungen: <strong className="text-zinc-200">{adminStats?.pendingPayments ?? 0}</strong></span>
+                    <span className="text-zinc-400">Resale ohne Entscheidung: <strong className="text-zinc-200">{adminResaleListings.filter((r: any) => ['signed', 'resale_pending'].includes(r.status) && !r.admin_decision).length}</strong></span>
+                    <span className="text-zinc-400">Investor-Anfragen: <strong className="text-zinc-200">{adminInvestorRequests.filter((r: any) => r.status === 'pending').length}</strong></span>
+                    <span className="text-zinc-400">Termine vorgeschlagen: <strong className="text-zinc-200">{adminAppointments.filter(a => a.status === 'proposed').length}</strong></span>
+                  </div>
+                </Card>
+
+                {/* Atelier-Momente */}
+                <Card className="p-6 space-y-6">
+                  <h3 className="text-xl font-serif italic text-amber-500/90">Atelier-Momente</h3>
+                  <p className="text-sm text-zinc-500">Editoriale Momente für das Dashboard. Reihenfolge: oben = zuerst angezeigt.</p>
+                  <div className="grid gap-4 max-w-2xl">
+                    <input type="text" placeholder="Titel" value={adminAtelierForm.title} onChange={e => setAdminAtelierForm(f => ({ ...f, title: e.target.value }))} className="input" />
+                    <input type="text" placeholder="Untertitel" value={adminAtelierForm.subtitle} onChange={e => setAdminAtelierForm(f => ({ ...f, subtitle: e.target.value }))} className="input" />
+                    <input type="text" placeholder="Bild-URL" value={adminAtelierForm.image_url} onChange={e => setAdminAtelierForm(f => ({ ...f, image_url: e.target.value }))} className="input" />
+                    <textarea placeholder="Body (optional)" value={adminAtelierForm.body} onChange={e => setAdminAtelierForm(f => ({ ...f, body: e.target.value }))} className="input min-h-[80px]" />
+                    <div className="flex gap-3">
+                      <Button variant="secondary" className="text-sm" onClick={() => { if (adminAtelierForm.title.trim()) { setAdminAtelierMoments(prev => [...prev, { id: `new-${Date.now()}`, title: adminAtelierForm.title.trim(), subtitle: adminAtelierForm.subtitle.trim() || undefined, image_url: adminAtelierForm.image_url.trim() || undefined, body: adminAtelierForm.body.trim() || undefined }]); setAdminAtelierForm({ title: '', subtitle: '', image_url: '', body: '' }); } }}>Hinzufügen</Button>
+                      <Button variant="primary" className="text-sm" disabled={adminAtelierSaving} onClick={async () => {
+                        setAdminAtelierSaving(true);
+                        try {
+                          const res = await fetch('/api/admin/atelier-moments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminAtelierMoments.map(({ id, ...r }) => r)) });
+                          if (res.ok) { const data = await fetch('/api/atelier-moments').then(r => r.json()); setAtelierMoments(data); setAdminAtelierMoments(data); }
+                        } finally { setAdminAtelierSaving(false); }
+                      }}>{adminAtelierSaving ? 'Speichern…' : 'Speichern'}</Button>
+                    </div>
+                  </div>
+                  <ul className="space-y-2">
+                    {adminAtelierMoments.map((m, i) => (
+                      <li key={m.id || i} className="flex items-center gap-4 py-2 border-b border-zinc-800/50">
+                        {m.image_url && <img src={m.image_url} alt="" className="w-12 h-12 object-cover rounded" />}
+                        <span className="flex-1 text-zinc-200 truncate">{m.title}{m.subtitle ? ` – ${m.subtitle}` : ''}</span>
+                        <button type="button" onClick={() => setAdminAtelierMoments(prev => prev.filter((_, j) => j !== i))} className="text-zinc-500 hover:text-red-400 text-sm">Entfernen</button>
+                      </li>
+                    ))}
+                  </ul>
+                </Card>
+                </>
+                )}
+                {(adminTab === 'inventory') && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       <section className="space-y-6">
                         <h3 className="text-2xl font-serif italic">Meisterstück erstellen</h3>
@@ -1787,44 +4640,44 @@ export default function App() {
 
                   <div className="space-y-8">
                     <section className="space-y-6">
-                      <h3 className="text-2xl font-serif italic">Neuen Kunden hinzufügen</h3>
+                      <h3 className="text-2xl font-serif italic">{t('admin.add_client')}</h3>
                       <Card className="space-y-4">
-                        <Input label="Name" value={newClient.name} onChange={(e: any) => setNewClient({ ...newClient, name: e.target.value })} />
-                        <Input label="Email" value={newClient.email} onChange={(e: any) => setNewClient({ ...newClient, email: e.target.value })} />
-                        <Input label="Adresse" value={newClient.address} onChange={(e: any) => setNewClient({ ...newClient, address: e.target.value })} />
+                        <Input label={t('name')} value={newClient.name} onChange={(e: any) => setNewClient({ ...newClient, name: e.target.value })} />
+                        <Input label={t('email')} value={newClient.email} onChange={(e: any) => setNewClient({ ...newClient, email: e.target.value })} />
+                        <Input label={t('address')} value={newClient.address} onChange={(e: any) => setNewClient({ ...newClient, address: e.target.value })} />
                         <div className="flex gap-4">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" checked={newClient.isVip} onChange={() => setNewClient({ ...newClient, isVip: !newClient.isVip })} className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-amber-600" />
-                            <span className="text-xs text-zinc-400">VIP Status</span>
+                            <span className="text-xs text-zinc-400">{t('admin.vip_status')}</span>
                           </label>
                         </div>
-                        <Button className="w-full" onClick={handleAddClient} disabled={loading}>Kunde anlegen & Vault erstellen</Button>
+                        <Button className="w-full" onClick={handleAddClient} disabled={loading}>{t('admin.create_client_btn')}</Button>
                       </Card>
                     </section>
 
                     <section className="space-y-6">
-                      <h3 className="text-2xl font-serif italic">Auktion erstellen</h3>
+                      <h3 className="text-2xl font-serif italic">{t('admin.create_auction')}</h3>
                       <Card className="space-y-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Meisterstück auswählen</label>
+                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.select_masterpiece')}</label>
                           <select value={newAuction.masterpieceId} onChange={(e) => setNewAuction({ ...newAuction, masterpieceId: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
-                            <option value="">Stück wählen...</option>
+                            <option value="">{t('admin.choose_piece')}</option>
                             {masterpieces.filter(m => m.status === 'available').map(m => (
                               <option key={m.id} value={m.id}>{m.title} ({m.serial_id})</option>
                             ))}
                           </select>
                         </div>
                           <div className="grid grid-cols-2 gap-4">
-                            <Input label="Startpreis (€)" type="number" value={newAuction.startPrice} onChange={(e: any) => setNewAuction({ ...newAuction, startPrice: e.target.value })} />
-                            <Input label="Endzeitpunkt" type="datetime-local" value={newAuction.endTime} onChange={(e: any) => setNewAuction({ ...newAuction, endTime: e.target.value })} />
+                            <Input label={t('admin.start_price')} type="number" value={newAuction.startPrice} onChange={(e: any) => setNewAuction({ ...newAuction, startPrice: e.target.value })} />
+                            <Input label={t('admin.end_time')} type="datetime-local" value={newAuction.endTime} onChange={(e: any) => setNewAuction({ ...newAuction, endTime: e.target.value })} />
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Auktionsbedingungen (Terms)</label>
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.auction_terms')}</label>
                             <textarea 
                               value={(newAuction as any).terms || ''} 
                               onChange={(e) => setNewAuction({ ...newAuction, terms: e.target.value } as any)} 
                               className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 h-24 resize-none"
-                              placeholder="Standard luxury auction terms apply..."
+                              placeholder={t('admin.terms_placeholder')}
                             />
                           </div>
                           <label className="flex items-center gap-3 cursor-pointer group">
@@ -1832,43 +4685,45 @@ export default function App() {
                             {newAuction.vipOnly && <CheckCircle className="w-3 h-3 text-white" />}
                           </div>
                           <input type="checkbox" className="hidden" checked={newAuction.vipOnly} onChange={() => setNewAuction({ ...newAuction, vipOnly: !newAuction.vipOnly })} />
-                          <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">Nur VIP-Frühzugang</span>
+                          <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">{t('admin.vip_only')}</span>
                         </label>
-                        <Button className="w-full" onClick={handleCreateAuction} disabled={loading || !newAuction.masterpieceId}>Auktion starten</Button>
+                        <Button className="w-full" onClick={handleCreateAuction} disabled={loading || !newAuction.masterpieceId}>{t('admin.start_auction')}</Button>
                       </Card>
                     </section>
 
                     <section className="space-y-6">
-                      <h3 className="text-2xl font-serif italic">Stück manuell zuweisen</h3>
+                      <h3 className="text-2xl font-serif italic">{t('admin.assign_piece')}</h3>
                       <Card className="space-y-4">
                         <div className="space-y-1.5">
-                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Nutzer auswählen</label>
+                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.select_user')}</label>
                           <select value={assignPiece.userId} onChange={(e) => setAssignPiece({ ...assignPiece, userId: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
-                            <option value="">Nutzer wählen...</option>
+                            <option value="">{t('admin.choose_user')}</option>
                             {allUsers.map(u => (
                               <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                             ))}
                           </select>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Meisterstück auswählen</label>
+                          <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.select_masterpiece')}</label>
                           <select value={assignPiece.masterpieceId} onChange={(e) => setAssignPiece({ ...assignPiece, masterpieceId: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
-                            <option value="">Stück wählen...</option>
+                            <option value="">{t('admin.choose_piece')}</option>
                             {masterpieces.map(m => (
                               <option key={m.id} value={m.id}>{m.title} ({m.serial_id}) - {m.status}</option>
                             ))}
                           </select>
                         </div>
-                        <Button variant="secondary" className="w-full" onClick={handleAssignPiece} disabled={loading || !assignPiece.userId || !assignPiece.masterpieceId}>Besitz zuweisen</Button>
+                        <Button variant="secondary" className="w-full" onClick={handleAssignPiece} disabled={loading || !assignPiece.userId || !assignPiece.masterpieceId}>{t('admin.assign_ownership')}</Button>
                       </Card>
                     </section>
                   </div>
                 </div>
+                )}
 
                 {/* Approval Queues */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {(adminTab === 'overview') && (
                   <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Ausstehende Käufe</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.pending_purchases')}</h3>
                     <div className="space-y-4">
                       {masterpieces.filter(p => p.status === 'reserved').map(piece => {
                         const contract = adminContracts.find(c => c.masterpiece_id === piece.id && c.type === 'deposit');
@@ -1882,56 +4737,95 @@ export default function App() {
                                 {contract && (
                                   <div className="mt-1">
                                     <Badge variant={contract.status === 'signed' ? 'emerald' : 'amber'}>
-                                      Anzahlungsvertrag: {contract.status === 'signed' ? 'Unterzeichnet' : 'Entwurf'}
+                                      {t('admin.deposit_contract')}: {contract.status === 'signed' ? t('admin.deposit_signed') : t('admin.deposit_draft')}
                                     </Badge>
                                   </div>
                                 )}
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract || contract.status !== 'signed'}>Genehmigen</Button>
-                              <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, false, user.id)}>Ablehnen</Button>
+                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract || contract.status !== 'signed'}>{t('admin.approve')}</Button>
+                              <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, false, user.id)}>{t('admin.reject')}</Button>
                             </div>
                           </Card>
                         );
                       })}
-                      {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">Keine ausstehenden Käufe.</p>}
+                      {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
                     </div>
                   </section>
-
+                  )}
+                  {(adminTab === 'overview') && (
                   <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Aktive Workflows</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.active_workflows')}</h3>
                     <div className="space-y-6">
                       {masterpieces.filter(p => p.status === 'sold' || p.status === 'reserved').map(piece => (
                         <AdminWorkflowChecklist key={piece.id} piece={piece} onUpdate={handleUpdateWorkflow} />
                       ))}
                     </div>
                   </section>
-
-                  <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Wiederverkaufsanfragen</h3>
+                  )}
+                  {(adminTab === 'resale') && (
+                  <section className="space-y-4 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">{t('admin.resale_requests')}</h3>
                     <div className="space-y-4">
-                      {masterpieces.filter(p => p.status === 'resell_pending').map(piece => (
+                      {adminResaleListings.filter((rl: any) => ['signed', 'resale_pending'].includes(rl.status)).map((rl: any) => (
+                        <Card key={rl.id} className="space-y-3">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-zinc-200">{rl.masterpiece_title}</p>
+                              <p className="text-xs text-zinc-500">{t('admin.resale_price')}: {Number(rl.asking_price).toLocaleString()} € • {t('admin.commission')}: {rl.commission_pct}% • {rl.seller_name}</p>
+                              {(rl.price_recommendation != null || rl.market_stability_score != null) && (
+                                <p className="text-[11px] text-amber-500/80 mt-1">
+                                  {t('admin.price_recommendation')}: {rl.price_recommendation != null ? `${Number(rl.price_recommendation).toLocaleString()} €` : '—'} • {t('admin.market_stability')}: {rl.market_stability_score != null ? rl.market_stability_score : '—'}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {!rl.admin_decision && (
+                                <>
+                                  <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleResaleDecision(rl.id, 'curated_marketplace')}>{t('admin.decision_curated')}</Button>
+                                  <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleResaleDecision(rl.id, 'private_auction')}>{t('admin.decision_auction')}</Button>
+                                  <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleResaleDecision(rl.id, 'private_offer')}>{t('admin.decision_offer')}</Button>
+                                  <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleResaleDecision(rl.id, 'maison_buyback')}>{t('admin.decision_buyback')}</Button>
+                                  <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleResaleDecision(rl.id, 'reject')}>{t('admin.reject')}</Button>
+                                </>
+                              )}
+                              {rl.admin_decision === 'curated_marketplace' && (
+                                <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveResale(rl.masterpiece_id, true)}>{t('admin.approve')}</Button>
+                              )}
+                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleAdjustResaleListing(rl.id)}>{t('admin.adjust_commission')}</Button>
+                              <Button variant="ghost" className="py-1.5 px-3 text-xs" onClick={() => handlePrioritizeAuctionResale(rl.id)}>{t('admin.prioritize_auction')}</Button>
+                              {rl.admin_decision === 'maison_buyback' && (
+                                <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleSendBuybackOffer(rl.id)}>{t('admin.send_buyback_offer')}</Button>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                      {masterpieces.filter(p => p.status === 'resell_pending' && !adminResaleListings.some((rl: any) => rl.masterpiece_id === p.id && ['signed', 'resale_pending'].includes(rl.status))).map(piece => (
                         <Card key={piece.id} className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             {piece.image_url && <img src={piece.image_url} className="w-12 h-12 rounded-xl object-cover" />}
                             <div>
                               <p className="text-sm font-medium text-zinc-200">{piece.title}</p>
-                              <p className="text-xs text-zinc-500">Wiederverkaufspreis: {piece.valuation.toLocaleString()} €</p>
+                              <p className="text-xs text-zinc-500">{t('admin.resale_price')}: {piece.valuation.toLocaleString()} €</p>
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveResale(piece.id, true)}>Genehmigen</Button>
-                            <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApproveResale(piece.id, false)}>Ablehnen</Button>
+                            <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveResale(piece.id, true)}>{t('admin.approve')}</Button>
+                            <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApproveResale(piece.id, false)}>{t('admin.reject')}</Button>
                           </div>
                         </Card>
                       ))}
-                      {masterpieces.filter(p => p.status === 'resell_pending').length === 0 && <p className="text-zinc-600 text-sm italic">Keine ausstehenden Wiederverkaufsanfragen.</p>}
+                      {adminResaleListings.filter((rl: any) => ['signed', 'resale_pending'].includes(rl.status)).length === 0 && masterpieces.filter(p => p.status === 'resell_pending').length === 0 && (
+                        <p className="text-zinc-600 text-sm italic">{t('admin.no_resale_requests')}</p>
+                      )}
                     </div>
                   </section>
-
+                  )}
+                  {(adminTab === 'users') && (
                   <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Ausstehende Zahlungen</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.pending_payments')}</h3>
                     <div className="space-y-4">
                       {allUsers.map(u => (
                         <div key={u.id}>
@@ -1941,16 +4835,17 @@ export default function App() {
                                 <p className="text-sm font-medium text-zinc-200">{u.name}</p>
                                 <p className="text-xs text-zinc-500">{pay.reference} • {pay.amount.toLocaleString()} €</p>
                               </div>
-                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleConfirmPayment(pay.id)}>Zahlung bestätigen</Button>
+                              <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleConfirmPayment(pay.id)}>{t('admin.confirm_payment')}</Button>
                             </Card>
                           ))}
                         </div>
                       ))}
                     </div>
                   </section>
-
+                  )}
+                  {(adminTab === 'users') && (
                   <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Nutzer-Genehmigungen</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.user_approvals')}</h3>
                     <div className="space-y-4">
                       {allUsers.filter(u => u.status === 'pending').map(u => (
                         <Card key={u.id} className="flex items-center justify-between">
@@ -1959,71 +4854,375 @@ export default function App() {
                             <p className="text-xs text-zinc-500">{u.email} • {u.address}</p>
                             <div className="flex gap-2 mt-1">
                               <Badge variant="zinc" className="text-[8px] uppercase">{u.role}</Badge>
-                              {u.is_vip && <Badge variant="amber" className="text-[8px] uppercase">Wünscht VIP</Badge>}
+                              {u.is_vip && <Badge variant="amber" className="text-[8px] uppercase">{t('admin.wants_vip')}</Badge>}
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, true)}>Genehmigen</Button>
-                            <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, false)}>Ablehnen</Button>
+                            <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, true)}>{t('admin.approve')}</Button>
+                            <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, false)}>{t('admin.reject')}</Button>
                           </div>
                         </Card>
                       ))}
-                      {allUsers.filter(u => u.status === 'pending').length === 0 && <p className="text-zinc-600 text-sm italic">Keine ausstehenden Registrierungen.</p>}
+                      {allUsers.filter(u => u.status === 'pending').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_users')}</p>}
                     </div>
                   </section>
-
+                  )}
+                  {(adminTab === 'users') && (
                   <section className="space-y-4">
-                    <h3 className="text-xl font-serif italic">Investor-Anfragen</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.investor_requests')}</h3>
                     <div className="space-y-4">
                       {adminInvestorRequests.map(req => (
                         <Card key={req.id} className="space-y-3">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-sm font-bold text-zinc-200 capitalize">{req.type} Request</p>
-                              <p className="text-xs text-zinc-500">Investor: {req.user_name} ({req.user_email})</p>
+                              <p className="text-sm font-bold text-zinc-200 capitalize">{req.type} {t('admin.request_type')}</p>
+                              <p className="text-xs text-zinc-500">{t('admin.investor_label')}: {req.user_name} ({req.user_email})</p>
+                              {req.type === 'share' && req.masterpiece_title && (
+                                <p className="text-xs text-amber-500/90 mt-1">{t('admin.piece_label')}: {req.masterpiece_title}{req.request_metadata ? (() => { try { const m = typeof req.request_metadata === 'string' ? JSON.parse(req.request_metadata) : req.request_metadata; return ` · ${m?.percentage ?? '—'}%`; } catch { return ''; } })() : ''}</p>
+                              )}
                             </div>
-                            <Badge variant={req.status === 'pending' ? 'amber' : 'emerald'}>{req.status}</Badge>
+                            <Badge variant={req.status === 'pending' ? 'amber' : req.status === 'approved' ? 'emerald' : 'red'}>{req.status}</Badge>
                           </div>
                           <p className="text-xs text-zinc-400 italic">"{req.message}"</p>
                           {req.status === 'pending' && (
                             <div className="flex gap-2 pt-2">
-                              <Button variant="outline" className="flex-1 py-1.5 text-[10px]" onClick={() => alert("Request approved. Access granted.")}>Approve</Button>
-                              <Button variant="danger" className="flex-1 py-1.5 text-[10px]" onClick={() => alert("Request rejected.")}>Reject</Button>
+                              {req.type === 'meeting' ? (
+                                <Button variant="outline" className="flex-1 py-1.5 text-[10px]" onClick={() => handleApproveMeetingWithAppointment(req)}>{t('admin.approve_request')} & {t('admin.schedule_appointment')}</Button>
+                              ) : (
+                                <Button variant="outline" className="flex-1 py-1.5 text-[10px]" disabled={loading} onClick={() => handleInvestorRequestReview(req.id, true)}>{t('admin.approve_request')}</Button>
+                              )}
+                              <Button variant="danger" className="flex-1 py-1.5 text-[10px]" disabled={loading} onClick={() => handleInvestorRequestReview(req.id, false)}>{t('admin.reject_request')}</Button>
                             </div>
                           )}
                         </Card>
                       ))}
-                      {adminInvestorRequests.length === 0 && <p className="text-zinc-600 text-sm italic">Keine Investor-Anfragen.</p>}
+                      {adminInvestorRequests.length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_investor_requests')}</p>}
                     </div>
                   </section>
+                  )}
+                  {(adminTab === 'inventory') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">{t('admin.fractional_offers')}</h3>
+                    <Card className="space-y-4 p-4">
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.choose_piece')}</label>
+                          <select value={fractionalOfferForm.masterpieceId} onChange={e => setFractionalOfferForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm min-w-[200px]">
+                            <option value="">—</option>
+                            {masterpieces.filter(p => ['sold', 'fractional_open', 'fractional_full', 'fractional_resale'].includes(p.status)).map(p => (
+                              <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.available_pct')}</label>
+                          <input type="number" min={0} step={1} value={fractionalOfferForm.available_pct} onChange={e => setFractionalOfferForm(f => ({ ...f, available_pct: Number(e.target.value) || 0 }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm w-24" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.price_per_pct')}</label>
+                          <input type="number" min={0} step={100} value={fractionalOfferForm.price_per_pct === '' ? '' : fractionalOfferForm.price_per_pct} onChange={e => setFractionalOfferForm(f => ({ ...f, price_per_pct: e.target.value === '' ? '' : Number(e.target.value) }))} placeholder="optional" className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm w-28" />
+                        </div>
+                        <Button variant="primary" className="py-2 px-4 text-sm" disabled={loading} onClick={async () => {
+                          if (!fractionalOfferForm.masterpieceId) return;
+                          setLoading(true);
+                          try {
+                            const res = await fetch('/api/admin/fractional/offer', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                masterpiece_id: fractionalOfferForm.masterpieceId,
+                                available_pct: fractionalOfferForm.available_pct,
+                                price_per_pct: fractionalOfferForm.price_per_pct === '' ? null : fractionalOfferForm.price_per_pct
+                              }),
+                              credentials: 'include'
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (res.ok) {
+                              const list = await fetch('/api/admin/fractional-offers', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+                              setAdminFractionalOffers(list);
+                              notifyUser("Anteils-Angebot gespeichert.", "success");
+                            } else {
+                              notifyUser(data.error || t('errors.generic'), 'error');
+                            }
+                          } finally {
+                            setLoading(false);
+                          }
+                        }}>{t('admin.set_fractional_offer')}</Button>
+                      </div>
+                      <div className="border-t border-zinc-800 pt-3">
+                        <p className="text-xs text-zinc-500 mb-2">Aktuelle Angebote</p>
+                        {adminFractionalOffers.length === 0 ? <p className="text-zinc-600 text-sm italic">Keine.</p> : (
+                          <ul className="space-y-1 text-sm">
+                            {adminFractionalOffers.map((row: any) => (
+                              <li key={row.masterpiece_id} className="flex justify-between items-center text-zinc-300">
+                                <span>{row.title} ({row.serial_id})</span>
+                                <span className="text-amber-500/90">{row.available_pct}% verfügbar{row.price_per_pct != null ? ` · ${Number(row.price_per_pct).toLocaleString('de-DE')} €/%` : ''}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    </Card>
+                  </section>
+                  )}
 
+                  {(adminTab === 'appointments') && (
                   <section className="space-y-4 lg:col-span-2">
-                    <h3 className="text-xl font-serif italic">Unterzeichnete Verträge</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.appointments')}</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <p className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{t('admin.schedule_appointment')}</p>
+                        <Card className="space-y-3 p-4">
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('admin.customer')}</label>
+                            <select value={newAppointmentForm.userId} onChange={e => setNewAppointmentForm(f => ({ ...f, userId: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm">
+                              <option value="">— {t('admin.customer')} —</option>
+                              {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('admin.appointment_date')}</label>
+                              <input type="date" value={newAppointmentForm.date} onChange={e => setNewAppointmentForm(f => ({ ...f, date: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('admin.appointment_time')}</label>
+                              <input type="time" value={newAppointmentForm.time} onChange={e => setNewAppointmentForm(f => ({ ...f, time: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('admin.appointment_title')}</label>
+                            <input type="text" value={newAppointmentForm.title} onChange={e => setNewAppointmentForm(f => ({ ...f, title: e.target.value }))} placeholder={t('investor.schedule_meeting')} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('admin.appointment_notes')}</label>
+                            <textarea value={newAppointmentForm.notes} onChange={e => setNewAppointmentForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                          </div>
+                          <Button variant="outline" className="w-full py-2 text-sm" onClick={handleCreateAppointmentFromForm}>{t('admin.schedule_appointment')}</Button>
+                        </Card>
+                      </div>
+                      <div className="space-y-3">
+                        {adminAppointments.map(a => (
+                          <Card key={a.id} className="p-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-medium text-zinc-200">{(a as any).user_name} · {(a as any).admin_name}</p>
+                              <p className="text-xs text-zinc-500">{new Date(a.scheduled_at).toLocaleString()} {a.title && `· ${a.title}`}</p>
+                            </div>
+                            <Badge variant={a.status === 'confirmed' ? 'emerald' : a.status === 'cancelled' ? 'red' : 'amber'}>{a.status}</Badge>
+                          </Card>
+                        ))}
+                        {adminAppointments.length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_appointments')}</p>}
+                      </div>
+                    </div>
+                  </section>
+                  )}
+
+                  {(adminTab === 'settings') && (
+                  <>
+                  <section className="space-y-4 lg:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <h3 className="text-xl font-serif italic">{t('admin.signed_contracts')}</h3>
+                      <Button variant="outline" className="text-xs" disabled={loading} onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const res = await fetch('/api/admin/contracts/regenerate', { method: 'POST', credentials: 'include' });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok && data.success) {
+                            notifyUser(`Verträge neu erstellt: ${data.updated}/${data.total} aktualisiert.${data.skipped?.length ? ` ${data.skipped.length} übersprungen.` : ''}`, 'success');
+                            fetchData();
+                          } else {
+                            notifyUser(data.error || 'Regenerierung fehlgeschlagen.', 'error');
+                          }
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}>Alle Verträge mit aktuellen Daten neu erstellen</Button>
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {adminContracts.filter(c => c.status === 'signed').map(c => (
                         <Card key={c.id} className="space-y-4">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-sm font-bold text-zinc-200 capitalize">{c.type === 'deposit' ? 'Anzahlungs' : c.type === 'purchase' ? 'Kauf' : c.type}vertrag</p>
-                              <p className="text-xs text-zinc-500">Kunde: {c.user_name}</p>
-                              {c.piece_title && <p className="text-xs text-zinc-500">Stück: {c.piece_title}</p>}
+                              <p className="text-sm font-bold text-zinc-200 capitalize">{c.type === 'deposit' ? t('admin.deposit_contract_type') : c.type === 'purchase' ? t('admin.purchase_contract_type') : c.type}</p>
+                              <p className="text-xs text-zinc-500">{t('admin.customer')}: {c.user_name}</p>
+                              {c.piece_title && <p className="text-xs text-zinc-500">{t('admin.piece_label')}: {c.piece_title}</p>}
                             </div>
-                            <Badge variant="emerald">Unterzeichnet</Badge>
+                            <Badge variant="emerald">{t('common.signed')}</Badge>
                           </div>
                           <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 max-h-40 overflow-y-auto">
                             <pre className="text-[10px] text-zinc-400 font-mono whitespace-pre-wrap">{c.content}</pre>
                           </div>
-                          <p className="text-[10px] text-zinc-600 italic">Unterzeichnet am {new Date(c.signed_at).toLocaleString('de-DE')}</p>
+                          <p className="text-[10px] text-zinc-600 italic">{t('admin.signed_at')} {new Date(c.signed_at).toLocaleString()}</p>
                         </Card>
                       ))}
-                      {adminContracts.filter(c => c.status === 'signed').length === 0 && <p className="text-zinc-600 text-sm italic col-span-full">Noch keine unterzeichneten Verträge.</p>}
+                      {adminContracts.filter(c => c.status === 'signed').length === 0 && <p className="text-zinc-600 text-sm italic col-span-full">{t('admin.no_signed_contracts')}</p>}
                     </div>
                   </section>
+
+                  <section className="space-y-4 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">Finanzen, Export & DSGVO</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Umsatz-Dashboard</h4>
+                        {adminRevenue && (
+                          <>
+                            <p className="text-2xl font-bold text-amber-500">{(adminRevenue.total_ledger ?? 0).toLocaleString('de-DE')} €</p>
+                            <p className="text-xs text-zinc-500">Anzahlungen: {(adminRevenue.deposits_received ?? 0).toLocaleString('de-DE')} € · Rest: {(adminRevenue.full_payments_received ?? 0).toLocaleString('de-DE')} €</p>
+                            <p className="text-xs text-zinc-500">Resale-Gebühren: {(adminRevenue.total_resale_fee ?? 0).toLocaleString('de-DE')} €</p>
+                          </>
+                        )}
+                        {!adminRevenue && <p className="text-zinc-600 text-sm">—</p>}
+                      </Card>
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Export</h4>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/inventory/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'antonio-bellanova-inventory.csv'; a.click(); }}>{t('admin.export_inventory_csv')}</Button>
+                          <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/auctions/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'auctions-export.csv'; a.click(); }}>Auktionen CSV</Button>
+                          <Button variant="outline" className="text-xs" onClick={async () => { try { const r = await fetch('/api/admin/backup'); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Backup fehlgeschlagen'); } const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-vault-${new Date().toISOString().slice(0, 10)}.db`; a.click(); URL.revokeObjectURL(a.href); notifyUser('Datenbank-Backup heruntergeladen.', 'success'); } catch (err) { notifyUser(err instanceof Error ? err.message : 'Backup fehlgeschlagen.', 'error'); } }}>Datenbank sichern</Button>
+                        </div>
+                      </Card>
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Bank-Konfiguration</h4>
+                        <input type="text" placeholder="IBAN" value={adminBankConfig.iban ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, iban: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
+                        <input type="text" placeholder="BIC" value={adminBankConfig.bic ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, bic: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
+                        <Button variant="outline" className="text-xs" onClick={async () => { await fetch('/api/admin/bank-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminBankConfig) }); notifyUser('Bank-Konfiguration gespeichert.', 'success'); }}>Speichern</Button>
+                      </Card>
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Resale-Erlöse</h4>
+                        {adminResaleRevenue && <p className="text-xl font-bold text-zinc-200">{(adminResaleRevenue.total_resale_revenue ?? 0).toLocaleString('de-DE')} €</p>}
+                        {adminResaleRevenue?.entries?.length > 0 && <p className="text-xs text-zinc-500">{adminResaleRevenue.entries.length} Einträge</p>}
+                        {(!adminResaleRevenue || !adminResaleRevenue.entries?.length) && <p className="text-zinc-600 text-sm">Keine Einträge.</p>}
+                      </Card>
+                    </div>
+                    <Card className="p-4 mt-4">
+                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">DSGVO Datenanfragen</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {adminGdprRequests.map((req: any) => (
+                          <div key={req.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800">
+                            <span className="text-sm text-zinc-300">{req.name ?? req.email} · {req.status ?? 'offen'}</span>
+                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1" onClick={async () => { await fetch(`/api/admin/gdpr/data-request/${req.id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); fetchData(); }}>Erledigt</Button>}
+                          </div>
+                        ))}
+                        {(!adminGdprRequests || adminGdprRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine offenen Anfragen.</p>}
+                      </div>
+                    </Card>
+                    <Card className="p-4 mt-4">
+                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">Service-Anfragen</h4>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {adminServiceRequests.map((req: any) => (
+                          <div key={req.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800">
+                            <div className="min-w-0">
+                              <span className="text-sm text-zinc-300 block truncate">{req.user_name ?? req.user_email} · {req.type ?? '—'}</span>
+                              <span className="text-xs text-zinc-500 truncate block">{req.masterpiece_title ? `${req.masterpiece_title} (${req.serial_id ?? ''})` : '—'} {req.description ? `· ${req.description}` : ''}</span>
+                            </div>
+                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1 shrink-0" onClick={async () => { await fetch(`/api/admin/service-requests/${req.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); const r = await fetch('/api/admin/service-requests'); if (r.ok) setAdminServiceRequests(await r.json()); }}>Erledigt</Button>}
+                            {req.status === 'completed' && <span className="text-xs text-emerald-500 shrink-0">Erledigt</span>}
+                          </div>
+                        ))}
+                        {(!adminServiceRequests || adminServiceRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine Service-Anfragen.</p>}
+                      </div>
+                    </Card>
+                    <Card className="p-4 mt-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Kontaktanfragen</h4>
+                        <Button variant="outline" className="text-xs" onClick={async () => {
+                          const r = await fetch('/api/admin/contact-requests/export', { credentials: 'include' });
+                          const blob = await r.blob();
+                          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'antonio-bellanova-contact-requests.csv'; a.click(); URL.revokeObjectURL(a.href);
+                        }}>
+                          <FileDown className="w-3 h-3" /> CSV
+                        </Button>
+                      </div>
+                      <div className="space-y-3 max-h-56 overflow-y-auto">
+                        {adminContactRequests.map((req: any) => (
+                          <div key={req.id} className="py-2 border-b border-zinc-800 last:border-0">
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="text-sm font-medium text-zinc-200">{req.name}</span>
+                              <span className="text-xs text-zinc-500 shrink-0">{new Date(req.created_at).toLocaleString('de-DE')}</span>
+                            </div>
+                            <p className="text-xs text-zinc-500">{req.email}{req.subject ? ` · ${req.subject}` : ''}</p>
+                            <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{req.message}</p>
+                          </div>
+                        ))}
+                        {(!adminContactRequests || adminContactRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine Kontaktanfragen.</p>}
+                      </div>
+                    </Card>
+                  </section>
+
+                  <section className="space-y-4 lg:col-span-2">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-xl font-serif italic">Audit-Log</h3>
+                      <Button variant="outline" className="text-xs" onClick={async () => {
+                        const logs = adminAuditLogs.length ? adminAuditLogs : await (await fetch('/api/admin/audit-logs?limit=500')).json();
+                        const headers = ['Zeit', 'Admin', 'Aktion', 'Ziel', 'Details'];
+                        const rows = (Array.isArray(logs) ? logs : []).map((log: any) => [
+                          new Date(log.created_at).toISOString(),
+                          (log.admin_name ?? '').replace(/"/g, '""'),
+                          (log.action ?? '').replace(/"/g, '""'),
+                          String(log.target_id ?? ''),
+                          (log.details ?? '').replace(/"/g, '""')
+                        ]);
+                        const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(c => `"${c}"`).join(','))].join('\n');
+                        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'audit-log.csv'; a.click(); URL.revokeObjectURL(a.href);
+                      }}>Audit-Log exportieren (CSV)</Button>
+                    </div>
+                    <div className="overflow-x-auto max-h-64 overflow-y-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-left text-sm">
+                        <thead className="bg-zinc-900/80 sticky top-0">
+                          <tr>
+                            <th className="p-2 text-zinc-500 font-semibold">Zeit</th>
+                            <th className="p-2 text-zinc-500 font-semibold">Admin</th>
+                            <th className="p-2 text-zinc-500 font-semibold">Aktion</th>
+                            <th className="p-2 text-zinc-500 font-semibold">Ziel</th>
+                            <th className="p-2 text-zinc-500 font-semibold">Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminAuditLogs.map((log: any) => (
+                            <tr key={log.id} className="border-t border-zinc-800/80">
+                              <td className="p-2 text-zinc-400 whitespace-nowrap">{new Date(log.created_at).toLocaleString()}</td>
+                              <td className="p-2 text-zinc-300">{log.admin_name ?? '—'}</td>
+                              <td className="p-2 text-zinc-300">{log.action ?? '—'}</td>
+                              <td className="p-2 text-zinc-400">{log.target_id ?? '—'}</td>
+                              <td className="p-2 text-zinc-500 max-w-xs truncate">{log.details ?? '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {adminAuditLogs.length === 0 && <p className="p-4 text-zinc-600 text-sm italic">Keine Einträge.</p>}
+                    </div>
+                  </section>
+                  </>
+                  )}
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
+
+        {/* Premium Footer */}
+        {user && (
+          <footer className="premium-footer mt-16 py-8 px-8 max-w-7xl mx-auto">
+            <div className="flex flex-wrap items-center justify-between gap-6 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
+              <div className="flex items-center gap-6">
+                <span className="font-serif italic text-amber-500/80">Juwelen & Schmuckatelier Antonio Bellanova</span>
+                <span>Ahorstraße 8 · 50765 Köln, Deutschland</span>
+                <button type="button" onClick={() => setView('impressum')} className="hover:text-amber-500/80">{t('legal.imprint')}</button>
+                <button type="button" onClick={() => setView('datenschutz')} className="hover:text-amber-500/80">{t('legal.privacy')}</button>
+                <button type="button" onClick={() => setView('agb')} className="hover:text-amber-500/80">{t('legal.terms')}</button>
+                <button type="button" onClick={() => setView('kontakt')} className="hover:text-amber-500/80">{t('legal.contact')}</button>
+                <button type="button" onClick={() => setView('anfahrt')} className="hover:text-amber-500/80">{t('legal.directions')}</button>
+              </div>
+              <div className="flex items-center gap-4">
+                <span>© {new Date().getFullYear()} Atelier</span>
+                <span className="text-amber-500/60">Private Vault</span>
+              </div>
+            </div>
+          </footer>
+        )}
 
         {/* Piece Details Modal */}
         <AnimatePresence>
@@ -2034,7 +5233,7 @@ export default function App() {
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }} 
                 className="absolute inset-0 bg-black/90 backdrop-blur-md"
-                onClick={() => setSelectedPiece(null)}
+                onClick={closePieceDetail}
               />
               <motion.div 
                 initial={{ opacity: 0, scale: 0.9, y: 20 }} 
@@ -2055,9 +5254,27 @@ export default function App() {
                         <h3 className="text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
                         <p className="text-amber-500 text-2xl font-bold">{selectedPiece.valuation.toLocaleString()} €</p>
                       </div>
-                      <button onClick={() => setSelectedPiece(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!user) return;
+                            const add = !favoriteIds.includes(selectedPiece.id);
+                            fetch('/api/analytics/favorite', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ userId: user.id, masterpieceId: selectedPiece.id, add })
+                            }).then(() => setFavoriteIds(prev => add ? [...prev, selectedPiece.id] : prev.filter(id => id !== selectedPiece.id))).catch(() => {});
+                          }}
+                          className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-amber-500/80"
+                          aria-label={favoriteIds.includes(selectedPiece.id) ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          <Heart className={`w-6 h-6 ${favoriteIds.includes(selectedPiece.id) ? 'fill-amber-500/80 text-amber-500/80' : ''}`} />
+                        </button>
+                        <button onClick={closePieceDetail} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                         <Plus className="w-6 h-6 text-zinc-500 rotate-45" />
                       </button>
+                      </div>
                     </div>
 
                     <div className="space-y-6 flex-1">
@@ -2078,9 +5295,17 @@ export default function App() {
                       </div>
 
                       <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">Serial ID</p>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('common.serial_id')}</p>
                         <p className="font-mono text-xs text-zinc-400">{selectedPiece.serial_id}</p>
                       </div>
+                      {selectedPiece.blockchain_hash && (
+                        <div className="space-y-2 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+                          <p className="text-[10px] uppercase tracking-widest text-emerald-600 font-bold flex items-center gap-1.5">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Blockchain-verifiziert
+                          </p>
+                          <p className="font-mono text-[10px] text-zinc-400 break-all">{selectedPiece.blockchain_hash}</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="pt-8 border-t border-zinc-900 space-y-4">
@@ -2091,16 +5316,62 @@ export default function App() {
                               {t('legal_notice')}
                             </p>
                           </div>
-                          <Button className="w-full py-4 text-base" onClick={() => { handleBuy(selectedPiece.id); setSelectedPiece(null); }}>
+                          <Button className="w-full py-4 text-base" onClick={() => { handleBuy(selectedPiece.id); closePieceDetail(); }}>
                             <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
                           </Button>
                         </>
                       )}
-                      <Button variant="ghost" className="w-full py-4 text-sm text-zinc-500" onClick={() => setSelectedPiece(null)}>
+                      <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
+                        <MessageCircle className="w-4 h-4" /> Concierge: Zu diesem Stück anfragen
+                      </Button>
+                      <Button variant="ghost" className="w-full py-4 text-sm text-zinc-500" onClick={closePieceDetail}>
                         {t('close')}
                       </Button>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Schedule Appointment Modal (when approving meeting request) */}
+        <AnimatePresence>
+          {appointmentModalRequest && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setAppointmentModalRequest(null)} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={e => e.stopPropagation()}
+                className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl p-6 space-y-4"
+              >
+                <h3 className="text-xl font-serif italic text-white">{t('admin.approve_request')} & {t('admin.schedule_appointment')}</h3>
+                <p className="text-sm text-zinc-400">{t('admin.investor_label')}: {appointmentModalRequest.user_name} ({appointmentModalRequest.user_email})</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('admin.appointment_date')}</label>
+                    <input type="date" value={appointmentScheduleForm.date} onChange={e => setAppointmentScheduleForm(f => ({ ...f, date: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('admin.appointment_time')}</label>
+                    <input type="time" value={appointmentScheduleForm.time} onChange={e => setAppointmentScheduleForm(f => ({ ...f, time: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('admin.appointment_title')}</label>
+                  <input type="text" value={appointmentScheduleForm.title} onChange={e => setAppointmentScheduleForm(f => ({ ...f, title: e.target.value }))} placeholder={t('investor.schedule_meeting')} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('admin.appointment_notes')}</label>
+                  <textarea value={appointmentScheduleForm.notes} onChange={e => setAppointmentScheduleForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm resize-none" />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="ghost" className="flex-1" onClick={() => setAppointmentModalRequest(null)}>{t('close')}</Button>
+                  <Button variant="primary" className="flex-1" disabled={!appointmentScheduleForm.date} onClick={() => {
+                    if (appointmentScheduleForm.date) handleScheduleAppointmentSubmit({ ...appointmentScheduleForm });
+                  }}>{t('admin.approve_request')} & {t('admin.schedule_appointment')}</Button>
                 </div>
               </motion.div>
             </div>
@@ -2130,8 +5401,8 @@ export default function App() {
                   >
                     <Award className="w-12 h-12 text-amber-500" />
                   </motion.div>
-                  <h2 className="text-4xl font-serif italic text-zinc-100">Ownership Transfer Ceremony</h2>
-                  <p className="text-zinc-500 uppercase tracking-[0.3em] text-[10px] font-bold">Antonio Bellanova Atelier</p>
+                  <h2 className="text-4xl font-serif italic text-zinc-100">{t('ceremony.title')}</h2>
+                  <p className="text-zinc-500 uppercase tracking-[0.3em] text-[10px] font-bold">{t('ceremony.subtitle')}</p>
                 </div>
 
                 <div className="aspect-video rounded-[3rem] overflow-hidden border border-zinc-800 shadow-2xl relative group">
@@ -2139,29 +5410,59 @@ export default function App() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
                   <div className="absolute bottom-8 left-0 right-0">
                     <h3 className="text-2xl font-serif italic text-white">{showCeremony.title}</h3>
-                    <p className="text-xs text-amber-500 uppercase tracking-widest mt-1">Acquired by {user?.name}</p>
+                    <p className="text-xs text-amber-500 uppercase tracking-widest mt-1">{t('ceremony.acquired_by')} {user?.name}</p>
                   </div>
                 </div>
 
                 <div className="space-y-8">
                   <p className="text-zinc-400 font-light leading-relaxed italic">
-                    "True luxury is not merely the possession of an object, but the stewardship of a legacy. Today, you become the custodian of a singular masterpiece, handcrafted with precision and passion."
+                    {t('ceremony.quote')}
                   </p>
                   <div className="flex flex-col gap-4">
                     <Button variant="primary" className="py-4 text-xs uppercase tracking-[0.2em] font-bold" onClick={() => setShowCeremony(null)}>
-                      Enter the Vault
+                      {t('ceremony.enter_vault')}
                     </Button>
                     <Button variant="ghost" className="text-zinc-500 text-[10px] uppercase tracking-widest" onClick={() => {
                       setShowCeremony(null);
                       setVaultTab('certs');
                     }}>
-                      View Certificate of Authenticity
+                      {t('ceremony.view_certificate')}
                     </Button>
                   </div>
                 </div>
               </motion.div>
             </motion.div>
           )}
+        </AnimatePresence>
+
+        {/* Premium Toast */}
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: -10, x: '-50%' }}
+              className="fixed bottom-8 left-1/2 z-[200] flex items-center gap-3 px-6 py-4 rounded-2xl border shadow-2xl glass"
+              style={{ borderColor: toast.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)' }}
+            >
+              {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />}
+              <span className={toast.type === 'success' ? 'text-emerald-200' : 'text-red-200'}>{toast.msg}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Signature / Accept Contract Modal */}
+        <AnimatePresence mode="wait">
+          {contractToSign ? (
+            <SignatureModal
+              key={contractToSign.id}
+              contract={contractToSign}
+              onClose={() => { setContractToSign(null); setContractSignError(null); }}
+              onSign={handleSignContract}
+              t={t}
+              signError={contractSignError}
+            />
+          ) : null}
         </AnimatePresence>
 
         {/* Certificate Modal */}
@@ -2184,7 +5485,7 @@ export default function App() {
                 <div className="p-8 md:p-12 space-y-8">
                   <div className="flex justify-between items-start">
                     <div className="space-y-2">
-                      <h3 className="text-3xl font-serif italic text-amber-500">Certificate of Authenticity</h3>
+                      <h3 className="text-3xl font-serif italic text-amber-500">{t('cert.title')}</h3>
                       <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Antonio Bellanova Atelier</p>
                     </div>
                     <button onClick={() => setSelectedCert(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
@@ -2231,6 +5532,65 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
             </div>
           )}
         </AnimatePresence>
+
+        {/* Scroll to top */}
+        <AnimatePresence>
+          {showScrollTop && (
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="fixed bottom-8 right-8 z-40 w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-amber-500 hover:bg-zinc-700 transition-colors shadow-lg"
+              aria-label="Nach oben"
+            >
+              <ChevronRight className="w-5 h-5 rotate-270" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* Shortcuts modal */}
+        <AnimatePresence>
+          {showShortcutsModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-black/80" onClick={() => setShowShortcutsModal(false)} />
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
+                <h3 className="text-lg font-serif italic">Tastaturkürzel</h3>
+                <ul className="text-sm text-zinc-400 space-y-2">
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> Modals schließen</li>
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> Suche fokussieren</li>
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> Diese Hilfe</li>
+                </ul>
+                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>Schließen</Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Notification prefs modal */}
+        <AnimatePresence>
+          {showNotificationPrefsModal && user && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+              <div className="absolute inset-0 bg-black/80" onClick={() => setShowNotificationPrefsModal(false)} />
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
+                <h3 className="text-lg font-serif italic">Benachrichtigungen</h3>
+                <p className="text-xs text-zinc-500">E-Mail-Benachrichtigungen (Einstellungen werden gespeichert).</p>
+                {['email_messages', 'email_contracts', 'email_auctions'].map(key => (
+                  <label key={key} className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={(notificationPrefs as any)[key]} onChange={e => setNotificationPrefs(p => ({ ...p, [key]: e.target.checked }))} className="rounded border-zinc-600" />
+                    <span className="text-sm text-zinc-300">{key === 'email_messages' ? 'Nachrichten' : key === 'email_contracts' ? 'Verträge' : 'Auktionen'}</span>
+                  </label>
+                ))}
+                <Button variant="primary" className="w-full" onClick={async () => {
+                  await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, notification_prefs: JSON.stringify(notificationPrefs) }) });
+                  setShowNotificationPrefsModal(false);
+                  notifyUser(t('common.settings_saved'), 'success');
+                }}>Speichern</Button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   );
@@ -2260,16 +5620,22 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, key?: any }) => (
-  <Card className="group hover:border-amber-600/30 transition-all">
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, isFavorite, onToggleFavorite }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void }) => (
+  <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
-      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-      <div className="absolute top-3 right-3">
+      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+      {onToggleFavorite && (
+        <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}>
+          <Heart className={`w-5 h-5 transition-colors ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
+        </button>
+      )}
+      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
         <Badge variant="amber">{piece.rarity}</Badge>
+        {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>Verifiziert</Badge>}
       </div>
       {piece.status === 'reserved' && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
-          <Badge variant="amber">Reserved</Badge>
+          <Badge variant="amber">{t ? t('reserved') : 'Reserved'}</Badge>
         </div>
       )}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
@@ -2298,7 +5664,7 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction }: { p
   </Card>
 );
 
-const AuctionCard = ({ auction, onBid, onViewDetails, userId }: { auction: Auction, onBid: (amt: number) => void, onViewDetails?: (pId: number) => void, userId: number, key?: any }) => {
+const AuctionCard = ({ auction, onBid, onViewDetails, userId, isFavorite, onToggleFavorite }: { auction: Auction, onBid: (amt: number) => void, onViewDetails?: (pId: number) => void, userId: number, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void }) => {
   const [bidAmt, setBidAmt] = useState(auction.current_bid + 1000);
   const [showHistory, setShowHistory] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
@@ -2352,6 +5718,11 @@ const AuctionCard = ({ auction, onBid, onViewDetails, userId }: { auction: Aucti
     <Card className="group hover:border-amber-600/30 transition-all">
       <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(auction.masterpiece_id)}>
         <img src={auction.image_url || `https://picsum.photos/seed/${auction.id}/600/600`} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+        {onToggleFavorite && (
+          <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}>
+            <Heart className={`w-5 h-5 ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
+          </button>
+        )}
         <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
           <Badge variant="red">Live Auction</Badge>
           {auction.vip_only === 1 && <Badge variant="amber">VIP Early Access</Badge>}
@@ -2503,10 +5874,13 @@ const InvestorActionButton = ({ icon: Icon, title, description, onClick }: any) 
   </button>
 );
 
-const EmptyState = ({ icon: Icon, text }: any) => (
-  <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
-    <Icon className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-    <p className="text-zinc-500">{text}</p>
+const EmptyState = ({ icon: Icon, text, subtitle }: any) => (
+  <div className="col-span-full py-24 text-center border border-dashed border-zinc-800/80 rounded-3xl bg-zinc-950/30">
+    <div className="w-16 h-16 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-center mx-auto mb-6">
+      <Icon className="w-8 h-8 text-amber-500/40" />
+    </div>
+    <p className="text-zinc-400 font-medium">{text}</p>
+    {subtitle && <p className="text-xs text-zinc-600 mt-2 max-w-sm mx-auto">{subtitle}</p>}
   </div>
 );
 

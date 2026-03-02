@@ -2,6 +2,8 @@ export enum UserRole {
   ADMIN = 'admin',
   CLIENT = 'client',
   VIP = 'vip',
+  ROYAL = 'royal',
+  BLACK = 'black',
   RESELLER = 'reseller',
   INVESTOR = 'investor',
   VIEWER = 'viewer'
@@ -15,6 +17,7 @@ export enum UserStatus {
 export interface User {
   id: number;
   email: string;
+  username?: string;
   name: string;
   address: string;
   role: UserRole;
@@ -36,10 +39,12 @@ export interface Masterpiece {
   deposit_pct: number;
   image_url: string;
   current_owner_id: number | null;
-  status: 'available' | 'reserved' | 'sold' | 'auction' | 'resell_pending' | 'fractional_open' | 'fractional_full' | 'fractional_resale';
+  status: 'available' | 'reserved' | 'sold' | 'auction' | 'resell_pending' | 'resale_review' | 'fractional_open' | 'fractional_full' | 'fractional_resale';
   blockchain_hash: string;
   nft_token_id: string | null;
   created_at: string;
+  transfer_type?: 'platform' | 'external';
+  warranty_void?: number;
 }
 
 export interface Auction {
@@ -105,6 +110,7 @@ export interface Certificate {
   signature: string;
   blockchain_hash: string;
   created_at: string;
+  content?: string;
 }
 
 export interface Bid {
@@ -269,10 +275,26 @@ export interface InvestorAnalytics {
 export interface InvestorRequest {
   id: number;
   user_id: number;
-  type: 'allocation' | 'meeting' | 'preview' | 'dataroom';
+  type: 'allocation' | 'meeting' | 'preview' | 'dataroom' | 'share';
   message: string;
   status: 'pending' | 'approved' | 'rejected';
+  masterpiece_id?: number | null;
+  request_metadata?: string | null;
+  masterpiece_title?: string;
+  masterpiece_serial?: string;
   created_at: string;
+}
+
+export interface FractionalOffer {
+  id: number;
+  masterpiece_id: number;
+  title: string;
+  serial_id: string;
+  valuation: number;
+  status: string;
+  image_url?: string;
+  available_pct: number;
+  price_per_pct: number | null;
 }
 
 export interface InvestorViewLog {
@@ -280,5 +302,79 @@ export interface InvestorViewLog {
   user_id: number;
   masterpiece_id: number;
   interest_level: number;
+  created_at: string;
+}
+
+// Luxury Communication System
+export type ChatThreadType = 'concierge' | 'asset' | 'investor_hub' | 'auction_live' | 'black_direct' | 'vault';
+
+export interface ChatThread {
+  id: number;
+  type: ChatThreadType;
+  status: string;
+  priority: number;
+  user_id: number | null;
+  masterpiece_id: number | null;
+  auction_id: number | null;
+  pool_id: number | null;
+  assigned_admin_id: number | null;
+  first_response_at: string | null;
+  created_at: string;
+  updated_at: string;
+  masterpiece_title?: string;
+  serial_id?: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  thread_id: number;
+  sender_id: number;
+  content: string;
+  content_lang: string | null;
+  asset_ref: string | null;
+  is_system: number;
+  is_moderated: number;
+  created_at: string;
+}
+
+export interface ConciergeAvailability {
+  id: number;
+  admin_id: number;
+  status: 'available' | 'busy' | 'away';
+  updated_at: string;
+}
+
+export interface Appointment {
+  id: number;
+  request_id: number | null;
+  admin_id: number;
+  user_id: number;
+  scheduled_at: string;
+  title: string | null;
+  notes: string | null;
+  status: 'proposed' | 'confirmed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+  user_name?: string;
+  user_email?: string;
+  admin_name?: string;
+}
+
+export interface VaultRequest {
+  id: number;
+  user_id: number;
+  masterpiece_id: number;
+  request_type: 'audit' | 'insurance_update' | 'transfer' | 'withdrawal';
+  status: string;
+  thread_id: number | null;
+  details: string | null;
+  created_at: string;
+}
+
+export interface LoginHistoryEntry {
+  id: number;
+  ip_address: string | null;
+  user_agent: string | null;
+  success: number;
   created_at: string;
 }
