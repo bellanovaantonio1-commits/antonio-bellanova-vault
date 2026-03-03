@@ -2350,59 +2350,64 @@ export default function App() {
     }
   }, [user?.role, adminTab]);
 
-      if (user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR) {
-        try {
-          const [dashRes, clientsRes, commissionsRes, contractsRes] = await Promise.all([
-            fetch('/api/advisor/dashboard', { credentials: 'include' }),
-            fetch('/api/advisor/clients', { credentials: 'include' }),
-            fetch('/api/advisor/commissions', { credentials: 'include' }),
-            fetch('/api/advisor/contracts', { credentials: 'include' })
+  useEffect(() => {
+    if (!user?.id) return;
+    (async () => {
+      try {
+        if (user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR) {
+          try {
+            const [dashRes, clientsRes, commissionsRes, contractsRes] = await Promise.all([
+              fetch('/api/advisor/dashboard', { credentials: 'include' }),
+              fetch('/api/advisor/clients', { credentials: 'include' }),
+              fetch('/api/advisor/commissions', { credentials: 'include' }),
+              fetch('/api/advisor/contracts', { credentials: 'include' })
+            ]);
+            const any403 = [dashRes, clientsRes, commissionsRes, contractsRes].some(r => r.status === 403);
+            if (any403) setAdvisorNotActivated(true); else setAdvisorNotActivated(false);
+            if (dashRes.ok) setAdvisorDashboard(await dashRes.json());
+            if (clientsRes.ok) setAdvisorClients(await clientsRes.json());
+            if (commissionsRes.ok) setAdvisorCommissions(await commissionsRes.json());
+            if (contractsRes.ok) setAdvisorContracts(await contractsRes.json());
+          } catch (_) {}
+        }
+
+        const apptsRes = await fetch(`/api/appointments?userId=${user.id}`);
+        if (apptsRes.ok) setUserAppointments(await apptsRes.json());
+
+        const recentViewsRes = await fetch('/api/recent-views', { credentials: 'include' });
+        if (recentViewsRes.ok) {
+          const recentPieces = await recentViewsRes.json();
+          if (Array.isArray(recentPieces) && recentPieces.length > 0)
+            setRecentlyViewedIds(recentPieces.map((p: { id: number }) => p.id));
+        }
+
+        const myBidsRes = await fetch(`/api/auctions/my-bids?userId=${user.id}`);
+        if (myBidsRes.ok) setMyBids(await myBidsRes.json());
+
+        if (user.role === UserRole.INVESTOR) {
+          const [analyticsRes, myReqsRes, offersRes, portfolioRes] = await Promise.all([
+            fetch('/api/investor/analytics'),
+            fetch(`/api/investor/my-requests?userId=${user.id}`),
+            fetch('/api/investor/fractional-offers'),
+            fetch(`/api/investor/portfolio/${user.id}`)
           ]);
-          const any403 = [dashRes, clientsRes, commissionsRes, contractsRes].some(r => r.status === 403);
-          if (any403) setAdvisorNotActivated(true); else setAdvisorNotActivated(false);
-          if (dashRes.ok) setAdvisorDashboard(await dashRes.json());
-          if (clientsRes.ok) setAdvisorClients(await clientsRes.json());
-          if (commissionsRes.ok) setAdvisorCommissions(await commissionsRes.json());
-          if (contractsRes.ok) setAdvisorContracts(await contractsRes.json());
-        } catch (_) {}
+          if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
+          if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
+          if (offersRes.ok) setFractionalOffers(await offersRes.json());
+          if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
+        }
+        if (user.role === UserRole.CLIENT) {
+          const offersRes = await fetch('/api/investor/fractional-offers');
+          if (offersRes.ok) setFractionalOffers(await offersRes.json());
+        }
+        fetch('/api/atelier-moments').then(r => r.ok ? r.json() : []).then(setAtelierMoments).catch(() => {});
+      } catch (e) {
+        console.error("Fetch error", e);
+      } finally {
+        setListLoading(false);
       }
-
-      const apptsRes = await fetch(`/api/appointments?userId=${user.id}`);
-      if (apptsRes.ok) setUserAppointments(await apptsRes.json());
-
-      const recentViewsRes = await fetch('/api/recent-views', { credentials: 'include' });
-      if (recentViewsRes.ok) {
-        const recentPieces = await recentViewsRes.json();
-        if (Array.isArray(recentPieces) && recentPieces.length > 0)
-          setRecentlyViewedIds(recentPieces.map((p: { id: number }) => p.id));
-      }
-
-      const myBidsRes = await fetch(`/api/auctions/my-bids?userId=${user.id}`);
-      if (myBidsRes.ok) setMyBids(await myBidsRes.json());
-
-      if (user.role === UserRole.INVESTOR) {
-        const [analyticsRes, myReqsRes, offersRes, portfolioRes] = await Promise.all([
-          fetch('/api/investor/analytics'),
-          fetch(`/api/investor/my-requests?userId=${user.id}`),
-          fetch('/api/investor/fractional-offers'),
-          fetch(`/api/investor/portfolio/${user.id}`)
-        ]);
-        if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
-        if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
-        if (offersRes.ok) setFractionalOffers(await offersRes.json());
-        if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
-      }
-      if (user.role === UserRole.CLIENT) {
-        const offersRes = await fetch('/api/investor/fractional-offers');
-        if (offersRes.ok) setFractionalOffers(await offersRes.json());
-      }
-      fetch('/api/atelier-moments').then(r => r.ok ? r.json() : []).then(setAtelierMoments).catch(() => {});
-    } catch (e) {
-      console.error("Fetch error", e);
-    } finally {
-      setListLoading(false);
-    }
-  };
+    })();
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     if (user?.role !== UserRole.ADMIN) return;
