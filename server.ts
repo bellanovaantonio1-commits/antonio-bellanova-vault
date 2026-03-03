@@ -2531,6 +2531,47 @@ app.get("/api/advisor/commissions", requireAuth, requireAdvisor, (req, res) => {
   res.json(rows);
 });
 
+const ADVISOR_CONTRACT_COMPANY = { name: "Juwelen & Schmuckatelier Antonio Bellanova", address: "Ahorstraße 8, 50765 Köln, Deutschland" };
+
+function getAdvisorContractContent(type: string, advisorName: string, commissionPct: number, signed: boolean): { title: string; content: string } {
+  const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const footer = `\n\n${ADVISOR_CONTRACT_COMPANY.name}\n${ADVISOR_CONTRACT_COMPANY.address}\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln, sofern nicht anders vereinbart.`;
+  const signedLine = signed ? `\n\nUnterzeichnet: ${advisorName} am ${new Date().toISOString().slice(0, 10)}` : "";
+  if (type === "nda") {
+    const title = "Vertraulichkeits- und Geheimhaltungsvereinbarung (NDA)";
+    const content = `VERTRAULICHKEITS- UND GEHEIMHALTUNGSVEREINBARUNG\n\nzwischen\n${ADVISOR_CONTRACT_COMPANY.name}, ${ADVISOR_CONTRACT_COMPANY.address}\n(„Atelier“)\n\nund\nStrategic Private Advisor: ${advisorName}\n(„Berater“)\n\n1. Geltungsbereich\nAlle im Rahmen der Tätigkeit als Strategic Private Advisor erhaltenen Informationen über Kunden, Transaktionen, Preise und Geschäftsbeziehungen des Ateliers sind vertraulich und unterliegen der Geheimhaltung.\n\n2. Nutzung\nDer Berater verwendet vertrauliche Informationen ausschließlich zur Erfüllung seiner Aufgaben und gibt sie an keine Dritten weiter.\n\n3. Dauer\nDie Verpflichtung besteht über das Ende der Zusammenarbeit hinaus fort.\n\n4. Rechtsfolgen\nZuwiderhandlungen können Schadensersatz- und Unterlassungsansprüche auslösen.${footer}${signedLine}`;
+    return { title, content };
+  }
+  if (type === "advisor_agreement") {
+    const title = "Strategic Private Advisor – Rahmenvereinbarung";
+    const content = `STRATEGIC PRIVATE ADVISOR – RAHMENVEREINBARUNG\n\nzwischen\n${ADVISOR_CONTRACT_COMPANY.name}, ${ADVISOR_CONTRACT_COMPANY.address}\n(„Atelier“)\n\nund\n${advisorName}\n(„Berater“)\n\n1. Aufgaben\nDer Berater vermittelt dem Atelier geeignete Kunden und begleitet Transaktionen im Rahmen der Plattform Antonio Bellanova Vault. Die genaue Provisionsstruktur wird im separaten Provisionsvertrag geregelt.\n\n2. Exklusivität & Compliance\nDer Berater handelt im Namen des Ateliers und hält sich an die Plattform-Regeln sowie an geltendes Recht.\n\n3. Laufzeit & Kündigung\nDie Zusammenarbeit gilt bis auf Widerruf. Das Atelier kann die Freischaltung nach Unterzeichnung des NDA und dieser Vereinbarung vornehmen.${footer}${signedLine}`;
+    return { title, content };
+  }
+  if (type === "commission_agreement") {
+    const title = "Provisionsvereinbarung – Strategic Private Advisor";
+    const content = `PROVISIONSVEREINBARUNG – STRATEGIC PRIVATE ADVISOR\n\nzwischen\n${ADVISOR_CONTRACT_COMPANY.name}, ${ADVISOR_CONTRACT_COMPANY.address}\n(„Atelier“)\n\nund\n${advisorName}\n(„Berater“)\n\n1. Provisionssatz\nAuf abgeschlossene Verkäufe, die über den Berater vermittelt wurden, erhält der Berater eine Provision in Höhe von ${commissionPct} % des Verkaufserlöses (netto), sofern nicht im Einzelfall anders vereinbart.\n\n2. Auslösung\nDie Provision entsteht mit Zahlungseingang beim Atelier und Bestätigung des Verkaufs. Die Auszahlung erfolgt nach internen Fristen des Ateliers.\n\n3. Anpassung\nDer im Admin-Bereich hinterlegte Prozentsatz kann vom Atelier angepasst werden; für bereits entstandene Ansprüche gilt der zum Zeitpunkt des Verkaufs gültige Satz.${footer}${signedLine}`;
+    return { title, content };
+  }
+  return { title: type, content: "" };
+}
+
+// Advisor: get contract content for download (draft or signed)
+app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const user = (req as any).user;
+  const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
+  if (!["nda", "advisor_agreement", "commission_agreement"].includes(type)) return res.status(400).json({ error: "Invalid contract type" });
+  const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(aid) as { default_commission_pct: number } | undefined;
+  const commissionPct = profile?.default_commission_pct ?? 8;
+  const existing = db.prepare("SELECT content, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?").get(aid, type) as { content: string; status: string } | undefined;
+  if (existing?.status === "signed" && existing.content) {
+    const titles: Record<string, string> = { nda: "Vertraulichkeits- und Geheimhaltungsvereinbarung (NDA)", advisor_agreement: "Strategic Private Advisor – Rahmenvereinbarung", commission_agreement: "Provisionsvereinbarung – Strategic Private Advisor" };
+    return res.json({ title: titles[type] || type, content: existing.content });
+  }
+  const { title, content } = getAdvisorContractContent(type, user.name || "Berater", commissionPct, false);
+  res.json({ title, content });
+});
+
 // Advisor: list contracts (NDA, advisor_agreement, commission_agreement)
 app.get("/api/advisor/contracts", requireAuth, requireAdvisor, (req, res) => {
   const aid = (req as any).advisorProfileId;
@@ -2538,7 +2579,7 @@ app.get("/api/advisor/contracts", requireAuth, requireAdvisor, (req, res) => {
   res.json(rows);
 });
 
-// Advisor: sign contract (digital signature)
+// Advisor: sign contract (digital signature) – uses same rich content as download
 app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisor, (req, res) => {
   const aid = (req as any).advisorProfileId;
   const user = (req as any).user;
@@ -2546,12 +2587,10 @@ app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisor, (req,
   if (!["nda", "advisor_agreement", "commission_agreement"].includes(type)) return res.status(400).json({ error: "Invalid contract type" });
   const existing = db.prepare("SELECT id, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?").get(aid, type) as any;
   if (existing?.status === "signed") return res.status(400).json({ error: "Already signed" });
+  const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(aid) as { default_commission_pct: number } | undefined;
+  const commissionPct = profile?.default_commission_pct ?? 8;
+  const { content } = getAdvisorContractContent(type, user.name || "Berater", commissionPct, true);
   const docRef = `AB-ADV-${type.toUpperCase()}-${Date.now()}`;
-  const content = type === "nda"
-    ? `CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT\n\nBetween Juwelen & Schmuckatelier Antonio Bellanova and the Strategic Private Advisor.\n\nAll client and transaction data is confidential. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`
-    : type === "advisor_agreement"
-    ? `STRATEGIC PRIVATE ADVISOR AGREEMENT\n\nTerms of engagement, commission structure, and exclusivity. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`
-    : `COMMISSION AGREEMENT\n\nCommission percentage and payout terms. Default 8% unless overridden by admin. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`;
   if (existing) {
     db.prepare("UPDATE advisor_contracts SET content = ?, doc_ref = ?, status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, docRef, existing.id);
   } else {

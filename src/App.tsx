@@ -319,6 +319,11 @@ const TRANSLATIONS: any = {
     "advisor.status": "Status",
     "advisor.no_commissions": "Noch keine Provisionen.",
     "advisor.unsigned": "Nicht unterzeichnet",
+    "advisor.contracts_download_hint": "Verträge herunterladen, prüfen und anschließend unterzeichnen.",
+    "advisor.download_contract": "Herunterladen",
+    "advisor.download_error": "Download fehlgeschlagen.",
+    "advisor.advisor_agreement": "Rahmenvereinbarung",
+    "advisor.commission_agreement": "Provisionsvereinbarung",
     "advisor.not_activated_title": "Zugang noch nicht freigeschaltet",
     "advisor.not_activated_message": "Bitte unterzeichnen Sie zuerst den NDA unter Verträge und warten Sie auf die Freischaltung durch den Administrator.",
     "view.advisor": "Berater",
@@ -686,6 +691,11 @@ const TRANSLATIONS: any = {
     "advisor.status": "Status",
     "advisor.no_commissions": "No commissions yet.",
     "advisor.unsigned": "Unsigned",
+    "advisor.contracts_download_hint": "Download contracts, review, then sign.",
+    "advisor.download_contract": "Download",
+    "advisor.download_error": "Download failed.",
+    "advisor.advisor_agreement": "Framework agreement",
+    "advisor.commission_agreement": "Commission agreement",
     "advisor.not_activated_title": "Access not yet activated",
     "advisor.not_activated_message": "Please sign the NDA under Contracts first and wait for administrator approval.",
     "view.advisor": "Advisor",
@@ -1029,6 +1039,11 @@ const TRANSLATIONS: any = {
     "advisor.status": "Stato",
     "advisor.no_commissions": "Nessuna commissione ancora.",
     "advisor.unsigned": "Non firmato",
+    "advisor.contracts_download_hint": "Scarica i contratti, verifica e poi firma.",
+    "advisor.download_contract": "Scarica",
+    "advisor.download_error": "Download fallito.",
+    "advisor.advisor_agreement": "Accordo quadro",
+    "advisor.commission_agreement": "Accordo commissioni",
     "advisor.not_activated_title": "Accesso non ancora attivato",
     "advisor.not_activated_message": "Firma prima il NDA nella sezione Contratti e attendi l'approvazione dell'amministratore.",
     "view.advisor": "Consulente",
@@ -4763,22 +4778,34 @@ export default function App() {
                 {advisorTab === 'contracts' && (
                   <Card className="p-6 space-y-4">
                     <h4 className="text-lg font-serif italic">{t('advisor.contracts')}</h4>
+                    <p className="text-sm text-zinc-500">{t('advisor.contracts_download_hint') || 'Verträge herunterladen, prüfen und anschließend unterzeichnen.'}</p>
                     {['nda', 'advisor_agreement', 'commission_agreement'].map((type: string) => {
                       const c = advisorContracts.find((x: any) => x.type === type);
+                      const typeLabel = type === 'nda' ? 'NDA (Vertraulichkeit)' : type === 'advisor_agreement' ? t('advisor.advisor_agreement') || 'Rahmenvereinbarung' : t('advisor.commission_agreement') || 'Provisionsvereinbarung';
                       return (
-                        <div key={type} className="flex justify-between items-center p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                        <div key={type} className="flex flex-wrap justify-between items-center gap-3 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                           <div>
-                            <p className="font-medium text-zinc-200">{type.replace(/_/g, ' ')}</p>
+                            <p className="font-medium text-zinc-200">{typeLabel}</p>
                             <p className="text-xs text-zinc-500">{c?.signed_at ? t('signed') + ': ' + new Date(c.signed_at).toLocaleDateString() : t('advisor.unsigned')}</p>
                           </div>
-                          {c?.status === 'signed' ? (
-                            <Badge variant="emerald">{t('signed')}</Badge>
-                          ) : (
+                          <div className="flex gap-2 flex-wrap">
                             <Button variant="outline" size="sm" onClick={async () => {
-                              const res = await fetch(`/api/advisor/contracts/${type}/sign`, { method: 'POST', credentials: 'include' });
-                              if (res.ok) fetchData();
-                            }}>{t('sign_contract')}</Button>
-                          )}
+                              try {
+                                const res = await fetch(`/api/advisor/contracts/${type}/content`, { credentials: 'include' });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok && data.title && data.content) await downloadPDF(data.title, data.content, undefined, { fileName: `Antonio-Bellanova-${type}.pdf` });
+                                else notifyUser(t('advisor.download_error') || 'Download fehlgeschlagen.', 'error');
+                              } catch (e) { notifyUser(t('advisor.download_error') || 'Download fehlgeschlagen.', 'error'); }
+                            }}>{t('advisor.download_contract') || 'Herunterladen'}</Button>
+                            {c?.status === 'signed' ? (
+                              <Badge variant="emerald">{t('signed')}</Badge>
+                            ) : (
+                              <Button variant="primary" size="sm" onClick={async () => {
+                                const res = await fetch(`/api/advisor/contracts/${type}/sign`, { method: 'POST', credentials: 'include' });
+                                if (res.ok) fetchData();
+                              }}>{t('sign_contract')}</Button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -5560,22 +5587,25 @@ export default function App() {
                           <div>
                             <p className="font-medium text-zinc-200">{a.name}</p>
                             <p className="text-xs text-zinc-500">{a.email}</p>
-                            <p className="text-[10px] text-zinc-600 mt-1">Status: {a.profile_status} · Commission: {a.default_commission_pct}%</p>
+                            <p className="text-[10px] text-zinc-600 mt-1">Status: {a.profile_status}</p>
                           </div>
-                          <div className="flex gap-2 flex-wrap">
+                          <div className="flex gap-3 flex-wrap items-center">
                             {a.profile_status === 'nda_signed' && (
                               <Button variant="outline" size="sm" onClick={async () => {
                                 const res = await fetch(`/api/admin/advisors/${a.profile_id}/activate`, { method: 'PUT', credentials: 'include' });
                                 if (res.ok) fetchData();
                               }}>{t('admin.activate_advisor') || 'Aktivieren'}</Button>
                             )}
-                            <input type="number" min="0" max="100" step="0.5" defaultValue={a.default_commission_pct} className="w-16 bg-zinc-900/50 border border-zinc-800 rounded py-1 px-2 text-zinc-200 text-sm" onBlur={async (e) => {
-                              const pct = Number(e.target.value);
-                              if (Number.isNaN(pct)) return;
-                              await fetch(`/api/admin/advisors/${a.profile_id}/commission`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commissionPct: pct }), credentials: 'include' });
-                              fetchData();
-                            }} />
-                            <span className="text-xs text-zinc-500">%</span>
+                            <div className="flex items-center gap-2">
+                              <label className="text-xs text-zinc-500 whitespace-nowrap">{t('admin.commission_override') || 'Provisionssatz'}</label>
+                              <input type="number" min="0" max="100" step="0.5" defaultValue={a.default_commission_pct} className="w-16 bg-zinc-900/50 border border-zinc-800 rounded py-1.5 px-2 text-zinc-200 text-sm" onBlur={async (e) => {
+                                const pct = Number(e.target.value);
+                                if (Number.isNaN(pct)) return;
+                                await fetch(`/api/admin/advisors/${a.profile_id}/commission`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commissionPct: pct }), credentials: 'include' });
+                                fetchData();
+                              }} />
+                              <span className="text-xs text-zinc-500">%</span>
+                            </div>
                           </div>
                         </Card>
                       ))}
