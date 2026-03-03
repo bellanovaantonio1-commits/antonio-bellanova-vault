@@ -2140,6 +2140,7 @@ export default function App() {
   const [registryData, setRegistryData] = useState<Record<number, any>>({});
   const [performanceData, setPerformanceData] = useState<Record<number, any>>({});
   const [showRegistryInModal, setShowRegistryInModal] = useState(false);
+  const [pieceModalImageIndex, setPieceModalImageIndex] = useState(0);
   const [verifyCertId, setVerifyCertId] = useState<string | null>(null);
   const [verifyData, setVerifyData] = useState<{ cert: any; piece: any; owner_name: string | null } | null>(null);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState<{ message: string } | null>(null);
@@ -2245,6 +2246,8 @@ export default function App() {
     } catch (_) {}
     return piece.image_url ? [piece.image_url] : [];
   };
+
+  useEffect(() => { setPieceModalImageIndex(0); }, [selectedPiece?.id]);
 
   // Forms
   const [email, setEmail] = useState('');
@@ -2870,11 +2873,19 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...newPiece,
-          valuation: parseFloat(newPiece.valuation),
-          deposit_pct: parseFloat(newPiece.deposit_pct),
+          title: newPiece.title,
+          serial_id: newPiece.serial_id,
+          category: newPiece.category,
+          description: newPiece.description,
+          materials: newPiece.materials,
+          gemstones: newPiece.gemstones,
+          valuation: parseFloat(newPiece.valuation) || 0,
+          rarity: newPiece.rarity,
+          production_time: newPiece.production_time,
+          cert_data: newPiece.cert_data,
+          deposit_pct: parseFloat(newPiece.deposit_pct) || 50,
           image_url: (newPiece.images?.length ? newPiece.images[0] : newPiece.image) || '',
-          image_urls: (newPiece as any).images?.length ? (newPiece as any).images : undefined,
+          image_urls: (newPiece.images?.length ? newPiece.images : undefined),
           pricing_mode: (newPiece as any).pricing_mode ?? 'fixed'
         })
       });
@@ -2898,9 +2909,15 @@ export default function App() {
         });
         fetchData();
       } else {
-        const err = await res.json();
-        notifyUser(err.error || t('errors.piece_create_failed'), 'error');
+        try {
+          const err = await res.json();
+          notifyUser(err.error || t('errors.piece_create_failed'), 'error');
+        } catch {
+          notifyUser(t('errors.piece_create_failed'), 'error');
+        }
       }
+    } catch (_err) {
+      notifyUser(t('errors.piece_create_failed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -3687,26 +3704,62 @@ export default function App() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const masterpieceFileInputRef = useRef<HTMLInputElement>(null);
+  const [draggingOverImages, setDraggingOverImages] = useState(false);
+  const processImageFiles = (files: File[]) => {
     if (!files?.length) return;
-    const results: string[] = new Array(files.length);
+    const list = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!list.length) return;
+    const results: string[] = new Array(list.length);
     let done = 0;
-    Array.from(files).forEach((file, i) => {
+    const maxSize = 1200;
+    const compress = (dataUrl: string): Promise<string> => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = (h / w) * maxSize; w = maxSize; } else { w = (w / h) * maxSize; h = maxSize; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(dataUrl); return; }
+          ctx.drawImage(img, 0, 0, w, h);
+          try {
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } catch {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      });
+    };
+    list.forEach((file, i) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        results[i] = reader.result as string;
+      reader.onloadend = async () => {
+        const dataUrl = reader.result as string;
+        if (!dataUrl || typeof dataUrl !== 'string') { done += 1; if (done === list.length) finish(); return; }
+        const compressed = await compress(dataUrl);
+        results[i] = compressed;
         done += 1;
-        if (done === files.length) {
-          const newImages = results.filter(Boolean);
-          setNewPiece(prev => {
-            const combined = [...(prev.images || []), ...newImages];
-            return { ...prev, images: combined, image: combined[0] || prev.image };
-          });
-        }
+        if (done === list.length) finish();
       };
       reader.readAsDataURL(file);
     });
+    const finish = () => {
+      const newImages = results.filter(Boolean);
+      setNewPiece(prev => {
+        const combined = [...(prev.images || []), ...newImages];
+        return { ...prev, images: combined, image: combined[0] || prev.image };
+      });
+    };
+  };
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) processImageFiles(Array.from(files));
     e.target.value = '';
   };
 
@@ -5886,8 +5939,20 @@ export default function App() {
                           </div>
                           <div className="space-y-4">
                             <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Bilder des Meisterstücks</label>
-                            <input id="file-upload" type="file" className="hidden" accept="image/*" multiple onChange={handleFileUpload} />
-                            <div className="border-2 border-dashed border-zinc-800 rounded-3xl aspect-video flex flex-col items-center justify-center p-8 text-center group hover:border-amber-600/50 transition-all cursor-pointer relative overflow-hidden" onClick={() => document.getElementById('file-upload')?.click()}>
+                            <input ref={masterpieceFileInputRef} id="masterpiece-images-upload" type="file" className="sr-only" accept="image/*" multiple onChange={handleFileUpload} />
+                            <label htmlFor="masterpiece-images-upload" className="block cursor-pointer">
+                            <div
+                              className={`border-2 border-dashed rounded-3xl aspect-video flex flex-col items-center justify-center p-8 text-center group transition-all cursor-pointer relative overflow-hidden ${draggingOverImages ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800 hover:border-amber-600/50'}`}
+                              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingOverImages(true); }}
+                              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDraggingOverImages(false); }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setDraggingOverImages(false);
+                                const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                                if (files.length) processImageFiles(files);
+                              }}
+                            >
                               {(newPiece.images?.length ?? 0) > 0 ? (
                                 <div className="absolute inset-0 p-4 flex flex-wrap gap-2 items-center justify-center overflow-auto">
                                   {(newPiece.images || []).map((url, idx) => (
@@ -5904,6 +5969,7 @@ export default function App() {
                                 <><Upload className="w-12 h-12 text-zinc-700 group-hover:text-amber-500 transition-colors mb-4" /><p className="text-sm text-zinc-500">Klicken oder Bilder hierher ziehen (mehrere möglich)</p></>
                               )}
                             </div>
+                            </label>
                           </div>
                           <Button className="w-full" onClick={handleCreatePiece} disabled={loading}>Meisterstück erstellen</Button>
                         </Card>
@@ -6852,10 +6918,34 @@ export default function App() {
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 h-full max-h-[90vh] overflow-y-auto">
                   <div className="aspect-square bg-zinc-900 relative">
-                    <img src={selectedPiece.image_url || `https://picsum.photos/seed/${selectedPiece.id}/800/800`} alt={selectedPiece.title} className="w-full h-full object-cover" />
-                    <div className="absolute top-6 left-6">
-                      <Badge variant="amber">{selectedPiece.rarity}</Badge>
-                    </div>
+                    {(() => {
+                      const images = getPieceImages(selectedPiece);
+                      const fallback = `https://picsum.photos/seed/${selectedPiece.id}/800/800`;
+                      const src = images.length > 0 ? images[Math.min(pieceModalImageIndex, images.length - 1)] : (selectedPiece.image_url || fallback);
+                      return (
+                        <>
+                          <img src={src} alt={selectedPiece.title} className="w-full h-full object-cover" />
+                          {images.length > 1 && (
+                            <>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i - 1 + images.length) % images.length); }} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Vorheriges Bild">
+                                <ChevronLeft className="w-5 h-5" />
+                              </button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i + 1) % images.length); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Nächstes Bild">
+                                <ChevronRight className="w-5 h-5" />
+                              </button>
+                              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
+                                {images.map((_, idx) => (
+                                  <button key={idx} type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(idx); }} className={`w-2 h-2 rounded-full transition-colors ${idx === pieceModalImageIndex ? 'bg-amber-500' : 'bg-white/40 hover:bg-white/60'}`} aria-label={`Bild ${idx + 1}`} />
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          <div className="absolute top-6 left-6">
+                            <Badge variant="amber">{selectedPiece.rarity}</Badge>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                   <div className="p-8 md:p-12 space-y-8 flex flex-col">
                     <div className="flex justify-between items-start">
