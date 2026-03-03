@@ -37,7 +37,10 @@ import {
   Wrench,
   Sun,
   Moon,
-  Search
+  Search,
+  Package,
+  BookOpen,
+  LineChart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from "jspdf";
@@ -350,6 +353,26 @@ const TRANSLATIONS: any = {
     "dashboard.recent_views": "Zuletzt angesehen",
     "dashboard.favorites": "Favoriten",
     "dashboard.remove_favorite": "Favorit entfernen",
+    "dashboard.active_orders": "Aktive Bestellungen",
+    "dashboard.registry_entries": "Registry-Einträge",
+    "dashboard.value_development": "Wertentwicklung",
+    "dashboard.resale_opportunities": "Wiederverkauf",
+    "dashboard.service_restoration": "Service & Restaurierung",
+    "identity.client_id": "Client-ID",
+    "identity.prestige_level": "Prestige Level",
+    "identity.member_tier": "Member Tier",
+    "identity.asset_count": "Assets",
+    "identity.vault_status": "Tresor-Status",
+    "identity.vault_active": "Aktiv",
+    "identity.vault_ready": "Bereit",
+    "prestige.admin": "Administration",
+    "prestige.client": "Client",
+    "prestige.vip": "VIP",
+    "prestige.royal": "Royal",
+    "prestige.black": "Black",
+    "prestige.reseller": "Reseller",
+    "prestige.investor": "Investor",
+    "prestige.viewer": "Viewer",
     "search.placeholder": "Stück suchen…",
     "trust.secured_by": "Gesichert durch Antonio Bellanova",
     "trust.ssl_encrypted": "SSL verschlüsselt",
@@ -651,6 +674,26 @@ const TRANSLATIONS: any = {
     "dashboard.recent_views": "Recently viewed",
     "dashboard.favorites": "Favorites",
     "dashboard.remove_favorite": "Remove from favorites",
+    "dashboard.active_orders": "Active Orders",
+    "dashboard.registry_entries": "Registry Entries",
+    "dashboard.value_development": "Value Development",
+    "dashboard.resale_opportunities": "Resale Opportunities",
+    "dashboard.service_restoration": "Service & Restoration",
+    "identity.client_id": "Client ID",
+    "identity.prestige_level": "Prestige Level",
+    "identity.member_tier": "Member Tier",
+    "identity.asset_count": "Assets",
+    "identity.vault_status": "Vault Status",
+    "identity.vault_active": "Active",
+    "identity.vault_ready": "Ready",
+    "prestige.admin": "Administration",
+    "prestige.client": "Client",
+    "prestige.vip": "VIP",
+    "prestige.royal": "Royal",
+    "prestige.black": "Black",
+    "prestige.reseller": "Reseller",
+    "prestige.investor": "Investor",
+    "prestige.viewer": "Viewer",
     "search.placeholder": "Search pieces…",
     "trust.secured_by": "Secured by Antonio Bellanova",
     "trust.ssl_encrypted": "SSL Encrypted",
@@ -929,6 +972,26 @@ const TRANSLATIONS: any = {
     "dashboard.recent_views": "Visti di recente",
     "dashboard.favorites": "Preferiti",
     "dashboard.remove_favorite": "Rimuovi dai preferiti",
+    "dashboard.active_orders": "Ordini attivi",
+    "dashboard.registry_entries": "Voci registro",
+    "dashboard.value_development": "Sviluppo valore",
+    "dashboard.resale_opportunities": "Rivendita",
+    "dashboard.service_restoration": "Servizio e restauro",
+    "identity.client_id": "ID cliente",
+    "identity.prestige_level": "Prestige Level",
+    "identity.member_tier": "Member Tier",
+    "identity.asset_count": "Asset",
+    "identity.vault_status": "Stato caveau",
+    "identity.vault_active": "Attivo",
+    "identity.vault_ready": "Pronto",
+    "prestige.admin": "Amministrazione",
+    "prestige.client": "Cliente",
+    "prestige.vip": "VIP",
+    "prestige.royal": "Royal",
+    "prestige.black": "Black",
+    "prestige.reseller": "Reseller",
+    "prestige.investor": "Investor",
+    "prestige.viewer": "Viewer",
     "search.placeholder": "Cerca opere…",
     "trust.secured_by": "Sicuro con Antonio Bellanova",
     "trust.ssl_encrypted": "Crittografia SSL",
@@ -1285,15 +1348,15 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError }: any) => {
           )}
           <div className="flex gap-4">
             <Button variant="ghost" onClick={onClose} className="flex-1">{t('cancel')}</Button>
-            <Button 
-              variant="primary" 
-              disabled={!canSign} 
-              onClick={handleSign}
-              className="flex-[2]"
-            >
-              <Signature className="w-4 h-4" />
-              {t('sign_digitally')}
-            </Button>
+          <Button 
+            variant="primary" 
+            disabled={!canSign} 
+            onClick={handleSign}
+            className="flex-[2]"
+          >
+            <Signature className="w-4 h-4" />
+            {t('sign_digitally')}
+          </Button>
           </div>
         </div>
       </motion.div>
@@ -2266,9 +2329,9 @@ export default function App() {
     // Asset block (compact)
     if (piece && (piece.title || piece.serial_id)) {
       const displayTitle = (piece.title && piece.title.length > 1) ? piece.title : (piece.serial_id ? `Serial ${piece.serial_id}` : 'Masterpiece');
-      doc.setFont("times", "normal");
+        doc.setFont("times", "normal");
       doc.setFontSize(13);
-      doc.setTextColor(0, 0, 0);
+        doc.setTextColor(0, 0, 0);
       doc.text(displayTitle, pageWidth / 2, currentY, { align: "center" });
       currentY += 5;
       doc.setFont("helvetica", "normal");
@@ -2281,19 +2344,19 @@ export default function App() {
       doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'F');
       doc.setDrawColor(235, 230, 220);
       doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'D');
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6);
-      doc.setTextColor(197, 160, 89);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6);
+        doc.setTextColor(197, 160, 89);
       doc.text("ASSET SPECIFICATIONS", margin + 3, currentY + 7);
       doc.text("FINANCIAL SUMMARY", pageWidth / 2 + 3, currentY + 7);
-      doc.setFont("helvetica", "normal");
+        doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.setTextColor(60, 60, 60);
+        doc.setTextColor(60, 60, 60);
       doc.text((piece.materials && piece.materials.length > 1) ? piece.materials : '—', margin + 3, currentY + 14);
       doc.text((piece.gemstones && piece.gemstones.length > 1) ? piece.gemstones : '—', margin + 3, currentY + 20);
       const val = piece.valuation != null && Number(piece.valuation) > 0 ? Number(piece.valuation).toLocaleString('de-DE') + ' EUR' : '—';
       doc.setFontSize(10);
-      doc.setTextColor(0, 0, 0);
+        doc.setTextColor(0, 0, 0);
       doc.text(val, pageWidth / 2 + 3, currentY + 16);
       currentY += blockH + 8;
     }
@@ -2407,7 +2470,7 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        fetchData();
+      fetchData();
         notifyUser("Gebot abgegeben.", "success");
       } else {
         notifyUser(data.error || t('errors.generic'), 'error');
@@ -2554,7 +2617,7 @@ export default function App() {
         });
       } else if (res.ok) {
         notifyUser(t('resale.request_submitted'), 'success');
-        fetchData();
+      fetchData();
       } else {
         const msg = data.error || (res.status === 403 ? 'Nur der Eigentümer kann dieses Stück zum Wiederverkauf anbieten.' : res.status === 401 ? 'Bitte erneut anmelden.' : 'Wiederverkauf konnte nicht gestartet werden.');
         notifyUser(msg, 'error');
@@ -3070,7 +3133,7 @@ export default function App() {
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
                             <p className="text-xs text-zinc-500">{piece.serial_id} · {Number(piece.valuation || 0).toLocaleString('de-DE')} €</p>
-                          </div>
+          </div>
                         </button>
                       ));
                     })()}
@@ -3144,7 +3207,7 @@ export default function App() {
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
                 <div className="flex items-center gap-2 justify-end">
-                  <p className="text-sm font-medium text-zinc-200">{user.name}</p>
+                <p className="text-sm font-medium text-zinc-200">{user.name}</p>
                   {(user.role === 'vip' || user.role === UserRole.VIP || user.is_vip) && <Badge variant="vip" icon={Diamond}>VIP</Badge>}
                 </div>
                 <p className="text-[10px] uppercase tracking-widest text-amber-500">{user.role}</p>
@@ -3316,18 +3379,28 @@ export default function App() {
                   <Card className="lg:col-span-2 space-y-6" hoverGlow>
                     <h3 className="text-3xl font-serif italic">{t('welcome')}, {user.name.split(' ')[0]}</h3>
                     <p className="text-zinc-400">{t('dashboard.welcome_subtitle')}</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4">
                       <StatCard label={t('my_assets')} value={visiblePortfolioPieces.length} icon={Award} />
                       <StatCard label={t('certificates')} value={vaultData.certs.length} icon={ShieldCheck} />
+                      <StatCard label={t('dashboard.active_orders')} value={payments.filter(p => p.status === 'pending').length} icon={Package} />
+                      <StatCard label={t('dashboard.registry_entries')} value={visiblePortfolioPieces.length} icon={BookOpen} />
+                      <StatCard label={t('dashboard.resale_opportunities')} value={visiblePortfolioPieces.length} icon={TrendingUp} />
+                      <StatCard label={t('dashboard.value_development')} value={visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || 0), 0).toLocaleString('de-DE') + ' €'} icon={LineChart} />
+                      <StatCard label={t('dashboard.service_restoration')} value="—" icon={Wrench} />
                       <StatCard label={t('active_bids')} value={auctions.filter(a => a.highest_bidder_id === user.id).length} icon={Gavel} />
-                      <StatCard label={t('dashboard.portfolio_value')} value={visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || 0), 0).toLocaleString('de-DE') + ' €'} icon={Diamond} />
                     </div>
                   </Card>
                   <Card className="flex flex-col justify-center items-center text-center space-y-4 border-amber-500/20 bg-amber-500/5" hoverGlow>
                     <Award className="w-12 h-12 text-amber-500" />
                     <h4 className="text-xl font-serif italic">{t('membership')}</h4>
-                    <Badge variant="amber">{user.role}</Badge>
-                    <p className="text-xs text-zinc-500">{t('dashboard.member_since')} {new Date(user.created_at).toLocaleDateString()}</p>
+                    <div className="w-full space-y-3 text-left">
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.client_id')}</span><span className="font-mono text-amber-500/90">AB-{String(user.id).padStart(5, '0')}</span></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.prestige_level')}</span><span className="text-zinc-200">{(t as (k: string) => string)(`prestige.${user.role}`) || user.role}</span></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><Badge variant="amber">{user.role}</Badge></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.asset_count')}</span><span className="text-zinc-200">{visiblePortfolioPieces.length}</span></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.vault_status')}</span><span className={vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? 'text-emerald-400' : 'text-zinc-400'}>{vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? t('identity.vault_active') : t('identity.vault_ready')}</span></div>
+                    </div>
+                    <p className="text-xs text-zinc-500 pt-2 border-t border-amber-500/20 w-full">{t('dashboard.member_since')} {new Date(user.created_at).toLocaleDateString()}</p>
                   </Card>
                 </div>
 
@@ -3515,9 +3588,9 @@ export default function App() {
                   ) : (
                     <>
                       {filterMasterpieces(masterpieces, 'available').map(piece => (
-                        <PieceCard 
-                          key={piece.id} 
-                          piece={piece} 
+                    <PieceCard 
+                      key={piece.id} 
+                      piece={piece} 
                           t={t}
                           isFavorite={user ? favoriteIds.includes(piece.id) : false}
                           onToggleFavorite={user ? () => {
@@ -3525,18 +3598,18 @@ export default function App() {
                             fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                               .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                           } : undefined}
-                          onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
-                          onViewDetails={(p) => {
-                            setSelectedPiece(p);
-                            if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                          }} 
-                        />
-                      ))}
+                      onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
+                      onViewDetails={(p) => {
+                        setSelectedPiece(p);
+                        if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                      }} 
+                    />
+                  ))}
                       {filterMasterpieces(masterpieces, 'available').length === 0 && (
-                        <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
-                          <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                    <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
+                      <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
                           <p className="text-zinc-500">{(filterSearch || filterRarity) ? 'Keine Treffer.' : t('marketplace.no_pieces')}</p>
-                        </div>
+                    </div>
                       )}
                     </>
                   )}
@@ -3744,7 +3817,7 @@ export default function App() {
             {view === 'auctions' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <div className="flex flex-wrap justify-between items-end gap-4">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <h3 className="text-3xl font-serif italic">{t('auctions.private_auctions')}</h3>
                     <p className="text-zinc-500">{t('auctions.subtitle')}</p>
                   </div>
@@ -4304,10 +4377,10 @@ export default function App() {
                             <input type="number" min={1} max={Math.min(100, off.available_pct || 100)} value={shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5} onChange={(e) => setShareRequestForm(f => ({ ...f, masterpieceId: off.id, percentage: Math.min(100, Math.max(1, Number(e.target.value) || 5)) }))} className="w-16 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-2 text-zinc-200 text-sm" />
                             <span className="text-zinc-500 text-xs">%</span>
                             <Button variant="primary" className="py-2 px-4 text-sm" onClick={() => handleInvestorRequest('share', t('investor.request_share'), off.id, shareRequestForm.masterpieceId === off.id ? shareRequestForm.percentage : 5)} disabled={loading}>{t('investor.request_share_pct')}</Button>
-                          </div>
-                        </div>
-                      ))}
+                      </div>
                     </div>
+                  ))}
+                </div>
                   )}
                 </Card>
               </motion.div>
