@@ -280,6 +280,10 @@ const TRANSLATIONS: any = {
     "admin.no_appointments": "Keine Termine.",
     "admin.advisors": "Berater",
     "admin.invite_advisor": "Einladen",
+    "admin.generate_password": "Passwort erzeugen",
+    "admin.password_for_advisor": "Passwort (selbst wählen oder erzeugen)",
+    "admin.password_for_advisor_hint": "Leer: System erzeugt eines. Sonst eingeben oder per Button erzeugen – dann mündlich weitergeben.",
+    "admin.password_generated": "Passwort erzeugt. Sie können es mündlich weitergeben.",
     "admin.activate_advisor": "Aktivieren",
     "admin.commission_override": "Provisionssatz",
     "admin.export_commissions": "Provisionen exportieren",
@@ -318,8 +322,6 @@ const TRANSLATIONS: any = {
     "advisor.not_activated_title": "Zugang noch nicht freigeschaltet",
     "advisor.not_activated_message": "Bitte unterzeichnen Sie zuerst den NDA unter Verträge und warten Sie auf die Freischaltung durch den Administrator.",
     "view.advisor": "Berater",
-    "sign_contract": "Unterschreiben",
-    "signed": "Unterzeichnet",
     "appointments.proposed": "Vorgeschlagen",
     "appointments.confirmed": "Bestätigt",
     "appointments.cancelled": "Abgesagt",
@@ -645,6 +647,10 @@ const TRANSLATIONS: any = {
     "admin.no_appointments": "No appointments.",
     "admin.advisors": "Advisors",
     "admin.invite_advisor": "Invite",
+    "admin.generate_password": "Generate password",
+    "admin.password_for_advisor": "Password (choose or generate)",
+    "admin.password_for_advisor_hint": "Leave empty: system generates one. Or enter or generate – then pass on verbally.",
+    "admin.password_generated": "Password generated. You can pass it on verbally.",
     "admin.activate_advisor": "Activate",
     "admin.commission_override": "Commission rate",
     "admin.export_commissions": "Export commissions",
@@ -683,8 +689,6 @@ const TRANSLATIONS: any = {
     "advisor.not_activated_title": "Access not yet activated",
     "advisor.not_activated_message": "Please sign the NDA under Contracts first and wait for administrator approval.",
     "view.advisor": "Advisor",
-    "sign_contract": "Sign",
-    "signed": "Signed",
     "appointments.proposed": "Proposed",
     "appointments.confirmed": "Confirmed",
     "appointments.cancelled": "Cancelled",
@@ -986,6 +990,10 @@ const TRANSLATIONS: any = {
     "admin.no_appointments": "Nessun appuntamento.",
     "admin.advisors": "Consulenti",
     "admin.invite_advisor": "Invita",
+    "admin.generate_password": "Genera password",
+    "admin.password_for_advisor": "Password (scegli o genera)",
+    "admin.password_for_advisor_hint": "Vuoto: il sistema ne genera una. Oppure inserisci o genera – poi comunicala verbalmente.",
+    "admin.password_generated": "Password generata. Puoi comunicarla verbalmente.",
     "admin.activate_advisor": "Attiva",
     "admin.commission_override": "Commissione %",
     "admin.export_commissions": "Esporta commissioni",
@@ -1024,8 +1032,6 @@ const TRANSLATIONS: any = {
     "advisor.not_activated_title": "Accesso non ancora attivato",
     "advisor.not_activated_message": "Firma prima il NDA nella sezione Contratti e attendi l'approvazione dell'amministratore.",
     "view.advisor": "Consulente",
-    "sign_contract": "Firma",
-    "signed": "Firmato",
     "appointments.proposed": "Proposto",
     "appointments.confirmed": "Confermato",
     "appointments.cancelled": "Annullato",
@@ -1678,6 +1684,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'advisors' | 'settings'>('overview');
   const [adminAdvisors, setAdminAdvisors] = useState<any[]>([]);
   const [adminAdvisorCommissions, setAdminAdvisorCommissions] = useState<any[]>([]);
+  const [lastInvitedAdvisorPassword, setLastInvitedAdvisorPassword] = useState<{ email: string; password: string } | null>(null);
   const [advisorDashboard, setAdvisorDashboard] = useState<any>(null);
   const [advisorClients, setAdvisorClients] = useState<any[]>([]);
   const [advisorCommissions, setAdvisorCommissions] = useState<any[]>([]);
@@ -5510,18 +5517,42 @@ export default function App() {
                     <h3 className="text-xl font-serif italic">{t('admin.advisors') || 'Strategic Private Advisors'}</h3>
                     <Card className="p-6 space-y-4">
                       <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor einladen</h4>
-                      <div className="flex flex-wrap gap-3">
+                      <div className="flex flex-wrap gap-3 items-center">
                         <input type="text" placeholder="E-Mail" id="admin-invite-email" className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-56" />
                         <input type="text" placeholder="Name" id="admin-invite-name" className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-56" />
+                        <div className="flex items-center gap-2">
+                          <input type="text" placeholder={t('admin.password_for_advisor') || 'Passwort (selbst wählen oder erzeugen)'} id="admin-invite-password" className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-52" title={t('admin.password_for_advisor_hint') || 'Leer lassen: System erzeugt eines. Sonst hier eingeben oder per Button erzeugen – dann mündlich weitergeben.'} />
+                          <Button type="button" variant="outline" size="sm" className="text-xs whitespace-nowrap" onClick={() => {
+                            const pwd = 'Temp' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase();
+                            const el = document.getElementById('admin-invite-password') as HTMLInputElement;
+                            if (el) { el.value = pwd; el.select(); notifyUser(t('admin.password_generated') || 'Passwort erzeugt. Sie können es mündlich weitergeben.'); }
+                          }}>{t('admin.generate_password') || 'Passwort erzeugen'}</Button>
+                        </div>
                         <Button variant="primary" className="text-sm" onClick={async () => {
                           const email = (document.getElementById('admin-invite-email') as HTMLInputElement)?.value?.trim();
                           const name = (document.getElementById('admin-invite-name') as HTMLInputElement)?.value?.trim();
+                          const password = (document.getElementById('admin-invite-password') as HTMLInputElement)?.value?.trim();
                           if (!email || !name) { notifyUser('E-Mail und Name erforderlich.', 'error'); return; }
-                          const res = await fetch('/api/admin/advisors/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name }), credentials: 'include' });
+                          const res = await fetch('/api/admin/advisors/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name, password: password || undefined }), credentials: 'include' });
                           const data = await res.json().catch(() => ({}));
-                          if (res.ok) { notifyUser(data.message || 'Advisor eingeladen.'); (document.getElementById('admin-invite-email') as HTMLInputElement).value = ''; (document.getElementById('admin-invite-name') as HTMLInputElement).value = ''; fetchData(); } else notifyUser(data.error || 'Fehler', 'error');
+                          if (res.ok) {
+                            setLastInvitedAdvisorPassword({ email, password: data.password || '' });
+                            (document.getElementById('admin-invite-email') as HTMLInputElement).value = '';
+                            (document.getElementById('admin-invite-name') as HTMLInputElement).value = '';
+                            (document.getElementById('admin-invite-password') as HTMLInputElement).value = '';
+                            fetchData();
+                            notifyUser(data.message || 'Advisor eingeladen. Passwort unten kopieren und weitergeben.');
+                          } else notifyUser(data.error || 'Fehler', 'error');
                         }}>{t('admin.invite_advisor') || 'Einladen'}</Button>
                       </div>
+                      {lastInvitedAdvisorPassword && (
+                        <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center gap-3">
+                          <span className="text-sm text-zinc-300">Passwort für <strong>{lastInvitedAdvisorPassword.email}</strong> (sicher weitergeben):</span>
+                          <code className="px-3 py-1.5 bg-zinc-900 rounded text-amber-200 font-mono text-sm">{lastInvitedAdvisorPassword.password}</code>
+                          <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(lastInvitedAdvisorPassword.password); notifyUser('Passwort kopiert.', 'success'); }}>Kopieren</Button>
+                          <Button variant="ghost" size="sm" className="text-zinc-500" onClick={() => setLastInvitedAdvisorPassword(null)}>Schließen</Button>
+                        </div>
+                      )}
                     </Card>
                     <div className="space-y-3">
                       {adminAdvisors.map((a: any) => (

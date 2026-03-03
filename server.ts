@@ -2563,19 +2563,19 @@ app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisor, (req,
   res.json({ success: true });
 });
 
-// Admin: invite advisor (create user + profile, status pending_nda)
+// Admin: invite advisor (create user + profile, status pending_nda). Optional: password im Body; sonst wird eines erzeugt. Antwort enthält das Passwort zum Weitergeben.
 app.post("/api/admin/advisors/invite", requireAuth, requireAdmin, (req, res) => {
-  const { email, name, address } = req.body || {};
+  const { email, name, address, password: customPassword } = req.body || {};
   if (!email || !name) return res.status(400).json({ error: "Email and name required" });
   const existing = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase());
   if (existing) return res.status(400).json({ error: "User with this email already exists" });
-  const tempPassword = "Temp" + Math.random().toString(36).slice(2, 10);
+  const plainPassword = (typeof customPassword === "string" && customPassword.trim()) ? customPassword.trim() : "Temp" + Math.random().toString(36).slice(2, 10);
   const result = db.prepare(
     "INSERT INTO users (email, name, address, role, status, password) VALUES (?, ?, ?, 'strategic_private_advisor', 'pending', ?)"
-  ).run(String(email).trim(), String(name).trim(), (address && String(address).trim()) || "", hashPassword(tempPassword));
+  ).run(String(email).trim(), String(name).trim(), (address && String(address).trim()) || "", hashPassword(plainPassword));
   const userId = result.lastInsertRowid as number;
   db.prepare("INSERT INTO advisor_profiles (user_id, status) VALUES (?, 'pending_nda')").run(userId);
-  res.json({ id: userId, email: String(email).trim(), message: "Advisor invited. Share temporary password securely; they must sign NDA before activation." });
+  res.json({ id: userId, email: String(email).trim(), password: plainPassword, message: "Advisor invited. Passwort sicher an den Berater weitergeben; NDA muss vor Freischaltung unterzeichnet werden." });
 });
 
 // Admin: list advisors
