@@ -1154,13 +1154,13 @@ function shouldSendEmailToUser(user: { email?: string | null; notification_prefs
   return true;
 }
 
-async function sendMail(to: string, subject: string, text: string, html?: string): Promise<void> {
+async function sendMail(to: string, subject: string, text: string, html?: string): Promise<boolean> {
   const host = process.env.SMTP_HOST;
   const port = process.env.SMTP_PORT;
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = process.env.MAIL_FROM || 'noreply@bellanova.com';
-  if (!host || !port) return; // E-Mail deaktiviert, wenn SMTP nicht konfiguriert
+  if (!host || !port) return false; // E-Mail deaktiviert, wenn SMTP nicht konfiguriert
   try {
     const transporter = nodemailer.createTransport({
       host,
@@ -1175,8 +1175,10 @@ async function sendMail(to: string, subject: string, text: string, html?: string
       text,
       html: html || text.replace(/\n/g, '<br>\n'),
     });
+    return true;
   } catch (err) {
     console.error("[mail]", err);
+    return false;
   }
 }
 
@@ -2656,8 +2658,8 @@ app.put("/api/admin/advisors/referrals/override", requireAuth, requireAdmin, (re
   res.json({ success: true });
 });
 
-// --- Contact form (public) ---
-app.post("/api/contact", (req, res) => {
+// --- Contact form (public): speichern + E-Mail an Atelier (wenn SMTP + ADMIN_EMAIL gesetzt) ---
+app.post("/api/contact", async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: "Name, E-Mail und Nachricht sind erforderlich." });
   db.prepare("INSERT INTO contact_requests (name, email, subject, message) VALUES (?, ?, ?, ?)").run(
@@ -2666,15 +2668,14 @@ app.post("/api/contact", (req, res) => {
     subject ? String(subject).trim() : null,
     String(message).trim()
   );
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.CONTACT_ADMIN_EMAIL;
-  if (adminEmail && typeof adminEmail === "string" && adminEmail.trim()) {
-    sendMail(
-      adminEmail.trim(),
-      `Antonio Bellanova – Neue Kontaktanfrage${subject ? `: ${String(subject).slice(0, 50)}` : ""}`,
-      `Neue Kontaktanfrage über das Portal:\n\nVon: ${name}\nE-Mail: ${email}\n${subject ? `Betreff: ${subject}\n` : ""}\nNachricht:\n${message}\n\n– Antonio Bellanova Vault`
-    ).catch(() => {});
+  const adminEmail = (process.env.ADMIN_EMAIL || process.env.CONTACT_ADMIN_EMAIL || "").trim();
+  let emailSent = false;
+  if (adminEmail) {
+    const subjectLine = `Antonio Bellanova – Neue Kontaktanfrage${subject ? `: ${String(subject).slice(0, 50)}` : ""}`;
+    const bodyText = `Neue Kontaktanfrage über das Portal:\n\nVon: ${name}\nE-Mail: ${email}\n${subject ? `Betreff: ${subject}\n` : ""}\nNachricht:\n${message}\n\n– Antonio Bellanova Vault`;
+    emailSent = await sendMail(adminEmail, subjectLine, bodyText);
   }
-  res.json({ success: true });
+  res.json({ success: true, emailSent });
 });
 
 // --- Public: Certificate verification (no auth) ---

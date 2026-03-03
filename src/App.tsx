@@ -147,6 +147,7 @@ const TRANSLATIONS: any = {
     "roles.reseller": "Wiederverkäufer",
     "roles.atelier_partner": "Atelier-Partner",
     "roles.viewer": "Betrachter (nur Lese)",
+    "roles.advisor": "Strategic Private Advisor (nur per Einladung)",
     "auth.full_legal_name": "Vollständiger Name",
     "auth.name_placeholder_id": "Name wie im Ausweis",
     "auth.your_signature": "Ihre Unterschrift",
@@ -510,6 +511,7 @@ const TRANSLATIONS: any = {
     "roles.reseller": "Reseller",
     "roles.atelier_partner": "Atelier Partner",
     "roles.viewer": "Viewer (Read-only)",
+    "roles.advisor": "Strategic Private Advisor (invitation only)",
     "auth.full_legal_name": "Full Legal Name",
     "auth.name_placeholder_id": "Name as on your ID",
     "auth.your_signature": "Your Signature",
@@ -850,6 +852,7 @@ const TRANSLATIONS: any = {
     "roles.reseller": "Rivenditore",
     "roles.atelier_partner": "Partner Atelier",
     "roles.viewer": "Solo lettura",
+    "roles.advisor": "Strategic Private Advisor (solo su invito)",
     "auth.full_legal_name": "Nome completo",
     "auth.name_placeholder_id": "Nome come sul documento",
     "auth.your_signature": "La tua firma",
@@ -3142,7 +3145,7 @@ export default function App() {
             <div className="prose prose-invert max-w-none text-sm space-y-4">
               <p><strong>Angaben gemäß § 5 TMG</strong></p>
               <p>{COMPANY_INFO.name}<br />{COMPANY_INFO.address}</p>
-              <p><strong>Kontakt</strong><br />E-Mail: atelier@bellanova.com (Beispiel)</p>
+              <p><strong>Kontakt</strong><br />E-Mail: antonio.bellanova@antoniobellanova.com</p>
               <p><strong>Umsatzsteuer-ID</strong><br />Umsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: {COMPANY_INFO.vatId}</p>
               <p><strong>Verantwortlich für den Inhalt</strong><br />{COMPANY_INFO.owner}, {COMPANY_INFO.address}</p>
               <p><strong>Haftungsausschluss</strong><br />Die Inhalte unserer Seiten wurden mit größter Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir jedoch keine Gewähr übernehmen.</p>
@@ -3154,7 +3157,7 @@ export default function App() {
               <p>Verantwortlicher: {COMPANY_INFO.name}, {COMPANY_INFO.address}.</p>
               <p>Wir erheben und verarbeiten personenbezogene Daten nur im Rahmen der gesetzlichen Vorgaben (DSGVO, BDSG). Daten werden zur Vertragserfüllung, Kundenkommunikation und zur Bereitstellung des Portals genutzt. Eine Weitergabe an Dritte erfolgt nur bei gesetzlicher Verpflichtung oder mit Ihrer Einwilligung.</p>
               <p>Sie haben das Recht auf Auskunft, Berichtigung, Löschung und Einschränkung der Verarbeitung sowie auf Datenübertragbarkeit. Beschwerden können Sie bei einer Aufsichtsbehörde geltend machen.</p>
-              <p>Kontakt für Datenschutzanfragen: atelier@bellanova.com</p>
+              <p>Kontakt für Datenschutzanfragen: antonio.bellanova@antoniobellanova.com</p>
             </div>
           )}
           {view === 'agb' && (
@@ -3188,6 +3191,7 @@ export default function App() {
                     if (res.ok && data.success) {
                       setContactFormSent(true);
                       setContactForm({ name: '', email: '', subject: '', message: '' });
+                      if (data.emailSent) notifyUser('Nachricht gesendet. E-Mail an das Atelier wurde versandt.', 'success');
                     } else {
                       notifyUser(data.error || 'Fehler beim Senden.', 'error');
                     }
@@ -3261,10 +3265,11 @@ export default function App() {
                   <Input label={t('address')} icon={MapPin} value={address} onChange={(e: any) => setAddress(e.target.value)} placeholder={t('auth.address_placeholder')} />
                   <div className="space-y-1.5">
                     <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('auth.access_role')}</label>
-                    <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as UserRole)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
+                    <select value={selectedRole} onChange={(e) => { const v = e.target.value as UserRole; if (v !== UserRole.STRATEGIC_PRIVATE_ADVISOR) setSelectedRole(v); }} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
                       <option value={UserRole.CLIENT}>Collector (Client)</option>
                       <option value={UserRole.INVESTOR}>Investor</option>
                       <option value={UserRole.VIEWER}>{t('roles.viewer')}</option>
+                      <option value={UserRole.STRATEGIC_PRIVATE_ADVISOR} disabled>{t('roles.advisor')}</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">

@@ -39,6 +39,17 @@
    - HTTPS: `certbot --nginx -d vault.antoniobellanova.com`
    - Nginx neu laden: `systemctl reload nginx`
 
+6. **E-Mail (Kontaktformular „Nachricht senden“)**  
+   Damit beim Klick auf „Nachricht senden“ wirklich eine E-Mail an das Atelier geht, auf dem Server **Umgebungsvariablen** setzen (z. B. in `~/.bashrc`, `pm2 ecosystem` oder Systemd):
+   - `SMTP_HOST` – z. B. `smtp.gmail.com` oder SMTP-Server deines Anbieters
+   - `SMTP_PORT` – z. B. `587` (TLS) oder `465` (SSL)
+   - `SMTP_SECURE` – `true` bei Port 465, sonst oft `false`
+   - `SMTP_USER` / `SMTP_PASS` – Login des E-Mail-Kontos (App-Passwort bei Gmail)
+   - `MAIL_FROM` – Absenderadresse (optional, Standard: noreply@bellanova.com)
+   - `ADMIN_EMAIL` oder `CONTACT_ADMIN_EMAIL` – E-Mail-Adresse, an die Kontaktanfragen geschickt werden (z. B. antonio.bellanova@antoniobellanova.com)
+   
+   Ohne diese Variablen wird die Anfrage nur in der Datenbank gespeichert (Admin sieht sie unter Kontaktanfragen), aber es geht keine E-Mail raus.
+
 ---
 
 ## Regelmäßig: Neue Version online bringen
