@@ -67,6 +67,9 @@ export interface Masterpiece {
   pricing_mode?: 'fixed' | 'starting_from' | 'price_on_request' | 'hidden';
   price_visibility_rules?: string;
   image_urls?: string;
+  description_i18n?: string; // JSON: { de: "...", en: "...", it: "..." }
+  materials_i18n?: string;
+  gemstones_i18n?: string;
 }
 
 export interface Auction {

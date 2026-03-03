@@ -391,6 +391,13 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Mehr erfahren",
     "common.pdf": "PDF",
     "common.serial_id": "Seriennummer",
+    "piece.rarity_unique": "Unikat",
+    "piece.rarity_limited": "Limitiert",
+    "piece.rarity_rare": "Selten",
+    "piece.blockchain_verified": "Blockchain-verifiziert",
+    "piece.edition": "Edition",
+    "piece.add_to_favorites": "Zu Favoriten hinzufügen",
+    "piece.remove_from_favorites": "Aus Favoriten entfernen",
     "common.signed": "Unterzeichnet",
     "vip.contact_for_details": "Bitte kontaktieren Sie Antonio Bellanova für VIP-Details.",
     "vip.benefit_early_access": "Zugang und Gebote bei privaten Auktionen 48 Stunden vor dem Start.",
@@ -913,6 +920,13 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Learn More",
     "common.pdf": "PDF",
     "common.serial_id": "Serial ID",
+    "piece.rarity_unique": "Unique",
+    "piece.rarity_limited": "Limited",
+    "piece.rarity_rare": "Rare",
+    "piece.blockchain_verified": "Blockchain verified",
+    "piece.edition": "Edition",
+    "piece.add_to_favorites": "Add to favorites",
+    "piece.remove_from_favorites": "Remove from favorites",
     "common.signed": "Signed",
     "vip.contact_for_details": "Please contact Antonio Bellanova for VIP application details.",
     "vip.benefit_early_access": "View and bid on private auctions 48 hours before the general public.",
@@ -1407,6 +1421,13 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Scopri di più",
     "common.pdf": "PDF",
     "common.serial_id": "Numero di serie",
+    "piece.rarity_unique": "Unico",
+    "piece.rarity_limited": "Limitato",
+    "piece.rarity_rare": "Raro",
+    "piece.blockchain_verified": "Verificato su blockchain",
+    "piece.edition": "Edizione",
+    "piece.add_to_favorites": "Aggiungi ai preferiti",
+    "piece.remove_from_favorites": "Rimuovi dai preferiti",
     "common.signed": "Firmato",
     "vip.contact_for_details": "Contatta Antonio Bellanova per i dettagli VIP.",
     "vip.benefit_early_access": "Accesso e offerte 48 ore prima del pubblico.",
@@ -2220,6 +2241,26 @@ export default function App() {
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
 
+  const lang = (language || 'de').toLowerCase().slice(0, 2);
+  const getPieceLocalized = (piece: any, field: 'description' | 'materials' | 'gemstones'): string => {
+    const i18n = piece[`${field}_i18n`];
+    const fallback = piece[field] ?? '';
+    if (!i18n) return fallback;
+    try {
+      const obj = typeof i18n === 'string' ? JSON.parse(i18n) : i18n;
+      return (obj && typeof obj === 'object' && (obj[lang] ?? obj['en'] ?? obj['de'])) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const getRarityLabel = (rarity: string): string => {
+    const r = (rarity || '').toLowerCase();
+    if (r === 'unique' || r === 'unikat') return t('piece.rarity_unique');
+    if (r === 'limitiert' || r === 'limited') return t('piece.rarity_limited');
+    if (r === 'selten' || r === 'rare') return t('piece.rarity_rare');
+    return rarity || t('piece.rarity_unique');
+  };
+
   const getPiecePriceDisplay = (piece: Masterpiece & { pricing_mode?: string; hide_price?: number; price_visibility_rules?: string }, currentUser?: { prestige_tier?: string } | null) => {
     const mode = piece.pricing_mode ?? (piece.hide_price ? 'hidden' : 'fixed');
     let forceRequest = false;
@@ -2237,6 +2278,18 @@ export default function App() {
     if (mode === 'starting_from') return { label: (t('pricing.starting_from_label') as string).replace('{price}', val > 0 ? val.toLocaleString('de-DE') : '—'), showInquiry: false, showNegotiation: false };
     return { label: val > 0 ? `${val.toLocaleString('de-DE')} €` : '—', showInquiry: false, showNegotiation: false };
   };
+
+  const getPieceLocalized = (piece: Masterpiece & { description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string }, field: 'description' | 'materials' | 'gemstones', lang: string): string => {
+    const raw = (piece as any)[field + '_i18n'];
+    let obj: Record<string, string> | null = null;
+    if (typeof raw === 'string') { try { obj = JSON.parse(raw); } catch { obj = null; } } else if (raw && typeof raw === 'object') obj = raw;
+    const l = (lang || 'de').toLowerCase().slice(0, 2);
+    const out = (obj && obj[l]) ? obj[l] : (piece[field] ?? '');
+    return typeof out === 'string' ? out : '';
+  };
+
+  const RARITY_KEYS: Record<string, string> = { Unique: 'piece.rarity_unique', Unikat: 'piece.rarity_unique', Limitiert: 'piece.rarity_limited', Limited: 'piece.rarity_limited', Selten: 'piece.rarity_rare', Rare: 'piece.rarity_rare' };
+  const getPieceRarityLabel = (rarity: string) => t(RARITY_KEYS[rarity] || rarity);
 
   const getPieceImages = (piece: { image_url?: string; image_urls?: string }) => {
     if (!piece) return [];
@@ -5370,7 +5423,7 @@ export default function App() {
                           <h4 className="text-2xl font-serif italic text-white">{piece.title}</h4>
                           <Badge variant="outline" className="border-zinc-800 text-zinc-500">{piece.category}</Badge>
                         </div>
-                        <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">{piece.rarity} Edition</p>
+                        <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">{getRarityLabel(piece.rarity)} {t('piece.edition')}</p>
                         {canRemoveFromPortfolio && (
                           <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>{t('vault.remove_from_portfolio')}</Button>
                         )}
@@ -6941,7 +6994,7 @@ export default function App() {
                             </>
                           )}
                           <div className="absolute top-6 left-6">
-                            <Badge variant="amber">{selectedPiece.rarity}</Badge>
+                            <Badge variant="amber">{getRarityLabel(selectedPiece.rarity)}</Badge>
                           </div>
                         </>
                       );
@@ -6982,17 +7035,17 @@ export default function App() {
                     <div className="space-y-6 flex-1">
                       <div className="space-y-2">
                         <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('description')}</p>
-                        <p className="text-zinc-400 leading-relaxed">{selectedPiece.description}</p>
+                        <p className="text-zinc-400 leading-relaxed">{getPieceLocalized(selectedPiece, 'description')}</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('materials')}</p>
-                          <p className="text-zinc-200">{selectedPiece.materials}</p>
+                          <p className="text-zinc-200">{getPieceLocalized(selectedPiece, 'materials')}</p>
                         </div>
                         <div className="space-y-2">
                           <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('gemstones')}</p>
-                          <p className="text-zinc-200">{selectedPiece.gemstones}</p>
+                          <p className="text-zinc-200">{getPieceLocalized(selectedPiece, 'gemstones')}</p>
                         </div>
                       </div>
 
@@ -7003,7 +7056,7 @@ export default function App() {
                       {selectedPiece.blockchain_hash && (
                         <div className="space-y-2 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
                           <p className="text-[10px] uppercase tracking-widest text-emerald-600 font-bold flex items-center gap-1.5">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Blockchain-verifiziert
+                            <ShieldCheck className="w-3.5 h-3.5" /> {t('piece.blockchain_verified')}
                           </p>
                           <p className="font-mono text-[10px] text-zinc-400 break-all">{selectedPiece.blockchain_hash}</p>
                         </div>
@@ -7469,18 +7522,18 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, isFavorite, onToggleFavorite, priceLabel }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string }) => (
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string }) => (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
       <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
       {onToggleFavorite && (
-        <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}>
+        <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
           <Heart className={`w-5 h-5 transition-colors ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
         </button>
       )}
       <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
-        <Badge variant="amber">{piece.rarity}</Badge>
-        {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>Verifiziert</Badge>}
+        <Badge variant="amber">{getRarityLabel ? getRarityLabel(piece.rarity) : piece.rarity}</Badge>
+        {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>{t ? t('piece.blockchain_verified') : 'Verifiziert'}</Badge>}
       </div>
       {piece.status === 'reserved' && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
@@ -7568,7 +7621,7 @@ const AuctionCard = ({ auction, onBid, onViewDetails, userId, isFavorite, onTogg
       <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(auction.masterpiece_id)}>
         <img src={auction.image_url || `https://picsum.photos/seed/${auction.id}/600/600`} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
         {onToggleFavorite && (
-          <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? "Aus Favoriten entfernen" : "Zu Favoriten hinzufügen"}>
+          <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
             <Heart className={`w-5 h-5 ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
           </button>
         )}

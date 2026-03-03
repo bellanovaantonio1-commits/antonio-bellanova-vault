@@ -905,6 +905,12 @@ try { db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN pricing_mode TEXT DEFAULT 'fixed'").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN price_visibility_rules TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN image_urls TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
@@ -1559,7 +1565,7 @@ app.post("/api/admin/assign-piece", (req, res) => {
 });
 
 app.post("/api/admin/masterpieces", (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
@@ -1578,6 +1584,11 @@ app.post("/api/admin/masterpieces", (req, res) => {
     } catch (_) {}
     try {
       if (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(JSON.stringify(bodyImageUrls), id);
+    } catch (_) {}
+    try {
+      if (bodyDescI18n != null && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
+      if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
+      if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
     } catch (_) {}
     broadcast({ type: 'MASTERPIECE_CREATED', id });
     
