@@ -904,6 +904,7 @@ try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT"
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN pricing_mode TEXT DEFAULT 'fixed'").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN price_visibility_rules TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN image_urls TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
@@ -1558,10 +1559,11 @@ app.post("/api/admin/assign-piece", (req, res) => {
 });
 
 app.post("/api/admin/masterpieces", (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
+  const image_url = bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : '');
   try {
     const result = db.prepare(`
       INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url)
@@ -1573,6 +1575,9 @@ app.post("/api/admin/masterpieces", (req, res) => {
     } catch (_) {}
     try {
       if (bodyPriceVisibility != null && String(bodyPriceVisibility).trim()) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility).trim(), id);
+    } catch (_) {}
+    try {
+      if (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(JSON.stringify(bodyImageUrls), id);
     } catch (_) {}
     broadcast({ type: 'MASTERPIECE_CREATED', id });
     

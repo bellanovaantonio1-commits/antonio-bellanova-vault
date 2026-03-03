@@ -66,6 +66,7 @@ export interface Masterpiece {
   hide_price?: number;
   pricing_mode?: 'fixed' | 'starting_from' | 'price_on_request' | 'hidden';
   price_visibility_rules?: string;
+  image_urls?: string;
 }
 
 export interface Auction {

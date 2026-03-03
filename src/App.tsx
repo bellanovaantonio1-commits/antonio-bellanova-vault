@@ -13,6 +13,7 @@ import {
   Clock, 
   Upload,
   ChevronRight,
+  ChevronLeft,
   User as UserIcon,
   MapPin,
   Mail,
@@ -429,6 +430,7 @@ const TRANSLATIONS: any = {
     "resale.mark_external": "Als extern verkauft melden",
     "view.dashboard": "Dashboard",
     "view.marketplace": "Marktplatz",
+    "view.drops": "Exklusive Drops",
     "view.auctions": "Auktionen",
     "view.vault": "Tresor",
     "view.admin": "Verwaltung",
@@ -438,6 +440,47 @@ const TRANSLATIONS: any = {
     "view.concierge": "Concierge",
     "view.login": "Anmelden",
     "view.register": "Registrieren",
+    "common.back_home": "Zur Startseite",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "Keine Stücke gefunden.",
+    "contact.placeholder_name": "Name *",
+    "contact.placeholder_email": "E-Mail *",
+    "contact.placeholder_subject": "Betreff",
+    "contact.placeholder_message": "Nachricht *",
+    "contact.send": "Nachricht senden",
+    "contact.sending": "Wird gesendet…",
+    "contact.success": "Vielen Dank. Ihre Nachricht wurde gesendet. Wir melden uns in Kürze.",
+    "contact.success_sent": "Nachricht gesendet. E-Mail an das Atelier wurde versandt.",
+    "contact.error_send": "Fehler beim Senden.",
+    "contact.goto_concierge": "Zum Concierge",
+    "contact.intro": "Für Anfragen nutzen Sie bitte das Kontaktformular oder die Concierge-Funktion nach dem Login.",
+    "notifications.empty_title": "Keine Benachrichtigungen",
+    "notifications.empty_subtitle": "Sie sind auf dem neuesten Stand",
+    "settings.shortcuts_title": "Tastaturkürzel",
+    "marketplace.filter_placeholder": "Suche (Titel, Serial, Kategorie)",
+    "vault.portfolio_pdf_btn": "Portfolio als PDF",
+    "concierge.service_title": "Concierge Service",
+    "shortcuts.close_modal": "Modals schließen",
+    "shortcuts.focus_search": "Suche fokussieren",
+    "shortcuts.this_help": "Diese Hilfe",
+    "legal.open_google_maps": "In Google Maps öffnen",
+    "vault.your_pieces": "Deine Stücke",
+    "vault.your_pieces_desc": "Stücke aus deiner Sammlung kannst du hier aus der Portfolio-Anzeige nehmen oder wieder anzeigen.",
+    "portfolio.curated_title": "The Curated Collection",
+    "portfolio.curated_subtitle": "Eine Auswahl der bedeutendsten Werke von Antonio Bellanova – Handwerkskunst und Luxusdesign.",
+    "concierge.direct_access": "Direkter Zugang zu Antonio",
+    "concierge.vip_line_desc": "Als VIP-Mitglied haben Sie eine direkte Leitung zum Atelier. Anfragen für Maßanfertigungen, Privatbesichtigungen oder Beratung.",
+    "concierge.vip_description": "Als VIP-Mitglied haben Sie eine direkte Leitung zum Atelier. Anfragen für Maßanfertigungen, Privatbesichtigungen oder Beratung.",
+    "settings.password_changed": "Passwort wurde geändert.",
+    "settings.password_change_error": "Fehler beim Ändern.",
+    "settings.network_error": "Netzwerkfehler.",
+    "settings.changing_password": "Wird geändert…",
+    "settings.current_password": "Aktuelles Passwort",
+    "settings.new_password": "Neues Passwort (min. 6 Zeichen)",
+    "settings.confirm_password": "Neues Passwort bestätigen",
+    "settings.password_min_length": "Neues Passwort mindestens 6 Zeichen.",
+    "settings.password_mismatch": "Passwörter stimmen nicht überein.",
+    "concierge.send_request": "Anfrage senden",
     "errors.invalid_credentials": "Ungültige Anmeldedaten.",
     "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
@@ -538,7 +581,24 @@ const TRANSLATIONS: any = {
     "compliance.footer": "Anwendbares Recht: Deutschland. Gerichtsstand: Köln. DSGVO-konform. Einwilligung und Datenauskunft gemäß Datenschutz.",
     "common.settings": "Einstellungen",
     "common.settings_saved": "Einstellungen gespeichert.",
-    "common.views": "Aufrufe"
+    "common.views": "Aufrufe",
+    "common.back_home": "Zur Startseite",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "Keine Stücke gefunden.",
+    "contact.placeholder_name": "Name *",
+    "contact.placeholder_email": "E-Mail *",
+    "contact.placeholder_subject": "Betreff",
+    "contact.placeholder_message": "Nachricht *",
+    "contact.send": "Nachricht senden",
+    "contact.sending": "Wird gesendet…",
+    "contact.success": "Vielen Dank. Ihre Nachricht wurde gesendet. Wir melden uns in Kürze.",
+    "contact.to_concierge": "Zum Concierge",
+    "notifications.empty_title": "Keine Benachrichtigungen",
+    "notifications.empty_subtitle": "Sie sind auf dem neuesten Stand",
+    "shortcuts.title": "Tastaturkürzel",
+    "marketplace.filter_placeholder": "Suche (Titel, Serial, Kategorie)",
+    "vault.portfolio_pdf_btn": "Portfolio als PDF",
+    "concierge.service_title": "Concierge Service"
   },
   en: {
     dashboard: "Dashboard",
@@ -892,6 +952,7 @@ const TRANSLATIONS: any = {
     "resale.mark_external": "Mark as externally sold",
     "view.dashboard": "Dashboard",
     "view.marketplace": "Marketplace",
+    "view.drops": "Exclusive Drops",
     "view.auctions": "Auctions",
     "view.vault": "Vault",
     "view.admin": "Management",
@@ -901,6 +962,47 @@ const TRANSLATIONS: any = {
     "view.concierge": "Concierge",
     "view.login": "Log In",
     "view.register": "Register",
+    "common.back_home": "Back to home",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "No pieces found.",
+    "contact.placeholder_name": "Name *",
+    "contact.placeholder_email": "Email *",
+    "contact.placeholder_subject": "Subject",
+    "contact.placeholder_message": "Message *",
+    "contact.send": "Send message",
+    "contact.sending": "Sending…",
+    "contact.success": "Thank you. Your message has been sent. We will get back to you shortly.",
+    "contact.success_sent": "Message sent. Email to the atelier has been sent.",
+    "contact.error_send": "Error sending message.",
+    "contact.goto_concierge": "To Concierge",
+    "contact.intro": "For enquiries please use the contact form or the Concierge function after login.",
+    "notifications.empty_title": "No notifications",
+    "notifications.empty_subtitle": "You are up to date",
+    "settings.shortcuts_title": "Keyboard shortcuts",
+    "marketplace.filter_placeholder": "Search (title, serial, category)",
+    "vault.portfolio_pdf_btn": "Portfolio as PDF",
+    "concierge.service_title": "Concierge Service",
+    "shortcuts.close_modal": "Close modals",
+    "shortcuts.focus_search": "Focus search",
+    "shortcuts.this_help": "This help",
+    "legal.open_google_maps": "Open in Google Maps",
+    "vault.your_pieces": "Your pieces",
+    "vault.your_pieces_desc": "Pieces from your collection can be hidden from or shown again in the portfolio display.",
+    "portfolio.curated_title": "The Curated Collection",
+    "portfolio.curated_subtitle": "A selection of Antonio Bellanova's most significant works, showcasing the pinnacle of craftsmanship and luxury design.",
+    "concierge.direct_access": "Direct Access to Antonio",
+    "concierge.vip_line_desc": "As a VIP member, you have a direct line to our atelier. Request bespoke commissions, private viewings, or asset consultations.",
+    "concierge.vip_description": "As a VIP member, you have a direct line to our atelier. Request bespoke commissions, private viewings, or asset consultations.",
+    "settings.password_changed": "Password changed.",
+    "settings.password_change_error": "Error changing password.",
+    "settings.network_error": "Network error.",
+    "settings.changing_password": "Changing…",
+    "settings.current_password": "Current password",
+    "settings.new_password": "New password (min. 6 characters)",
+    "settings.confirm_password": "Confirm new password",
+    "settings.password_min_length": "New password must be at least 6 characters.",
+    "settings.password_mismatch": "Passwords do not match.",
+    "concierge.send_request": "Send request",
     "errors.invalid_credentials": "Invalid credentials.",
     "errors.cert_failed": "Failed to generate certificate.",
     "errors.piece_create_failed": "Failed to create masterpiece.",
@@ -1001,7 +1103,24 @@ const TRANSLATIONS: any = {
     "compliance.footer": "Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access as per Privacy Policy.",
     "common.settings": "Settings",
     "common.settings_saved": "Settings saved.",
-    "common.views": "Views"
+    "common.views": "Views",
+    "common.back_home": "Back to home",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "No pieces found.",
+    "contact.placeholder_name": "Name *",
+    "contact.placeholder_email": "Email *",
+    "contact.placeholder_subject": "Subject",
+    "contact.placeholder_message": "Message *",
+    "contact.send": "Send message",
+    "contact.sending": "Sending…",
+    "contact.success": "Thank you. Your message has been sent. We will get back to you shortly.",
+    "contact.to_concierge": "To Concierge",
+    "notifications.empty_title": "No notifications",
+    "notifications.empty_subtitle": "You are up to date",
+    "shortcuts.title": "Keyboard shortcuts",
+    "marketplace.filter_placeholder": "Search (title, serial, category)",
+    "vault.portfolio_pdf_btn": "Portfolio as PDF",
+    "concierge.service_title": "Concierge Service"
   },
   it: {
     dashboard: "Dashboard",
@@ -1336,6 +1455,26 @@ const TRANSLATIONS: any = {
     "view.concierge": "Concierge",
     "view.login": "Accedi",
     "view.register": "Registrati",
+    "common.back_home": "Torna alla home",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "Nessuna opera trovata.",
+    "contact.placeholder_name": "Nome *",
+    "contact.placeholder_email": "Email *",
+    "contact.placeholder_subject": "Oggetto",
+    "contact.placeholder_message": "Messaggio *",
+    "contact.send": "Invia messaggio",
+    "contact.sending": "Invio in corso…",
+    "contact.success": "Grazie. Il messaggio è stato inviato. Vi risponderemo al più presto.",
+    "contact.success_sent": "Messaggio inviato. L'email all'atelier è stata inviata.",
+    "contact.error_send": "Errore durante l'invio.",
+    "contact.goto_concierge": "Al Concierge",
+    "contact.intro": "Per richieste utilizzate il modulo di contatto o la funzione Concierge dopo l'accesso.",
+    "notifications.empty_title": "Nessuna notifica",
+    "notifications.empty_subtitle": "Sei aggiornato",
+    "settings.shortcuts_title": "Scorciatoie da tastiera",
+    "marketplace.filter_placeholder": "Cerca (titolo, seriale, categoria)",
+    "vault.portfolio_pdf_btn": "Portfolio in PDF",
+    "concierge.service_title": "Servizio Concierge",
     "errors.invalid_credentials": "Credenziali non valide.",
     "errors.cert_failed": "Impossibile generare il certificato.",
     "errors.piece_create_failed": "Impossibile creare l'opera.",
@@ -1436,7 +1575,64 @@ const TRANSLATIONS: any = {
     "compliance.footer": "Legge applicabile: Germania. Foro: Colonia. Conforme GDPR. Consenso e accesso ai dati secondo la Privacy.",
     "common.settings": "Impostazioni",
     "common.settings_saved": "Impostazioni salvate.",
-    "common.views": "Visualizzazioni"
+    "common.views": "Visualizzazioni",
+    "common.back_home": "Torna alla home",
+    "common.back_dashboard": "Dashboard",
+    "search.no_results": "Nessun pezzo trovato.",
+    "shortcuts.close_modal": "Chiudi modali",
+    "shortcuts.focus_search": "Focus ricerca",
+    "shortcuts.this_help": "Questo aiuto",
+    "legal.open_google_maps": "Apri in Google Maps",
+    "vault.your_pieces": "I tuoi pezzi",
+    "vault.your_pieces_desc": "I pezzi della tua collezione possono essere nascosti o mostrati di nuovo nel portfolio.",
+    "portfolio.curated_title": "The Curated Collection",
+    "portfolio.curated_subtitle": "Una selezione delle opere più significative di Antonio Bellanova, vertice di artigianato e design di lusso.",
+    "concierge.direct_access": "Accesso diretto ad Antonio",
+    "concierge.vip_description": "Come membro VIP hai una linea diretta con l'atelier. Richiedi commissioni su misura, visioni private o consulenze.",
+    "settings.password_changed": "Password modificata.",
+    "settings.password_change_error": "Errore durante la modifica.",
+    "settings.network_error": "Errore di rete.",
+    "settings.changing_password": "Modifica in corso…",
+    "settings.current_password": "Password attuale",
+    "settings.new_password": "Nuova password (min. 6 caratteri)",
+    "settings.confirm_password": "Conferma nuova password",
+    "settings.password_min_length": "La nuova password deve avere almeno 6 caratteri.",
+    "settings.password_mismatch": "Le password non coincidono.",
+    "contact.placeholder_name": "Nome *",
+    "contact.placeholder_email": "Email *",
+    "contact.placeholder_subject": "Oggetto",
+    "contact.placeholder_message": "Messaggio *",
+    "contact.send": "Invia messaggio",
+    "contact.sending": "Invio in corso…",
+    "contact.success": "Grazie. Il suo messaggio è stato inviato. La contatteremo a breve.",
+    "contact.to_concierge": "Al Concierge",
+    "notifications.empty_title": "Nessuna notifica",
+    "notifications.empty_subtitle": "Sei aggiornato",
+    "shortcuts.title": "Scorciatoie da tastiera",
+    "marketplace.filter_placeholder": "Cerca (titolo, seriale, categoria)",
+    "vault.portfolio_pdf_btn": "Portfolio in PDF",
+    "concierge.service_title": "Servizio Concierge",
+    "shortcuts.close_modal": "Chiudi modali",
+    "shortcuts.focus_search": "Focus ricerca",
+    "shortcuts.this_help": "Questo aiuto",
+    "legal.open_google_maps": "Apri in Google Maps",
+    "vault.your_pieces": "I tuoi pezzi",
+    "vault.your_pieces_desc": "Qui puoi nascondere o mostrare di nuovo i pezzi della tua collezione nella vista portfolio.",
+    "portfolio.curated_title": "The Curated Collection",
+    "portfolio.curated_subtitle": "Una selezione delle opere più significative di Antonio Bellanova, artigianalità e design di lusso.",
+    "concierge.direct_access": "Accesso diretto ad Antonio",
+    "concierge.vip_line_desc": "Come membro VIP hai una linea diretta con l'atelier. Richiedi commissioni su misura, visioni private o consulenze.",
+    "concierge.vip_description": "Come membro VIP hai una linea diretta con l'atelier. Richiedi commissioni su misura, visioni private o consulenze.",
+    "settings.password_changed": "Password modificata.",
+    "settings.password_change_error": "Errore durante la modifica.",
+    "settings.network_error": "Errore di rete.",
+    "settings.changing_password": "Modifica in corso…",
+    "settings.current_password": "Password attuale",
+    "settings.new_password": "Nuova password (min. 6 caratteri)",
+    "settings.confirm_password": "Conferma nuova password",
+    "settings.password_min_length": "La nuova password deve avere almeno 6 caratteri.",
+    "settings.password_mismatch": "Le password non coincidono.",
+    "concierge.send_request": "Invia richiesta"
   },
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
@@ -2041,6 +2237,15 @@ export default function App() {
     return { label: val > 0 ? `${val.toLocaleString('de-DE')} €` : '—', showInquiry: false, showNegotiation: false };
   };
 
+  const getPieceImages = (piece: { image_url?: string; image_urls?: string }) => {
+    if (!piece) return [];
+    try {
+      const urls = typeof piece.image_urls === 'string' && piece.image_urls.trim() ? JSON.parse(piece.image_urls) : null;
+      if (Array.isArray(urls) && urls.length > 0) return urls;
+    } catch (_) {}
+    return piece.image_url ? [piece.image_url] : [];
+  };
+
   // Forms
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -2064,6 +2269,7 @@ export default function App() {
     cert_data: '',
     deposit_pct: '50', 
     image: '',
+    images: [] as string[],
     pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden'
   });
   const [newAuction, setNewAuction] = useState({
@@ -2667,7 +2873,8 @@ export default function App() {
           ...newPiece,
           valuation: parseFloat(newPiece.valuation),
           deposit_pct: parseFloat(newPiece.deposit_pct),
-          image_url: newPiece.image,
+          image_url: (newPiece.images?.length ? newPiece.images[0] : newPiece.image) || '',
+          image_urls: (newPiece as any).images?.length ? (newPiece as any).images : undefined,
           pricing_mode: (newPiece as any).pricing_mode ?? 'fixed'
         })
       });
@@ -2686,6 +2893,7 @@ export default function App() {
           cert_data: '',
           deposit_pct: '50', 
           image: '',
+          images: [],
           pricing_mode: 'fixed'
         });
         fetchData();
@@ -3480,14 +3688,26 @@ export default function App() {
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = e.target.files;
+    if (!files?.length) return;
+    const results: string[] = new Array(files.length);
+    let done = 0;
+    Array.from(files).forEach((file, i) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setNewPiece({ ...newPiece, image: reader.result as string });
+        results[i] = reader.result as string;
+        done += 1;
+        if (done === files.length) {
+          const newImages = results.filter(Boolean);
+          setNewPiece(prev => {
+            const combined = [...(prev.images || []), ...newImages];
+            return { ...prev, images: combined, image: combined[0] || prev.image };
+          });
+        }
       };
       reader.readAsDataURL(file);
-    }
+    });
+    e.target.value = '';
   };
 
   if (view === 'verify') {
@@ -3520,7 +3740,7 @@ export default function App() {
               <p className="text-zinc-500 text-xs mt-2">Prüfen Sie die URL oder wenden Sie sich an das Atelier.</p>
             </div>
           ) : null}
-          <button type="button" onClick={() => { setView('login'); setVerifyCertId(null); setVerifyData(null); }} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400">← Zur Startseite</button>
+          <button type="button" onClick={() => { setView('login'); setVerifyCertId(null); setVerifyData(null); }} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400">← {t('common.back_home')}</button>
         </div>
       </div>
     );
@@ -3533,7 +3753,7 @@ export default function App() {
     return (
       <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col`}>
         <div className="p-6 max-w-3xl mx-auto w-full flex-1">
-          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400 mb-8">← {user ? 'Dashboard' : 'Zur Startseite'}</button>
+          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400 mb-8">← {user ? t('common.back_dashboard') : t('common.back_home')}</button>
           <h1 className="text-2xl font-serif italic mb-6">{titles[view]}</h1>
           {view === 'impressum' && (
             <div className="prose prose-invert max-w-none text-sm space-y-4">
@@ -3567,9 +3787,9 @@ export default function App() {
           {view === 'kontakt' && (
             <div className="space-y-6">
               <p className="text-zinc-400">{COMPANY_INFO.name}, {COMPANY_INFO.address}</p>
-              <p className="text-sm text-zinc-500">Für Anfragen nutzen Sie bitte das Kontaktformular oder die Concierge-Funktion nach dem Login.</p>
+              <p className="text-sm text-zinc-500">{t('contact.intro')}</p>
               {user && (
-                <Button variant="primary" className="text-sm" onClick={() => setView('concierge')}>Zum Concierge</Button>
+                <Button variant="primary" className="text-sm" onClick={() => setView('concierge')}>{t('contact.goto_concierge')}</Button>
               )}
               {!contactFormSent ? (
                 <form className="grid gap-4 max-w-md" onSubmit={async (e) => {
@@ -3585,33 +3805,33 @@ export default function App() {
                     if (res.ok && data.success) {
                       setContactFormSent(true);
                       setContactForm({ name: '', email: '', subject: '', message: '' });
-                      if (data.emailSent) notifyUser('Nachricht gesendet. E-Mail an das Atelier wurde versandt.', 'success');
+                      if (data.emailSent) notifyUser(t('contact.success_sent') || 'Nachricht gesendet.', 'success');
                     } else {
-                      notifyUser(data.error || 'Fehler beim Senden.', 'error');
+                      notifyUser(data.error || t('contact.error_send'), 'error');
                     }
                   } catch {
-                    notifyUser('Fehler beim Senden.', 'error');
+                    notifyUser(t('contact.error_send'), 'error');
                   } finally {
                     setContactFormSubmitting(false);
                   }
                 }}>
-                  <input type="text" placeholder="Name *" value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} className="input" required />
-                  <input type="email" placeholder="E-Mail *" value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} className="input" required />
-                  <input type="text" placeholder="Betreff" value={contactForm.subject} onChange={e => setContactForm(f => ({ ...f, subject: e.target.value }))} className="input" />
-                  <textarea placeholder="Nachricht *" value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} className="input min-h-[120px]" required />
-                  <Button type="submit" variant="primary" disabled={contactFormSubmitting}>{contactFormSubmitting ? 'Wird gesendet…' : 'Nachricht senden'}</Button>
+                  <input type="text" placeholder={t('contact.placeholder_name')} value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} className="input" required />
+                  <input type="email" placeholder={t('contact.placeholder_email')} value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} className="input" required />
+                  <input type="text" placeholder={t('contact.placeholder_subject')} value={contactForm.subject} onChange={e => setContactForm(f => ({ ...f, subject: e.target.value }))} className="input" />
+                  <textarea placeholder={t('contact.placeholder_message')} value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} className="input min-h-[120px]" required />
+                  <Button type="submit" variant="primary" disabled={contactFormSubmitting}>{contactFormSubmitting ? t('contact.sending') : t('contact.send')}</Button>
                 </form>
               ) : (
-                <p className="text-amber-500/90">Vielen Dank. Ihre Nachricht wurde gesendet. Wir melden uns in Kürze.</p>
+                <p className="text-amber-500/90">{t('contact.success')}</p>
               )}
             </div>
           )}
           {view === 'anfahrt' && (
             <div className="space-y-6">
               <p className="text-zinc-200">{COMPANY_INFO.name}<br />{COMPANY_INFO.address}</p>
-              <p className="text-sm text-zinc-500">Öffentliche Verkehrsmittel: Haltestellen in der Nähe prüfen Sie bitte in Ihrer Verkehrsauskunft.</p>
+              <p className="text-sm text-zinc-500">{t('legal.transport_hint')}</p>
               <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(COMPANY_INFO.address)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm uppercase tracking-widest">
-                <MapPin className="w-4 h-4" /> In Google Maps öffnen
+                <MapPin className="w-4 h-4" /> {t('legal.maps_open')}
               </a>
             </div>
           )}
@@ -3733,7 +3953,7 @@ export default function App() {
           <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center">
             <Diamond className="w-5 h-5 text-amber-500" />
           </div>
-          <span className="hidden md:block font-serif italic text-lg text-amber-500">Vault</span>
+          <span className="hidden md:block font-serif italic text-lg text-amber-500">{t('vault')}</span>
         </div>
 
         <div className="flex-1 px-4 space-y-2">
@@ -3793,7 +4013,7 @@ export default function App() {
                     {(() => {
                       const q = globalSearchQuery.trim().toLowerCase();
                       const filtered = masterpieces.filter(p => (p.title?.toLowerCase().includes(q) || (p.serial_id && String(p.serial_id).toLowerCase().includes(q))));
-                      if (filtered.length === 0) return <p className="px-4 py-3 text-sm text-zinc-500">Keine Stücke gefunden.</p>;
+                      if (filtered.length === 0) return <p className="px-4 py-3 text-sm text-zinc-500">{t('search.no_results')}</p>;
                       return filtered.slice(0, 10).map(piece => (
                         <button key={piece.id} type="button" onClick={() => { setView('marketplace'); setSelectedPiece(piece); setGlobalSearchQuery(''); setShowSearchResults(false); }} className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 flex items-center gap-3 border-b border-zinc-800/50 last:border-0">
                           {piece.image_url ? <img src={piece.image_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" /> : <div className="w-10 h-10 rounded bg-zinc-800 shrink-0" />}
@@ -3849,7 +4069,7 @@ export default function App() {
                           <p className="text-[10px] text-zinc-500 mt-2">{new Date(n.created_at).toLocaleString('de-DE')}</p>
                         </div>
                       )) : (
-                        <PremiumEmptyState icon={Bell} title="Keine Benachrichtigungen" subtitle="Sie sind auf dem neuesten Stand" />
+                        <PremiumEmptyState icon={Bell} title={t('notifications.empty_title')} subtitle={t('notifications.empty_subtitle')} />
                       )}
                     </div>
                   </motion.div>
@@ -3870,7 +4090,7 @@ export default function App() {
                 {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
               </select>
             </div>
-            <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title="Tastaturkürzel">?</button>
+            <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title={t('shortcuts.title')}>?</button>
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
                 <div className="flex items-center gap-2 justify-end">
@@ -3967,7 +4187,7 @@ export default function App() {
                     if (user) await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, notification_prefs: JSON.stringify(notificationPrefs) }) });
                     setShowNotificationPrefsModal(false);
                     notifyUser(t('common.settings_saved'), 'success');
-                  }}>Speichern</Button>
+                  }}>{t('save')}</Button>
                 </div>
               </motion.div>
             </motion.div>
@@ -3979,26 +4199,26 @@ export default function App() {
           {showPasswordChangeModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowPasswordChangeModal(false)}>
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-                <h4 className="text-lg font-serif italic">Passwort ändern</h4>
-                <Input type="password" label="Aktuelles Passwort" value={changePasswordForm.current} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, current: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
-                <Input type="password" label="Neues Passwort (min. 6 Zeichen)" value={changePasswordForm.new} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, new: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
-                <Input type="password" label="Neues Passwort bestätigen" value={changePasswordForm.confirm} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, confirm: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <h4 className="text-lg font-serif italic">{t('notifications.change_password')}</h4>
+                <Input type="password" label={t('settings.current_password')} value={changePasswordForm.current} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, current: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <Input type="password" label={t('settings.new_password')} value={changePasswordForm.new} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, new: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <Input type="password" label={t('settings.confirm_password')} value={changePasswordForm.confirm} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, confirm: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
                 {changePasswordError && <p className="text-sm text-red-400">{changePasswordError}</p>}
                 <div className="flex gap-2 pt-2">
-                  <Button variant="ghost" className="flex-1" onClick={() => { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); }}>Abbrechen</Button>
+                  <Button variant="ghost" className="flex-1" onClick={() => { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); }}>{t('cancel')}</Button>
                   <Button variant="primary" className="flex-1" disabled={changePasswordSubmitting} onClick={async () => {
                     setChangePasswordError('');
-                    if (changePasswordForm.new.length < 6) { setChangePasswordError('Neues Passwort mindestens 6 Zeichen.'); return; }
-                    if (changePasswordForm.new !== changePasswordForm.confirm) { setChangePasswordError('Passwörter stimmen nicht überein.'); return; }
+                    if (changePasswordForm.new.length < 6) { setChangePasswordError(t('settings.password_min_length')); return; }
+                    if (changePasswordForm.new !== changePasswordForm.confirm) { setChangePasswordError(t('settings.password_mismatch')); return; }
                     setChangePasswordSubmitting(true);
                     try {
                       const res = await fetch('/api/users/me/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: changePasswordForm.current, newPassword: changePasswordForm.new }), credentials: 'include' });
                       const data = await res.json().catch(() => ({}));
-                      if (res.ok) { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); notifyUser('Passwort wurde geändert.', 'success'); }
-                      else setChangePasswordError(data.error || 'Fehler beim Ändern.');
-                    } catch { setChangePasswordError('Netzwerkfehler.'); }
+                      if (res.ok) { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); notifyUser(t('settings.password_changed'), 'success'); }
+                      else setChangePasswordError(data.error || t('settings.password_change_error'));
+                    } catch { setChangePasswordError(t('settings.network_error')); }
                     finally { setChangePasswordSubmitting(false); }
-                  }}>{changePasswordSubmitting ? 'Wird geändert…' : 'Passwort ändern'}</Button>
+                  }}>{changePasswordSubmitting ? t('settings.changing_password') : t('notifications.change_password')}</Button>
                 </div>
               </motion.div>
             </motion.div>
@@ -4010,13 +4230,13 @@ export default function App() {
           {showShortcutsModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowShortcutsModal(false)}>
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-sm space-y-4">
-                <h4 className="text-lg font-serif italic">Tastaturkürzel</h4>
+                <h4 className="text-lg font-serif italic">{t('shortcuts.title')}</h4>
                 <div className="space-y-2 text-sm text-zinc-400">
-                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> Modals schließen</p>
-                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> Suche fokussieren</p>
-                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> Diese Hilfe</p>
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> {t('shortcuts.close_modal')}</p>
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> {t('shortcuts.focus_search')}</p>
+                  <p><kbd className="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> {t('shortcuts.this_help')}</p>
                 </div>
-                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>Schließen</Button>
+                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>{t('close')}</Button>
               </motion.div>
             </motion.div>
           )}
@@ -4025,7 +4245,7 @@ export default function App() {
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
           <div className="px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
-            <button type="button" onClick={() => setView('dashboard')} className="hover:text-amber-500/80">Dashboard</button>
+            <button type="button" onClick={() => setView('dashboard')} className="hover:text-amber-500/80">{t('dashboard')}</button>
             <span>/</span>
             {view === 'vault' ? (
               <>
@@ -4228,12 +4448,12 @@ export default function App() {
                     <p className="text-zinc-500">{t('marketplace.subtitle')}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
-                    <input type="text" placeholder="Suche (Titel, Serial, Kategorie)" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
+                    <input type="text" placeholder={t('marketplace.filter_placeholder')} value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
                     <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                      <option value="">Alle Rarity</option>
-                      <option value="Unikat">Unikat</option>
-                      <option value="Limitiert">Limitiert</option>
-                      <option value="Selten">Selten</option>
+                      <option value="">{t('filter.rarity_all')}</option>
+                      <option value="Unikat">{t('filter.rarity_unique')}</option>
+                      <option value="Limitiert">{t('filter.rarity_limited')}</option>
+                      <option value="Selten">{t('filter.rarity_rare')}</option>
                     </select>
                     <select value={sortMarket} onChange={e => setSortMarket(e.target.value as typeof sortMarket)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
                       <option value="newest">Neueste</option>
@@ -4932,11 +5152,11 @@ export default function App() {
                                 <UserIcon className="w-6 h-6 text-zinc-400" />
                               </div>
                               <div>
-                                <h4 className="text-xl font-serif italic">Concierge Service</h4>
-                                <p className="text-xs text-zinc-500 uppercase tracking-widest">Direct Access to Antonio</p>
+                                <h4 className="text-xl font-serif italic">{t('concierge.service_title')}</h4>
+                                <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('concierge.direct_access')}</p>
                               </div>
                             </div>
-                            <p className="text-sm text-zinc-400">As a VIP member, you have a direct line to our atelier. Request bespoke commissions, private viewings, or asset consultations.</p>
+                            <p className="text-sm text-zinc-400">{t('concierge.vip_description')}</p>
                             <div className="space-y-4">
                               <textarea 
                                 id="concierge-msg"
@@ -4946,7 +5166,7 @@ export default function App() {
                               <Button className="w-full" onClick={() => {
                                 const msg = (document.getElementById('concierge-msg') as HTMLTextAreaElement).value;
                                 if (msg) handleConcierge(msg);
-                              }}>Send Request</Button>
+                              }}>{t('concierge.send_request')}</Button>
                             </div>
                           </Card>
                         </div>
@@ -5003,11 +5223,11 @@ export default function App() {
             {view === 'portfolio' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="text-center space-y-4 max-w-2xl mx-auto">
-                  <h3 className="text-5xl font-serif italic text-white">The Curated Collection</h3>
-                  <p className="text-zinc-500 text-lg">A selection of Antonio Bellanova's most significant works, showcasing the pinnacle of craftsmanship and luxury design.</p>
+                  <h3 className="text-5xl font-serif italic text-white">{t('portfolio.curated_title')}</h3>
+                  <p className="text-zinc-500 text-lg">{t('portfolio.curated_subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center items-center">
-                  <input type="text" placeholder="Suche (Titel, Serial, Kategorie)" value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
+                  <input type="text" placeholder={t('marketplace.filter_placeholder')} value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
                   <select value={filterRarity} onChange={e => setFilterRarity(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
                     <option value="">Alle Rarity</option>
                     <option value="Unikat">Unikat</option>
@@ -5032,13 +5252,13 @@ export default function App() {
                     });
                     if (list.length > 25) doc.text(`… und ${list.length - 25} weitere`, 20, y);
                     doc.save('Antonio-Bellanova-Portfolio.pdf');
-                  }}>Portfolio als PDF</Button>
+                  }}>{t('vault.portfolio_pdf_btn')}</Button>
                 </div>
 
                 {user && vaultData.pieces.length > 0 && (
                   <Card className="p-6 border-amber-500/20 bg-amber-500/5">
-                    <h4 className="text-lg font-serif italic text-amber-500/90 mb-4">Deine Stücke</h4>
-                    <p className="text-sm text-zinc-500 mb-4">Stücke aus deiner Sammlung kannst du hier aus der Portfolio-Anzeige nehmen oder wieder anzeigen.</p>
+                    <h4 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('vault.your_pieces')}</h4>
+                    <p className="text-sm text-zinc-500 mb-4">{t('vault.your_pieces_desc')}</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                       {visiblePortfolioPieces.map(piece => (
                         <div key={piece.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
@@ -5047,7 +5267,7 @@ export default function App() {
                             <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
                             <p className="text-xs text-zinc-500">{piece.serial_id}</p>
                           </div>
-                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 shrink-0" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 shrink-0" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>{t('vault.remove_from_portfolio')}</Button>
                         </div>
                       ))}
                     </div>
@@ -5085,10 +5305,10 @@ export default function App() {
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-8 gap-3">
                           <p className="text-white text-sm font-serif italic">{piece.description.substring(0, 100)}...</p>
                           {canRemoveFromPortfolio && (
-                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>{t('vault.remove_from_portfolio')}</Button>
                           )}
                           {canShowAgain && (
-                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>Wieder anzeigen</Button>
+                            <Button variant="outline" size="sm" className="w-fit text-xs border-zinc-600 text-zinc-200 hover:border-amber-500 hover:text-amber-400" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>{t('vault.show_in_portfolio_again')}</Button>
                           )}
                         </div>
                       </div>
@@ -5099,10 +5319,10 @@ export default function App() {
                         </div>
                         <p className="text-zinc-500 text-sm uppercase tracking-[0.2em]">{piece.rarity} Edition</p>
                         {canRemoveFromPortfolio && (
-                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>Aus Portfolio entfernen</Button>
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleRemoveFromPortfolio(piece.id); }}>{t('vault.remove_from_portfolio')}</Button>
                         )}
                         {canShowAgain && (
-                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>Wieder anzeigen</Button>
+                          <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 -ml-1 p-0 h-auto" onClick={(e) => { e.stopPropagation(); handleUnhideFromPortfolio(piece.id); }}>{t('vault.show_in_portfolio_again')}</Button>
                         )}
                       </div>
                     </div>
@@ -5665,10 +5885,24 @@ export default function App() {
                             <textarea value={newPiece.description} onChange={(e) => setNewPiece({ ...newPiece, description: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 h-32" />
                           </div>
                           <div className="space-y-4">
-                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Bild des Meisterstücks</label>
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Bilder des Meisterstücks</label>
+                            <input id="file-upload" type="file" className="hidden" accept="image/*" multiple onChange={handleFileUpload} />
                             <div className="border-2 border-dashed border-zinc-800 rounded-3xl aspect-video flex flex-col items-center justify-center p-8 text-center group hover:border-amber-600/50 transition-all cursor-pointer relative overflow-hidden" onClick={() => document.getElementById('file-upload')?.click()}>
-                              {newPiece.image ? <img src={newPiece.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover" /> : <><Upload className="w-12 h-12 text-zinc-700 group-hover:text-amber-500 transition-colors mb-4" /><p className="text-sm text-zinc-500">Klicken oder Bild hierher ziehen</p></>}
-                              <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                              {(newPiece.images?.length ?? 0) > 0 ? (
+                                <div className="absolute inset-0 p-4 flex flex-wrap gap-2 items-center justify-center overflow-auto">
+                                  {(newPiece.images || []).map((url, idx) => (
+                                    <div key={idx} className="relative w-20 h-20 rounded-xl overflow-hidden border border-zinc-700 shrink-0 group/img">
+                                      <img src={url} alt="" className="w-full h-full object-cover" />
+                                      <button type="button" onClick={(ev) => { ev.stopPropagation(); setNewPiece(prev => { const next = (prev.images || []).filter((_, i) => i !== idx); return { ...prev, images: next, image: next[0] || '' }; }); }} className="absolute inset-0 bg-black/60 opacity-0 group-hover/img:opacity-100 flex items-center justify-center text-red-400 hover:text-red-300 transition-opacity">
+                                        <Plus className="w-6 h-6 rotate-45" />
+                                      </button>
+                                      {idx === 0 && <span className="absolute bottom-0 left-0 right-0 bg-amber-600/90 text-[10px] text-center text-white font-bold">Hauptbild</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <><Upload className="w-12 h-12 text-zinc-700 group-hover:text-amber-500 transition-colors mb-4" /><p className="text-sm text-zinc-500">Klicken oder Bilder hierher ziehen (mehrere möglich)</p></>
+                              )}
                             </div>
                           </div>
                           <Button className="w-full" onClick={handleCreatePiece} disabled={loading}>Meisterstück erstellen</Button>
@@ -7081,13 +7315,13 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6">
               <div className="absolute inset-0 bg-black/80" onClick={() => setShowShortcutsModal(false)} />
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
-                <h3 className="text-lg font-serif italic">Tastaturkürzel</h3>
+                <h3 className="text-lg font-serif italic">{t('shortcuts.title')}</h3>
                 <ul className="text-sm text-zinc-400 space-y-2">
-                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> Modals schließen</li>
-                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> Suche fokussieren</li>
-                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> Diese Hilfe</li>
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Esc</kbd> {t('shortcuts.close_modal')}</li>
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">Strg+K</kbd> {t('shortcuts.focus_search')}</li>
+                  <li><kbd className="px-1.5 py-0.5 bg-zinc-800 rounded text-zinc-300">?</kbd> {t('shortcuts.this_help')}</li>
                 </ul>
-                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>Schließen</Button>
+                <Button variant="ghost" className="w-full" onClick={() => setShowShortcutsModal(false)}>{t('close')}</Button>
               </motion.div>
             </motion.div>
           )}
@@ -7099,19 +7333,19 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center p-6">
               <div className="absolute inset-0 bg-black/80" onClick={() => setShowNotificationPrefsModal(false)} />
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} className="relative bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4">
-                <h3 className="text-lg font-serif italic">Benachrichtigungen</h3>
-                <p className="text-xs text-zinc-500">E-Mail-Benachrichtigungen (Einstellungen werden gespeichert).</p>
+                <h3 className="text-lg font-serif italic">{t('notifications.title')}</h3>
+                <p className="text-xs text-zinc-500">{t('notifications.description')}</p>
                 {['email_messages', 'email_contracts', 'email_auctions'].map(key => (
                   <label key={key} className="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" checked={(notificationPrefs as any)[key]} onChange={e => setNotificationPrefs(p => ({ ...p, [key]: e.target.checked }))} className="rounded border-zinc-600" />
-                    <span className="text-sm text-zinc-300">{key === 'email_messages' ? 'Nachrichten' : key === 'email_contracts' ? 'Verträge' : 'Auktionen'}</span>
+                    <span className="text-sm text-zinc-300">{key === 'email_messages' ? t('notifications.email_messages') : key === 'email_contracts' ? t('notifications.email_contracts') : t('notifications.email_auctions')}</span>
                   </label>
                 ))}
                 <Button variant="primary" className="w-full" onClick={async () => {
                   await fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, notification_prefs: JSON.stringify(notificationPrefs) }) });
                   setShowNotificationPrefsModal(false);
                   notifyUser(t('common.settings_saved'), 'success');
-                }}>Speichern</Button>
+                }}>{t('save')}</Button>
               </motion.div>
             </motion.div>
           )}
