@@ -1413,6 +1413,70 @@ app.post("/api/admin/masterpieces", (req, res) => {
   }
 });
 
+// Admin: Stück dauerhaft aus dem System löschen (mit Passwortbestätigung)
+app.post("/api/admin/masterpieces/:id/delete", (req, res) => {
+  const admin = (req as any).user;
+  const masterpieceId = Number(req.params.id);
+  const { password } = req.body || {};
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece ID" });
+  const row = db.prepare("SELECT password FROM users WHERE id = ?").get(admin.id) as { password: string } | undefined;
+  if (!row || !checkPassword(String(password || ""), row.password)) return res.status(401).json({ error: "Admin-Passwort erforderlich oder falsch." });
+  const piece = db.prepare("SELECT id, title, serial_id FROM masterpieces WHERE id = ?").get(masterpieceId) as { id: number; title: string; serial_id: string } | undefined;
+  if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+  const run = db.transaction(() => {
+    const mid = masterpieceId;
+    const resaleIds = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ?").all(mid) as { id: number }[];
+    const resaleIdList = resaleIds.map(r => r.id);
+    if (resaleIdList.length > 0) {
+      db.prepare("DELETE FROM maison_buyback_offers WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")").run();
+      db.prepare("DELETE FROM resale_audit_log WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")").run();
+    }
+    db.prepare("DELETE FROM resale_listings WHERE masterpiece_id = ?").run(mid);
+    const auctionIds = db.prepare("SELECT id FROM auctions WHERE masterpiece_id = ?").all(mid) as { id: number }[];
+    const aidList = auctionIds.map(a => a.id);
+    if (aidList.length > 0) db.prepare("DELETE FROM bids WHERE auction_id IN (" + aidList.join(",") + ")").run();
+    db.prepare("DELETE FROM auctions WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM ownership_history WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM payments WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM contracts WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM escrow_transactions WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM certificates WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM purchase_workflow WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM provenance_timeline WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM service_history WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM waitlist WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM reservations WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM fractional_shares WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM fractional_transfers WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM production_progress WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM delivery_details WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM atelier_moments WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM shipping_orchestration WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM insurance_policies WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM resale_negotiations WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM fractional_availability WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM user_favorites WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM investor_requests WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM revenue_ledger WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM investor_view_logs WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM service_requests WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM concierge_requests WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM vault_requests WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM asset_views WHERE masterpiece_id = ?").run(mid);
+    db.prepare("DELETE FROM design_requests WHERE masterpiece_id = ?").run(mid);
+    try { db.prepare("DELETE FROM chat_threads WHERE masterpiece_id = ?").run(mid); } catch (_) {}
+    db.prepare("DELETE FROM masterpieces WHERE id = ?").run(mid);
+  });
+  try {
+    run();
+    broadcast({ type: "MASTERPIECE_DELETED", id: masterpieceId });
+    res.json({ success: true, message: "Stück wurde dauerhaft aus dem System entfernt." });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message || "Löschen fehlgeschlagen." });
+  }
+});
+
 // Investor Features
 app.get("/api/investor/analytics", (req, res) => {
   const totalValuation = db.prepare("SELECT SUM(valuation) as total FROM masterpieces").get().total || 0;

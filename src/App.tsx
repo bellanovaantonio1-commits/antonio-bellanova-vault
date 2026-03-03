@@ -1502,6 +1502,7 @@ export default function App() {
   const [appointmentModalRequest, setAppointmentModalRequest] = useState<any>(null);
   const [appointmentScheduleForm, setAppointmentScheduleForm] = useState({ date: '', time: '09:00', title: '', notes: '' });
   const [newAppointmentForm, setNewAppointmentForm] = useState({ userId: '', date: '', time: '09:00', title: '', notes: '' });
+  const [deletePieceConfirm, setDeletePieceConfirm] = useState<{ piece: Masterpiece; password: string; error: string } | null>(null);
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [selectedChatThread, setSelectedChatThread] = useState<ChatThread | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -2660,6 +2661,38 @@ export default function App() {
       }
     } catch {
       notifyUser('Fehler.', 'error');
+    }
+  };
+
+  const handleDeleteMasterpiece = async () => {
+    if (!deletePieceConfirm?.piece) return;
+    const { piece, password } = deletePieceConfirm;
+    if (!password.trim()) {
+      setDeletePieceConfirm(prev => prev ? { ...prev, error: 'Bitte Admin-Passwort eingeben.' } : null);
+      return;
+    }
+    setLoading(true);
+    setDeletePieceConfirm(prev => prev ? { ...prev, error: '' } : null);
+    try {
+      const res = await fetch(`/api/admin/masterpieces/${piece.id}/delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setMasterpieces(prev => prev.filter(p => p.id !== piece.id));
+        setSelectedPiece(null);
+        setDeletePieceConfirm(null);
+        notifyUser(data.message || 'Stück wurde dauerhaft aus dem System entfernt.', 'success');
+      } else {
+        setDeletePieceConfirm(prev => prev ? { ...prev, error: data.error || 'Löschen fehlgeschlagen.' } : null);
+      }
+    } catch {
+      setDeletePieceConfirm(prev => prev ? { ...prev, error: 'Netzwerkfehler.' } : null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -5397,11 +5430,35 @@ export default function App() {
                       <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
                         <MessageCircle className="w-4 h-4" /> Concierge: Zu diesem Stück anfragen
                       </Button>
+                      {user?.role === UserRole.ADMIN && (
+                        <Button variant="danger" className="w-full py-3 text-sm" onClick={() => setDeletePieceConfirm({ piece: selectedPiece, password: '', error: '' })}>
+                          Aus System entfernen (Admin)
+                        </Button>
+                      )}
                       <Button variant="ghost" className="w-full py-4 text-sm text-zinc-500" onClick={closePieceDetail}>
                         {t('close')}
                       </Button>
                     </div>
                   </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Admin: Stück dauerhaft löschen – Passwort bestätigen */}
+        <AnimatePresence>
+          {deletePieceConfirm && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-6">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setDeletePieceConfirm(null)} />
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl">
+                <h4 className="text-lg font-serif italic text-white mb-2">Stück dauerhaft aus System entfernen</h4>
+                <p className="text-sm text-zinc-400 mb-4">&quot;{deletePieceConfirm.piece.title}&quot; ({(deletePieceConfirm.piece as any).serial_id}) wird unwiderruflich gelöscht.</p>
+                <Input type="password" label="Admin-Passwort" value={deletePieceConfirm.password} onChange={(e: any) => setDeletePieceConfirm(prev => prev ? { ...prev, password: e.target.value, error: '' } : null)} placeholder="••••••••" />
+                {deletePieceConfirm.error && <p className="text-sm text-red-400 mt-2">{deletePieceConfirm.error}</p>}
+                <div className="flex gap-3 mt-6">
+                  <Button variant="ghost" className="flex-1" onClick={() => setDeletePieceConfirm(null)} disabled={loading}>{t('cancel')}</Button>
+                  <Button variant="danger" className="flex-1" onClick={handleDeleteMasterpiece} disabled={loading}>{loading ? '…' : 'Endgültig löschen'}</Button>
                 </div>
               </motion.div>
             </div>
