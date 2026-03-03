@@ -2651,7 +2651,11 @@ export default function App() {
     const footerHeight = 22;
     const sigY = pageHeight - footerHeight - 36;
     const maxBodyY = sigY - 12;
-    const splitText = doc.splitTextToSize(bodyText, pageWidth - 2 * margin - 4);
+    // PDF-safe: replace Unicode quotes and non-breaking space so jsPDF doesn't throw
+    const safeBodyText = String(bodyText || '')
+      .replace(/\u2018|\u2019/g, "'").replace(/\u201C|\u201D|\u201E/g, '"')
+      .replace(/\u00A0/g, ' ').replace(/\r\n/g, '\n').trim() || title;
+    const splitText = doc.splitTextToSize(safeBodyText, pageWidth - 2 * margin - 4);
     let page = 1;
     for (let i = 0; i < splitText.length; i++) {
       if (currentY + lineHeight > maxBodyY && page === 1) {
@@ -4793,8 +4797,20 @@ export default function App() {
                               try {
                                 const res = await fetch(`/api/advisor/contracts/${type}/content`, { credentials: 'include' });
                                 const data = await res.json().catch(() => ({}));
-                                if (res.ok && data.title && data.content) await downloadPDF(data.title, data.content, undefined, { fileName: `Antonio-Bellanova-${type}.pdf` });
-                                else notifyUser(t('advisor.download_error') || 'Download fehlgeschlagen.', 'error');
+                                const title = data.title && String(data.title).trim();
+                                let content = data.content != null ? String(data.content) : '';
+                                if (!res.ok || !title) {
+                                  notifyUser(data.error || (t('advisor.download_error') || 'Download fehlgeschlagen.'), 'error');
+                                  return;
+                                }
+                                if (content.length === 0) {
+                                  notifyUser(t('advisor.download_error') || 'Download fehlgeschlagen.', 'error');
+                                  return;
+                                }
+                                // Normalize for jsPDF (Unicode quotes can break default font)
+                                content = content.replace(/[\u201C\u201D\u201E\u201F„"]/g, '"').replace(/\u2018|\u2019/g, "'");
+                                await downloadPDF(title, content, undefined, { fileName: `Antonio-Bellanova-${type}.pdf` });
+                                notifyUser(t('advisor.download_ok') || 'Vertrag heruntergeladen.', 'success');
                               } catch (e) { notifyUser(t('advisor.download_error') || 'Download fehlgeschlagen.', 'error'); }
                             }}>{t('advisor.download_contract') || 'Herunterladen'}</Button>
                             {c?.status === 'signed' ? (

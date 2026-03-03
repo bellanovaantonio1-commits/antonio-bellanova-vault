@@ -2449,6 +2449,23 @@ function requireAdvisor(req: express.Request, res: express.Response, next: expre
   next();
 }
 
+// Advisor with any profile status (pending_nda, nda_signed, activated) – for contracts so they can download/sign before activation
+function requireAdvisorProfile(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const user = (req as any).user;
+  if (!user || user.role !== "strategic_private_advisor") {
+    res.status(403).json({ error: "Advisor access only" });
+    return;
+  }
+  const profile = getAdvisorProfileByUserId(user.id);
+  if (!profile) {
+    res.status(403).json({ error: "Advisor profile not found." });
+    return;
+  }
+  (req as any).advisorProfileId = profile.id;
+  (req as any).advisorProfile = profile;
+  next();
+}
+
 // Advisor: dashboard stats (own data only)
 app.get("/api/advisor/dashboard", requireAuth, requireAdvisor, (req, res) => {
   const aid = (req as any).advisorProfileId;
@@ -2539,7 +2556,7 @@ function getAdvisorContractContent(type: string, advisorName: string, commission
   const signedLine = signed ? `\n\nUnterzeichnet: ${advisorName} am ${new Date().toISOString().slice(0, 10)}` : "";
   if (type === "nda") {
     const title = "Vertraulichkeits- und Geheimhaltungsvereinbarung (NDA)";
-    const content = `VERTRAULICHKEITS- UND GEHEIMHALTUNGSVEREINBARUNG\n\nzwischen\n${ADVISOR_CONTRACT_COMPANY.name}, ${ADVISOR_CONTRACT_COMPANY.address}\n(„Atelier“)\n\nund\nStrategic Private Advisor: ${advisorName}\n(„Berater“)\n\n1. Geltungsbereich\nAlle im Rahmen der Tätigkeit als Strategic Private Advisor erhaltenen Informationen über Kunden, Transaktionen, Preise und Geschäftsbeziehungen des Ateliers sind vertraulich und unterliegen der Geheimhaltung.\n\n2. Nutzung\nDer Berater verwendet vertrauliche Informationen ausschließlich zur Erfüllung seiner Aufgaben und gibt sie an keine Dritten weiter.\n\n3. Dauer\nDie Verpflichtung besteht über das Ende der Zusammenarbeit hinaus fort.\n\n4. Rechtsfolgen\nZuwiderhandlungen können Schadensersatz- und Unterlassungsansprüche auslösen.${footer}${signedLine}`;
+    const content = `VERTRAULICHKEITS- UND GEHEIMHALTUNGSVEREINBARUNG\n\nzwischen\n${ADVISOR_CONTRACT_COMPANY.name}, ${ADVISOR_CONTRACT_COMPANY.address}\n(\"Atelier\")\n\nund\nStrategic Private Advisor: ${advisorName}\n(„Berater“)\n\n1. Geltungsbereich\nAlle im Rahmen der Tätigkeit als Strategic Private Advisor erhaltenen Informationen über Kunden, Transaktionen, Preise und Geschäftsbeziehungen des Ateliers sind vertraulich und unterliegen der Geheimhaltung.\n\n2. Nutzung\nDer Berater verwendet vertrauliche Informationen ausschließlich zur Erfüllung seiner Aufgaben und gibt sie an keine Dritten weiter.\n\n3. Dauer\nDie Verpflichtung besteht über das Ende der Zusammenarbeit hinaus fort.\n\n4. Rechtsfolgen\nZuwiderhandlungen können Schadensersatz- und Unterlassungsansprüche auslösen.${footer}${signedLine}`;
     return { title, content };
   }
   if (type === "advisor_agreement") {
@@ -2555,8 +2572,8 @@ function getAdvisorContractContent(type: string, advisorName: string, commission
   return { title: type, content: "" };
 }
 
-// Advisor: get contract content for download (draft or signed)
-app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisor, (req, res) => {
+// Advisor: get contract content for download (draft or signed) – allowed before activation so they can download/sign
+app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisorProfile, (req, res) => {
   const aid = (req as any).advisorProfileId;
   const user = (req as any).user;
   const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
@@ -2572,15 +2589,15 @@ app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisor, (re
   res.json({ title, content });
 });
 
-// Advisor: list contracts (NDA, advisor_agreement, commission_agreement)
-app.get("/api/advisor/contracts", requireAuth, requireAdvisor, (req, res) => {
+// Advisor: list contracts (NDA, advisor_agreement, commission_agreement) – allowed before activation
+app.get("/api/advisor/contracts", requireAuth, requireAdvisorProfile, (req, res) => {
   const aid = (req as any).advisorProfileId;
   const rows = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at FROM advisor_contracts WHERE advisor_id = ? ORDER BY created_at DESC").all(aid);
   res.json(rows);
 });
 
-// Advisor: sign contract (digital signature) – uses same rich content as download
-app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisor, (req, res) => {
+// Advisor: sign contract (digital signature) – uses same rich content as download; allowed before activation
+app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisorProfile, (req, res) => {
   const aid = (req as any).advisorProfileId;
   const user = (req as any).user;
   const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
