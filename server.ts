@@ -880,6 +880,71 @@ try {
   // Column might already exist
 }
 
+// --- Imperial Core: Prestige Tiers, Drops, Private Viewing, Negotiation, Delivery ---
+try { db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN responded_by INTEGER REFERENCES users(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_availability ADD COLUMN min_investment_pct REAL").run(); } catch (e) {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS prestige_tier_metrics (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    total_spent REAL DEFAULT 0,
+    holding_duration_days INTEGER DEFAULT 0,
+    resale_participation_count INTEGER DEFAULT 0,
+    investment_participation_count INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS drops (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    release_at DATETIME NOT NULL,
+    end_at DATETIME NOT NULL,
+    tier_access TEXT NOT NULL,
+    status TEXT DEFAULT 'upcoming',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS drop_pieces (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    drop_id INTEGER NOT NULL REFERENCES drops(id),
+    masterpiece_id INTEGER NOT NULL REFERENCES masterpieces(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(drop_id, masterpiece_id)
+  );
+  CREATE TABLE IF NOT EXISTS private_viewing_slots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    masterpiece_id INTEGER NOT NULL REFERENCES masterpieces(id),
+    expires_at DATETIME NOT NULL,
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS private_viewing_allowlist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slot_id INTEGER NOT NULL REFERENCES private_viewing_slots(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(slot_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS private_terms_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    masterpiece_id INTEGER NOT NULL REFERENCES masterpieces(id),
+    status TEXT DEFAULT 'pending',
+    admin_notes TEXT,
+    responded_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+`);
+
 // --- Automatic Number Systems (International Luxury Maison) ---
 db.exec(`
   CREATE TABLE IF NOT EXISTS number_sequences (
@@ -1342,6 +1407,7 @@ app.get("/api/me", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   if (!user || user.status !== 'approved') return res.status(401).json({ error: "Invalid session" });
   const { password: _p, ...rest } = user;
+  rest.prestige_tier = rest.prestige_tier || getPrestigeTier(user);
   res.json(rest);
 });
 
@@ -1384,7 +1450,20 @@ app.post("/api/reset-password", (req, res) => {
 });
 
 // Masterpieces (optional ?search= für globale Suche)
+// Expire private viewing slots and set piece to archived_private_collection
+function expirePrivateViewing() {
+  const now = new Date().toISOString();
+  try {
+    const expired = db.prepare("SELECT id, masterpiece_id FROM private_viewing_slots WHERE status = 'active' AND expires_at <= ?").all(now) as { id: number; masterpiece_id: number }[];
+    for (const s of expired) {
+      db.prepare("UPDATE masterpieces SET status = 'archived_private_collection', private_viewing_expires_at = NULL WHERE id = ?").run(s.masterpiece_id);
+      db.prepare("UPDATE private_viewing_slots SET status = 'expired' WHERE id = ?").run(s.id);
+    }
+  } catch (_) {}
+}
+
 app.get("/api/masterpieces", (req, res) => {
+  expirePrivateViewing();
   const search = (req.query.search as string)?.trim();
   let pieces: any[];
   if (search && search.length >= 2) {
@@ -1398,6 +1477,7 @@ app.get("/api/masterpieces", (req, res) => {
 
 // Extended search: q, category, minPrice, maxPrice, rarity, sort (newest | price_asc | price_desc | title)
 app.get("/api/search", (req, res) => {
+  expirePrivateViewing();
   const q = (req.query.q as string)?.trim();
   const category = (req.query.category as string)?.trim();
   const minPrice = req.query.minPrice != null ? Number(req.query.minPrice) : null;
@@ -1597,6 +1677,8 @@ app.post("/api/admin/investor-requests/:id/review", (req, res) => {
     const pct = Math.min(Number(meta.percentage) || 5, 100);
     const avail = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(reqRow.masterpiece_id) as any;
     if (!avail || (avail.available_pct || 0) < pct) return res.status(400).json({ error: "Not enough fractional availability for this piece" });
+    const minPct = avail.min_investment_pct != null ? Number(avail.min_investment_pct) : null;
+    if (minPct != null && pct < minPct) return res.status(400).json({ error: `Minimum investment is ${minPct}% for this asset` });
     db.prepare("INSERT INTO fractional_shares (masterpiece_id, owner_id, percentage) VALUES (?, ?, ?)").run(reqRow.masterpiece_id, reqRow.user_id, pct);
     db.prepare("UPDATE fractional_availability SET available_pct = available_pct - ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(pct, reqRow.masterpiece_id);
     const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(reqRow.masterpiece_id) as any;
@@ -1704,12 +1786,13 @@ app.get("/api/investor/view-logs", (req, res) => {
   res.json(logs);
 });
 app.post("/api/marketplace/buy", (req, res) => {
-  const { userId, masterpieceId } = req.body;
+  const { userId, masterpieceId, delivery_option } = req.body;
   db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
   
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
   const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
+  const meta = JSON.stringify({ delivery_option: delivery_option || null });
   
   const content = `
     ANZAHLUNGSVERTRAG (DEPOSIT AGREEMENT)
@@ -1734,9 +1817,15 @@ app.post("/api/marketplace/buy", (req, res) => {
     
     Datum: ${new Date().toLocaleDateString('de-DE')}
   `;
-  db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(
-    userId, masterpieceId, 'deposit', content
-  );
+  try {
+    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(
+      userId, masterpieceId, 'deposit', content, meta
+    );
+  } catch (_) {
+    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(
+      userId, masterpieceId, 'deposit', content
+    );
+  }
   
   broadcast({ type: 'MASTERPIECE_RESERVED', id: masterpieceId });
   res.json({ success: true });
@@ -1757,11 +1846,20 @@ app.post("/api/admin/approve-purchase", (req, res) => {
     const existingWorkflow = db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?").get(masterpieceId);
     if (existingWorkflow) return res.status(400).json({ error: "Purchase already approved" });
 
-    // 1. Update status & workflow
+    let deliveryOption: string | null = null;
+    try {
+      const depContract = db.prepare("SELECT metadata FROM contracts WHERE masterpiece_id = ? AND type = 'deposit' ORDER BY id DESC LIMIT 1").get(masterpieceId) as { metadata?: string } | undefined;
+      if (depContract?.metadata) {
+        const parsed = JSON.parse(depContract.metadata);
+        if (parsed.delivery_option) deliveryOption = parsed.delivery_option;
+      }
+    } catch (_) {}
+
+    // 1. Update status & workflow (with delivery_option from buy intent)
     db.prepare(`
-      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at)
-      VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP)
-    `).run(masterpieceId, user.id, adminId);
+      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option)
+      VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?)
+    `).run(masterpieceId, user.id, adminId, deliveryOption);
 
     // 2. Generate Documents
     const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
@@ -2902,7 +3000,7 @@ app.post("/api/admin/gdpr/data-request/:id/complete", (req, res) => {
   res.json({ success: true });
 });
 
-// Digital Asset Registry: full record (prestige, demand, rarity, ownership badge)
+// Digital Asset Registry 2.0: full record (timeline, service log, provenance, rarity, demand, prestige)
 app.get("/api/registry/masterpiece/:id", (req, res) => {
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
@@ -2912,32 +3010,75 @@ app.get("/api/registry/masterpiece/:id", (req, res) => {
   const holdMonths = ownership.length ? (Date.now() - new Date(ownership[ownership.length - 1].acquired_at).getTime()) / (30 * 24 * 60 * 60 * 1000) : 0;
   const bidCount = (db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
   const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
   const prestigeScore = piece.prestige_score ?? piece.rarity_score ?? 0;
-  const demandScore = Math.min(100, Math.round(bidCount * 8 + viewCount * 0.5));
+  const demandScore = Math.min(100, Math.round(bidCount * 8 + viewCount * 0.5 + favCount * 2));
   const rarityLevel = piece.rarity || 'Standard';
+  const rarityScoreNum = piece.rarity_score ?? (rarityLevel === 'Unikat' || rarityLevel === 'Unique' ? 95 : rarityLevel === 'Limitiert' ? 75 : 50);
   const ownershipBadge = ownership.length === 0 ? 'Atelier' : ownership.length === 1 ? 'First Owner' : 'Multi-Owner';
-  const valueDevelopment = ownership.length >= 2 ? ownership.map((o, i) => ({ at: o.acquired_at, price: o.price })) : [];
+  const valueDevelopment = ownership.length >= 2 ? ownership.map((o) => ({ at: o.acquired_at, price: o.price })) : [];
+  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ? AND status IN ('sold','completed')").get(piece.id) as any)?.c ?? 0;
+  const resaleActivityLevel = resaleCount > 1 ? 'high' : resaleCount === 1 ? 'medium' : 'none';
+  const liquidityIndicator = resaleCount > 0 ? 'traded' : viewCount + favCount > 10 ? 'moderate' : 'low';
   res.json({
     registry_id: piece.registry_id || null,
     serial_id: piece.serial_id,
     production_year: piece.created_at ? new Date(piece.created_at).getFullYear() : null,
     materials: piece.materials,
     gemstones: piece.gemstones,
-    ownership_history: ownership,
-    service_history: service,
+    ownership_history_timeline: ownership,
+    service_history_log: service,
+    provenance_documentation: provenance,
+    rarity_score: rarityScoreNum,
+    rarity_level: rarityLevel,
+    demand_index: demandScore,
+    prestige_index: prestigeScore,
     prestige_score: prestigeScore,
     demand_score: demandScore,
-    rarity_level: rarityLevel,
     ownership_history_badge: ownershipBadge,
     prestige_metrics: { hold_months: Math.round(holdMonths * 10) / 10, service_count: service.length },
     value_development: valueDevelopment,
     market_status: piece.status,
     transfer_type: piece.transfer_type || 'platform',
     warranty_void: piece.warranty_void === 1,
+    ownership_history: ownership,
+    service_history: service,
     provenance_timeline: provenance,
     valuation: piece.valuation,
     title: piece.title,
     category: piece.category,
+    asset_performance: {
+      indicative_demand_score: demandScore,
+      resale_activity_level: resaleActivityLevel,
+      liquidity_indicator: liquidityIndicator,
+      views: viewCount,
+      saves: favCount,
+      resale_count: resaleCount,
+      disclaimer: 'Informational only. Not financial advice.',
+    },
+  });
+});
+
+// Asset Performance View (informational only; not financial advice)
+app.get("/api/masterpieces/:id/performance", (req, res) => {
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
+  if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
+  const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const bidCount = (db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const indicative_demand_score = Math.min(100, Math.round(bidCount * 10 + viewCount * 0.5 + favCount * 3));
+  const resale_activity_level = resaleCount === 0 ? 'none' : resaleCount === 1 ? 'low' : resaleCount <= 3 ? 'medium' : 'high';
+  const liquidity_indicator = viewCount + favCount * 2 > 20 ? 'high' : viewCount + favCount * 2 > 5 ? 'medium' : 'low';
+  res.json({
+    masterpiece_id: piece.id,
+    title: piece.title,
+    serial_id: piece.serial_id,
+    indicative_demand_score,
+    resale_activity_level,
+    liquidity_indicator,
+    market_interest: { views: viewCount, saves: favCount, bid_events: bidCount, resale_listings: resaleCount },
+    disclaimer: "Informational only. Not financial or investment advice.",
   });
 });
 
@@ -2973,6 +3114,19 @@ app.post("/api/admin/approve-user", (req, res) => {
   }
   res.json({ success: true });
 });
+
+// --- Prestige Tier (Imperial Core) ---
+const PRESTIGE_TIERS = ['client', 'private_client', 'collector', 'elite_collector', 'royal_tier', 'black_tier'] as const;
+const RESALE_COMMISSION_BY_TIER: Record<string, number> = { client: 8, private_client: 7.5, collector: 7, elite_collector: 6, royal_tier: 5, black_tier: 5 };
+function getPrestigeTier(user: { role: string; prestige_tier?: string | null }): string {
+  if (user.prestige_tier && PRESTIGE_TIERS.includes(user.prestige_tier as any)) return user.prestige_tier;
+  const roleToTier: Record<string, string> = { client: 'client', vip: 'private_client', royal: 'royal_tier', black: 'black_tier', investor: 'client', reseller: 'client', viewer: 'client', admin: 'client', super_admin: 'client', strategic_private_advisor: 'client' };
+  return roleToTier[user.role] || 'client';
+}
+function getResaleCommissionPct(user: { role: string; prestige_tier?: string | null }): number {
+  const tier = getPrestigeTier(user);
+  return RESALE_COMMISSION_BY_TIER[tier] ?? 8;
+}
 
 // --- Resale & Maison Commission ---
 const RESALE_COMMISSION_RATES: Record<string, number> = { client: 8, investor: 8, viewer: 8, reseller: 8, vip: 6, royal: 5, black: 5, admin: 8, super_admin: 8 };
@@ -3134,7 +3288,7 @@ app.post("/api/resale/start", (req, res) => {
   const existing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status IN ('pending_signature','signed','resale_pending','resale_review')").get(masterpieceId);
   if (existing) return res.status(400).json({ error: "Resale already in progress for this asset" });
 
-  const commissionPct = RESALE_COMMISSION_RATES[user.role] ?? 8;
+  const commissionPct = getResaleCommissionPct(user);
   const docRef = nextContractRef('resale_commission');
   const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
 
@@ -3320,16 +3474,28 @@ app.get("/api/resale/listing/:id/certified-details", (req, res) => {
   });
 });
 
+const hasBuybackValuationCol = (() => { try { db.prepare("SELECT valuation_pct_below FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
 app.post("/api/admin/resale/buyback-offer", (req, res) => {
-  const { resaleListingId, adminId, offeredAmount } = req.body;
+  const { resaleListingId, adminId, offeredAmount, valuation_pct_below } = req.body;
   const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
   const existing = db.prepare("SELECT id FROM maison_buyback_offers WHERE resale_listing_id = ? AND status = 'pending'").get(resaleListingId);
   if (existing) return res.status(400).json({ error: "Pending buyback offer already exists" });
-  db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by) VALUES (?, ?, ?)").run(resaleListingId, Number(offeredAmount), adminId);
-  resaleAudit(resaleListingId, 'buyback_offer_sent', adminId, `Offered ${offeredAmount} EUR.`);
+  const piece = db.prepare("SELECT valuation FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as { valuation: number } | undefined;
+  const valuation = piece?.valuation ?? listing.asking_price;
+  let amount = Number(offeredAmount);
+  const pct = valuation_pct_below != null ? Number(valuation_pct_below) : null;
+  if (hasBuybackValuationCol && pct != null && !isNaN(pct) && pct >= 0 && pct <= 100) {
+    amount = valuation * (1 - pct / 100);
+  }
+  if (hasBuybackValuationCol && (pct != null || valuation_pct_below !== undefined)) {
+    db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by, valuation_pct_below) VALUES (?, ?, ?, ?)").run(resaleListingId, amount, adminId, pct ?? null);
+  } else {
+    db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by) VALUES (?, ?, ?)").run(resaleListingId, amount, adminId);
+  }
+  resaleAudit(resaleListingId, 'buyback_offer_sent', adminId, `Offered ${amount} EUR.`);
   res.json({ success: true });
 });
 
@@ -3339,7 +3505,9 @@ app.post("/api/resale/accept-buyback", (req, res) => {
   if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
   const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
   if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
-  db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
+  const hasClientResponseCol = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
+  if (hasClientResponseCol) db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?").run(userId, offerId);
+  else db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
   db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(offer.offered_amount, listing.id);
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
   db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?").run(listing.masterpiece_id);
@@ -3356,9 +3524,48 @@ app.post("/api/resale/decline-buyback", (req, res) => {
   if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
   const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
   if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
-  db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
+  const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
+  if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?").run(userId, offerId);
+  else db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
   resaleAudit(listing.id, 'buyback_declined', undefined);
   res.json({ success: true });
+});
+
+app.post("/api/resale/buyback-respond", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const { offerId, action } = req.body;
+  const offer = db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?").get(offerId) as any;
+  if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
+  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
+  if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
+  if (action === 'accept') {
+    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
+    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?").run(userId, offerId);
+    else db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
+    db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(offer.offered_amount, listing.id);
+    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
+    db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?").run(listing.masterpiece_id);
+    db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', 0, NULL, listing.masterpiece_id, ?)").run(`buyback-${offer.id}`);
+    updateProvenance(listing.masterpiece_id, 'ownership_transfer', `Maison buyback accepted. Asset returned to Vault.`);
+    resaleAudit(listing.id, 'buyback_accepted', undefined, `Offer ${offerId} accepted; asset to vault.`);
+    broadcast({ type: 'RESALE_COMPLETED', masterpieceId: listing.masterpiece_id });
+    return res.json({ success: true });
+  }
+  if (action === 'reject') {
+    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
+    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?").run(userId, offerId);
+    else db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
+    resaleAudit(listing.id, 'buyback_declined', undefined);
+    return res.json({ success: true });
+  }
+  if (action === 'negotiate') {
+    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
+    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET client_response = 'request_negotiation', responded_by = ? WHERE id = ?").run(userId, offerId);
+    resaleAudit(listing.id, 'buyback_request_negotiation', undefined);
+    return res.json({ success: true, message: "Negotiation requested. The Maison will contact you." });
+  }
+  return res.status(400).json({ error: "Invalid action. Use accept, reject, or negotiate." });
 });
 
 app.get("/api/resale/buyback-offers", (req, res) => {
@@ -3372,6 +3579,150 @@ app.get("/api/resale/buyback-offers", (req, res) => {
     WHERE rl.seller_id = ? ORDER BY o.offered_at DESC
   `).all(userId);
   res.json(rows);
+});
+
+// --- Imperial Core: Drops (closed drop engine) ---
+app.get("/api/drops", (req, res) => {
+  const userId = getSessionUserId(req);
+  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  const tier = user ? getPrestigeTier(user) : 'client';
+  const now = new Date().toISOString();
+  const rows = db.prepare(`
+    SELECT * FROM drops WHERE end_at > ? ORDER BY release_at ASC
+  `).all(now) as any[];
+  const allowed = rows.filter(d => {
+    if (d.status === 'ended') return false;
+    let tiers: string[] = [];
+    try { tiers = d.tier_access ? JSON.parse(d.tier_access) : []; } catch { tiers = []; }
+    if (tiers.length === 0) return true;
+    return tiers.includes(tier);
+  });
+  res.json(allowed);
+});
+
+app.get("/api/drops/:id", (req, res) => {
+  const row = db.prepare("SELECT * FROM drops WHERE id = ?").get(req.params.id);
+  if (!row) return res.status(404).json({ error: "Drop not found" });
+  res.json(row);
+});
+
+app.get("/api/drops/:id/pieces", (req, res) => {
+  const pieces = db.prepare(`
+    SELECT m.* FROM drop_pieces dp JOIN masterpieces m ON m.id = dp.masterpiece_id WHERE dp.drop_id = ?
+  `).all(req.params.id);
+  res.json(pieces);
+});
+
+app.get("/api/admin/drops", (req, res) => {
+  const rows = db.prepare("SELECT * FROM drops ORDER BY release_at DESC").all();
+  res.json(rows);
+});
+
+app.post("/api/admin/drops", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { title, description, image_url, release_at, end_at, tier_access } = req.body;
+  const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : '[]';
+  const status = new Date(end_at) < new Date() ? 'ended' : (new Date(release_at) > new Date() ? 'upcoming' : 'live');
+  const r = db.prepare(`
+    INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status);
+  res.json({ id: r.lastInsertRowid, success: true });
+});
+
+app.put("/api/admin/drops/:id", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { title, description, image_url, release_at, end_at, tier_access, status } = req.body;
+  const row = db.prepare("SELECT * FROM drops WHERE id = ?").get(req.params.id);
+  if (!row) return res.status(404).json({ error: "Not found" });
+  const tierAccess = tier_access != null ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : (row as any).tier_access;
+  db.prepare(`
+    UPDATE drops SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
+    release_at = COALESCE(?, release_at), end_at = COALESCE(?, end_at), tier_access = COALESCE(?, tier_access), status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).run(title, description, image_url, release_at, end_at, tierAccess, status, req.params.id);
+  res.json({ success: true });
+});
+
+app.post("/api/admin/drops/:id/pieces", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { masterpiece_id } = req.body;
+  try {
+    db.prepare("INSERT INTO drop_pieces (drop_id, masterpiece_id) VALUES (?, ?)").run(req.params.id, masterpiece_id);
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e.message?.includes("UNIQUE")) return res.status(400).json({ error: "Piece already in drop" });
+    throw e;
+  }
+});
+
+// --- Imperial Core: Private Viewing ---
+app.post("/api/admin/private-viewing", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { masterpiece_id, expires_at, user_ids } = req.body;
+  const expires = expires_at || new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+  db.prepare("UPDATE masterpieces SET status = 'private_viewing', private_viewing_expires_at = ? WHERE id = ?").run(expires, masterpiece_id);
+  const r = db.prepare("INSERT INTO private_viewing_slots (masterpiece_id, expires_at, created_by, status) VALUES (?, ?, ?, 'active')").run(masterpiece_id, expires, adminId);
+  const slotId = r.lastInsertRowid;
+  for (const uid of user_ids || []) {
+    try { db.prepare("INSERT INTO private_viewing_allowlist (slot_id, user_id) VALUES (?, ?)").run(slotId, uid); } catch (_) {}
+  }
+  res.json({ id: slotId, success: true });
+});
+
+app.get("/api/private-viewing/allowed", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const now = new Date().toISOString();
+  const rows = db.prepare(`
+    SELECT pv.*, m.title, m.serial_id, m.image_url, m.valuation
+    FROM private_viewing_slots pv
+    JOIN masterpieces m ON m.id = pv.masterpiece_id
+    JOIN private_viewing_allowlist a ON a.slot_id = pv.id
+    WHERE a.user_id = ? AND pv.expires_at > ? AND pv.status = 'active'
+  `).all(userId, now);
+  res.json(rows);
+});
+
+// --- Imperial Core: Private Terms (secure negotiation - hide price) ---
+app.post("/api/private-terms/request", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const { masterpiece_id } = req.body;
+  const existing = db.prepare("SELECT id FROM private_terms_requests WHERE user_id = ? AND masterpiece_id = ? AND status = 'pending'").get(userId, masterpiece_id);
+  if (existing) return res.status(400).json({ error: "Request already submitted" });
+  db.prepare("INSERT INTO private_terms_requests (user_id, masterpiece_id, status) VALUES (?, ?, 'pending')").run(userId, masterpiece_id);
+  res.json({ success: true });
+});
+
+app.get("/api/admin/private-terms-requests", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare(`
+    SELECT r.*, u.name as user_name, u.email as user_email, m.title as masterpiece_title, m.serial_id
+    FROM private_terms_requests r
+    JOIN users u ON u.id = r.user_id
+    JOIN masterpieces m ON m.id = r.masterpiece_id
+    ORDER BY r.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+app.patch("/api/admin/private-terms-requests/:id", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { status, admin_notes } = req.body;
+  db.prepare("UPDATE private_terms_requests SET status = ?, admin_notes = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(status || 'responded', admin_notes || null, req.params.id);
+  res.json({ success: true });
 });
 
 app.post("/api/admin/approve-resale", (req, res) => {
@@ -3707,19 +4058,32 @@ app.post("/api/admin/fractional/offer", (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { masterpiece_id, available_pct, price_per_pct } = req.body;
+  const { masterpiece_id, available_pct, price_per_pct, min_investment_pct } = req.body;
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpiece_id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   db.prepare("UPDATE masterpieces SET status = 'fractional_open' WHERE id = ?").run(masterpiece_id);
   const existing = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(masterpiece_id) as any;
+  const hasMin = (() => { try { db.prepare("SELECT min_investment_pct FROM fractional_availability LIMIT 1").get(); return true; } catch { return false; } })();
   if (existing) {
-    db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(
-      available_pct ?? existing.available_pct, price_per_pct ?? existing.price_per_pct, masterpiece_id
-    );
+    if (hasMin) {
+      db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, min_investment_pct = COALESCE(?, min_investment_pct), updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(
+        available_pct ?? existing.available_pct, price_per_pct ?? existing.price_per_pct, min_investment_pct != null ? min_investment_pct : existing.min_investment_pct, masterpiece_id
+      );
+    } else {
+      db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(
+        available_pct ?? existing.available_pct, price_per_pct ?? existing.price_per_pct, masterpiece_id
+      );
+    }
   } else {
-    db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct) VALUES (?, ?, ?)").run(
-      masterpiece_id, available_pct ?? 0, price_per_pct ?? null
-    );
+    if (hasMin) {
+      db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct, min_investment_pct) VALUES (?, ?, ?, ?)").run(
+        masterpiece_id, available_pct ?? 0, price_per_pct ?? null, min_investment_pct ?? null
+      );
+    } else {
+      db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct) VALUES (?, ?, ?)").run(
+        masterpiece_id, available_pct ?? 0, price_per_pct ?? null
+      );
+    }
   }
   res.json({ success: true });
 });
@@ -3735,14 +4099,15 @@ app.get("/api/fractional/shares/:masterpieceId", (req, res) => {
 });
 
 app.get("/api/investor/fractional-offers", (req, res) => {
+  const hasMin = (() => { try { db.prepare("SELECT min_investment_pct FROM fractional_availability LIMIT 1").get(); return true; } catch { return false; } })();
   const rows = db.prepare(`
     SELECT m.id, m.title, m.serial_id, m.valuation, m.status, m.image_url,
-           fa.available_pct, fa.price_per_pct
+           fa.available_pct, fa.price_per_pct${hasMin ? ', fa.min_investment_pct' : ''}
     FROM fractional_availability fa
     JOIN masterpieces m ON fa.masterpiece_id = m.id
     WHERE fa.available_pct > 0 AND m.status IN ('fractional_open', 'fractional_full', 'fractional_resale')
     ORDER BY fa.updated_at DESC
-  `).all();
+  `).all() as any[];
   res.json(rows);
 });
 
@@ -3769,7 +4134,35 @@ app.get("/api/investor/exit-simulation", (req, res) => {
   res.json({ masterpiece_id: piece.id, title: piece.title, valuation: piece.valuation, share_pct: pct, estimated_exit_value: estimatedValue });
 });
 
+// Admin: execute exit (buy back fractional share; single physical custody remains with platform/current_owner_id)
+app.post("/api/admin/fractional/execute-exit", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { user_id, masterpiece_id } = req.body;
+  const share = db.prepare("SELECT * FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?").get(user_id, masterpiece_id) as any;
+  if (!share) return res.status(404).json({ error: "Fractional share not found" });
+  const pct = share.percentage;
+  db.prepare("DELETE FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?").run(user_id, masterpiece_id);
+  const avail = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(masterpiece_id) as any;
+  if (avail) {
+    db.prepare("UPDATE fractional_availability SET available_pct = available_pct + ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(pct, masterpiece_id);
+  } else {
+    db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct) VALUES (?, ?)").run(masterpiece_id, pct);
+  }
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpiece_id) as any;
+  const exitValue = (piece?.valuation || 0) * (pct / 100);
+  try { db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)").run('fractional_fee', -exitValue, user_id, masterpiece_id, `exit_${share.id}`); } catch (_) {}
+  try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(user_id, `Your fractional share (${pct}%) exit has been executed by the Maison.`, 'info'); } catch (_) {}
+  res.json({ success: true, exited_pct: pct, returned_to_availability: pct });
+});
+
+// Investor Data Room: access limited to Investor & above; optional: approved dataroom request for piece
 app.get("/api/investor/dataroom/:masterpieceId", (req, res) => {
+  const userId = getSessionUserId(req);
+  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  const allowedRoles = ['investor', 'admin', 'super_admin', 'vip', 'royal', 'black'];
+  if (!user || !allowedRoles.includes(user.role)) return res.status(403).json({ error: "Access limited to Investor and above." });
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   const registry = db.prepare("SELECT * FROM ownership_history WHERE masterpiece_id = ? ORDER BY acquired_at ASC").all(req.params.masterpieceId);

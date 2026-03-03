@@ -10,6 +10,23 @@ export enum UserRole {
   STRATEGIC_PRIVATE_ADVISOR = 'strategic_private_advisor'
 }
 
+/** Prestige tier for client loyalty (display + commission + access). */
+export type PrestigeTier =
+  | 'client'
+  | 'private_client'
+  | 'collector'
+  | 'elite_collector'
+  | 'royal_tier'
+  | 'black_tier';
+
+/** White-glove delivery option at checkout. */
+export type DeliveryOption =
+  | 'insured_global_shipping'
+  | 'armored_courier'
+  | 'personal_delivery_founder'
+  | 'private_viewing_appointment'
+  | 'vault_storage';
+
 export enum UserStatus {
   PENDING = 'pending',
   APPROVED = 'approved'
@@ -40,7 +57,7 @@ export interface Masterpiece {
   deposit_pct: number;
   image_url: string;
   current_owner_id: number | null;
-  status: 'available' | 'reserved' | 'sold' | 'auction' | 'resell_pending' | 'resale_review' | 'fractional_open' | 'fractional_full' | 'fractional_resale';
+  status: 'available' | 'reserved' | 'sold' | 'auction' | 'resell_pending' | 'resale_review' | 'fractional_open' | 'fractional_full' | 'fractional_resale' | 'private_viewing' | 'archived_private_collection';
   blockchain_hash: string;
   nft_token_id: string | null;
   created_at: string;
@@ -145,6 +162,7 @@ export interface PurchaseWorkflow {
   ready_for_delivery_at: string | null;
   final_payment_pending_at: string | null;
   completed_at: string | null;
+  delivery_option: DeliveryOption | null;
   created_at: string;
 }
 
@@ -426,5 +444,62 @@ export interface AdvisorContract {
   content: string;
   signed_at: string | null;
   status: 'draft' | 'signed' | 'archived';
+  created_at: string;
+}
+
+// --- Imperial Core: Prestige, Drops, Private Viewing, Negotiation ---
+
+export interface PrestigeTierMetrics {
+  user_id: number;
+  total_spent: number;
+  holding_duration_days: number;
+  resale_participation_count: number;
+  investment_participation_count: number;
+  updated_at: string;
+}
+
+export interface Drop {
+  id: number;
+  title: string;
+  description: string;
+  image_url: string | null;
+  release_at: string;
+  end_at: string;
+  tier_access: string; // JSON array of PrestigeTier
+  status: 'upcoming' | 'live' | 'ended';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DropPiece {
+  id: number;
+  drop_id: number;
+  masterpiece_id: number;
+  created_at: string;
+}
+
+export interface PrivateViewingSlot {
+  id: number;
+  masterpiece_id: number;
+  expires_at: string;
+  created_by: number;
+  status: 'active' | 'expired' | 'archived';
+  created_at: string;
+}
+
+export interface PrivateViewingAllowlist {
+  id: number;
+  slot_id: number;
+  user_id: number;
+  created_at: string;
+}
+
+export interface PrivateTermsRequest {
+  id: number;
+  user_id: number;
+  masterpiece_id: number;
+  status: 'pending' | 'responded' | 'accepted' | 'rejected';
+  admin_notes: string | null;
+  responded_at: string | null;
   created_at: string;
 }

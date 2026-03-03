@@ -53,7 +53,7 @@ const COMPANY_INFO = {
   address: "Ahorstraße 8, 50765 Köln, Deutschland",
   iban: "DE12 3456 7890 1234 5678 90",
   vatId: "DE457682154",
-  steuerId: "12/345/67890"  // Steuer-ID / Steuernummer – bitte mit Ihrer echten Nummer ersetzen
+  steuernummer: "223/5019/5355"
 };
 
 const LANGUAGES = [
@@ -175,6 +175,9 @@ const TRANSLATIONS: any = {
     "investor.title": "Investor",
     "investor.insights": "Einblicke",
     "investor.dataroom": "Data Room",
+    "investor.total_value_shares": "Gesamtwert Anteile",
+    "investor.my_shares": "Meine Anteile",
+    "investor.market_performance": "Marktperformance",
     "investor.request_access": "Zugang anfordern",
     "investor.request_allocation": "Zuteilung anfragen",
     "investor.request_allocation_desc": "Prioritätszugang zu kommenden Drops.",
@@ -288,6 +291,8 @@ const TRANSLATIONS: any = {
     "admin.commission_override": "Provisionssatz",
     "admin.export_commissions": "Provisionen exportieren",
     "admin.manage_commissions": "Provisionen verwalten",
+    "admin.advisor_commissions": "Provisionen verwalten",
+    "admin.no_commissions": "Keine Provisionen.",
     "admin.no_pending_commissions": "Keine ausstehenden Provisionen.",
     "admin.commission_marked_paid": "Als ausgezahlt markiert.",
     "admin.mark_paid": "Ausgezahlt",
@@ -343,6 +348,17 @@ const TRANSLATIONS: any = {
     "vault.no_pieces": "Sie besitzen noch keine Stücke.",
     "vault.no_certs": "Noch keine Zertifikate ausgestellt.",
     "vault.reminder_unsigned": "warten auf Ihre Unterschrift.",
+    "vault.portfolio_pdf": "Portfolio (PDF)",
+    "vault.portfolio_csv": "Portfolio CSV",
+    "vault.export_my_data_gdpr": "Meine Daten exportieren (DSGVO)",
+    "vault.portfolio_overview": "Portfolio-Übersicht",
+    "vault.total_value": "Gesamtwert",
+    "vault.show_in_portfolio_again": "Wieder im Portfolio anzeigen",
+    "vault.remove_from_portfolio": "Aus Portfolio entfernen",
+    "vault.contracts_show": "Verträge anzeigen",
+    "vault.total_value_shares": "Gesamtwert Anteile",
+    "investor.market_performance": "Marktperformance",
+    "service": "Service",
     "common.learn_more": "Mehr erfahren",
     "common.pdf": "PDF",
     "common.serial_id": "Seriennummer",
@@ -406,6 +422,19 @@ const TRANSLATIONS: any = {
     "dashboard.remove_favorite": "Favorit entfernen",
     "dashboard.active_orders": "Aktive Bestellungen",
     "dashboard.registry_entries": "Registry-Einträge",
+    "registry.performance_title": "Registry & Performance",
+    "registry.ownership_timeline": "Eigentümer-Verlauf",
+    "registry.service_log": "Service-Historie",
+    "registry.atelier_held": "Atelier (noch nicht veräußert)",
+    "registry.rarity": "Seltenheit",
+    "registry.demand_index": "Nachfrage-Index",
+    "registry.prestige_index": "Prestige-Index",
+    "registry.asset_performance": "Asset Performance",
+    "registry.demand_score": "Indikativer Nachfrage-Score",
+    "registry.resale_activity": "Wiederverkaufsaktivität",
+    "registry.liquidity": "Liquidität",
+    "registry.views": "Aufrufe",
+    "registry.saves": "Gespeichert",
     "dashboard.value_development": "Wertentwicklung",
     "dashboard.resale_opportunities": "Wiederverkauf",
     "dashboard.service_restoration": "Service & Restaurierung",
@@ -424,6 +453,22 @@ const TRANSLATIONS: any = {
     "prestige.reseller": "Reseller",
     "prestige.investor": "Investor",
     "prestige.viewer": "Viewer",
+    "prestige.private_client": "Private Client",
+    "prestige.collector": "Collector",
+    "prestige.elite_collector": "Elite Collector",
+    "prestige.royal_tier": "Royal Tier",
+    "prestige.black_tier": "Black Tier",
+    "delivery.insured_global": "Versicherter Weltversand",
+    "delivery.armored_courier": "Bewaffneter Kurier",
+    "delivery.personal_founder": "Persönliche Übergabe durch den Gründer",
+    "delivery.private_viewing": "Privatbesichtigungstermin",
+    "delivery.vault_storage": "Tresor-Lagerung",
+    "delivery.select": "Lieferoption wählen",
+    "drops.title": "Exklusive Drops",
+    "drops.countdown": "Verfügbar in",
+    "drops.ended": "Beendet",
+    "private_terms.request": "Private Konditionen anfragen",
+    "private_terms.requested": "Anfrage gesendet",
     "search.placeholder": "Stück suchen…",
     "trust.secured_by": "Gesichert durch Antonio Bellanova",
     "trust.ssl_encrypted": "SSL verschlüsselt",
@@ -442,6 +487,7 @@ const TRANSLATIONS: any = {
     "filter.recent_only": "Nur zuletzt angesehen",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Persönliche Beratung, Termine & exklusive Anfragen — jederzeit für Sie da.",
+    "concierge.secure_logged": "Sicherer Kanal · Kommunikation protokolliert",
     "auth.forgot_password": "Passwort vergessen",
     "auth.forgot_password_link": "Passwort vergessen?",
     "auth.preferred_language": "Bevorzugte Sprache",
@@ -547,6 +593,9 @@ const TRANSLATIONS: any = {
     "investor.title": "Investor",
     "investor.insights": "Insights",
     "investor.dataroom": "Data Room",
+    "investor.total_value_shares": "Total value shares",
+    "investor.my_shares": "My shares",
+    "investor.market_performance": "Market Performance",
     "investor.request_access": "Request Access",
     "investor.request_allocation": "Request Allocation",
     "investor.request_allocation_desc": "Apply for priority access to upcoming drops.",
@@ -660,6 +709,8 @@ const TRANSLATIONS: any = {
     "admin.commission_override": "Commission rate",
     "admin.export_commissions": "Export commissions",
     "admin.manage_commissions": "Manage commissions",
+    "admin.advisor_commissions": "Manage commissions",
+    "admin.no_commissions": "No commissions.",
     "admin.no_pending_commissions": "No pending commissions.",
     "admin.commission_marked_paid": "Marked as paid.",
     "admin.mark_paid": "Mark paid",
@@ -713,7 +764,29 @@ const TRANSLATIONS: any = {
     "auctions.subtitle": "Live bidding on rare and unique masterpieces.",
     "auctions.no_active": "No active auctions at this time.",
     "vault.no_pieces": "You don't own any pieces yet.",
+    "vault.portfolio_pdf": "Portfolio (PDF)",
+    "vault.portfolio_csv": "Portfolio CSV",
+    "vault.export_my_data_gdpr": "Export my data (GDPR)",
+    "vault.portfolio_overview": "Portfolio Overview",
+    "vault.total_value": "Total value",
+    "vault.show_in_portfolio_again": "Show in portfolio again",
+    "vault.remove_from_portfolio": "Remove from portfolio",
+    "vault.contracts_show": "Show contracts",
+    "vault.total_value_shares": "Total value shares",
+    "investor.market_performance": "Market Performance",
+    "service": "Service",
+    "my_pieces": "My pieces",
+    "contracts": "Contracts",
+    "payments": "Payments",
+    "my_bids": "My bids",
+    "resale": "Resale",
     "vault.no_certs": "No certificates issued yet.",
+    "my_pieces": "My pieces",
+    "contracts": "Contracts",
+    "payments": "Payments",
+    "my_bids": "My bids",
+    "resale": "Resale",
+    "vip": "VIP",
     "common.learn_more": "Learn More",
     "common.pdf": "PDF",
     "common.serial_id": "Serial ID",
@@ -777,6 +850,19 @@ const TRANSLATIONS: any = {
     "dashboard.remove_favorite": "Remove from favorites",
     "dashboard.active_orders": "Active Orders",
     "dashboard.registry_entries": "Registry Entries",
+    "registry.performance_title": "Registry & Performance",
+    "registry.ownership_timeline": "Ownership Timeline",
+    "registry.service_log": "Service History",
+    "registry.atelier_held": "Atelier (not yet sold)",
+    "registry.rarity": "Rarity",
+    "registry.demand_index": "Demand Index",
+    "registry.prestige_index": "Prestige Index",
+    "registry.asset_performance": "Asset Performance",
+    "registry.demand_score": "Indicative Demand Score",
+    "registry.resale_activity": "Resale Activity",
+    "registry.liquidity": "Liquidity",
+    "registry.views": "Views",
+    "registry.saves": "Saves",
     "dashboard.value_development": "Value Development",
     "dashboard.resale_opportunities": "Resale Opportunities",
     "dashboard.service_restoration": "Service & Restoration",
@@ -795,6 +881,22 @@ const TRANSLATIONS: any = {
     "prestige.reseller": "Reseller",
     "prestige.investor": "Investor",
     "prestige.viewer": "Viewer",
+    "prestige.private_client": "Private Client",
+    "prestige.collector": "Collector",
+    "prestige.elite_collector": "Elite Collector",
+    "prestige.royal_tier": "Royal Tier",
+    "prestige.black_tier": "Black Tier",
+    "delivery.insured_global": "Insured Global Shipping",
+    "delivery.armored_courier": "Armored Courier",
+    "delivery.personal_founder": "Personal Delivery by Founder",
+    "delivery.private_viewing": "Private Viewing Appointment",
+    "delivery.vault_storage": "Vault Storage Option",
+    "delivery.select": "Select delivery option",
+    "drops.title": "Exclusive Drops",
+    "drops.countdown": "Available in",
+    "drops.ended": "Ended",
+    "private_terms.request": "Request Private Terms",
+    "private_terms.requested": "Request sent",
     "search.placeholder": "Search pieces…",
     "trust.secured_by": "Secured by Antonio Bellanova",
     "trust.ssl_encrypted": "SSL Encrypted",
@@ -813,6 +915,7 @@ const TRANSLATIONS: any = {
     "filter.recent_only": "Recently viewed only",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Personal advice, appointments & exclusive requests — here for you anytime.",
+    "concierge.secure_logged": "Secure channel · Communication logged",
     "auth.forgot_password": "Forgot password",
     "auth.forgot_password_link": "Forgot password?",
     "auth.preferred_language": "Preferred language",
@@ -895,6 +998,9 @@ const TRANSLATIONS: any = {
     "investor.title": "Investitore",
     "investor.insights": "Approfondimenti",
     "investor.dataroom": "Data Room",
+    "investor.total_value_shares": "Valore totale quote",
+    "investor.my_shares": "Le mie quote",
+    "investor.market_performance": "Performance di mercato",
     "investor.request_access": "Richiedi accesso",
     "investor.request_allocation": "Richiedi allocazione",
     "investor.request_allocation_desc": "Accesso prioritario ai prossimi drop.",
@@ -1008,6 +1114,8 @@ const TRANSLATIONS: any = {
     "admin.commission_override": "Commissione %",
     "admin.export_commissions": "Esporta commissioni",
     "admin.manage_commissions": "Gestisci commissioni",
+    "admin.advisor_commissions": "Gestisci commissioni",
+    "admin.no_commissions": "Nessuna commissione.",
     "admin.no_pending_commissions": "Nessuna commissione in sospeso.",
     "admin.commission_marked_paid": "Segnata come pagata.",
     "admin.mark_paid": "Segna come pagato",
@@ -1062,6 +1170,23 @@ const TRANSLATIONS: any = {
     "auctions.no_active": "Nessuna asta attiva.",
     "vault.no_pieces": "Non possiedi ancora opere.",
     "vault.no_certs": "Nessun certificato emesso.",
+    "vault.portfolio_pdf": "Portfolio (PDF)",
+    "vault.portfolio_csv": "Portfolio CSV",
+    "vault.export_my_data_gdpr": "Esporta i miei dati (GDPR)",
+    "vault.portfolio_overview": "Panoramica portfolio",
+    "vault.total_value": "Valore totale",
+    "vault.show_in_portfolio_again": "Mostra di nuovo in portfolio",
+    "vault.remove_from_portfolio": "Rimuovi dal portfolio",
+    "vault.contracts_show": "Mostra contratti",
+    "vault.total_value_shares": "Valore totale quote",
+    "investor.market_performance": "Performance di mercato",
+    "service": "Servizio",
+    "my_pieces": "I miei pezzi",
+    "contracts": "Contratti",
+    "payments": "Pagamenti",
+    "my_bids": "Le mie offerte",
+    "resale": "Rivendita",
+    "vip": "VIP",
     "common.learn_more": "Scopri di più",
     "common.pdf": "PDF",
     "common.serial_id": "Numero di serie",
@@ -1125,6 +1250,19 @@ const TRANSLATIONS: any = {
     "dashboard.remove_favorite": "Rimuovi dai preferiti",
     "dashboard.active_orders": "Ordini attivi",
     "dashboard.registry_entries": "Voci registro",
+    "registry.performance_title": "Registry e Performance",
+    "registry.ownership_timeline": "Cronologia proprietà",
+    "registry.service_log": "Storico assistenza",
+    "registry.atelier_held": "Atelier (non ancora venduto)",
+    "registry.rarity": "Rarità",
+    "registry.demand_index": "Indice domanda",
+    "registry.prestige_index": "Indice prestigio",
+    "registry.asset_performance": "Performance asset",
+    "registry.demand_score": "Punteggio domanda indicativo",
+    "registry.resale_activity": "Attività rivendita",
+    "registry.liquidity": "Liquidità",
+    "registry.views": "Visualizzazioni",
+    "registry.saves": "Salvati",
     "dashboard.value_development": "Sviluppo valore",
     "dashboard.resale_opportunities": "Rivendita",
     "dashboard.service_restoration": "Servizio e restauro",
@@ -1143,6 +1281,22 @@ const TRANSLATIONS: any = {
     "prestige.reseller": "Reseller",
     "prestige.investor": "Investor",
     "prestige.viewer": "Viewer",
+    "prestige.private_client": "Private Client",
+    "prestige.collector": "Collector",
+    "prestige.elite_collector": "Elite Collector",
+    "prestige.royal_tier": "Royal Tier",
+    "prestige.black_tier": "Black Tier",
+    "delivery.insured_global": "Spedizione globale assicurata",
+    "delivery.armored_courier": "Corriere blindato",
+    "delivery.personal_founder": "Consegna personale dal Fondatore",
+    "delivery.private_viewing": "Appuntamento visione privata",
+    "delivery.vault_storage": "Deposito in caveau",
+    "delivery.select": "Seleziona opzione di consegna",
+    "drops.title": "Drop esclusivi",
+    "drops.countdown": "Disponibile tra",
+    "drops.ended": "Terminato",
+    "private_terms.request": "Richiedi condizioni private",
+    "private_terms.requested": "Richiesta inviata",
     "search.placeholder": "Cerca opere…",
     "trust.secured_by": "Sicuro con Antonio Bellanova",
     "trust.ssl_encrypted": "Crittografia SSL",
@@ -1161,6 +1315,7 @@ const TRANSLATIONS: any = {
     "filter.recent_only": "Solo visti di recente",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Consulenza personale, appuntamenti e richieste esclusive — sempre a vostra disposizione.",
+    "concierge.secure_logged": "Canale sicuro · Comunicazione registrata",
     "auth.forgot_password": "Password dimenticata",
     "auth.forgot_password_link": "Password dimenticata?",
     "auth.preferred_language": "Lingua preferita",
@@ -1604,7 +1759,7 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'vault' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'drops' | 'vault' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
@@ -1632,6 +1787,7 @@ export default function App() {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => (typeof window !== 'undefined' && (localStorage.getItem('vault-theme') as 'dark' | 'light')) || 'dark');
   const [selectedCert, setSelectedCert] = useState<Certificate | null>(null);
   const [selectedPiece, setSelectedPiece] = useState<Masterpiece | null>(null);
+  const [deliveryOptionForModal, setDeliveryOptionForModal] = useState<string>('insured_global_shipping');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [workflows, setWorkflows] = useState<Record<number, PurchaseWorkflow>>({});
   const [showNotifications, setShowNotifications] = useState(false);
@@ -1676,6 +1832,10 @@ export default function App() {
   const [sortMarket, setSortMarket] = useState<'newest' | 'price_asc' | 'price_desc' | 'title'>('newest');
   const assetViewStartRef = useRef<number | null>(null);
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem('vault-recently-viewed') || '[]'); } catch { return []; } });
+  const [dropsList, setDropsList] = useState<any[]>([]);
+  const [registryData, setRegistryData] = useState<Record<number, any>>({});
+  const [performanceData, setPerformanceData] = useState<Record<number, any>>({});
+  const [showRegistryInModal, setShowRegistryInModal] = useState(false);
   const [verifyCertId, setVerifyCertId] = useState<string | null>(null);
   const [verifyData, setVerifyData] = useState<{ cert: any; piece: any; owner_name: string | null } | null>(null);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState<{ message: string } | null>(null);
@@ -1930,6 +2090,7 @@ export default function App() {
       assetViewStartRef.current = null;
     }
     setSelectedPiece(null);
+    setShowRegistryInModal(false);
   };
 
   const setupWebSocket = () => {
@@ -1971,12 +2132,13 @@ export default function App() {
     if (!user) return;
     setListLoading(true);
     try {
-      const [piecesRes, auctionsRes, vaultRes, payRes, notifRes] = await Promise.all([
+      const [piecesRes, auctionsRes, vaultRes, payRes, notifRes, dropsRes] = await Promise.all([
         fetch('/api/masterpieces'),
         fetch(`/api/auctions?userId=${user.id}`),
         fetch(`/api/vault/${user.id}`),
         fetch(`/api/payments/${user.id}`),
-        fetch(`/api/notifications/${user.id}`)
+        fetch(`/api/notifications/${user.id}`),
+        fetch('/api/drops', { credentials: 'include' })
       ]);
 
       if (piecesRes.ok) setMasterpieces(await piecesRes.json());
@@ -1984,6 +2146,7 @@ export default function App() {
       if (vaultRes.ok) setVaultData(await vaultRes.json());
       if (payRes.ok) setPayments(await payRes.json());
       if (notifRes.ok) setNotifications(await notifRes.json());
+      if (dropsRes.ok) setDropsList(await dropsRes.json());
 
       if (user.role === UserRole.ADMIN) {
         const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes] = await Promise.all([
@@ -2390,14 +2553,14 @@ export default function App() {
     }
   };
 
-  const handleBuy = async (pieceId: number) => {
+  const handleBuy = async (pieceId: number, delivery_option?: string) => {
     if (!user) return;
     setLoading(true);
     try {
       const res = await fetch('/api/marketplace/buy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id, masterpieceId: pieceId }),
+        body: JSON.stringify({ userId: user.id, masterpieceId: pieceId, delivery_option: delivery_option || null }),
         credentials: 'include'
       });
       const data = await res.json().catch(() => ({}));
@@ -2486,7 +2649,7 @@ export default function App() {
     doc.setTextColor(100, 100, 100);
     doc.text(COMPANY_INFO.name, margin, footerY);
     doc.text(COMPANY_INFO.address, margin, footerY + 4);
-    doc.text(`USt-IdNr.: ${COMPANY_INFO.vatId}  |  Steuer-ID: ${COMPANY_INFO.steuerId}`, margin, footerY + 8);
+    doc.text(`USt-IdNr.: ${COMPANY_INFO.vatId}  |  Steuernummer: ${COMPANY_INFO.steuernummer}`, margin, footerY + 8);
   };
 
   const downloadPDF = async (title: string, content: string, piece?: Masterpiece, options?: { docRef?: string; fileName?: string; contractType?: string }) => {
@@ -2610,11 +2773,11 @@ export default function App() {
       const isDe = (language || 'de').startsWith('de');
       if (typ === 'deposit') {
         bodyText = isDe
-          ? `ANZAHLUNGSVERTRAG\n\nDieser Vertrag bestätigt die formale Reservierung des Meisterstücks „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Eine nicht erstattungsfähige Anzahlung in Höhe von ${depositAmount} EUR (${pct} % des Gesamtbetrags) ist zur Einleitung der Fertigung erforderlich. Das Objekt bleibt im Antonio Bellanova Vault verwahrt. Das Eigentum verbleibt beim Atelier bis zur vollständigen Bezahlung und Übertragung.\n\nMit der Unterzeichnung erkennt der Kunde die Bedingungen an und verpflichtet sich zur Anzahlung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuer-ID: ${COMPANY_INFO.steuerId}`
+          ? `ANZAHLUNGSVERTRAG\n\nDieser Vertrag bestätigt die formale Reservierung des Meisterstücks „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Eine nicht erstattungsfähige Anzahlung in Höhe von ${depositAmount} EUR (${pct} % des Gesamtbetrags) ist zur Einleitung der Fertigung erforderlich. Das Objekt bleibt im Antonio Bellanova Vault verwahrt. Das Eigentum verbleibt beim Atelier bis zur vollständigen Bezahlung und Übertragung.\n\nMit der Unterzeichnung erkennt der Kunde die Bedingungen an und verpflichtet sich zur Anzahlung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuernummer: ${COMPANY_INFO.steuernummer}`
           : `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'invoice') {
         bodyText = isDe
-          ? `KAUFVERTRAG / SCHLUSSRECHNUNG\n\nSchlussrechnung für das Meisterstück „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Der Restbetrag ist gemäß den Zahlungsanweisungen fällig. Nach vollständiger Zahlung und Bestätigung wird das Eigentum übertragen und ein Echtheitszertifikat ausgestellt.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuer-ID: ${COMPANY_INFO.steuerId}`
+          ? `KAUFVERTRAG / SCHLUSSRECHNUNG\n\nSchlussrechnung für das Meisterstück „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Der Restbetrag ist gemäß den Zahlungsanweisungen fällig. Nach vollständiger Zahlung und Bestätigung wird das Eigentum übertragen und ein Echtheitszertifikat ausgestellt.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuernummer: ${COMPANY_INFO.steuernummer}`
           : `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. Upon full payment, ownership will be transferred and a Certificate of Authenticity will be issued. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'resale_commission' || typ === 'resale') {
         bodyText = `Resale Commission Agreement for the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. This agreement governs the secondary market sale of the asset through the Antonio Bellanova Vault platform. Commission and payout terms apply as per the signed agreement. Platform resale ensures Registry update, new Certificate, and warranty continuity.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
@@ -3071,14 +3234,19 @@ export default function App() {
 
   const handleSendBuybackOffer = async (resaleListingId: number) => {
     if (!user) return;
-    const amount = prompt(t('admin.send_buyback_offer') + ' — ' + t('admin.resale_price') + ' (€)');
-    if (amount == null || isNaN(parseFloat(amount))) return;
+    const raw = prompt(t('admin.send_buyback_offer') + ' — ' + t('admin.resale_price') + ' (€) oder % unter Bewertung (z.B. 10)');
+    if (raw == null || raw.trim() === '') return;
+    const trimmed = raw.trim();
+    const asPct = trimmed.endsWith('%') ? parseFloat(trimmed.slice(0, -1)) : (parseFloat(trimmed) <= 100 && parseFloat(trimmed) >= 0 ? parseFloat(trimmed) : null);
+    const body: { resaleListingId: number; adminId: number; offeredAmount?: number; valuation_pct_below?: number } = { resaleListingId, adminId: user.id };
+    if (asPct != null && !isNaN(asPct) && asPct >= 0 && asPct <= 100) body.valuation_pct_below = asPct;
+    else { const amt = parseFloat(trimmed); if (!isNaN(amt)) body.offeredAmount = amt; else return; }
     setLoading(true);
     try {
       const res = await fetch('/api/admin/resale/buyback-offer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resaleListingId, adminId: user.id, offeredAmount: parseFloat(amount) }),
+        body: JSON.stringify(body),
         credentials: 'include'
       });
       const data = await res.json().catch(() => ({}));
@@ -3371,6 +3539,7 @@ export default function App() {
         <div className="flex-1 px-4 space-y-2">
           <NavItem active={view === 'dashboard'} icon={TrendingUp} label={t('dashboard')} onClick={() => setView('dashboard')} />
           <NavItem active={view === 'marketplace'} icon={ShoppingBag} label={t('marketplace')} onClick={() => setView('marketplace')} />
+          <NavItem active={view === 'drops'} icon={Package} label={t('drops.title')} onClick={() => setView('drops')} />
           <NavItem active={view === 'auctions'} icon={Gavel} label={t('auctions')} onClick={() => setView('auctions')} />
           <NavItem active={view === 'vault'} icon={ShieldCheck} label={t('vault')} onClick={() => setView('vault')} />
           {user.role !== 'black' && user.role !== UserRole.BLACK && (
@@ -3661,7 +3830,7 @@ export default function App() {
             {view === 'vault' ? (
               <>
                 <button type="button" onClick={() => setView('vault')} className="hover:text-amber-500/80">{t('vault')}</button>
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? 'Service' : vaultTab === 'vip' ? t('vip') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -3693,8 +3862,8 @@ export default function App() {
                     <h4 className="text-xl font-serif italic">{t('membership')}</h4>
                     <div className="w-full space-y-3 text-left">
                       <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.client_id')}</span><span className="font-mono text-amber-500/90">AB-{String(user.id).padStart(5, '0')}</span></div>
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.prestige_level')}</span><span className="text-zinc-200">{(t as (k: string) => string)(`prestige.${user.role}`) || user.role}</span></div>
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><Badge variant="amber">{user.role}</Badge></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.prestige_level')}</span><span className="text-zinc-200">{(t as (k: string) => string)(`prestige.${(user as any).prestige_tier || user.role}`) || (user as any).prestige_tier || user.role}</span></div>
+                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><Badge variant="amber">{(user as any).prestige_tier ? (t as (k: string) => string)(`prestige.${(user as any).prestige_tier}`) : user.role}</Badge></div>
                       <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.asset_count')}</span><span className="text-zinc-200">{visiblePortfolioPieces.length}</span></div>
                       <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.vault_status')}</span><span className={vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? 'text-emerald-400' : 'text-zinc-400'}>{vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? t('identity.vault_active') : t('identity.vault_ready')}</span></div>
                     </div>
@@ -3915,6 +4084,44 @@ export default function App() {
               </motion.div>
             )}
 
+            {view === 'drops' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <h3 className="text-3xl font-serif italic">{t('drops.title')}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {dropsList.length === 0 && (
+                    <div className="col-span-full py-16 text-center border border-dashed border-zinc-800 rounded-2xl">
+                      <Package className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
+                      <p className="text-zinc-500">{t('marketplace.no_pieces')}</p>
+                    </div>
+                  )}
+                  {dropsList.map((d: any) => {
+                    const end = new Date(d.end_at).getTime();
+                    const now = Date.now();
+                    const ended = end <= now;
+                    const release = new Date(d.release_at).getTime();
+                    const countdownMs = release > now ? release - now : (end > now ? end - now : 0);
+                    const countdownStr = countdownMs > 0 ? (Math.floor(countdownMs / 86400000) + 'd ' + Math.floor((countdownMs % 86400000) / 3600000) + 'h') : '';
+                    return (
+                      <Card key={d.id} className="overflow-hidden" hoverGlow>
+                        {d.image_url && <img src={d.image_url} alt="" className="w-full aspect-video object-cover" />}
+                        <div className="p-4 space-y-2">
+                          <h4 className="font-serif italic text-zinc-100">{d.title}</h4>
+                          {d.description && <p className="text-xs text-zinc-500 line-clamp-2">{d.description}</p>}
+                          <div className="flex items-center justify-between text-xs">
+                            <Badge variant={ended ? 'default' : d.status === 'live' ? 'emerald' : 'amber'}>{ended ? t('drops.ended') : d.status}</Badge>
+                            {countdownStr && <span className="text-amber-500/90">{t('drops.countdown')} {countdownStr}</span>}
+                          </div>
+                          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetch(`/api/drops/${d.id}/pieces`).then(r => r.json()).then((pieces: any[]) => { if (pieces.length) setSelectedPiece(pieces[0]); })}>
+                            {t('view')}
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+
             {view === 'concierge' && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -3945,6 +4152,7 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  <p className="text-[10px] text-zinc-600 mt-2">{t('concierge.secure_logged')}</p>
                 </header>
 
                 <div className="flex flex-1 min-h-0 border border-zinc-800/80 rounded-sm overflow-hidden bg-zinc-950/80">
@@ -4173,7 +4381,7 @@ export default function App() {
                       {vaultData.contracts.filter((c: Contract) => c.status === 'draft').length} {t('contracts')} {t('vault.reminder_unsigned')}
                     </p>
                     <Button variant="outline" className="border-amber-500/50 text-amber-200 text-xs" onClick={() => setVaultTab('contracts')}>
-                      {t('contracts')} anzeigen
+                      {t('vault.contracts_show')}
                     </Button>
                   </div>
                 )}
@@ -4184,7 +4392,7 @@ export default function App() {
                   <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => setVaultTab('payments')} icon={CreditCard} />
                   <TabButton active={vaultTab === 'auctions'} label={t('my_bids')} onClick={() => setVaultTab('auctions')} icon={Gavel} />
                   <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
-                  <TabButton active={vaultTab === 'service'} label="Service" onClick={() => setVaultTab('service')} icon={Wrench} />
+                  <TabButton active={vaultTab === 'service'} label={t('service')} onClick={() => setVaultTab('service')} icon={Wrench} />
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
                 </div>
 
@@ -4200,7 +4408,7 @@ export default function App() {
                     doc.text('ANTONIO BELLANOVA', pageWidth / 2, 20, { align: 'center' });
                     doc.setFontSize(16);
                     doc.setTextColor(0, 0, 0);
-                    doc.text('Portfolio-Übersicht', pageWidth / 2, 32, { align: 'center' });
+                    doc.text(t('vault.portfolio_overview'), pageWidth / 2, 32, { align: 'center' });
                     doc.setFontSize(9);
                     doc.setTextColor(100, 100, 100);
                     doc.text(`${user?.name ?? ''} · ${new Date().toLocaleDateString('de-DE')}`, pageWidth / 2, 40, { align: 'center' });
@@ -4218,11 +4426,11 @@ export default function App() {
                     doc.line(20, y, pageWidth - 20, y);
                     y += 8;
                     doc.setFont('helvetica', 'bold');
-                    doc.text('Gesamtwert', 20, y);
+                    doc.text(t('vault.total_value'), 20, y);
                     doc.text(`${total.toLocaleString('de-DE')} €`, pageWidth - 20, y, { align: 'right' });
                     doc.save(`Antonio-Bellanova-Portfolio-${new Date().toISOString().slice(0, 10)}.pdf`);
                   }}>
-                    <Download className="w-3 h-3" /> Portfolio (PDF)
+                    <Download className="w-3 h-3" /> {t('vault.portfolio_pdf')}
                   </Button>
                   <Button variant="outline" className="text-xs" onClick={async () => {
                     if (!user) return;
@@ -4230,7 +4438,7 @@ export default function App() {
                     const blob = await r.blob();
                     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-portfolio-${user.id}.csv`; a.click(); URL.revokeObjectURL(a.href);
                   }}>
-                    <FileDown className="w-3 h-3" /> Portfolio CSV
+                    <FileDown className="w-3 h-3" /> {t('vault.portfolio_csv')}
                   </Button>
                   <Button variant="outline" className="text-xs" onClick={async () => {
                     if (!user) return;
@@ -4238,7 +4446,7 @@ export default function App() {
                     const blob = await r.blob();
                     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-daten-${user.id}.json`; a.click(); URL.revokeObjectURL(a.href);
                   }}>
-                    <FileDown className="w-3 h-3" /> Meine Daten exportieren (DSGVO)
+                    <FileDown className="w-3 h-3" /> {t('vault.export_my_data_gdpr')}
                   </Button>
                 </div>
 
@@ -4257,9 +4465,9 @@ export default function App() {
                             <div className="flex flex-col gap-2">
                               <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} />
                               {isHiddenFromPortfolio ? (
-                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleUnhideFromPortfolio(piece.id)}>Wieder im Portfolio anzeigen</Button>
+                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleUnhideFromPortfolio(piece.id)}>{t('vault.show_in_portfolio_again')}</Button>
                               ) : (
-                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleRemoveFromPortfolio(piece.id)}>Aus Portfolio entfernen</Button>
+                                <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleRemoveFromPortfolio(piece.id)}>{t('vault.remove_from_portfolio')}</Button>
                               )}
                             </div>
                             <WorkflowTimeline masterpieceId={piece.id} />
@@ -4876,7 +5084,7 @@ export default function App() {
 
                 {investorPortfolio && investorPortfolio.shares.length > 0 && (
                   <Card className="p-6">
-                    <h4 className="text-lg font-serif italic mb-4">Meine Anteile</h4>
+                    <h4 className="text-lg font-serif italic mb-4">{t('investor.my_shares')}</h4>
                     <div className="space-y-3">
                       {investorPortfolio.shares.map((s: any) => (
                         <div key={s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
@@ -4888,7 +5096,7 @@ export default function App() {
                         </div>
                       ))}
                       <div className="pt-2 border-t border-zinc-800 flex justify-between text-sm">
-                        <span className="text-zinc-500">Gesamtwert Anteile</span>
+                        <span className="text-zinc-500">{t('investor.total_value_shares')}</span>
                         <span className="text-amber-500 font-bold">{Number(investorPortfolio.total_fractional_value || 0).toLocaleString('de-DE')} €</span>
                       </div>
                     </div>
@@ -4898,7 +5106,7 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <Card className="lg:col-span-2 space-y-6">
                     <div className="flex justify-between items-center">
-                      <h4 className="text-xl font-serif italic">Market Performance</h4>
+                      <h4 className="text-xl font-serif italic">{t('investor.market_performance')}</h4>
                       <div className="flex gap-2">
                         <TabButton active={vaultTab === 'investor_insights'} label={t('investor.insights')} onClick={() => setVaultTab('investor_insights')} icon={TrendingUp} />
                         <TabButton active={vaultTab === 'dataroom'} label={t('investor.dataroom')} onClick={() => setVaultTab('dataroom')} icon={Lock} />
@@ -4955,8 +5163,45 @@ export default function App() {
                         </div>
                         {dataroomContent && (
                           <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-4 text-left">
-                            <h5 className="text-sm font-bold text-zinc-300">{dataroomContent.masterpiece?.title}</h5>
-                            <p className="text-xs text-zinc-500">Bewertung: {dataroomContent.masterpiece?.valuation != null ? Number(dataroomContent.masterpiece.valuation).toLocaleString('de-DE') + ' €' : '—'}</p>
+                            <div className="flex justify-between items-start gap-2">
+                              <div>
+                                <h5 className="text-sm font-bold text-zinc-300">{dataroomContent.masterpiece?.title}</h5>
+                                <p className="text-xs text-zinc-500">Bewertung: {dataroomContent.masterpiece?.valuation != null ? Number(dataroomContent.masterpiece.valuation).toLocaleString('de-DE') + ' €' : '—'}</p>
+                              </div>
+                              <Button variant="outline" size="sm" className="shrink-0" onClick={() => {
+                                const doc = new jsPDF();
+                                const pageWidth = doc.internal.pageSize.getWidth();
+                                const pageHeight = doc.internal.pageSize.getHeight();
+                                const margin = 24;
+                                doc.setFillColor(18, 18, 18);
+                                doc.rect(0, 0, pageWidth, pageHeight, 'F');
+                                doc.setTextColor(180, 140, 60);
+                                doc.setFontSize(8);
+                                doc.text('CONFIDENTIAL – Investor Data Room', pageWidth / 2, 20, { align: 'center' });
+                                if (user?.name || user?.email) doc.text(`For ${user?.name || user?.email} only`, pageWidth / 2, 26, { align: 'center' });
+                                doc.setDrawColor(180, 140, 60);
+                                doc.setLineWidth(0.2);
+                                doc.line(margin, 30, pageWidth - margin, 30);
+                                doc.setTextColor(220, 220, 220);
+                                doc.setFontSize(12);
+                                doc.text(dataroomContent.masterpiece?.title || 'Data Room', margin, 44);
+                                doc.setFontSize(9);
+                                doc.text(`Serial: ${dataroomContent.masterpiece?.serial_id || '—'}  |  Valuation: ${dataroomContent.masterpiece?.valuation != null ? Number(dataroomContent.masterpiece.valuation).toLocaleString('de-DE') + ' €' : '—'}`, margin, 52);
+                                let y = 62;
+                                doc.text(`Ownership history entries: ${dataroomContent.ownership_history?.length ?? 0}`, margin, y); y += 7;
+                                doc.text(`Contracts: ${dataroomContent.contracts?.length ?? 0}`, margin, y); y += 7;
+                                doc.text(`Service history entries: ${dataroomContent.service_history?.length ?? 0}`, margin, y);
+                                doc.setFontSize(7);
+                                doc.setTextColor(120, 120, 120);
+                                doc.text('This document is confidential. Not for distribution.', pageWidth / 2, pageHeight - 15, { align: 'center' });
+                                doc.setFontSize(20);
+                                doc.setTextColor(40, 40, 40);
+                                doc.text('CONFIDENTIAL', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
+                                doc.save(`Data-Room-${dataroomContent.masterpiece?.serial_id || dataroomContent.masterpiece?.id || 'export'}-${new Date().toISOString().slice(0, 10)}.pdf`);
+                              }}>
+                                <Download className="w-3 h-3" /> {t('vault.portfolio_pdf')}
+                              </Button>
+                            </div>
                             {(dataroomContent.ownership_history?.length > 0 || dataroomContent.contracts?.length > 0) && (
                               <>
                                 <p className="text-[10px] uppercase tracking-widest text-zinc-500">Besitzhistorie / Verträge</p>
@@ -5628,7 +5873,7 @@ export default function App() {
                       {adminAdvisors.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_advisors') || 'Keine Advisors.'}</p>}
                     </div>
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.advisor_commissions') || 'Provisionen verwalten'}</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.advisor_commissions')}</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
@@ -5655,7 +5900,7 @@ export default function App() {
                                   {c.status !== 'paid_out' && (
                                     <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
                                       const res = await fetch(`/api/admin/advisors/commissions/${c.id}/pay`, { method: 'POST', credentials: 'include' });
-                                      if (res.ok) { notifyUser(t('admin.commission_paid') || 'Als ausgezahlt markiert.'); fetchData(); }
+                                      if (res.ok) { notifyUser(t('admin.commission_marked_paid')); fetchData(); }
                                     }}>{t('admin.mark_paid') || 'Ausgezahlt'}</Button>
                                   )}
                                 </td>
@@ -5664,11 +5909,11 @@ export default function App() {
                           </tbody>
                         </table>
                       </div>
-                      {adminAdvisorCommissions.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_commissions') || 'Keine Provisionen.'}</p>}
+                      {adminAdvisorCommissions.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_commissions')}</p>}
                     </div>
                     <Card className="p-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.export_commissions') || 'Commissions exportieren'}</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.export_commissions')}</h4>
                         <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/advisors/commissions/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
                       </div>
                     </Card>
@@ -5908,7 +6153,11 @@ export default function App() {
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
                         <h3 className="text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
-                        <p className="text-amber-500 text-2xl font-bold">{selectedPiece.valuation.toLocaleString()} €</p>
+                        {(selectedPiece as any).hide_price ? (
+                          <p className="text-zinc-500 italic">{t('private_terms.request')}</p>
+                        ) : (
+                          <p className="text-amber-500 text-2xl font-bold">{selectedPiece.valuation.toLocaleString()} €</p>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
                         <button
@@ -5962,19 +6211,121 @@ export default function App() {
                           <p className="font-mono text-[10px] text-zinc-400 break-all">{selectedPiece.blockchain_hash}</p>
                         </div>
                       )}
+
+                      {/* Registry 2.0 & Asset Performance */}
+                      <div className="border-t border-zinc-800 pt-6">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowRegistryInModal(!showRegistryInModal);
+                            if (!showRegistryInModal && selectedPiece?.id) {
+                              if (!registryData[selectedPiece.id]) {
+                                fetch(`/api/registry/masterpiece/${selectedPiece.id}`).then(r => r.ok ? r.json() : null).then(d => d && setRegistryData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
+                              }
+                              if (!performanceData[selectedPiece.id]) {
+                                fetch(`/api/masterpieces/${selectedPiece.id}/performance`).then(r => r.ok ? r.json() : null).then(d => d && setPerformanceData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
+                              }
+                            }
+                          }}
+                          className="flex items-center justify-between w-full text-left text-sm font-medium text-zinc-300 hover:text-amber-500/90 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <BookOpen className="w-4 h-4 text-amber-500/70" />
+                            {t('registry.performance_title')}
+                          </span>
+                          <span className="text-zinc-500">{showRegistryInModal ? '−' : '+'}</span>
+                        </button>
+                        {showRegistryInModal && selectedPiece && (
+                          <div className="mt-4 space-y-6 text-sm">
+                            {registryData[selectedPiece.id] && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold mb-2">{t('registry.ownership_timeline')}</p>
+                                  <ul className="space-y-1.5 text-zinc-400">
+                                    {(registryData[selectedPiece.id].ownership_history_timeline || registryData[selectedPiece.id].ownership_history || []).slice(0, 5).map((o: any, i: number) => (
+                                      <li key={i}>{o.owner_name || '—'} · {o.acquired_at ? new Date(o.acquired_at).toLocaleDateString() : ''}</li>
+                                    ))}
+                                    {(!registryData[selectedPiece.id].ownership_history_timeline?.length && !registryData[selectedPiece.id].ownership_history?.length) && <li className="italic text-zinc-500">{t('registry.atelier_held')}</li>}
+                                  </ul>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold mb-2">{t('registry.service_log')}</p>
+                                  <ul className="space-y-1.5 text-zinc-400">
+                                    {(registryData[selectedPiece.id].service_history_log || registryData[selectedPiece.id].service_history || []).slice(0, 3).map((s: any, i: number) => (
+                                      <li key={i}>{s.service_type} · {s.service_date ? new Date(s.service_date).toLocaleDateString() : ''}</li>
+                                    ))}
+                                    {(!registryData[selectedPiece.id].service_history_log?.length && !registryData[selectedPiece.id].service_history?.length) && <li className="italic text-zinc-500">—</li>}
+                                  </ul>
+                                </div>
+                                <div className="md:col-span-2 flex flex-wrap gap-4">
+                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.rarity')}: {registryData[selectedPiece.id].rarity_level} ({registryData[selectedPiece.id].rarity_score ?? '—'})</span>
+                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.demand_index')}: {registryData[selectedPiece.id].demand_index ?? registryData[selectedPiece.id].demand_score ?? '—'}</span>
+                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.prestige_index')}: {registryData[selectedPiece.id].prestige_index ?? registryData[selectedPiece.id].prestige_score ?? '—'}</span>
+                                  <span className="px-2 py-1 rounded bg-zinc-700/50 text-zinc-400 text-xs">{registryData[selectedPiece.id].ownership_history_badge}</span>
+                                </div>
+                              </div>
+                            )}
+                            {(performanceData[selectedPiece.id] || registryData[selectedPiece.id]?.asset_performance) && (() => {
+                              const perf = performanceData[selectedPiece.id] || registryData[selectedPiece.id].asset_performance;
+                              return (
+                              <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 space-y-3">
+                                <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold">{t('registry.asset_performance')}</p>
+                                <div className="flex flex-wrap gap-3 text-zinc-400">
+                                  <span>{t('registry.demand_score')}: {perf.indicative_demand_score ?? perf.demand_index ?? '—'}</span>
+                                  <span>{t('registry.resale_activity')}: {perf.resale_activity_level ?? '—'}</span>
+                                  <span>{t('registry.liquidity')}: {perf.liquidity_indicator ?? '—'}</span>
+                                  <span>{t('registry.views')}: {perf.views ?? perf.market_interest?.views ?? 0}</span>
+                                  <span>{t('registry.saves')}: {perf.saves ?? perf.market_interest?.saves ?? 0}</span>
+                                </div>
+                                <p className="text-[10px] text-zinc-500 italic">{perf.disclaimer ?? 'Informational only. Not financial advice.'}</p>
+                              </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="pt-8 border-t border-zinc-900 space-y-4">
                       {selectedPiece.status === 'available' && view !== 'admin' && (
                         <>
-                          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
-                            <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
-                              {t('legal_notice')}
-                            </p>
-                          </div>
-                          <Button className="w-full py-4 text-base" onClick={() => { handleBuy(selectedPiece.id); closePieceDetail(); }}>
-                            <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
-                          </Button>
+                          {(selectedPiece as any).hide_price ? (
+                            <>
+                              <p className="text-zinc-500 text-sm italic">{t('private_terms.request')}</p>
+                              <Button className="w-full py-4 text-base" onClick={async () => {
+                                if (!user) return;
+                                setLoading(true);
+                                try {
+                                  const res = await fetch('/api/private-terms/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpiece_id: selectedPiece.id }), credentials: 'include' });
+                                  if (res.ok) { notifyUser(t('private_terms.requested'), 'success'); closePieceDetail(); }
+                                  else { const d = await res.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
+                                } finally { setLoading(false); }
+                              }}>
+                                <MessageCircle className="w-5 h-5" /> {t('private_terms.request')}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                                <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
+                                  {t('legal_notice')}
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
+                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
+                                  <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
+                                  <option value="armored_courier">{t('delivery.armored_courier')}</option>
+                                  <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
+                                  <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
+                                  <option value="vault_storage">{t('delivery.vault_storage')}</option>
+                                </select>
+                              </div>
+                              <Button className="w-full py-4 text-base" onClick={() => { handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
+                              </Button>
+                            </>
+                          )}
                         </>
                       )}
                       <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
