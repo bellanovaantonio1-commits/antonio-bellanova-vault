@@ -2576,7 +2576,6 @@ export default function App() {
 
     // Body: use tidy generated text when we have piece + contractType, else stripped HTML
     let bodyText: string;
-    const typ = (options?.contractType || '').toLowerCase();
     if (piece && typ) {
       const serial = piece.serial_id || '—';
       const valuation = piece.valuation != null && Number(piece.valuation) > 0 ? `${Number(piece.valuation).toLocaleString('de-DE')} EUR` : '—';
