@@ -2490,7 +2490,11 @@ app.get("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
 app.post("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
   const aid = (req as any).advisorProfileId;
   const { email, userId } = req.body || {};
-  const targetId = userId ? Number(userId) : (email ? (db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase()) as { id: number } | undefined)?.id : null;
+  let targetId: number | null = userId ? Number(userId) : null;
+  if (targetId == null && email) {
+    const row = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase()) as { id: number } | undefined;
+    targetId = row?.id ?? null;
+  }
   if (!targetId) return res.status(400).json({ error: "User not found. Provide valid email or userId." });
   try {
     db.prepare("INSERT INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)").run(aid, targetId);

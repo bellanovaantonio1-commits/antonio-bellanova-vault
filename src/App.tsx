@@ -314,6 +314,8 @@ const TRANSLATIONS: any = {
     "advisor.status": "Status",
     "advisor.no_commissions": "Noch keine Provisionen.",
     "advisor.unsigned": "Nicht unterzeichnet",
+    "advisor.not_activated_title": "Zugang noch nicht freigeschaltet",
+    "advisor.not_activated_message": "Bitte unterzeichnen Sie zuerst den NDA unter Verträge und warten Sie auf die Freischaltung durch den Administrator.",
     "view.advisor": "Berater",
     "sign_contract": "Unterschreiben",
     "signed": "Unterzeichnet",
@@ -676,6 +678,8 @@ const TRANSLATIONS: any = {
     "advisor.status": "Status",
     "advisor.no_commissions": "No commissions yet.",
     "advisor.unsigned": "Unsigned",
+    "advisor.not_activated_title": "Access not yet activated",
+    "advisor.not_activated_message": "Please sign the NDA under Contracts first and wait for administrator approval.",
     "view.advisor": "Advisor",
     "sign_contract": "Sign",
     "signed": "Signed",
@@ -1014,6 +1018,8 @@ const TRANSLATIONS: any = {
     "advisor.status": "Stato",
     "advisor.no_commissions": "Nessuna commissione ancora.",
     "advisor.unsigned": "Non firmato",
+    "advisor.not_activated_title": "Accesso non ancora attivato",
+    "advisor.not_activated_message": "Firma prima il NDA nella sezione Contratti e attendi l'approvazione dell'amministratore.",
     "view.advisor": "Consulente",
     "sign_contract": "Firma",
     "signed": "Firmato",
@@ -4650,6 +4656,12 @@ export default function App() {
 
             {view === 'advisor' && user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                {advisorNotActivated && (
+                  <Card className="p-6 border-amber-500/30 bg-amber-500/10">
+                    <p className="text-amber-200 font-medium">{t('advisor.not_activated_title') || 'Zugang noch nicht freigeschaltet'}</p>
+                    <p className="text-sm text-zinc-400 mt-2">{t('advisor.not_activated_message') || 'Bitte unterzeichnen Sie zuerst den NDA unter Verträge und warten Sie auf die Freischaltung durch den Administrator.'}</p>
+                  </Card>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                   <Card className="p-5 border-amber-500/20 bg-amber-500/5" hoverGlow>
                     <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.referred_clients')}</p>
