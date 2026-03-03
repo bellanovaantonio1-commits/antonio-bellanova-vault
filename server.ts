@@ -870,6 +870,24 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
+// Imperial Intelligence: Legacy / succession
+db.exec(`
+  CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    beneficiary_name TEXT NOT NULL,
+    beneficiary_contact TEXT,
+    transfer_protocol TEXT,
+    succession_docs TEXT,
+    status TEXT DEFAULT 'pending',
+    approved_by INTEGER,
+    approved_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(approved_by) REFERENCES users(id)
+  );
+`);
 try {
   db.prepare("ALTER TABLE auctions ADD COLUMN terms TEXT").run();
 } catch (e) {}
@@ -884,6 +902,8 @@ try {
 try { db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN pricing_mode TEXT DEFAULT 'fixed'").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN price_visibility_rules TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
@@ -942,6 +962,19 @@ db.exec(`
     responded_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    beneficiary_name TEXT,
+    beneficiary_email TEXT,
+    transfer_protocol TEXT,
+    succession_notes TEXT,
+    status TEXT DEFAULT 'pending',
+    approved_at DATETIME,
+    approved_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -1404,8 +1437,9 @@ app.post("/api/login", (req, res) => {
 app.get("/api/me", (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  let user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   if (!user || user.status !== 'approved') return res.status(401).json({ error: "Invalid session" });
+  if (typeof recalcPrestigeTier === 'function' && user.role !== 'admin' && user.role !== 'super_admin') try { recalcPrestigeTier(userId); user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any; } catch (_) {}
   const { password: _p, ...rest } = user;
   rest.prestige_tier = rest.prestige_tier || getPrestigeTier(user);
   res.json(rest);
@@ -1524,20 +1558,29 @@ app.post("/api/admin/assign-piece", (req, res) => {
 });
 
 app.post("/api/admin/masterpieces", (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : nextProductSerial(category || 'GEN');
+  const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
+  const hide_price = pricing_mode === 'hidden' ? 1 : 0;
   try {
     const result = db.prepare(`
       INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url);
-    broadcast({ type: 'MASTERPIECE_CREATED', id: result.lastInsertRowid });
+    const id = Number(result.lastInsertRowid);
+    try {
+      db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id);
+    } catch (_) {}
+    try {
+      if (bodyPriceVisibility != null && String(bodyPriceVisibility).trim()) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility).trim(), id);
+    } catch (_) {}
+    broadcast({ type: 'MASTERPIECE_CREATED', id });
     
     // Initial Provenance
-    updateProvenance(Number(result.lastInsertRowid), 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
-    calculateRarityScore(Number(result.lastInsertRowid));
+    updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
+    calculateRarityScore(id);
 
-    res.json({ id: result.lastInsertRowid });
+    res.json({ id });
   } catch (e: any) {
     if (e.message.includes("UNIQUE constraint failed: masterpieces.serial_id")) {
       res.status(400).json({ error: "Serial ID already exists. Each masterpiece must have a unique identifier." });
@@ -2812,6 +2855,155 @@ app.put("/api/admin/advisors/referrals/override", requireAuth, requireAdmin, (re
   res.json({ success: true });
 });
 
+// --- Imperial Intelligence: AI Client Profiling (admin only) ---
+function computeClientProfile(userId: number): any {
+  const payments = db.prepare("SELECT amount, masterpiece_id, created_at FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')").all(userId) as any[];
+  const totalSpend = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const purchaseFrequency = payments.length;
+  const categories = db.prepare(`
+    SELECT m.category FROM payments p JOIN masterpieces m ON m.id = p.masterpiece_id WHERE p.user_id = ? AND p.status IN ('paid','awaiting_deposit')
+  `).all(userId) as { category: string }[];
+  const categoryPreference = categories.length ? (categories.reduce((acc: Record<string, number>, c) => { acc[c.category || 'Other'] = (acc[c.category || 'Other'] || 0) + 1; return acc; }, {}) as Record<string, number>) : {};
+  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const fractionalShares = db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number };
+  const investmentParticipation = fractionalShares?.c ?? 0;
+  const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const contractCount = (db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const vaultEngagement = Math.min(100, viewCount + favCount * 2 + contractCount * 5);
+  let uhnwScore = 0;
+  if (totalSpend >= 500000) uhnwScore = 95; else if (totalSpend >= 100000) uhnwScore = 80; else if (totalSpend >= 50000) uhnwScore = 65; else if (totalSpend >= 10000) uhnwScore = 45; else if (totalSpend >= 1000) uhnwScore = 25;
+  uhnwScore = Math.min(100, uhnwScore + (purchaseFrequency >= 5 ? 10 : purchaseFrequency * 2) + (investmentParticipation > 0 ? 5 : 0) + Math.min(10, Math.floor(vaultEngagement / 10)));
+  const upsellRecommendation = totalSpend > 0 && (purchaseFrequency >= 2 || vaultEngagement > 20);
+  const inviteRecommendation = uhnwScore >= 50 || (totalSpend >= 20000) || (investmentParticipation > 0 && totalSpend >= 5000);
+  return { total_spend: totalSpend, purchase_frequency: purchaseFrequency, asset_category_preference: categoryPreference, resale_activity: resaleCount, investment_participation: investmentParticipation, vault_engagement_level: vaultEngagement, uhnw_potential_score: uhnwScore, upsell_recommendation: upsellRecommendation, invite_recommendation: inviteRecommendation };
+}
+app.get("/api/admin/intelligence/client-profiles", requireAuth, requireAdmin, (req, res) => {
+  const users = db.prepare("SELECT id, name, email, role, created_at FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin') ORDER BY created_at DESC").all() as any[];
+  const list = users.map((u: any) => ({ user_id: u.id, name: u.name, email: u.email, role: u.role, created_at: u.created_at, ...computeClientProfile(u.id) }));
+  res.json(list);
+});
+
+// --- Imperial Intelligence: Advisor Performance Analytics ---
+app.get("/api/admin/intelligence/advisor-analytics", requireAuth, requireAdmin, (req, res) => {
+  const sort = (req.query.sort as string) || 'revenue_desc';
+  const advisors = db.prepare(`
+    SELECT p.id as profile_id, p.user_id, u.name as advisor_name, u.email as advisor_email,
+           (SELECT COUNT(*) FROM advisor_referrals r WHERE r.advisor_id = p.id) as referral_count,
+           (SELECT COUNT(*) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as deals_closed,
+           (SELECT COALESCE(SUM(c.sale_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id) as total_revenue,
+           (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as commission_paid,
+           (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status IN ('pending','confirmed')) as commission_pending
+    FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'
+  `).all() as any[];
+  const rows = advisors.map((a: any) => {
+    const refs = a.referral_count || 0;
+    const closed = a.deals_closed || 0;
+    const conversion_rate = refs > 0 ? Math.round((closed / refs) * 100) : 0;
+    const commissions = db.prepare("SELECT sale_amount FROM advisor_commissions WHERE advisor_id = ? AND status = 'paid_out'").all(a.profile_id) as { sale_amount: number }[];
+    const avgDealSize = commissions.length ? commissions.reduce((s, c) => s + (c.sale_amount || 0), 0) / commissions.length : 0;
+    return { ...a, conversion_rate, average_deal_size: Math.round(avgDealSize * 100) / 100 };
+  });
+  if (sort === 'revenue_desc') rows.sort((a: any, b: any) => (b.total_revenue || 0) - (a.total_revenue || 0));
+  else if (sort === 'conversion_desc') rows.sort((a: any, b: any) => b.conversion_rate - a.conversion_rate);
+  else if (sort === 'deals_desc') rows.sort((a: any, b: any) => (b.deals_closed || 0) - (a.deals_closed || 0));
+  else if (sort === 'name_asc') rows.sort((a: any, b: any) => (a.advisor_name || '').localeCompare(b.advisor_name || ''));
+  res.json(rows);
+});
+app.get("/api/admin/intelligence/advisor-analytics/export", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.id, u.name as advisor_name, u.email,
+           (SELECT COUNT(*) FROM advisor_referrals r WHERE r.advisor_id = p.id) as referrals,
+           (SELECT COUNT(*) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as deals_closed,
+           (SELECT COALESCE(SUM(c.sale_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id) as total_revenue,
+           (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as commission_paid,
+           (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status IN ('pending','confirmed')) as commission_pending
+    FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'
+  `).all() as any[];
+  const header = "id,advisor_name,email,referrals,deals_closed,total_revenue,commission_paid,commission_pending";
+  const lines = [header, ...rows.map((r: any) => [r.id, r.advisor_name, r.email, r.referrals, r.deals_closed, r.total_revenue, r.commission_paid, r.commission_pending].map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))];
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=advisor-analytics.csv");
+  res.send("\uFEFF" + lines.join("\r\n"));
+});
+
+// --- Imperial Intelligence: Scarcity Heatmap ---
+app.get("/api/admin/intelligence/scarcity-heatmap", requireAuth, requireAdmin, (req, res) => {
+  const pieces = db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces").all() as any[];
+  const heatmap = pieces.map((p: any) => {
+    const views = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const wishlist = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const duration = db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as t FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { t: number };
+    const totalDuration = duration?.t ?? 0;
+    const inDrop = (db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const demandScore = Math.min(100, Math.round(views * 2 + wishlist * 5 + Math.min(50, totalDuration / 60)));
+    const scarcityIntensity = demandScore >= 70 ? 'high_demand' : demandScore >= 30 ? 'moderate' : 'low_interest';
+    return { masterpiece_id: p.id, title: p.title, serial_id: p.serial_id, valuation: p.valuation, status: p.status, views, wishlist_adds: wishlist, viewing_duration_seconds: totalDuration, drop_participation: inDrop > 0, demand_score: demandScore, scarcity_intensity: scarcityIntensity };
+  });
+  heatmap.sort((a: any, b: any) => b.demand_score - a.demand_score);
+  res.json(heatmap);
+});
+
+// --- Legacy Mode: beneficiary & succession (client submits, admin approves) ---
+app.post("/api/legacy/beneficiary", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const { beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs } = req.body || {};
+  if (!beneficiary_name || typeof beneficiary_name !== 'string' || !beneficiary_name.trim()) return res.status(400).json({ error: "Beneficiary name required" });
+  db.prepare(`
+    INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs, status)
+    VALUES (?, ?, ?, ?, ?, 'pending')
+  `).run(userId, String(beneficiary_name).trim(), beneficiary_contact ? String(beneficiary_contact).trim() : null, transfer_protocol ? String(transfer_protocol).trim() : null, succession_docs ? (typeof succession_docs === 'string' ? succession_docs : JSON.stringify(succession_docs)) : null);
+  res.json({ success: true });
+});
+app.get("/api/legacy/beneficiary", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const rows = db.prepare("SELECT id, beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs, status, created_at, approved_at FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+  res.json(rows);
+});
+app.get("/api/admin/legacy/requests", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT lb.*, u.name as user_name, u.email as user_email
+    FROM legacy_beneficiaries lb JOIN users u ON u.id = lb.user_id
+    ORDER BY lb.created_at DESC
+  `).all();
+  res.json(rows);
+});
+app.patch("/api/admin/legacy/requests/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body || {};
+  if (!['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ error: "Invalid status" });
+  const row = db.prepare("SELECT * FROM legacy_beneficiaries WHERE id = ?").get(id) as any;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  const adminId = getSessionUserId(req);
+  db.prepare("UPDATE legacy_beneficiaries SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, status === 'approved' ? adminId : null, id);
+  if (status === 'approved') try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(row.user_id, "Your legacy / beneficiary request has been approved.", "success"); } catch (_) {}
+  res.json({ success: true });
+});
+
+// --- Prestige Evolution Engine: recalc tier from activity ---
+function recalcPrestigeTier(userId: number): void {
+  const payments = db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')").all(userId) as { amount: number }[];
+  const totalSpend = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const fracCount = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number })?.c ?? 0;
+  let tier = 'client';
+  if (totalSpend >= 500000 || (totalSpend >= 200000 && resaleCount >= 2)) tier = 'black_tier';
+  else if (totalSpend >= 200000 || (totalSpend >= 100000 && fracCount > 0)) tier = 'royal_tier';
+  else if (totalSpend >= 50000 || resaleCount >= 1) tier = 'elite_collector';
+  else if (totalSpend >= 20000) tier = 'collector';
+  else if (totalSpend >= 5000) tier = 'private_client';
+  try { db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?").run(tier, userId); } catch (_) {}
+}
+app.post("/api/admin/intelligence/recalc-prestige", requireAuth, requireAdmin, (req, res) => {
+  const { userId } = req.body || {};
+  if (userId != null) { recalcPrestigeTier(Number(userId)); return res.json({ success: true, userId }); }
+  const users = db.prepare("SELECT id FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin')").all() as { id: number }[];
+  users.forEach(u => recalcPrestigeTier(u.id));
+  res.json({ success: true, recalculated: users.length });
+});
+
 // --- Contact form (public): speichern + E-Mail an Atelier (wenn SMTP + ADMIN_EMAIL gesetzt) ---
 app.post("/api/contact", async (req, res) => {
   const { name, email, subject, message } = req.body || {};
@@ -3126,6 +3318,30 @@ function getPrestigeTier(user: { role: string; prestige_tier?: string | null }):
 function getResaleCommissionPct(user: { role: string; prestige_tier?: string | null }): number {
   const tier = getPrestigeTier(user);
   return RESALE_COMMISSION_BY_TIER[tier] ?? 8;
+}
+
+// Prestige Evolution Engine: auto-adjust tier from activity (total spend, resale, investment, engagement)
+function computeEvolvedPrestigeTier(userId: number): string {
+  const totalSpend = (db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(userId) as { s: number })?.s ?? 0;
+  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const fracCount = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const invApproved = (db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'").get(userId) as { c: number })?.c ?? 0;
+  const payCount = (db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(userId) as { c: number })?.c ?? 0;
+  if (totalSpend >= 500000 || (payCount >= 5 && totalSpend >= 200000)) return 'black_tier';
+  if (totalSpend >= 200000 || (payCount >= 3 && totalSpend >= 80000)) return 'royal_tier';
+  if (totalSpend >= 80000 || resaleCount >= 2 || fracCount + invApproved >= 2) return 'elite_collector';
+  if (totalSpend >= 30000 || payCount >= 2 || resaleCount >= 1) return 'collector';
+  if (totalSpend >= 10000 || payCount >= 1) return 'private_client';
+  return 'client';
+}
+
+function evolvePrestigeTierForUser(userId: number): void {
+  try {
+    const user = db.prepare("SELECT id, role FROM users WHERE id = ?").get(userId) as { id: number; role: string } | undefined;
+    if (!user || ['admin', 'super_admin', 'strategic_private_advisor'].includes(user.role)) return;
+    const newTier = computeEvolvedPrestigeTier(userId);
+    db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?").run(newTier, userId);
+  } catch (_) {}
 }
 
 // --- Resale & Maison Commission ---
@@ -3722,6 +3938,173 @@ app.patch("/api/admin/private-terms-requests/:id", (req, res) => {
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { status, admin_notes } = req.body;
   db.prepare("UPDATE private_terms_requests SET status = ?, admin_notes = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(status || 'responded', admin_notes || null, req.params.id);
+  res.json({ success: true });
+});
+
+// --- Imperial Intelligence & Control Layer ---
+// 1. AI Client Profiling (admin only)
+app.get("/api/admin/intelligence/client-profiles", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const users = db.prepare("SELECT id, name, email, role, prestige_tier, created_at FROM users WHERE role IN ('client','vip','royal','black','investor','reseller') AND status = 'approved'").all() as any[];
+  const profiles = users.map(u => {
+    const totalSpend = (db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(u.id) as { s: number })?.s ?? 0;
+    const payCount = (db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(u.id) as { c: number })?.c ?? 0;
+    const purchaseFrequency = payCount > 0 ? payCount / (Math.max(1, (Date.now() - new Date(u.created_at).getTime()) / (365 * 24 * 60 * 60 * 1000))) : 0;
+    const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const fracShares = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const invRequests = (db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'").get(u.id) as { c: number })?.c ?? 0;
+    const vaultContracts = (db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const vaultEngagement = vaultContracts + viewCount + favCount;
+    const categoryPref = (db.prepare("SELECT m.category FROM payments p JOIN masterpieces m ON m.id = p.masterpiece_id WHERE p.user_id = ? AND p.status IN ('paid','completed')").all(u.id) as { category: string }[]).reduce((acc: Record<string, number>, r) => { acc[r.category || 'Other'] = (acc[r.category || 'Other'] || 0) + 1; return acc; }, {});
+    const topCategory = Object.entries(categoryPref).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+    const uhnwScore = Math.min(100, Math.round((totalSpend / 50000) * 25 + Math.min(purchaseFrequency * 20, 25) + (resaleCount + fracShares + invRequests) * 5 + Math.min(vaultEngagement / 20, 25)));
+    const upsellRecommendation = uhnwScore >= 40 && (payCount >= 1 || resaleCount >= 1);
+    const inviteRecommendation = uhnwScore >= 60 || (totalSpend >= 20000);
+    return {
+      user_id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      prestige_tier: u.prestige_tier || 'client',
+      total_spend: totalSpend,
+      purchase_frequency: Math.round(purchaseFrequency * 100) / 100,
+      asset_category_preference: topCategory,
+      resale_activity: resaleCount,
+      investment_participation: fracShares + invRequests,
+      vault_engagement_level: vaultEngagement,
+      uhnw_potential_score: uhnwScore,
+      upsell_recommendation: upsellRecommendation,
+      invite_recommendation: inviteRecommendation,
+    };
+  });
+  res.json(profiles);
+});
+
+// 2. Advisor Performance Analytics (admin only; sortable in UI, CSV export)
+app.get("/api/admin/intelligence/advisor-analytics", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const advisors = db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email, p.default_commission_pct FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'").all() as any[];
+  const rows = advisors.map(a => {
+    const commissions = db.prepare("SELECT status, SUM(commission_amount) as total, COUNT(*) as cnt FROM advisor_commissions WHERE advisor_id = ? GROUP BY status").all(a.profile_id) as { status: string; total: number; cnt: number }[];
+    const paid = commissions.find(r => r.status === 'paid_out')?.total ?? 0;
+    const pending = commissions.find(r => r.status === 'pending' || r.status === 'confirmed')?.total ?? 0;
+    const totalRevenue = paid + pending;
+    const referralsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const dealsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const conversionRate = referralsCount > 0 ? Math.round((dealsCount / referralsCount) * 10000) / 100 : 0;
+    const avgDeal = dealsCount > 0 ? (db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
+    return {
+      profile_id: a.profile_id,
+      user_id: a.user_id,
+      advisor_name: a.name,
+      advisor_email: a.email,
+      total_revenue: totalRevenue,
+      commission_paid: paid,
+      commission_pending: pending,
+      conversion_rate_pct: conversionRate,
+      referrals_count: referralsCount,
+      deals_count: dealsCount,
+      avg_deal_size: Math.round(avgDeal * 100) / 100,
+    };
+  });
+  res.json(rows);
+});
+
+app.get("/api/admin/intelligence/advisor-analytics/export", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const advisors = db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'").all() as any[];
+  const rows = advisors.map((a: any) => {
+    const commissions = db.prepare("SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status").all(a.profile_id) as { status: string; total: number }[];
+    const paid = commissions.find((r: any) => r.status === 'paid_out')?.total ?? 0;
+    const pending = commissions.find((r: any) => r.status === 'pending' || r.status === 'confirmed')?.total ?? 0;
+    const referralsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const dealsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const conversionRate = referralsCount > 0 ? Math.round((dealsCount / referralsCount) * 10000) / 100 : 0;
+    const avgDeal = dealsCount > 0 ? (db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
+    return { advisor_name: a.name, advisor_email: a.email, total_revenue: paid + pending, commission_paid: paid, commission_pending: pending, conversion_rate_pct: conversionRate, deals_count: dealsCount, avg_deal_size: Math.round(avgDeal * 100) / 100 };
+  });
+  const headers = ['advisor_name', 'advisor_email', 'total_revenue', 'commission_paid', 'commission_pending', 'conversion_rate_pct', 'deals_count', 'avg_deal_size'];
+  const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
+  const csv = [headers.join(','), ...rows.map((r: any) => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="advisor-analytics.csv"');
+  res.send('\uFEFF' + csv);
+});
+
+// 3. Scarcity Heatmap (admin only)
+app.get("/api/admin/intelligence/scarcity-heatmap", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const pieces = db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces").all() as any[];
+  const maxViews = Math.max(1, (db.prepare("SELECT MAX(c) as m FROM (SELECT masterpiece_id, COUNT(*) as c FROM asset_views GROUP BY masterpiece_id)").get() as { m: number })?.m ?? 1);
+  const heatmap = pieces.map(p => {
+    const views = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const wishlist = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const duration = (db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as s FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { s: number })?.s ?? 0;
+    const inDrops = (db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const demandScore = Math.min(100, Math.round((views / maxViews) * 40 + wishlist * 10 + Math.min(duration / 60, 30)));
+    const scarcityIntensity = p.status === 'sold' || p.status === 'archived_private_collection' ? 100 : Math.min(100, views + wishlist * 2);
+    const interestLevel = views > 10 || wishlist > 2 ? 'high' : views > 2 || wishlist > 0 ? 'medium' : 'low';
+    return {
+      masterpiece_id: p.id,
+      title: p.title,
+      serial_id: p.serial_id,
+      valuation: p.valuation,
+      status: p.status,
+      views,
+      wishlist_adds: wishlist,
+      viewing_duration_sec: duration,
+      drop_participation: inDrops,
+      demand_score: demandScore,
+      scarcity_intensity_score: scarcityIntensity,
+      interest_level: interestLevel,
+    };
+  });
+  res.json(heatmap);
+});
+
+// Legacy Mode: client submits beneficiary / succession; admin approves
+app.post("/api/legacy/beneficiary", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const { beneficiary_name, beneficiary_email, transfer_protocol, succession_notes } = req.body || {};
+  db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_email, transfer_protocol, succession_notes, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(
+    userId, beneficiary_name || null, beneficiary_email || null, transfer_protocol || null, succession_notes || null
+  );
+  res.json({ success: true });
+});
+
+app.get("/api/legacy/beneficiary", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const row = db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+  res.json(row || null);
+});
+
+app.get("/api/admin/legacy-requests", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare(`
+    SELECT lb.*, u.name as user_name, u.email as user_email FROM legacy_beneficiaries lb JOIN users u ON u.id = lb.user_id ORDER BY lb.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+app.post("/api/admin/legacy-requests/:id/approve", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  db.prepare("UPDATE legacy_beneficiaries SET status = 'approved', approved_at = CURRENT_TIMESTAMP, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(adminId, req.params.id);
   res.json({ success: true });
 });
 

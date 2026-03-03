@@ -63,6 +63,9 @@ export interface Masterpiece {
   created_at: string;
   transfer_type?: 'platform' | 'external';
   warranty_void?: number;
+  hide_price?: number;
+  pricing_mode?: 'fixed' | 'starting_from' | 'price_on_request' | 'hidden';
+  price_visibility_rules?: string;
 }
 
 export interface Auction {

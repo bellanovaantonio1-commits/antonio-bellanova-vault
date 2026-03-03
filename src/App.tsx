@@ -263,6 +263,8 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Nutzer",
     "admin.tab_resale": "Wiederverkauf",
     "admin.tab_appointments": "Termine",
+    "admin.tab_intelligence": "Intelligence",
+    "admin.tab_legacy": "Legacy / Begünstigte",
     "admin.tab_settings": "Einstellungen",
     "admin.stat_revenue": "Gesamtumsatz",
     "admin.stat_active_users": "Aktive Nutzer",
@@ -353,6 +355,18 @@ const TRANSLATIONS: any = {
     "vault.export_my_data_gdpr": "Meine Daten exportieren (DSGVO)",
     "vault.portfolio_overview": "Portfolio-Übersicht",
     "vault.total_value": "Gesamtwert",
+    "vault.legacy": "Legacy",
+    "vault.legacy_title": "Legacy & Begünstigte",
+    "vault.legacy_subtitle": "Begünstigten anlegen und Nachfolge-Dokumentation hinterlegen. Die Freischaltung erfolgt nach Prüfung durch das Atelier.",
+    "vault.legacy_beneficiary_name": "Name des Begünstigten",
+    "vault.legacy_beneficiary_contact": "Kontakt (E-Mail oder Telefon)",
+    "vault.legacy_transfer_protocol": "Übertragungsprotokoll / Hinweise",
+    "vault.legacy_submit": "Anfrage einreichen",
+    "vault.legacy_submitted": "Anfrage gesendet. Die Freigabe erfolgt nach Prüfung.",
+    "vault.legacy_my_requests": "Ihre Legacy-Anfragen",
+    "vault.legacy_pending": "Ausstehend",
+    "vault.legacy_approved": "Freigegeben",
+    "vault.legacy_rejected": "Abgelehnt",
     "vault.show_in_portfolio_again": "Wieder im Portfolio anzeigen",
     "vault.remove_from_portfolio": "Aus Portfolio entfernen",
     "vault.contracts_show": "Verträge anzeigen",
@@ -469,6 +483,12 @@ const TRANSLATIONS: any = {
     "drops.ended": "Beendet",
     "private_terms.request": "Private Konditionen anfragen",
     "private_terms.requested": "Anfrage gesendet",
+    "pricing.mode_fixed": "Festpreis",
+    "pricing.mode_starting_from": "Ab-Preis",
+    "pricing.mode_price_on_request": "Preis auf Anfrage",
+    "pricing.mode_hidden": "Versteckt (nur Verhandlung)",
+    "pricing.starting_from_label": "Ausführungen ab {price} €",
+    "pricing.price_on_request": "Preis auf Anfrage",
     "search.placeholder": "Stück suchen…",
     "trust.secured_by": "Gesichert durch Antonio Bellanova",
     "trust.ssl_encrypted": "SSL verschlüsselt",
@@ -495,11 +515,13 @@ const TRANSLATIONS: any = {
     "auth.back_to_login": "Zurück zum Login",
     "legal.ssl": "SSL verschlüsselt",
     "legal.secure_payment": "Sichere Zahlung",
+    "compliance.footer": "Anwendbares Recht: Deutschland. Gerichtsstand: Köln. DSGVO-konform. Einwilligung und Datenzugriff gemäß Datenschutz.",
     "legal.imprint": "Impressum",
     "legal.privacy": "Datenschutz",
     "legal.terms": "AGB",
     "legal.contact": "Kontakt",
     "legal.directions": "Anfahrt",
+    "compliance.footer": "Anwendbares Recht: Deutschland. Gerichtsstand: Köln. DSGVO-konform. Einwilligung und Datenauskunft gemäß Datenschutz.",
     "common.settings": "Einstellungen",
     "common.settings_saved": "Einstellungen gespeichert.",
     "common.views": "Aufrufe"
@@ -681,6 +703,8 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Users",
     "admin.tab_resale": "Resale",
     "admin.tab_appointments": "Appointments",
+    "admin.tab_intelligence": "Intelligence",
+    "admin.tab_legacy": "Legacy / Beneficiaries",
     "admin.tab_settings": "Settings",
     "admin.stat_revenue": "Total revenue",
     "admin.stat_active_users": "Active users",
@@ -769,6 +793,18 @@ const TRANSLATIONS: any = {
     "vault.export_my_data_gdpr": "Export my data (GDPR)",
     "vault.portfolio_overview": "Portfolio Overview",
     "vault.total_value": "Total value",
+    "vault.legacy": "Legacy",
+    "vault.legacy_title": "Legacy & Beneficiaries",
+    "vault.legacy_subtitle": "Assign a beneficiary and store succession documentation. Activation requires approval by the Maison.",
+    "vault.legacy_beneficiary_name": "Beneficiary name",
+    "vault.legacy_beneficiary_contact": "Contact (email or phone)",
+    "vault.legacy_transfer_protocol": "Transfer protocol / notes",
+    "vault.legacy_submit": "Submit request",
+    "vault.legacy_submitted": "Request sent. Approval is subject to review.",
+    "vault.legacy_my_requests": "Your legacy requests",
+    "vault.legacy_pending": "Pending",
+    "vault.legacy_approved": "Approved",
+    "vault.legacy_rejected": "Rejected",
     "vault.show_in_portfolio_again": "Show in portfolio again",
     "vault.remove_from_portfolio": "Remove from portfolio",
     "vault.contracts_show": "Show contracts",
@@ -897,6 +933,12 @@ const TRANSLATIONS: any = {
     "drops.ended": "Ended",
     "private_terms.request": "Request Private Terms",
     "private_terms.requested": "Request sent",
+    "pricing.mode_fixed": "Fixed Price",
+    "pricing.mode_starting_from": "Starting From Price",
+    "pricing.mode_price_on_request": "Price On Request",
+    "pricing.mode_hidden": "Hidden (Negotiation Only)",
+    "pricing.starting_from_label": "From {price} €",
+    "pricing.price_on_request": "Price on request",
     "search.placeholder": "Search pieces…",
     "trust.secured_by": "Secured by Antonio Bellanova",
     "trust.ssl_encrypted": "SSL Encrypted",
@@ -923,11 +965,13 @@ const TRANSLATIONS: any = {
     "auth.back_to_login": "Back to login",
     "legal.ssl": "SSL Encrypted",
     "legal.secure_payment": "Secure payment",
+    "compliance.footer": "Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access as per Privacy Policy.",
     "legal.imprint": "Imprint",
     "legal.privacy": "Privacy",
     "legal.terms": "Terms & Conditions",
     "legal.contact": "Contact",
     "legal.directions": "Directions",
+    "compliance.footer": "Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access as per Privacy Policy.",
     "common.settings": "Settings",
     "common.settings_saved": "Settings saved.",
     "common.views": "Views"
@@ -1086,6 +1130,8 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Utenti",
     "admin.tab_resale": "Rivendita",
     "admin.tab_appointments": "Appuntamenti",
+    "admin.tab_intelligence": "Intelligence",
+    "admin.tab_legacy": "Legacy / Beneficiari",
     "admin.tab_settings": "Impostazioni",
     "admin.stat_revenue": "Fatturato totale",
     "admin.stat_active_users": "Utenti attivi",
@@ -1175,6 +1221,18 @@ const TRANSLATIONS: any = {
     "vault.export_my_data_gdpr": "Esporta i miei dati (GDPR)",
     "vault.portfolio_overview": "Panoramica portfolio",
     "vault.total_value": "Valore totale",
+    "vault.legacy": "Legacy",
+    "vault.legacy_title": "Legacy e beneficiari",
+    "vault.legacy_subtitle": "Assegna un beneficiario e conserva la documentazione successoria. L'attivazione richiede l'approvazione della Maison.",
+    "vault.legacy_beneficiary_name": "Nome del beneficiario",
+    "vault.legacy_beneficiary_contact": "Contatto (email o telefono)",
+    "vault.legacy_transfer_protocol": "Protocollo di trasferimento / note",
+    "vault.legacy_submit": "Invia richiesta",
+    "vault.legacy_submitted": "Richiesta inviata. L'approvazione è soggetta a revisione.",
+    "vault.legacy_my_requests": "Le tue richieste legacy",
+    "vault.legacy_pending": "In attesa",
+    "vault.legacy_approved": "Approvato",
+    "vault.legacy_rejected": "Rifiutato",
     "vault.show_in_portfolio_again": "Mostra di nuovo in portfolio",
     "vault.remove_from_portfolio": "Rimuovi dal portfolio",
     "vault.contracts_show": "Mostra contratti",
@@ -1297,6 +1355,12 @@ const TRANSLATIONS: any = {
     "drops.ended": "Terminato",
     "private_terms.request": "Richiedi condizioni private",
     "private_terms.requested": "Richiesta inviata",
+    "pricing.mode_fixed": "Prezzo fisso",
+    "pricing.mode_starting_from": "Prezzo a partire da",
+    "pricing.mode_price_on_request": "Prezzo su richiesta",
+    "pricing.mode_hidden": "Nascosto (solo trattativa)",
+    "pricing.starting_from_label": "Esecuzioni da {price} €",
+    "pricing.price_on_request": "Prezzo su richiesta",
     "search.placeholder": "Cerca opere…",
     "trust.secured_by": "Sicuro con Antonio Bellanova",
     "trust.ssl_encrypted": "Crittografia SSL",
@@ -1323,11 +1387,13 @@ const TRANSLATIONS: any = {
     "auth.back_to_login": "Torna al login",
     "legal.ssl": "Crittografia SSL",
     "legal.secure_payment": "Pagamento sicuro",
+    "compliance.footer": "Legge applicabile: Germania. Foro: Colonia. Conforme GDPR. Consenso e accesso dati come da Privacy.",
     "legal.imprint": "Impronta",
     "legal.privacy": "Privacy",
     "legal.terms": "Termini e condizioni",
     "legal.contact": "Contatto",
     "legal.directions": "Come arrivare",
+    "compliance.footer": "Legge applicabile: Germania. Foro: Colonia. Conforme GDPR. Consenso e accesso ai dati secondo la Privacy.",
     "common.settings": "Impostazioni",
     "common.settings_saved": "Impostazioni salvate.",
     "common.views": "Visualizzazioni"
@@ -1771,7 +1837,9 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy'>('pieces');
+  const [clientLegacyRequests, setClientLegacyRequests] = useState<any[]>([]);
+  const [legacyForm, setLegacyForm] = useState({ beneficiary_name: '', beneficiary_contact: '', transfer_protocol: '' });
   const [serviceRequestForm, setServiceRequestForm] = useState({ masterpieceId: '' as number | '', type: 'restoration', description: '' });
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -1856,7 +1924,11 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'advisors' | 'settings'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
+  const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
+  const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
+  const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
+  const [adminLegacyRequests, setAdminLegacyRequests] = useState<any[]>([]);
   const [adminAdvisors, setAdminAdvisors] = useState<any[]>([]);
   const [adminAdvisorCommissions, setAdminAdvisorCommissions] = useState<any[]>([]);
   const [lastInvitedAdvisorPassword, setLastInvitedAdvisorPassword] = useState<{ email: string; password: string } | null>(null);
@@ -1911,6 +1983,24 @@ export default function App() {
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
 
+  const getPiecePriceDisplay = (piece: Masterpiece & { pricing_mode?: string; hide_price?: number; price_visibility_rules?: string }, currentUser?: { prestige_tier?: string } | null) => {
+    const mode = piece.pricing_mode ?? (piece.hide_price ? 'hidden' : 'fixed');
+    let forceRequest = false;
+    if ((mode === 'fixed' || mode === 'starting_from') && piece.price_visibility_rules && typeof piece.price_visibility_rules === 'string' && piece.price_visibility_rules.trim()) {
+      try {
+        const allowed = JSON.parse(piece.price_visibility_rules) as string[];
+        const tier = currentUser?.prestige_tier ?? 'client';
+        if (!Array.isArray(allowed) || !allowed.includes(tier)) forceRequest = true;
+      } catch (_) {}
+    }
+    if (forceRequest) return { label: t('pricing.price_on_request'), showInquiry: true, showNegotiation: false };
+    const val = piece.valuation != null ? Number(piece.valuation) : 0;
+    if (mode === 'hidden') return { label: t('private_terms.request'), showInquiry: false, showNegotiation: true };
+    if (mode === 'price_on_request') return { label: t('pricing.price_on_request'), showInquiry: true, showNegotiation: false };
+    if (mode === 'starting_from') return { label: (t('pricing.starting_from_label') as string).replace('{price}', val > 0 ? val.toLocaleString('de-DE') : '—'), showInquiry: false, showNegotiation: false };
+    return { label: val > 0 ? `${val.toLocaleString('de-DE')} €` : '—', showInquiry: false, showNegotiation: false };
+  };
+
   // Forms
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -1933,7 +2023,8 @@ export default function App() {
     production_time: '4-6 Weeks',
     cert_data: '',
     deposit_pct: '50', 
-    image: '' 
+    image: '',
+    pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden'
   });
   const [newAuction, setNewAuction] = useState({
     masterpieceId: '', startPrice: '', endTime: '', vipOnly: false
@@ -2185,7 +2276,39 @@ export default function App() {
         if (advisorsRes.ok) setAdminAdvisors(await advisorsRes.json());
         const commissionsRes = await fetch('/api/admin/advisors/commissions');
         if (commissionsRes.ok) setAdminAdvisorCommissions(await commissionsRes.json());
+        if (adminTab === 'intelligence') {
+          const [cpRes, aaRes, shRes] = await Promise.all([fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }), fetch('/api/admin/intelligence/advisor-analytics', { credentials: 'include' }), fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' })]);
+          if (cpRes.ok) setIntelligenceClientProfiles(await cpRes.json());
+          if (aaRes.ok) setIntelligenceAdvisorAnalytics(await aaRes.json());
+          if (shRes.ok) setIntelligenceScarcityHeatmap(await shRes.json());
+        }
+        if (adminTab === 'legacy') {
+          const lrRes = await fetch('/api/admin/legacy/requests', { credentials: 'include' });
+          if (lrRes.ok) setAdminLegacyRequests(await lrRes.json());
+        }
       }
+
+      setListLoading(false);
+    } catch (_) { setListLoading(false); }
+  };
+
+  useEffect(() => {
+    if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy')) {
+      if (adminTab === 'intelligence') {
+        Promise.all([
+          fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }),
+          fetch('/api/admin/intelligence/advisor-analytics', { credentials: 'include' }),
+          fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' })
+        ]).then(([cpRes, aaRes, shRes]) => {
+          if (cpRes.ok) cpRes.json().then(setIntelligenceClientProfiles);
+          if (aaRes.ok) aaRes.json().then(setIntelligenceAdvisorAnalytics);
+          if (shRes.ok) shRes.json().then(setIntelligenceScarcityHeatmap);
+        });
+      } else {
+        fetch('/api/admin/legacy/requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminLegacyRequests));
+      }
+    }
+  }, [user?.role, adminTab]);
 
       if (user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR) {
         try {
@@ -2240,6 +2363,24 @@ export default function App() {
       setListLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user?.role !== UserRole.ADMIN) return;
+    if (adminTab === 'intelligence') {
+      Promise.all([
+        fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }),
+        fetch('/api/admin/intelligence/advisor-analytics', { credentials: 'include' }),
+        fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' })
+      ]).then(([cp, aa, sh]) => {
+        if (cp.ok) cp.json().then(setIntelligenceClientProfiles);
+        if (aa.ok) aa.json().then(setIntelligenceAdvisorAnalytics);
+        if (sh.ok) sh.json().then(setIntelligenceScarcityHeatmap);
+      });
+    }
+    if (adminTab === 'legacy') {
+      fetch('/api/admin/legacy/requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminLegacyRequests));
+    }
+  }, [user?.role, adminTab]);
 
   const handleInvestorRequestReview = async (requestId: number, approve: boolean) => {
     setLoading(true);
@@ -2481,7 +2622,8 @@ export default function App() {
           ...newPiece,
           valuation: parseFloat(newPiece.valuation),
           deposit_pct: parseFloat(newPiece.deposit_pct),
-          image_url: newPiece.image
+          image_url: newPiece.image,
+          pricing_mode: (newPiece as any).pricing_mode ?? 'fixed'
         })
       });
       if (res.ok) {
@@ -2498,7 +2640,8 @@ export default function App() {
           production_time: '4-6 Weeks',
           cert_data: '',
           deposit_pct: '50', 
-          image: '' 
+          image: '',
+          pricing_mode: 'fixed'
         });
         fetchData();
       } else {
@@ -3599,7 +3742,7 @@ export default function App() {
                           {piece.image_url ? <img src={piece.image_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" /> : <div className="w-10 h-10 rounded bg-zinc-800 shrink-0" />}
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
-                            <p className="text-xs text-zinc-500">{piece.serial_id} · {Number(piece.valuation || 0).toLocaleString('de-DE')} €</p>
+                            <p className="text-xs text-zinc-500">{piece.serial_id} · {getPiecePriceDisplay(piece, user).label}</p>
           </div>
                         </button>
                       ));
@@ -3830,7 +3973,7 @@ export default function App() {
             {view === 'vault' ? (
               <>
                 <button type="button" onClick={() => setView('vault')} className="hover:text-amber-500/80">{t('vault')}</button>
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -3930,7 +4073,7 @@ export default function App() {
                               <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                             </div>
                             <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
-                            <p className="text-[10px] text-amber-500">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                            <p className="text-[10px] text-amber-500">{getPiecePriceDisplay(piece, user).label}</p>
                           </button>
                         );
                       })}
@@ -3946,7 +4089,7 @@ export default function App() {
                         <div key={piece.id} className="relative group p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
                           {piece.image_url && <img src={piece.image_url} alt="" className="w-full aspect-square object-cover rounded-lg mb-2" />}
                           <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
-                          <p className="text-xs text-zinc-500">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                          <p className="text-xs text-zinc-500">{getPiecePriceDisplay(piece, user).label}</p>
                           <Button variant="ghost" className="mt-2 text-xs py-1" onClick={() => {
                             fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add: false }) })
                               .then(() => setFavoriteIds(prev => prev.filter(id => id !== piece.id)));
@@ -3968,7 +4111,7 @@ export default function App() {
                             <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                           </div>
                           <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
-                          <p className="text-[10px] text-amber-500/90">{piece.valuation?.toLocaleString?.('de-DE')} €</p>
+                          <p className="text-[10px] text-amber-500/90">{getPiecePriceDisplay(piece, user).label}</p>
                         </button>
                       ))}
                     </div>
@@ -4001,6 +4144,7 @@ export default function App() {
                         key={piece.id} 
                         piece={piece} 
                         t={t}
+                        priceLabel={getPiecePriceDisplay(piece, user).label}
                         isFavorite={user ? favoriteIds.includes(piece.id) : false}
                         onToggleFavorite={user ? () => {
                           const add = !favoriteIds.includes(piece.id);
@@ -4059,6 +4203,7 @@ export default function App() {
                       key={piece.id} 
                       piece={piece} 
                           t={t}
+                          priceLabel={getPiecePriceDisplay(piece, user).label}
                           isFavorite={user ? favoriteIds.includes(piece.id) : false}
                           onToggleFavorite={user ? () => {
                             const add = !favoriteIds.includes(piece.id);
@@ -4394,6 +4539,7 @@ export default function App() {
                   <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
                   <TabButton active={vaultTab === 'service'} label={t('service')} onClick={() => setVaultTab('service')} icon={Wrench} />
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
+                  <TabButton active={vaultTab === 'legacy'} label={t('vault.legacy') || 'Legacy'} onClick={() => { setVaultTab('legacy'); fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientLegacyRequests)); }} icon={BookOpen} />
                 </div>
 
                 <div className="flex flex-wrap gap-2 pb-4 border-b border-zinc-800/50">
@@ -4463,7 +4609,7 @@ export default function App() {
                           return (
                           <div key={piece.id} className="space-y-4">
                             <div className="flex flex-col gap-2">
-                              <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} />
+                              <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} priceLabel={getPiecePriceDisplay(piece, user).label} />
                               {isHiddenFromPortfolio ? (
                                 <Button variant="ghost" className="text-xs text-zinc-500 hover:text-amber-500 w-fit" onClick={() => handleUnhideFromPortfolio(piece.id)}>{t('vault.show_in_portfolio_again')}</Button>
                               ) : (
@@ -4570,6 +4716,7 @@ export default function App() {
                           key={piece.id} 
                           piece={piece} 
                           t={t}
+                          priceLabel={getPiecePriceDisplay(piece, user).label}
                           hideAction 
                           onViewDetails={setSelectedPiece}
                           extraAction={
@@ -4746,6 +4893,49 @@ export default function App() {
                             </div>
                           </Card>
                         </div>
+                      )}
+                    </div>
+                  )}
+                  {vaultTab === 'legacy' && (
+                    <div className="space-y-8">
+                      <Card className="p-6 space-y-6 border-amber-500/20">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center">
+                            <BookOpen className="w-6 h-6 text-amber-500/90" />
+                          </div>
+                          <div>
+                            <h4 className="text-xl font-serif italic">{t('vault.legacy_title') || 'Legacy & Begünstigte'}</h4>
+                            <p className="text-xs text-zinc-500">{t('vault.legacy_subtitle') || 'Begünstigten anlegen und Nachfolge-Dokumentation hinterlegen. Die Freischaltung erfolgt nach Prüfung durch das Atelier.'}</p>
+                          </div>
+                        </div>
+                        <form className="grid grid-cols-1 md:grid-cols-2 gap-4" onSubmit={async (e) => { e.preventDefault(); if (!legacyForm.beneficiary_name.trim()) return; setLoading(true); try { const r = await fetch('/api/legacy/beneficiary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(legacyForm), credentials: 'include' }); if (r.ok) { notifyUser(t('vault.legacy_submitted') || 'Anfrage gesendet. Die Freigabe erfolgt nach Prüfung.', 'success'); setLegacyForm({ beneficiary_name: '', beneficiary_contact: '', transfer_protocol: '' }); fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(res => res.ok && res.json().then(setClientLegacyRequests)); } else { const d = await r.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); } } finally { setLoading(false); } }}>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">{t('vault.legacy_beneficiary_name') || 'Name des Begünstigten'}</label>
+                            <input value={legacyForm.beneficiary_name} onChange={e => setLegacyForm(f => ({ ...f, beneficiary_name: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-4 text-zinc-200 text-sm" placeholder="Vollständiger Name" required />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">{t('vault.legacy_beneficiary_contact') || 'Kontakt (E-Mail oder Telefon)'}</label>
+                            <input value={legacyForm.beneficiary_contact} onChange={e => setLegacyForm(f => ({ ...f, beneficiary_contact: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-4 text-zinc-200 text-sm" placeholder="Optional" />
+                          </div>
+                          <div className="md:col-span-2 space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">{t('vault.legacy_transfer_protocol') || 'Übertragungsprotokoll / Hinweise'}</label>
+                            <textarea value={legacyForm.transfer_protocol} onChange={e => setLegacyForm(f => ({ ...f, transfer_protocol: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-4 text-zinc-200 text-sm h-24 resize-none" placeholder="Optionale Angaben zur geplanten Übertragung" />
+                          </div>
+                          <Button type="submit" className="md:col-span-2" disabled={loading}>{t('vault.legacy_submit') || 'Anfrage einreichen'}</Button>
+                        </form>
+                      </Card>
+                      {clientLegacyRequests.length > 0 && (
+                        <Card className="p-4">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">{t('vault.legacy_my_requests') || 'Ihre Legacy-Anfragen'}</h4>
+                          <ul className="space-y-3">
+                            {clientLegacyRequests.map((lr: any) => (
+                              <li key={lr.id} className="flex flex-wrap items-center justify-between gap-2 py-2 border-b border-zinc-800/50 last:border-0">
+                                <span className="text-zinc-300">{lr.beneficiary_name}</span>
+                                <Badge variant={lr.status === 'approved' ? 'emerald' : lr.status === 'rejected' ? 'red' : 'amber'}>{lr.status === 'pending' ? (t('vault.legacy_pending') || 'Ausstehend') : lr.status === 'approved' ? (t('vault.legacy_approved') || 'Freigegeben') : (t('vault.legacy_rejected') || 'Abgelehnt')}</Badge>
+                              </li>
+                            ))}
+                          </ul>
+                        </Card>
                       )}
                     </div>
                   )}
@@ -5301,9 +5491,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'advisors', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -5392,6 +5582,15 @@ export default function App() {
                           <div className="grid grid-cols-2 gap-4">
                             <Input label="Bewertung (€)" type="number" value={newPiece.valuation} onChange={(e: any) => setNewPiece({ ...newPiece, valuation: e.target.value })} />
                             <Input label="Anzahlung %" type="number" value={newPiece.deposit_pct} onChange={(e: any) => setNewPiece({ ...newPiece, deposit_pct: e.target.value })} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Preisanzeige</label>
+                            <select value={(newPiece as any).pricing_mode ?? 'fixed'} onChange={(e) => setNewPiece({ ...newPiece, pricing_mode: e.target.value as any })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
+                              <option value="fixed">{t('pricing.mode_fixed')}</option>
+                              <option value="starting_from">{t('pricing.mode_starting_from')}</option>
+                              <option value="price_on_request">{t('pricing.mode_price_on_request')}</option>
+                              <option value="hidden">{t('pricing.mode_hidden')}</option>
+                            </select>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <Input label="Materialien" value={newPiece.materials} onChange={(e: any) => setNewPiece({ ...newPiece, materials: e.target.value })} />
@@ -5920,6 +6119,221 @@ export default function App() {
                   </section>
                   )}
 
+                  {(adminTab === 'intelligence') && (
+                  <section className="space-y-8">
+                    <h3 className="text-xl font-serif italic text-amber-500/90">Imperial Intelligence</h3>
+                    <Card className="p-6 space-y-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">AI Client Profiling</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">Name</th><th className="py-2 pr-2">UHNW Score</th><th className="py-2 pr-2">Upsell</th><th className="py-2 pr-2">Invite</th><th className="py-2 pr-2">Spend</th><th className="py-2 pr-2">Vault Eng.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {intelligenceClientProfiles.slice(0, 50).map((p: any) => (
+                              <tr key={p.user_id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{p.name}</td>
+                                <td className="py-2 pr-2"><span className="text-amber-500 font-medium">{p.uhnw_potential_score ?? p.uhnw_score ?? 0}</span></td>
+                                <td className="py-2 pr-2">{p.upsell_recommendation ? <Badge variant="amber">Yes</Badge> : '—'}</td>
+                                <td className="py-2 pr-2">{p.invite_recommendation ? <Badge variant="emerald">Yes</Badge> : '—'}</td>
+                                <td className="py-2 pr-2">{(p.total_spend ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2">{Math.round(p.vault_engagement_level ?? 0)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                    <Card className="p-6 space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor Performance</h4>
+                        <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/intelligence/advisor-analytics/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">Advisor</th><th className="py-2 pr-2">Revenue</th><th className="py-2 pr-2">Commission Paid</th><th className="py-2 pr-2">Pending</th><th className="py-2 pr-2">Conversion %</th><th className="py-2 pr-2">Avg Deal</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {intelligenceAdvisorAnalytics.map((a: any) => (
+                              <tr key={a.profile_id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{a.advisor_name}</td>
+                                <td className="py-2 pr-2">{(a.total_revenue ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2 text-emerald-500/90">{(a.commission_paid ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2 text-amber-500/90">{(a.commission_pending ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2">{a.conversion_rate ?? a.conversion_rate_pct ?? 0}%</td>
+                                <td className="py-2 pr-2">{(a.average_deal_size ?? a.avg_deal_size ?? 0).toLocaleString('de-DE')} €</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                    <Card className="p-6 space-y-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Scarcity Heatmap</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">Piece</th><th className="py-2 pr-2">Views</th><th className="py-2 pr-2">Wishlist</th><th className="py-2 pr-2">Duration</th><th className="py-2 pr-2">Demand</th><th className="py-2 pr-2">Level</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {intelligenceScarcityHeatmap.slice(0, 30).map((h: any) => (
+                              <tr key={h.masterpiece_id} className={`border-b border-zinc-800/50 ${(h.scarcity_intensity ?? h.demand_score) >= 70 ? 'bg-amber-500/5' : (h.scarcity_intensity ?? h.demand_score) >= 30 ? 'bg-zinc-800/20' : ''}`}>
+                                <td className="py-2 pr-2 text-zinc-300">{h.title}</td>
+                                <td className="py-2 pr-2">{h.views ?? 0}</td>
+                                <td className="py-2 pr-2">{h.wishlist_adds ?? h.wishlist ?? 0}</td>
+                                <td className="py-2 pr-2">{h.viewing_duration_sec ?? h.viewing_duration_seconds ?? 0}s</td>
+                                <td className="py-2 pr-2 text-amber-500/90">{h.scarcity_intensity_score ?? h.demand_score ?? 0}</td>
+                                <td className="py-2 pr-2"><Badge variant={(h.demand_level ?? h.scarcity_intensity) === 'high_demand' ? 'amber' : (h.demand_level ?? h.scarcity_intensity) === 'low_interest' ? 'default' : 'outline'}>{h.demand_level ?? h.scarcity_intensity ?? '—'}</Badge></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                    <Card className="p-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Prestige Evolution</h4>
+                      <p className="text-xs text-zinc-500 mb-2">Recalculate client tiers from spend, resale and investment activity.</p>
+                      <Button variant="outline" size="sm" onClick={async () => {
+                        const res = await fetch('/api/admin/intelligence/recalc-prestige', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
+                        if (res.ok) { const d = await res.json(); notifyUser(d.recalculated ? `Tiers updated for ${d.recalculated} users.` : 'Tier updated.', 'success'); fetchData(); }
+                      }}>Recalc all tiers</Button>
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'legacy') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic text-amber-500/90">{t('admin.tab_legacy')}</h3>
+                    <Card className="p-6">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">User</th><th className="py-2 pr-2">Beneficiary</th><th className="py-2 pr-2">Contact</th><th className="py-2 pr-2">Status</th><th className="py-2 pr-2">Created</th><th className="py-2 pr-2"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminLegacyRequests.map((r: any) => (
+                              <tr key={r.id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{r.user_name}</td>
+                                <td className="py-2 pr-2">{r.beneficiary_name}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{r.beneficiary_contact || '—'}</td>
+                                <td className="py-2 pr-2"><Badge variant={r.status === 'approved' ? 'emerald' : r.status === 'rejected' ? 'red' : 'amber'}>{r.status}</Badge></td>
+                                <td className="py-2 pr-2 text-zinc-500">{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
+                                <td className="py-2 pr-2">
+                                  {r.status === 'pending' && (
+                                    <div className="flex gap-1">
+                                      <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                                        const res = await fetch(`/api/admin/legacy/requests/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }), credentials: 'include' });
+                                        if (res.ok) { notifyUser('Approved.', 'success'); fetch('/api/admin/legacy/requests', { credentials: 'include' }).then(x => x.ok && x.json().then(setAdminLegacyRequests)); }
+                                      }}>Approve</Button>
+                                      <Button variant="danger" size="sm" className="text-xs" onClick={async () => {
+                                        const res = await fetch(`/api/admin/legacy/requests/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }), credentials: 'include' });
+                                        if (res.ok) { notifyUser('Rejected.', 'success'); fetch('/api/admin/legacy/requests', { credentials: 'include' }).then(x => x.ok && x.json().then(setAdminLegacyRequests)); }
+                                      }}>Reject</Button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {adminLegacyRequests.length === 0 && <p className="text-zinc-500 text-sm italic py-4">No legacy requests.</p>}
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'intelligence') && (
+                  <section className="space-y-8">
+                    <h3 className="text-xl font-serif italic text-amber-500/90">Imperial Intelligence</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }); if (r.ok) setIntelligenceClientProfiles(await r.json()); }}>Client Profiles laden</Button>
+                      <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/advisor-analytics', { credentials: 'include' }); if (r.ok) setIntelligenceAdvisorAnalytics(await r.json()); }}>Advisor Analytics laden</Button>
+                      <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' }); if (r.ok) setIntelligenceScarcityHeatmap(await r.json()); }}>Scarcity Heatmap laden</Button>
+                    </div>
+                    {intelligenceClientProfiles.length > 0 && (
+                      <Card className="p-4 overflow-x-auto">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">AI Client Profiling</h4>
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Name</th><th className="py-2 pr-2">UHNW Score</th><th className="py-2 pr-2">Upsell</th><th className="py-2 pr-2">Invite</th><th className="py-2 pr-2">Spend</th></tr></thead>
+                          <tbody>
+                            {intelligenceClientProfiles.slice(0, 50).map((p: any) => (
+                              <tr key={p.user_id} className="border-b border-zinc-800/50"><td className="py-2 pr-2 text-zinc-300">{p.name}</td><td className="py-2 pr-2 text-amber-500">{p.uhnw_potential_score ?? '—'}</td><td className="py-2 pr-2">{p.upsell_recommendation ? <Badge variant="emerald">Yes</Badge> : '—'}</td><td className="py-2 pr-2">{p.invite_recommendation ? <Badge variant="amber">Yes</Badge> : '—'}</td><td className="py-2 pr-2">{(p.total_spend ?? 0).toLocaleString('de-DE')} €</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Card>
+                    )}
+                    {intelligenceAdvisorAnalytics.length > 0 && (
+                      <Card className="p-4 overflow-x-auto">
+                        <div className="flex justify-between items-center mb-3">
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor Performance</h4>
+                          <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/intelligence/advisor-analytics/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
+                        </div>
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Advisor</th><th className="py-2 pr-2">Revenue</th><th className="py-2 pr-2">Commission Paid</th><th className="py-2 pr-2">Pending</th><th className="py-2 pr-2">Conversion %</th><th className="py-2 pr-2">Avg Deal</th></tr></thead>
+                          <tbody>
+                            {intelligenceAdvisorAnalytics.map((a: any) => (
+                              <tr key={a.profile_id} className="border-b border-zinc-800/50"><td className="py-2 pr-2 text-zinc-300">{a.advisor_name}</td><td className="py-2 pr-2">{(a.total_revenue ?? 0).toLocaleString('de-DE')} €</td><td className="py-2 pr-2 text-amber-500">{(a.commission_paid ?? 0).toLocaleString('de-DE')} €</td><td className="py-2 pr-2">{(a.commission_pending ?? 0).toLocaleString('de-DE')} €</td><td className="py-2 pr-2">{a.conversion_rate ?? a.conversion_rate_pct ?? '—'}%</td><td className="py-2 pr-2">{(a.average_deal_size ?? a.avg_deal_size ?? 0).toLocaleString('de-DE')} €</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Card>
+                    )}
+                    {intelligenceScarcityHeatmap.length > 0 && (
+                      <Card className="p-4 overflow-x-auto">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Scarcity Heatmap</h4>
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Piece</th><th className="py-2 pr-2">Views</th><th className="py-2 pr-2">Wishlist</th><th className="py-2 pr-2">Duration</th><th className="py-2 pr-2">Demand</th><th className="py-2 pr-2">Level</th></tr></thead>
+                          <tbody>
+                            {intelligenceScarcityHeatmap.slice(0, 40).map((h: any) => (
+                              <tr key={h.masterpiece_id} className={`border-b border-zinc-800/50 ${(h.scarcity_intensity ?? h.demand_score) >= 70 ? 'bg-amber-500/5' : (h.scarcity_intensity ?? h.demand_score) >= 30 ? 'bg-zinc-800/30' : ''}`}><td className="py-2 pr-2 text-zinc-300 truncate max-w-[180px]">{h.title}</td><td className="py-2 pr-2">{h.views ?? 0}</td><td className="py-2 pr-2">{h.wishlist_adds ?? h.wishlist ?? 0}</td><td className="py-2 pr-2">{h.viewing_duration_sec ?? h.viewing_duration_seconds ?? 0}s</td><td className="py-2 pr-2 text-amber-500/90">{h.scarcity_intensity_score ?? h.demand_score ?? '—'}</td><td className="py-2 pr-2"><Badge variant={(h.demand_level ?? h.scarcity_intensity) === 'high_demand' ? 'amber' : (h.demand_level ?? h.scarcity_intensity) === 'low_interest' ? 'default' : 'outline'}>{h.demand_level ?? h.scarcity_intensity ?? '—'}</Badge></td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Card>
+                    )}
+                    <Card className="p-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Prestige Evolution</h4>
+                      <p className="text-xs text-zinc-500 mb-3">Tier aller Kunden anhand Aktivität neu berechnen.</p>
+                      <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/recalc-prestige', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' }); if (r.ok) { const d = await r.json(); notifyUser(d.recalculated ? `Tier für ${d.recalculated} Nutzer aktualisiert.` : 'Tier aktualisiert.', 'success'); fetchData(); } }}>Tier neu berechnen</Button>
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'legacy') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic text-amber-500/90">Legacy / Begünstigte</h3>
+                    <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/legacy/requests', { credentials: 'include' }); if (r.ok) setAdminLegacyRequests(await r.json()); }}>Anfragen laden</Button>
+                    {adminLegacyRequests.length > 0 ? (
+                      <Card className="p-4 overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Nutzer</th><th className="py-2 pr-2">Begünstigter</th><th className="py-2 pr-2">Kontakt</th><th className="py-2 pr-2">Status</th><th className="py-2 pr-2"></th></tr></thead>
+                          <tbody>
+                            {adminLegacyRequests.map((lr: any) => (
+                              <tr key={lr.id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{lr.user_name} ({lr.user_email})</td>
+                                <td className="py-2 pr-2">{lr.beneficiary_name}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{lr.beneficiary_contact || '—'}</td>
+                                <td className="py-2 pr-2"><Badge variant={lr.status === 'approved' ? 'emerald' : lr.status === 'rejected' ? 'red' : 'amber'}>{lr.status}</Badge></td>
+                                <td className="py-2 pr-2">{lr.status === 'pending' && (<><Button variant="outline" size="sm" className="mr-1" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }), credentials: 'include' }); fetchData(); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'approved' } : x)); }}>Freigeben</Button><Button variant="danger" size="sm" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }), credentials: 'include' }); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'rejected' } : x)); }}>Ablehnen</Button></>)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </Card>
+                    ) : <p className="text-zinc-500 text-sm italic">Keine Legacy-Anfragen. Nutzer können unter Vault oder Profil einen Begünstigten anlegen.</p>}
+                  </section>
+                  )}
+
                   {(adminTab === 'settings') && (
                   <>
                   <section className="space-y-4 lg:col-span-2">
@@ -6122,6 +6536,9 @@ export default function App() {
                 <span className="text-amber-500/60">Private Vault</span>
               </div>
             </div>
+            <div className="mt-4 pt-4 border-t border-zinc-800/50 text-[9px] text-zinc-600 uppercase tracking-wider">
+              {t('compliance.footer') || 'Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access requests as per Privacy Policy.'}
+            </div>
           </footer>
         )}
 
@@ -6153,11 +6570,10 @@ export default function App() {
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
                         <h3 className="text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
-                        {(selectedPiece as any).hide_price ? (
-                          <p className="text-zinc-500 italic">{t('private_terms.request')}</p>
-                        ) : (
-                          <p className="text-amber-500 text-2xl font-bold">{selectedPiece.valuation.toLocaleString()} €</p>
-                        )}
+                        {(() => {
+                        const price = getPiecePriceDisplay(selectedPiece, user);
+                        return <p className={price.showNegotiation || price.showInquiry ? 'text-zinc-500 italic' : 'text-amber-500 text-2xl font-bold'}>{price.label}</p>;
+                      })()}
                       </div>
                       <div className="flex items-center gap-1">
                         <button
@@ -6289,22 +6705,43 @@ export default function App() {
                     <div className="pt-8 border-t border-zinc-900 space-y-4">
                       {selectedPiece.status === 'available' && view !== 'admin' && (
                         <>
-                          {(selectedPiece as any).hide_price ? (
-                            <>
-                              <p className="text-zinc-500 text-sm italic">{t('private_terms.request')}</p>
-                              <Button className="w-full py-4 text-base" onClick={async () => {
-                                if (!user) return;
-                                setLoading(true);
-                                try {
-                                  const res = await fetch('/api/private-terms/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpiece_id: selectedPiece.id }), credentials: 'include' });
-                                  if (res.ok) { notifyUser(t('private_terms.requested'), 'success'); closePieceDetail(); }
-                                  else { const d = await res.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
-                                } finally { setLoading(false); }
-                              }}>
-                                <MessageCircle className="w-5 h-5" /> {t('private_terms.request')}
-                              </Button>
-                            </>
-                          ) : (
+                          {(() => {
+                            const price = getPiecePriceDisplay(selectedPiece, user);
+                            if (price.showNegotiation) return (
+                              <>
+                                <p className="text-zinc-500 text-sm italic">{t('private_terms.request')}</p>
+                                <Button className="w-full py-4 text-base" onClick={async () => {
+                                  if (!user) return;
+                                  setLoading(true);
+                                  try {
+                                    const res = await fetch('/api/private-terms/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpiece_id: selectedPiece.id }), credentials: 'include' });
+                                    if (res.ok) { notifyUser(t('private_terms.requested'), 'success'); closePieceDetail(); }
+                                    else { const d = await res.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
+                                  } finally { setLoading(false); }
+                                }}>
+                                  <MessageCircle className="w-5 h-5" /> {t('private_terms.request')}
+                                </Button>
+                              </>
+                            );
+                            if (price.showInquiry) return (
+                              <>
+                                <p className="text-zinc-500 text-sm italic">{t('pricing.price_on_request')}</p>
+                                <Button className="w-full py-4 text-base" onClick={async () => {
+                                  if (!user) return;
+                                  setLoading(true);
+                                  try {
+                                    const res = await fetch('/api/private-terms/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpiece_id: selectedPiece.id }), credentials: 'include' });
+                                    if (res.ok) { notifyUser(t('private_terms.requested'), 'success'); closePieceDetail(); }
+                                    else { const d = await res.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
+                                  } finally { setLoading(false); }
+                                }}>
+                                  <MessageCircle className="w-5 h-5" /> {t('concierge.cta_title')}
+                                </Button>
+                              </>
+                            );
+                            return null;
+                          })()}
+                          {!getPiecePriceDisplay(selectedPiece, user).showNegotiation && !getPiecePriceDisplay(selectedPiece, user).showInquiry && (
                             <>
                               <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
                                 <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
@@ -6651,7 +7088,7 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, isFavorite, onToggleFavorite }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void }) => (
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, isFavorite, onToggleFavorite, priceLabel }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string }) => (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
       <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
@@ -6678,7 +7115,7 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, is
     <div className="space-y-2">
       <div className="flex justify-between items-start">
         <h4 className="font-medium text-zinc-200 cursor-pointer hover:text-amber-500 transition-colors" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
-        <p className="text-amber-500 font-bold">{piece.valuation.toLocaleString()} €</p>
+        <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-zinc-500 italic text-sm' : 'text-amber-500/90 font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
       </div>
       <p className="text-xs text-zinc-500 line-clamp-2">{piece.description}</p>
       <div className="flex flex-wrap gap-1 mt-2">
