@@ -52,7 +52,8 @@ const COMPANY_INFO = {
   owner: "Antonio Bellanova",
   address: "Ahorstraße 8, 50765 Köln, Deutschland",
   iban: "DE12 3456 7890 1234 5678 90",
-  vatId: "DE457682154"
+  vatId: "DE457682154",
+  steuerId: "12/345/67890"  // Steuer-ID / Steuernummer – bitte mit Ihrer echten Nummer ersetzen
 };
 
 const LANGUAGES = [
@@ -276,6 +277,46 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Notizen",
     "admin.new_appointment": "Neuer Termin",
     "admin.no_appointments": "Keine Termine.",
+    "admin.advisors": "Berater",
+    "admin.invite_advisor": "Einladen",
+    "admin.activate_advisor": "Aktivieren",
+    "admin.commission_override": "Provisionssatz",
+    "admin.export_commissions": "Provisionen exportieren",
+    "admin.manage_commissions": "Provisionen verwalten",
+    "admin.no_pending_commissions": "Keine ausstehenden Provisionen.",
+    "admin.commission_marked_paid": "Als ausgezahlt markiert.",
+    "admin.mark_paid": "Ausgezahlt",
+    "admin.no_advisors": "Keine Berater.",
+    "advisor.title": "Berater",
+    "advisor.overview": "Übersicht",
+    "advisor.dashboard": "Dashboard",
+    "advisor.clients": "Kunden",
+    "advisor.commissions": "Provisionen",
+    "advisor.contracts": "Verträge",
+    "advisor.referred_clients": "Vermittelte Kunden",
+    "advisor.active_deals": "Aktive Deals",
+    "advisor.closed_deals": "Abgeschlossene Deals",
+    "advisor.pending_commission": "Ausstehende Provision",
+    "advisor.paid_commission": "Ausgezahlte Provision",
+    "advisor.welcome_message": "Ihre Übersicht: verwaltete Kunden, Deals und Provisionen.",
+    "advisor.jurisdiction": "Gerichtsstand: Deutschland, sofern nicht anders vereinbart.",
+    "advisor.my_clients": "Meine Kunden",
+    "advisor.add_client_email": "E-Mail des Kunden",
+    "advisor.link_client": "Kunden verknüpfen",
+    "advisor.client_linked": "Kunde verknüpft.",
+    "advisor.no_clients": "Noch keine Kunden.",
+    "advisor.piece": "Stück",
+    "advisor.advisor_name": "Berater",
+    "advisor.client_name": "Kunde",
+    "advisor.sale_amount": "Verkaufssumme",
+    "advisor.commission_pct": "Prozentsatz",
+    "advisor.commission_amount": "Provision",
+    "advisor.status": "Status",
+    "advisor.no_commissions": "Noch keine Provisionen.",
+    "advisor.unsigned": "Nicht unterzeichnet",
+    "view.advisor": "Berater",
+    "sign_contract": "Unterschreiben",
+    "signed": "Unterzeichnet",
     "appointments.proposed": "Vorgeschlagen",
     "appointments.confirmed": "Bestätigt",
     "appointments.cancelled": "Abgesagt",
@@ -598,6 +639,46 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Notes",
     "admin.new_appointment": "New appointment",
     "admin.no_appointments": "No appointments.",
+    "admin.advisors": "Advisors",
+    "admin.invite_advisor": "Invite",
+    "admin.activate_advisor": "Activate",
+    "admin.commission_override": "Commission rate",
+    "admin.export_commissions": "Export commissions",
+    "admin.manage_commissions": "Manage commissions",
+    "admin.no_pending_commissions": "No pending commissions.",
+    "admin.commission_marked_paid": "Marked as paid.",
+    "admin.mark_paid": "Mark paid",
+    "admin.no_advisors": "No advisors.",
+    "advisor.title": "Advisor",
+    "advisor.overview": "Overview",
+    "advisor.dashboard": "Dashboard",
+    "advisor.clients": "Clients",
+    "advisor.commissions": "Commissions",
+    "advisor.contracts": "Contracts",
+    "advisor.referred_clients": "Referred clients",
+    "advisor.active_deals": "Active deals",
+    "advisor.closed_deals": "Closed deals",
+    "advisor.pending_commission": "Pending commission",
+    "advisor.paid_commission": "Paid commission",
+    "advisor.welcome_message": "Your overview: managed clients, deals and commissions.",
+    "advisor.jurisdiction": "Jurisdiction: Germany, unless otherwise agreed.",
+    "advisor.my_clients": "My clients",
+    "advisor.add_client_email": "Client email",
+    "advisor.link_client": "Link client",
+    "advisor.client_linked": "Client linked.",
+    "advisor.no_clients": "No clients yet.",
+    "advisor.piece": "Piece",
+    "advisor.advisor_name": "Advisor",
+    "advisor.client_name": "Client",
+    "advisor.sale_amount": "Sale amount",
+    "advisor.commission_pct": "Rate",
+    "advisor.commission_amount": "Commission",
+    "advisor.status": "Status",
+    "advisor.no_commissions": "No commissions yet.",
+    "advisor.unsigned": "Unsigned",
+    "view.advisor": "Advisor",
+    "sign_contract": "Sign",
+    "signed": "Signed",
     "appointments.proposed": "Proposed",
     "appointments.confirmed": "Confirmed",
     "appointments.cancelled": "Cancelled",
@@ -896,6 +977,46 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Note",
     "admin.new_appointment": "Nuovo appuntamento",
     "admin.no_appointments": "Nessun appuntamento.",
+    "admin.advisors": "Consulenti",
+    "admin.invite_advisor": "Invita",
+    "admin.activate_advisor": "Attiva",
+    "admin.commission_override": "Commissione %",
+    "admin.export_commissions": "Esporta commissioni",
+    "admin.manage_commissions": "Gestisci commissioni",
+    "admin.no_pending_commissions": "Nessuna commissione in sospeso.",
+    "admin.commission_marked_paid": "Segnata come pagata.",
+    "admin.mark_paid": "Segna come pagato",
+    "admin.no_advisors": "Nessun consulente.",
+    "advisor.title": "Consulente",
+    "advisor.overview": "Panoramica",
+    "advisor.dashboard": "Dashboard",
+    "advisor.clients": "Clienti",
+    "advisor.commissions": "Commissioni",
+    "advisor.contracts": "Contratti",
+    "advisor.referred_clients": "Clienti referenziati",
+    "advisor.active_deals": "Deal attivi",
+    "advisor.closed_deals": "Deal chiusi",
+    "advisor.pending_commission": "Commissione in sospeso",
+    "advisor.paid_commission": "Commissione pagata",
+    "advisor.welcome_message": "Panoramica: clienti, deal e commissioni.",
+    "advisor.jurisdiction": "Foro: Germania, salvo diverso accordo.",
+    "advisor.my_clients": "I miei clienti",
+    "advisor.add_client_email": "Email cliente",
+    "advisor.link_client": "Collega cliente",
+    "advisor.client_linked": "Cliente collegato.",
+    "advisor.no_clients": "Nessun cliente ancora.",
+    "advisor.piece": "Opera",
+    "advisor.advisor_name": "Consulente",
+    "advisor.client_name": "Cliente",
+    "advisor.sale_amount": "Importo vendita",
+    "advisor.commission_pct": "Percentuale",
+    "advisor.commission_amount": "Commissione",
+    "advisor.status": "Stato",
+    "advisor.no_commissions": "Nessuna commissione ancora.",
+    "advisor.unsigned": "Non firmato",
+    "view.advisor": "Consulente",
+    "sign_contract": "Firma",
+    "signed": "Firmato",
     "appointments.proposed": "Proposto",
     "appointments.confirmed": "Confermato",
     "appointments.cancelled": "Annullato",
@@ -1453,7 +1574,7 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'vault' | 'admin' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'vault' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
@@ -1545,7 +1666,16 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'settings'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'advisors' | 'settings'>('overview');
+  const [adminAdvisors, setAdminAdvisors] = useState<any[]>([]);
+  const [adminAdvisorCommissions, setAdminAdvisorCommissions] = useState<any[]>([]);
+  const [advisorDashboard, setAdvisorDashboard] = useState<any>(null);
+  const [advisorClients, setAdvisorClients] = useState<any[]>([]);
+  const [advisorCommissions, setAdvisorCommissions] = useState<any[]>([]);
+  const [advisorContracts, setAdvisorContracts] = useState<any[]>([]);
+  const [advisorTab, setAdvisorTab] = useState<'dashboard' | 'clients' | 'commissions' | 'contracts'>('dashboard');
+  const [advisorNewClientEmail, setAdvisorNewClientEmail] = useState('');
+  const [advisorNotActivated, setAdvisorNotActivated] = useState(false);
   const [adminAtelierSaving, setAdminAtelierSaving] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -1857,6 +1987,27 @@ export default function App() {
         if (fracOffersRes.ok) setAdminFractionalOffers(await fracOffersRes.json());
         if (serviceReqRes.ok) setAdminServiceRequests(await serviceReqRes.json());
         if (contactReqRes.ok) setAdminContactRequests(await contactReqRes.json());
+        const advisorsRes = await fetch('/api/admin/advisors');
+        if (advisorsRes.ok) setAdminAdvisors(await advisorsRes.json());
+        const commissionsRes = await fetch('/api/admin/advisors/commissions');
+        if (commissionsRes.ok) setAdminAdvisorCommissions(await commissionsRes.json());
+      }
+
+      if (user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR) {
+        try {
+          const [dashRes, clientsRes, commissionsRes, contractsRes] = await Promise.all([
+            fetch('/api/advisor/dashboard', { credentials: 'include' }),
+            fetch('/api/advisor/clients', { credentials: 'include' }),
+            fetch('/api/advisor/commissions', { credentials: 'include' }),
+            fetch('/api/advisor/contracts', { credentials: 'include' })
+          ]);
+          const any403 = [dashRes, clientsRes, commissionsRes, contractsRes].some(r => r.status === 403);
+          if (any403) setAdvisorNotActivated(true); else setAdvisorNotActivated(false);
+          if (dashRes.ok) setAdvisorDashboard(await dashRes.json());
+          if (clientsRes.ok) setAdvisorClients(await clientsRes.json());
+          if (commissionsRes.ok) setAdvisorCommissions(await commissionsRes.json());
+          if (contractsRes.ok) setAdvisorContracts(await contractsRes.json());
+        } catch (_) {}
       }
 
       const apptsRes = await fetch(`/api/appointments?userId=${user.id}`);
@@ -2273,93 +2424,148 @@ export default function App() {
     }
   };
 
-  const downloadPDF = (title: string, content: string, piece?: Masterpiece, options?: { docRef?: string; fileName?: string; contractType?: string }) => {
+  const loadImageAsDataUrl = (url: string): Promise<string | null> => {
+    return new Promise((resolve) => {
+      if (!url || !url.startsWith('http')) resolve(null);
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(null); return; }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.92));
+        } catch { resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  };
+
+  const addPdfFooter = (doc: any, pageWidth: number, pageHeight: number, margin: number) => {
+    const footerY = pageHeight - 18;
+    doc.setDrawColor(197, 160, 89);
+    doc.setLineWidth(0.15);
+    doc.line(margin, footerY - 6, pageWidth - margin, footerY - 6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text(COMPANY_INFO.name, margin, footerY);
+    doc.text(COMPANY_INFO.address, margin, footerY + 4);
+    doc.text(`USt-IdNr.: ${COMPANY_INFO.vatId}  |  Steuer-ID: ${COMPANY_INFO.steuerId}`, margin, footerY + 8);
+  };
+
+  const downloadPDF = async (title: string, content: string, piece?: Masterpiece, options?: { docRef?: string; fileName?: string; contractType?: string }) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 26;
+    const margin = 24;
 
-    // Soft Ivory Background
-    doc.setFillColor(253, 252, 251);
+    const typ = (options?.contractType || '').toLowerCase();
+    const showProductImage = piece?.image_url && (typ === 'deposit' || typ === 'invoice' || typ === 'certificate' || title.toLowerCase().includes('certificat'));
+    let productImgData: string | null = null;
+    if (showProductImage && piece!.image_url) {
+      productImgData = await loadImageAsDataUrl(piece!.image_url);
+    }
+
+    // Hochwertiger Hintergrund
+    doc.setFillColor(253, 252, 250);
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
-    
-    // Very faint watermark
-    doc.setFontSize(44);
-    doc.setTextColor(248, 248, 248);
+
+    doc.setFontSize(38);
+    doc.setTextColor(250, 249, 247);
     doc.setFont("times", "italic");
     doc.text("ANTONIO BELLANOVA", pageWidth / 2, pageHeight / 2, { align: "center", angle: 45 });
 
-    // Vertical text: very light, minimal distraction
     doc.setFontSize(5);
-    doc.setTextColor(238, 238, 238);
+    doc.setTextColor(242, 242, 242);
     doc.setFont("helvetica", "normal");
-    doc.text("PRIVATE VAULT", 10, pageHeight / 2, { angle: 90 });
-    doc.text("KÖLN", pageWidth - 10, pageHeight / 2, { angle: -90 });
+    doc.text("PRIVATE VAULT · KÖLN", 12, pageHeight / 2, { angle: 90 });
+    doc.text("JUWELEN & SCHMUCKATELIER", pageWidth - 12, pageHeight / 2, { angle: -90 });
 
-    // Header (compact)
+    // Header – klar und lesbar
     doc.setFont("times", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(180, 140, 60);
+    doc.text("JUWELEN & SCHMUCKATELIER ANTONIO BELLANOVA", pageWidth / 2, 22, { align: "center" });
     doc.setFontSize(9);
-    doc.setTextColor(197, 160, 89);
-    doc.text("ANTONIO BELLANOVA", pageWidth / 2, 24, { align: "center", charSpace: 3 });
-    doc.setFontSize(22);
-    doc.setTextColor(0, 0, 0);
-    doc.text(title.toUpperCase(), pageWidth / 2, 40, { align: "center", charSpace: 1 });
-    
-    doc.setDrawColor(230, 230, 230);
-    doc.setLineWidth(0.2);
+    doc.setTextColor(80, 80, 80);
+    doc.text(COMPANY_INFO.address, pageWidth / 2, 28, { align: "center" });
+    doc.setDrawColor(197, 160, 89);
+    doc.setLineWidth(0.3);
+    doc.line(margin, 32, pageWidth - margin, 32);
+    doc.setFontSize(14);
+    doc.setTextColor(20, 20, 20);
+    doc.setFont("helvetica", "bold");
+    doc.text(title.toUpperCase(), pageWidth / 2, 42, { align: "center" });
+    doc.setDrawColor(230, 230, 228);
+    doc.setLineWidth(0.15);
     doc.line(margin, 46, pageWidth - margin, 46);
-    doc.line(margin, 58, pageWidth - margin, 58);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(6);
-    doc.setTextColor(120, 120, 120);
-    doc.text("DOCUMENT REF", margin, 52);
-    doc.text("CLIENT REF", margin + 38, 52);
-    doc.text("VERSION", margin + 72, 52);
-    doc.text("DATE", margin + 98, 52);
+    doc.setFontSize(7);
+    doc.setTextColor(110, 110, 110);
+    doc.text("DOK.-REF.", margin, 52);
+    doc.text("KUNDENREF.", margin + 32, 52);
+    doc.text("DATUM", margin + 62, 52);
+    doc.text("SEITE", pageWidth - margin - 18, 52);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8);
     doc.setTextColor(40, 40, 40);
     const docRef = options?.docRef || `REF-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
     doc.text(docRef, margin, 56);
-    doc.text(`CL-${user?.id ?? '—'}`, margin + 38, 56);
-    doc.text("v1.0", margin + 72, 56);
-    doc.text(new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'numeric', year: 'numeric' }), margin + 98, 56);
+    doc.text(`CL-${user?.id ?? '—'}`, margin + 32, 56);
+    doc.text(new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }), margin + 62, 56);
 
-    let currentY = 68;
+    let currentY = 64;
 
-    // Asset block (compact)
+    // Produktbild (für Anzahlung, Kaufvertrag, Echtheitszertifikat)
+    const imgSize = 38;
+    const imgX = pageWidth - margin - imgSize;
+    if (productImgData && piece) {
+      try {
+        doc.addImage(productImgData, 'JPEG', imgX, currentY, imgSize, imgSize);
+        doc.setDrawColor(220, 210, 195);
+        doc.setLineWidth(0.2);
+        doc.rect(imgX, currentY, imgSize, imgSize, 'D');
+      } catch (_) {}
+    }
+
+    // Asset-Block (mit oder ohne Bild daneben)
     if (piece && (piece.title || piece.serial_id)) {
-      const displayTitle = (piece.title && piece.title.length > 1) ? piece.title : (piece.serial_id ? `Serial ${piece.serial_id}` : 'Masterpiece');
-        doc.setFont("times", "normal");
-      doc.setFontSize(13);
-        doc.setTextColor(0, 0, 0);
-      doc.text(displayTitle, pageWidth / 2, currentY, { align: "center" });
-      currentY += 5;
+      const textWidth = productImgData ? imgX - margin - 8 : pageWidth - 2 * margin;
+      const displayTitle = (piece.title && piece.title.length > 1) ? piece.title : (piece.serial_id ? `Serial ${piece.serial_id}` : 'Meisterstück');
+      doc.setFont("times", "normal");
+      doc.setFontSize(12);
+      doc.setTextColor(20, 20, 20);
+      doc.text(displayTitle, margin, currentY + 6, { maxWidth: textWidth });
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Serial: ${piece.serial_id || '—'}`, pageWidth / 2, currentY, { align: "center" });
-      currentY += 10;
-      const blockH = 26;
-      doc.setFillColor(250, 249, 247);
-      doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'F');
-      doc.setDrawColor(235, 230, 220);
-      doc.rect(margin, currentY, pageWidth - 2 * margin, blockH, 'D');
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(6);
-        doc.setTextColor(197, 160, 89);
-      doc.text("ASSET SPECIFICATIONS", margin + 3, currentY + 7);
-      doc.text("FINANCIAL SUMMARY", pageWidth / 2 + 3, currentY + 7);
-        doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-        doc.setTextColor(60, 60, 60);
-      doc.text((piece.materials && piece.materials.length > 1) ? piece.materials : '—', margin + 3, currentY + 14);
-      doc.text((piece.gemstones && piece.gemstones.length > 1) ? piece.gemstones : '—', margin + 3, currentY + 20);
+      doc.setTextColor(90, 90, 90);
+      doc.text(`Seriennummer: ${piece.serial_id || '—'}`, margin, currentY + 12);
+      const blockH = 28;
+      currentY += 18;
+      doc.setFillColor(252, 251, 249);
+      doc.rect(margin, currentY, textWidth, blockH, 'F');
+      doc.setDrawColor(235, 228, 218);
+      doc.rect(margin, currentY, textWidth, blockH, 'D');
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(6);
+      doc.setTextColor(180, 140, 60);
+      doc.text("SPEZIFIKATION", margin + 4, currentY + 7);
+      doc.text("BEWERTUNG", margin + textWidth / 2 + 4, currentY + 7);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(50, 50, 50);
+      doc.text((piece.materials && piece.materials.length > 1) ? piece.materials : '—', margin + 4, currentY + 14);
+      doc.text((piece.gemstones && piece.gemstones.length > 1) ? piece.gemstones : '—', margin + 4, currentY + 20);
       const val = piece.valuation != null && Number(piece.valuation) > 0 ? Number(piece.valuation).toLocaleString('de-DE') + ' EUR' : '—';
       doc.setFontSize(10);
-        doc.setTextColor(0, 0, 0);
-      doc.text(val, pageWidth / 2 + 3, currentY + 16);
-      currentY += blockH + 8;
+      doc.setTextColor(20, 20, 20);
+      doc.text(val, margin + textWidth / 2 + 4, currentY + 16);
+      currentY += blockH + 10;
     }
 
     // Body: use tidy generated text when we have piece + contractType, else stripped HTML
@@ -2371,10 +2577,15 @@ export default function App() {
       const pct = piece.deposit_pct ?? 10;
       const depositAmount = piece.valuation != null ? ((piece.valuation * pct) / 100).toLocaleString('de-DE') : '—';
       const titlePiece = (piece.title && piece.title.length > 1) ? piece.title : serial;
+      const isDe = (language || 'de').startsWith('de');
       if (typ === 'deposit') {
-        bodyText = `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required to initiate bespoke production. The asset remains secured within the Antonio Bellanova Vault. Ownership remains with the Atelier until final settlement and transfer of title.\n\nBy signing, the Client acknowledges the terms and commits to the deposit payment. Governing law: Germany. Jurisdiction: Cologne.`;
+        bodyText = isDe
+          ? `ANZAHLUNGSVERTRAG\n\nDieser Vertrag bestätigt die formale Reservierung des Meisterstücks „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Eine nicht erstattungsfähige Anzahlung in Höhe von ${depositAmount} EUR (${pct} % des Gesamtbetrags) ist zur Einleitung der Fertigung erforderlich. Das Objekt bleibt im Antonio Bellanova Vault verwahrt. Das Eigentum verbleibt beim Atelier bis zur vollständigen Bezahlung und Übertragung.\n\nMit der Unterzeichnung erkennt der Kunde die Bedingungen an und verpflichtet sich zur Anzahlung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuer-ID: ${COMPANY_INFO.steuerId}`
+          : `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'invoice') {
-        bodyText = `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. The remaining balance is due as per the payment instructions. Upon full payment and confirmation, ownership will be transferred and a Certificate of Authenticity will be issued.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+        bodyText = isDe
+          ? `KAUFVERTRAG / SCHLUSSRECHNUNG\n\nSchlussrechnung für das Meisterstück „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Der Restbetrag ist gemäß den Zahlungsanweisungen fällig. Nach vollständiger Zahlung und Bestätigung wird das Eigentum übertragen und ein Echtheitszertifikat ausgestellt.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuer-ID: ${COMPANY_INFO.steuerId}`
+          : `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. Upon full payment, ownership will be transferred and a Certificate of Authenticity will be issued. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'resale_commission' || typ === 'resale') {
         bodyText = `Resale Commission Agreement for the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. This agreement governs the secondary market sale of the asset through the Antonio Bellanova Vault platform. Commission and payout terms apply as per the signed agreement. Platform resale ensures Registry update, new Certificate, and warranty continuity.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'vip') {
@@ -2404,56 +2615,71 @@ export default function App() {
     }
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(30, 30, 30);
-    const lineHeight = 4.8;
-    const sigY = pageHeight - 42;
-    const maxBodyY = sigY - 14;
+    doc.setFontSize(10);
+    doc.setTextColor(25, 25, 25);
+    const lineHeight = 5.2;
+    const footerHeight = 22;
+    const sigY = pageHeight - footerHeight - 36;
+    const maxBodyY = sigY - 12;
     const splitText = doc.splitTextToSize(bodyText, pageWidth - 2 * margin - 4);
     let page = 1;
     for (let i = 0; i < splitText.length; i++) {
       if (currentY + lineHeight > maxBodyY && page === 1) {
+        addPdfFooter(doc, pageWidth, pageHeight, margin);
+        doc.setPage(1);
+        doc.setFontSize(7);
+        doc.setTextColor(140, 140, 140);
+        doc.text("1", pageWidth - margin - 12, 56);
         doc.addPage();
         page++;
-        doc.setFillColor(253, 252, 251);
+        doc.setFillColor(253, 252, 250);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
-        doc.setFontSize(5);
-        doc.setTextColor(238, 238, 238);
-        doc.text("PRIVATE VAULT", 12, pageHeight / 2, { angle: 90 });
-        doc.text("KÖLN", pageWidth - 12, pageHeight / 2, { angle: -90 });
         currentY = margin;
-      } else if (currentY + lineHeight > pageHeight - margin && page > 1) {
+      } else if (currentY + lineHeight > pageHeight - margin - footerHeight && page > 1) {
+        addPdfFooter(doc, pageWidth, pageHeight, margin);
+        doc.setFontSize(7);
+        doc.setTextColor(140, 140, 140);
+        doc.text(String(page), pageWidth - margin - 12, pageHeight - 10);
         doc.addPage();
         page++;
-        doc.setFillColor(253, 252, 251);
+        doc.setFillColor(253, 252, 250);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
         currentY = margin;
       }
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(10);
+      doc.setTextColor(25, 25, 25);
       doc.text(splitText[i], margin, currentY, { align: "justify" });
       currentY += lineHeight;
     }
 
-    const signAtY = page > 1 ? currentY + 12 : sigY;
+    const signAtY = page > 1 ? currentY + 14 : sigY;
     if (page > 1) doc.setPage(page);
-    doc.setDrawColor(230, 230, 230);
+    addPdfFooter(doc, pageWidth, pageHeight, margin);
+    const totalPages = page;
+    doc.setFontSize(7);
+    doc.setTextColor(140, 140, 140);
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.text(`${p} / ${totalPages}`, pageWidth - margin - 12, pageHeight - 10);
+    }
+    doc.setPage(page);
+    doc.setDrawColor(230, 228, 225);
     doc.setLineWidth(0.2);
-    doc.line(margin, signAtY - 10, pageWidth - margin, signAtY - 10);
+    doc.line(margin, signAtY - 12, pageWidth - margin, signAtY - 12);
     doc.setFont("times", "italic");
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(13);
+    doc.setTextColor(20, 20, 20);
     doc.text("Antonio Bellanova", margin, signAtY);
     doc.setDrawColor(197, 160, 89);
-    doc.setLineWidth(0.2);
-    doc.line(margin, signAtY + 3, margin + 55, signAtY + 3);
+    doc.setLineWidth(0.25);
+    doc.line(margin, signAtY + 2, margin + 50, signAtY + 2);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5);
-    doc.setTextColor(120, 120, 120);
-    doc.text("ATELIER DIRECTOR", margin, signAtY + 8);
-    doc.line(pageWidth - margin - 55, signAtY + 3, pageWidth - margin, signAtY + 3);
-    doc.text("CLIENT ENDORSEMENT", pageWidth - margin - 55, signAtY + 8);
+    doc.setFontSize(6);
+    doc.setTextColor(110, 110, 110);
+    doc.text("ATELIER · VERANTWORTLICH", margin, signAtY + 7);
+    doc.line(pageWidth - margin - 50, signAtY + 2, pageWidth - margin, signAtY + 2);
+    doc.text("KUNDENUNTERSCHRIFT", pageWidth - margin - 50, signAtY + 7);
 
     const fileName = options?.fileName || `${title.replace(/\s+/g, '_')}.pdf`;
     doc.save(fileName);
@@ -3123,6 +3349,9 @@ export default function App() {
           )}
           {user.role === UserRole.INVESTOR && (
             <NavItem active={view === 'investor'} icon={BarChart3} label={t('investor.title')} onClick={() => setView('investor')} />
+          )}
+          {user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR && (
+            <NavItem active={view === 'advisor'} icon={BarChart3} label={t('advisor.title') || 'Advisor'} onClick={() => setView('advisor')} />
           )}
           {user.role === UserRole.ADMIN && (
             <NavItem active={view === 'admin'} icon={Users} label={t('management')} onClick={() => setView('admin')} />
@@ -4022,7 +4251,7 @@ export default function App() {
                             <Button variant="outline" className="flex-1 py-2 text-xs" onClick={() => setSelectedCert(cert)}><Eye className="w-3 h-3" /> {t('view')}</Button>
                             <Button variant="outline" className="flex-1 py-2 text-xs" onClick={() => {
                               const p = masterpieces.find(m => m.id === cert.masterpiece_id);
-                              downloadPDF(t('cert.title'), cert.content, p);
+                              downloadPDF(t('cert.title'), cert.content, p, { contractType: 'certificate' });
                             }}><FileDown className="w-3 h-3" /> {t('common.pdf')}</Button>
                           </div>
                         </Card>
@@ -4419,6 +4648,141 @@ export default function App() {
               </motion.div>
             )}
 
+            {view === 'advisor' && user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                  <Card className="p-5 border-amber-500/20 bg-amber-500/5" hoverGlow>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.referred_clients')}</p>
+                    <p className="text-2xl font-bold text-amber-500">{advisorDashboard?.totalReferredClients ?? 0}</p>
+                  </Card>
+                  <Card className="p-5" hoverGlow>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.active_deals')}</p>
+                    <p className="text-2xl font-bold text-zinc-100">{advisorDashboard?.activeDeals ?? 0}</p>
+                  </Card>
+                  <Card className="p-5" hoverGlow>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.closed_deals')}</p>
+                    <p className="text-2xl font-bold text-zinc-100">{advisorDashboard?.closedDeals ?? 0}</p>
+                  </Card>
+                  <Card className="p-5 border-amber-500/20" hoverGlow>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.pending_commission')}</p>
+                    <p className="text-2xl font-bold text-amber-500">{(advisorDashboard?.pendingCommission ?? 0).toLocaleString('de-DE')} €</p>
+                  </Card>
+                  <Card className="p-5 border-emerald-500/20 bg-emerald-500/5" hoverGlow>
+                    <p className="text-[10px] text-zinc-500 uppercase tracking-widest">{t('advisor.paid_commission')}</p>
+                    <p className="text-2xl font-bold text-emerald-500">{(advisorDashboard?.paidCommission ?? 0).toLocaleString('de-DE')} €</p>
+                  </Card>
+                </div>
+                <div className="flex gap-2 border-b border-zinc-800 pb-4">
+                  <TabButton active={advisorTab === 'dashboard'} label={t('advisor.overview')} onClick={() => setAdvisorTab('dashboard')} icon={TrendingUp} />
+                  <TabButton active={advisorTab === 'clients'} label={t('advisor.clients')} onClick={() => setAdvisorTab('clients')} icon={Users} />
+                  <TabButton active={advisorTab === 'commissions'} label={t('advisor.commissions')} onClick={() => setAdvisorTab('commissions')} icon={CreditCard} />
+                  <TabButton active={advisorTab === 'contracts'} label={t('advisor.contracts')} onClick={() => setAdvisorTab('contracts')} icon={FileText} />
+                </div>
+                {advisorTab === 'clients' && (
+                  <Card className="p-6 space-y-4">
+                    <h4 className="text-lg font-serif italic">{t('advisor.my_clients')}</h4>
+                    <div className="flex gap-3 flex-wrap">
+                      <input type="email" placeholder={t('advisor.add_client_email')} value={advisorNewClientEmail} onChange={(e: any) => setAdvisorNewClientEmail(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-64" />
+                      <Button variant="primary" className="text-sm" onClick={async () => {
+                        if (!advisorNewClientEmail.trim()) return;
+                        const res = await fetch('/api/advisor/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: advisorNewClientEmail.trim() }), credentials: 'include' });
+                        const data = await res.json().catch(() => ({}));
+                        if (res.ok) { notifyUser(t('advisor.client_linked') || 'Client linked.'); setAdvisorNewClientEmail(''); fetchData(); } else notifyUser(data.error || 'Error', 'error');
+                      }}>{t('advisor.link_client')}</Button>
+                    </div>
+                    <div className="space-y-2">
+                      {advisorClients.map((c: any) => (
+                        <div key={c.id} className="flex justify-between items-center p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                          <div>
+                            <p className="font-medium text-zinc-200">{c.name}</p>
+                            <p className="text-xs text-zinc-500">{c.email}</p>
+                          </div>
+                          <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300" onClick={async () => {
+                            const res = await fetch(`/api/advisor/clients/${c.id}`, { method: 'DELETE', credentials: 'include' });
+                            if (res.ok) fetchData();
+                          }}>{t('cancel')}</Button>
+                        </div>
+                      ))}
+                      {advisorClients.length === 0 && <p className="text-sm text-zinc-500 italic">{t('advisor.no_clients')}</p>}
+                    </div>
+                  </Card>
+                )}
+                {advisorTab === 'commissions' && (
+                  <Card className="p-6 overflow-x-auto">
+                    <h4 className="text-lg font-serif italic mb-4">{t('advisor.commissions')}</h4>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                          <th className="py-2 pr-4">{t('advisor.piece')}</th>
+                          <th className="py-2 pr-4">{t('advisor.client_name')}</th>
+                          <th className="py-2 pr-4">{t('advisor.sale_amount')}</th>
+                          <th className="py-2 pr-4">{t('advisor.commission_pct')}</th>
+                          <th className="py-2 pr-4">{t('advisor.commission_amount')}</th>
+                          <th className="py-2">{t('advisor.status')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {advisorCommissions.map((c: any) => (
+                          <tr key={c.id} className="border-b border-zinc-800/50">
+                            <td className="py-3 pr-4 text-zinc-200">{c.masterpiece_title || c.masterpiece_id}</td>
+                            <td className="py-3 pr-4 text-zinc-400">{c.client_name}</td>
+                            <td className="py-3 pr-4">{Number(c.sale_amount).toLocaleString('de-DE')} €</td>
+                            <td className="py-3 pr-4">{c.commission_pct}%</td>
+                            <td className="py-3 pr-4 text-amber-500">{Number(c.commission_amount).toLocaleString('de-DE')} €</td>
+                            <td className="py-3"><Badge variant={c.status === 'paid_out' ? 'emerald' : c.status === 'confirmed' ? 'amber' : 'zinc'}>{c.status}</Badge></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {advisorCommissions.length === 0 && <p className="text-sm text-zinc-500 italic py-4">{t('advisor.no_commissions')}</p>}
+                  </Card>
+                )}
+                {advisorTab === 'contracts' && (
+                  <Card className="p-6 space-y-4">
+                    <h4 className="text-lg font-serif italic">{t('advisor.contracts')}</h4>
+                    {['nda', 'advisor_agreement', 'commission_agreement'].map((type: string) => {
+                      const c = advisorContracts.find((x: any) => x.type === type);
+                      return (
+                        <div key={type} className="flex justify-between items-center p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                          <div>
+                            <p className="font-medium text-zinc-200">{type.replace(/_/g, ' ')}</p>
+                            <p className="text-xs text-zinc-500">{c?.signed_at ? t('signed') + ': ' + new Date(c.signed_at).toLocaleDateString() : t('advisor.unsigned')}</p>
+                          </div>
+                          {c?.status === 'signed' ? (
+                            <Badge variant="emerald">{t('signed')}</Badge>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              const res = await fetch(`/api/advisor/contracts/${type}/sign`, { method: 'POST', credentials: 'include' });
+                              if (res.ok) fetchData();
+                            }}>{t('sign_contract')}</Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </Card>
+                )}
+                {advisorTab === 'dashboard' && (
+                  <Card className="p-6 space-y-6">
+                    <p className="text-zinc-300">{t('advisor.welcome_message') || 'Ihre Übersicht: verwaltete Kunden, Deals und Provisionen. Jurisdiction: Germany, unless otherwise agreed.'}</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                      <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('advisor.referred_clients')}</p>
+                        <p className="text-xl font-bold text-amber-500">{advisorDashboard?.totalReferredClients ?? 0}</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('advisor.pending_commission')}</p>
+                        <p className="text-xl font-bold text-amber-500">{(advisorDashboard?.pendingCommission ?? 0).toLocaleString('de-DE')} €</p>
+                      </div>
+                      <div className="p-4 rounded-xl bg-zinc-900/50 border border-emerald-800/50">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('advisor.paid_commission')}</p>
+                        <p className="text-xl font-bold text-emerald-500">{(advisorDashboard?.paidCommission ?? 0).toLocaleString('de-DE')} €</p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+              </motion.div>
+            )}
+
             {view === 'investor' && user.role === UserRole.INVESTOR && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -4626,9 +4990,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'advisors', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -5122,6 +5486,99 @@ export default function App() {
                         {adminAppointments.length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_appointments')}</p>}
                       </div>
                     </div>
+                  </section>
+                  )}
+
+                  {(adminTab === 'advisors') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic">{t('admin.advisors') || 'Strategic Private Advisors'}</h3>
+                    <Card className="p-6 space-y-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor einladen</h4>
+                      <div className="flex flex-wrap gap-3">
+                        <input type="text" placeholder="E-Mail" id="admin-invite-email" className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-56" />
+                        <input type="text" placeholder="Name" id="admin-invite-name" className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-56" />
+                        <Button variant="primary" className="text-sm" onClick={async () => {
+                          const email = (document.getElementById('admin-invite-email') as HTMLInputElement)?.value?.trim();
+                          const name = (document.getElementById('admin-invite-name') as HTMLInputElement)?.value?.trim();
+                          if (!email || !name) { notifyUser('E-Mail und Name erforderlich.', 'error'); return; }
+                          const res = await fetch('/api/admin/advisors/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name }), credentials: 'include' });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) { notifyUser(data.message || 'Advisor eingeladen.'); (document.getElementById('admin-invite-email') as HTMLInputElement).value = ''; (document.getElementById('admin-invite-name') as HTMLInputElement).value = ''; fetchData(); } else notifyUser(data.error || 'Fehler', 'error');
+                        }}>{t('admin.invite_advisor') || 'Einladen'}</Button>
+                      </div>
+                    </Card>
+                    <div className="space-y-3">
+                      {adminAdvisors.map((a: any) => (
+                        <Card key={a.profile_id} className="p-4 flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <p className="font-medium text-zinc-200">{a.name}</p>
+                            <p className="text-xs text-zinc-500">{a.email}</p>
+                            <p className="text-[10px] text-zinc-600 mt-1">Status: {a.profile_status} · Commission: {a.default_commission_pct}%</p>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {a.profile_status === 'nda_signed' && (
+                              <Button variant="outline" size="sm" onClick={async () => {
+                                const res = await fetch(`/api/admin/advisors/${a.profile_id}/activate`, { method: 'PUT', credentials: 'include' });
+                                if (res.ok) fetchData();
+                              }}>{t('admin.activate_advisor') || 'Aktivieren'}</Button>
+                            )}
+                            <input type="number" min="0" max="100" step="0.5" defaultValue={a.default_commission_pct} className="w-16 bg-zinc-900/50 border border-zinc-800 rounded py-1 px-2 text-zinc-200 text-sm" onBlur={async (e) => {
+                              const pct = Number(e.target.value);
+                              if (Number.isNaN(pct)) return;
+                              await fetch(`/api/admin/advisors/${a.profile_id}/commission`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ commissionPct: pct }), credentials: 'include' });
+                              fetchData();
+                            }} />
+                            <span className="text-xs text-zinc-500">%</span>
+                          </div>
+                        </Card>
+                      ))}
+                      {adminAdvisors.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_advisors') || 'Keine Advisors.'}</p>}
+                    </div>
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.advisor_commissions') || 'Provisionen verwalten'}</h4>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">{t('advisor.advisor_name') || 'Berater'}</th>
+                              <th className="py-2 pr-2">{t('advisor.client_name')}</th>
+                              <th className="py-2 pr-2">{t('advisor.piece')}</th>
+                              <th className="py-2 pr-2">{t('advisor.sale_amount')}</th>
+                              <th className="py-2 pr-2">{t('advisor.commission_amount')}</th>
+                              <th className="py-2 pr-2">{t('advisor.status')}</th>
+                              <th className="py-2 pr-2"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminAdvisorCommissions.map((c: any) => (
+                              <tr key={c.id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{c.advisor_name}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{c.client_name || '—'}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{c.piece_title || c.serial_id || '—'}</td>
+                                <td className="py-2 pr-2">{(c.sale_amount ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2 text-amber-500">{(c.commission_amount ?? 0).toLocaleString('de-DE')} €</td>
+                                <td className="py-2 pr-2"><Badge variant={c.status === 'paid_out' ? 'emerald' : 'amber'}>{c.status}</Badge></td>
+                                <td className="py-2">
+                                  {c.status !== 'paid_out' && (
+                                    <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                                      const res = await fetch(`/api/admin/advisors/commissions/${c.id}/pay`, { method: 'POST', credentials: 'include' });
+                                      if (res.ok) { notifyUser(t('admin.commission_paid') || 'Als ausgezahlt markiert.'); fetchData(); }
+                                    }}>{t('admin.mark_paid') || 'Ausgezahlt'}</Button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {adminAdvisorCommissions.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_commissions') || 'Keine Provisionen.'}</p>}
+                    </div>
+                    <Card className="p-4">
+                      <div className="flex justify-between items-center">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.export_commissions') || 'Commissions exportieren'}</h4>
+                        <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/advisors/commissions/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
+                      </div>
+                    </Card>
                   </section>
                   )}
 

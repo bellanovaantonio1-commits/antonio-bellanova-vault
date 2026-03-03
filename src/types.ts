@@ -6,7 +6,8 @@ export enum UserRole {
   BLACK = 'black',
   RESELLER = 'reseller',
   INVESTOR = 'investor',
-  VIEWER = 'viewer'
+  VIEWER = 'viewer',
+  STRATEGIC_PRIVATE_ADVISOR = 'strategic_private_advisor'
 }
 
 export enum UserStatus {
@@ -376,5 +377,54 @@ export interface LoginHistoryEntry {
   ip_address: string | null;
   user_agent: string | null;
   success: number;
+  created_at: string;
+}
+
+// --- Strategic Private Advisor ---
+export type AdvisorStatus = 'pending_nda' | 'pending_approval' | 'active' | 'suspended';
+export type AdvisorCommissionStatus = 'pending' | 'confirmed' | 'paid_out';
+export type AdvisorContractType = 'nda' | 'advisor_agreement' | 'commission_agreement';
+
+export interface AdvisorProfile {
+  id: number;
+  user_id: number;
+  status: AdvisorStatus;
+  default_commission_pct: number;
+  nda_signed_at: string | null;
+  activated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdvisorReferral {
+  id: number;
+  advisor_id: number;
+  user_id: number;
+  created_at: string;
+}
+
+export interface AdvisorCommission {
+  id: number;
+  advisor_id: number;
+  payment_id: number;
+  masterpiece_id: number;
+  client_id: number;
+  sale_amount: number;
+  commission_pct: number;
+  commission_amount: number;
+  status: AdvisorCommissionStatus;
+  paid_out_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdvisorContract {
+  id: number;
+  advisor_id: number;
+  type: AdvisorContractType;
+  doc_ref: string;
+  content: string;
+  signed_at: string | null;
+  status: 'draft' | 'signed' | 'archived';
   created_at: string;
 }

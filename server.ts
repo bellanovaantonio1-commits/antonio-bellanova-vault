@@ -788,6 +788,54 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+// --- Strategic Private Advisor ---
+db.exec(`
+  CREATE TABLE IF NOT EXISTS advisor_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
+    status TEXT DEFAULT 'pending_nda',
+    default_commission_pct REAL DEFAULT 8,
+    nda_signed_at DATETIME,
+    activated_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS advisor_referrals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    advisor_id INTEGER NOT NULL REFERENCES advisor_profiles(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(advisor_id, user_id)
+  );
+  CREATE TABLE IF NOT EXISTS advisor_commissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    advisor_id INTEGER NOT NULL REFERENCES advisor_profiles(id),
+    payment_id INTEGER NOT NULL REFERENCES payments(id),
+    masterpiece_id INTEGER NOT NULL REFERENCES masterpieces(id),
+    client_id INTEGER NOT NULL REFERENCES users(id),
+    sale_amount REAL NOT NULL,
+    commission_pct REAL NOT NULL,
+    commission_amount REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    paid_out_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS advisor_contracts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    advisor_id INTEGER NOT NULL REFERENCES advisor_profiles(id),
+    type TEXT NOT NULL,
+    doc_ref TEXT UNIQUE,
+    content TEXT,
+    signed_at DATETIME,
+    status TEXT DEFAULT 'draft',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+try { db.prepare("ALTER TABLE payments ADD COLUMN advisor_id INTEGER REFERENCES advisor_profiles(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE payments ADD COLUMN advisor_commission_pct REAL").run(); } catch (e) {}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS maison_buyback_offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1179,6 +1227,10 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
 app.post("/api/register", (req, res) => {
   const { email, password, name, username: rawUsername, address, wantsVip, language, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+  const requestedRole = (role || "client").toString().toLowerCase();
+  if (requestedRole === "strategic_private_advisor") {
+    return res.status(403).json({ error: "Strategic Private Advisors cannot register publicly. Contact the Atelier for an invitation." });
+  }
   const username = typeof rawUsername === "string" ? rawUsername.trim() : "";
   if (!username) return res.status(400).json({ error: "Anmeldename erforderlich." });
   if (!USERNAME_REGEX.test(username)) return res.status(400).json({ error: "Anmeldename: 3–50 Zeichen, nur Buchstaben, Zahlen und Unterstrich." });
@@ -2076,20 +2128,35 @@ app.post("/api/admin/generate-certificate", (req, res) => {
 
 app.post("/api/admin/confirm-payment", (req, res) => {
   const { paymentId } = req.body;
-  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId);
+  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId) as any;
+  if (!payment) return res.status(404).json({ error: "Payment not found" });
   db.prepare("UPDATE payments SET status = 'paid' WHERE id = ?").run(paymentId);
-  
+
   db.prepare("UPDATE masterpieces SET status = 'sold', current_owner_id = ? WHERE id = ?").run(
     payment.user_id, payment.masterpiece_id
   );
   db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)").run(
     payment.masterpiece_id, payment.user_id, payment.amount
   );
-  
+
+  // Advisor commission: if buyer is a referred client, create commission (confirmed)
+  const referral = db.prepare("SELECT advisor_id FROM advisor_referrals WHERE user_id = ?").get(payment.user_id) as { advisor_id: number } | undefined;
+  if (referral) {
+    const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(referral.advisor_id) as { default_commission_pct: number } | undefined;
+    const pct = payment.advisor_commission_pct != null ? Number(payment.advisor_commission_pct) : (profile?.default_commission_pct ?? 8);
+    const commissionAmount = (payment.amount * pct) / 100;
+    try {
+      db.prepare(`
+        INSERT INTO advisor_commissions (advisor_id, payment_id, masterpiece_id, client_id, sale_amount, commission_pct, commission_amount, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
+      `).run(referral.advisor_id, paymentId, payment.masterpiece_id, payment.user_id, payment.amount, pct, commissionAmount);
+    } catch (_) {}
+  }
+
   const certId = `CERT-${payment.masterpiece_id}-${Date.now()}`;
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payment.user_id);
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(payment.masterpiece_id);
-  
+
   const certContent = `
     ECHTHEITSZERTIFIKAT / CERTIFICATE OF AUTHENTICITY
     
@@ -2356,6 +2423,232 @@ app.get("/api/admin/bank-config", (req, res) => {
 app.post("/api/admin/bank-config", (req, res) => {
   const value = JSON.stringify(req.body || {});
   db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+  res.json({ success: true });
+});
+
+// --- Strategic Private Advisor: helpers & RBAC ---
+function getAdvisorProfileByUserId(userId: number): { id: number; user_id: number; status: string; default_commission_pct: number } | null {
+  const row = db.prepare("SELECT id, user_id, status, default_commission_pct FROM advisor_profiles WHERE user_id = ?").get(userId) as any;
+  return row || null;
+}
+function requireAdvisor(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const user = (req as any).user;
+  if (!user || user.role !== "strategic_private_advisor") {
+    res.status(403).json({ error: "Advisor access only" });
+    return;
+  }
+  const profile = getAdvisorProfileByUserId(user.id);
+  if (!profile || profile.status !== "activated") {
+    res.status(403).json({ error: "Advisor account not yet activated. Complete NDA and wait for admin approval." });
+    return;
+  }
+  (req as any).advisorProfileId = profile.id;
+  (req as any).advisorProfile = profile;
+  next();
+}
+
+// Advisor: dashboard stats (own data only)
+app.get("/api/advisor/dashboard", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const referred = db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM advisor_referrals WHERE advisor_id = ?").get(aid) as { c: number };
+  const commissions = db.prepare(`
+    SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status
+  `).all(aid) as { status: string; total: number }[];
+  const pending = commissions.find(r => r.status === "pending")?.total ?? 0;
+  const confirmed = commissions.find(r => r.status === "confirmed")?.total ?? 0;
+  const paid = commissions.find(r => r.status === "paid_out")?.total ?? 0;
+  const activeDeals = db.prepare(`
+    SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ? AND status IN ('pending','confirmed')
+  `).get(aid) as { c: number };
+  const closedDeals = db.prepare(`
+    SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ? AND status = 'paid_out'
+  `).get(aid) as { c: number };
+  res.json({
+    totalReferredClients: referred?.c ?? 0,
+    activeDeals: activeDeals?.c ?? 0,
+    closedDeals: closedDeals?.c ?? 0,
+    pendingCommission: pending,
+    paidCommission: paid,
+    confirmedCommission: confirmed
+  });
+});
+
+// Advisor: list referred clients (own only)
+app.get("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const rows = db.prepare(`
+    SELECT u.id, u.name, u.email, u.address, u.created_at, r.created_at as referred_at
+    FROM advisor_referrals r
+    JOIN users u ON u.id = r.user_id
+    WHERE r.advisor_id = ?
+    ORDER BY r.created_at DESC
+  `).all(aid);
+  res.json(rows);
+});
+
+// Advisor: add referred client (by email; user must exist)
+app.post("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const { email, userId } = req.body || {};
+  const targetId = userId ? Number(userId) : (email ? (db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase()) as { id: number } | undefined)?.id : null;
+  if (!targetId) return res.status(400).json({ error: "User not found. Provide valid email or userId." });
+  try {
+    db.prepare("INSERT INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)").run(aid, targetId);
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e.message?.includes("UNIQUE")) return res.status(400).json({ error: "Client already linked to you." });
+    res.status(500).json({ error: "Failed to link client." });
+  }
+});
+
+// Advisor: remove referral (own only)
+app.delete("/api/advisor/clients/:userId", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const userId = Number(req.params.userId);
+  db.prepare("DELETE FROM advisor_referrals WHERE advisor_id = ? AND user_id = ?").run(aid, userId);
+  res.json({ success: true });
+});
+
+// Advisor: list commissions (own only)
+app.get("/api/advisor/commissions", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const rows = db.prepare(`
+    SELECT c.id, c.payment_id, c.masterpiece_id, c.client_id, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at,
+           m.title as masterpiece_title, m.serial_id,
+           u.name as client_name
+    FROM advisor_commissions c
+    LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
+    LEFT JOIN users u ON u.id = c.client_id
+    WHERE c.advisor_id = ?
+    ORDER BY c.created_at DESC
+  `).all(aid);
+  res.json(rows);
+});
+
+// Advisor: list contracts (NDA, advisor_agreement, commission_agreement)
+app.get("/api/advisor/contracts", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const rows = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at FROM advisor_contracts WHERE advisor_id = ? ORDER BY created_at DESC").all(aid);
+  res.json(rows);
+});
+
+// Advisor: sign contract (digital signature)
+app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisor, (req, res) => {
+  const aid = (req as any).advisorProfileId;
+  const user = (req as any).user;
+  const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
+  if (!["nda", "advisor_agreement", "commission_agreement"].includes(type)) return res.status(400).json({ error: "Invalid contract type" });
+  const existing = db.prepare("SELECT id, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?").get(aid, type) as any;
+  if (existing?.status === "signed") return res.status(400).json({ error: "Already signed" });
+  const docRef = `AB-ADV-${type.toUpperCase()}-${Date.now()}`;
+  const content = type === "nda"
+    ? `CONFIDENTIALITY AND NON-DISCLOSURE AGREEMENT\n\nBetween Juwelen & Schmuckatelier Antonio Bellanova and the Strategic Private Advisor.\n\nAll client and transaction data is confidential. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`
+    : type === "advisor_agreement"
+    ? `STRATEGIC PRIVATE ADVISOR AGREEMENT\n\nTerms of engagement, commission structure, and exclusivity. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`
+    : `COMMISSION AGREEMENT\n\nCommission percentage and payout terms. Default 8% unless overridden by admin. Jurisdiction: Germany, unless otherwise agreed.\n\nSigned: ${user.name} at ${new Date().toISOString()}`;
+  if (existing) {
+    db.prepare("UPDATE advisor_contracts SET content = ?, doc_ref = ?, status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, docRef, existing.id);
+  } else {
+    db.prepare("INSERT INTO advisor_contracts (advisor_id, type, doc_ref, content, status, signed_at) VALUES (?, ?, ?, ?, 'signed', CURRENT_TIMESTAMP)").run(aid, type, docRef, content);
+  }
+  if (type === "nda") {
+    db.prepare("UPDATE advisor_profiles SET nda_signed_at = CURRENT_TIMESTAMP, status = 'nda_signed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(aid);
+  }
+  res.json({ success: true });
+});
+
+// Admin: invite advisor (create user + profile, status pending_nda)
+app.post("/api/admin/advisors/invite", requireAuth, requireAdmin, (req, res) => {
+  const { email, name, address } = req.body || {};
+  if (!email || !name) return res.status(400).json({ error: "Email and name required" });
+  const existing = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase());
+  if (existing) return res.status(400).json({ error: "User with this email already exists" });
+  const tempPassword = "Temp" + Math.random().toString(36).slice(2, 10);
+  const result = db.prepare(
+    "INSERT INTO users (email, name, address, role, status, password) VALUES (?, ?, ?, 'strategic_private_advisor', 'pending', ?)"
+  ).run(String(email).trim(), String(name).trim(), (address && String(address).trim()) || "", hashPassword(tempPassword));
+  const userId = result.lastInsertRowid as number;
+  db.prepare("INSERT INTO advisor_profiles (user_id, status) VALUES (?, 'pending_nda')").run(userId);
+  res.json({ id: userId, email: String(email).trim(), message: "Advisor invited. Share temporary password securely; they must sign NDA before activation." });
+});
+
+// Admin: list advisors
+app.get("/api/admin/advisors", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.id as profile_id, p.user_id, p.status as profile_status, p.default_commission_pct, p.nda_signed_at, p.activated_at, p.created_at,
+           u.name, u.email, u.address
+    FROM advisor_profiles p
+    JOIN users u ON u.id = p.user_id
+    ORDER BY p.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+// Admin: activate advisor (after NDA signed)
+app.put("/api/admin/advisors/:id/activate", requireAuth, requireAdmin, (req, res) => {
+  const profileId = Number(req.params.id);
+  db.prepare("UPDATE advisor_profiles SET status = 'activated', activated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(profileId);
+  const row = db.prepare("SELECT user_id FROM advisor_profiles WHERE id = ?").get(profileId) as { user_id: number };
+  if (row) db.prepare("UPDATE users SET status = 'approved' WHERE id = ?").run(row.user_id);
+  res.json({ success: true });
+});
+
+// Admin: set default commission % for advisor
+app.put("/api/admin/advisors/:id/commission", requireAuth, requireAdmin, (req, res) => {
+  const profileId = Number(req.params.id);
+  const { commissionPct } = req.body || {};
+  const pct = Math.min(100, Math.max(0, Number(commissionPct ?? 8)));
+  db.prepare("UPDATE advisor_profiles SET default_commission_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(pct, profileId);
+  res.json({ success: true, default_commission_pct: pct });
+});
+
+// Admin: list all advisor commissions (JSON)
+app.get("/api/admin/advisors/commissions", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT c.id, c.advisor_id, c.payment_id, c.masterpiece_id, c.client_id, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at,
+           u.name as advisor_name, u.email as advisor_email, cu.name as client_name, m.title as piece_title, m.serial_id
+    FROM advisor_commissions c
+    JOIN advisor_profiles a ON a.id = c.advisor_id
+    JOIN users u ON u.id = a.user_id
+    LEFT JOIN users cu ON cu.id = c.client_id
+    LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
+    ORDER BY c.status ASC, c.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+// Admin: mark commission as paid
+app.post("/api/admin/advisors/commissions/:id/pay", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  db.prepare("UPDATE advisor_commissions SET status = 'paid_out', paid_out_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+  res.json({ success: true });
+});
+
+// Admin: export advisor commissions CSV
+app.get("/api/admin/advisors/commissions/export", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT c.id, a.user_id as advisor_user_id, u.name as advisor_name, u.email as advisor_email,
+           c.client_id, cu.name as client_name, c.masterpiece_id, m.title as piece_title, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at
+    FROM advisor_commissions c
+    JOIN advisor_profiles a ON a.id = c.advisor_id
+    JOIN users u ON u.id = a.user_id
+    LEFT JOIN users cu ON cu.id = c.client_id
+    LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
+    ORDER BY c.created_at DESC
+  `).all() as any[];
+  const header = "id,advisor_user_id,advisor_name,advisor_email,client_id,client_name,masterpiece_id,piece_title,sale_amount,commission_pct,commission_amount,status,paid_out_at,created_at";
+  const lines = [header, ...rows.map(r => [r.id, r.advisor_user_id, r.advisor_name, r.advisor_email, r.client_id, r.client_name, r.masterpiece_id, r.piece_title, r.sale_amount, r.commission_pct, r.commission_amount, r.status, r.paid_out_at || "", r.created_at].map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))];
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=advisor-commissions.csv");
+  res.send("\uFEFF" + lines.join("\r\n"));
+});
+
+// Admin: override referral (link client to different advisor)
+app.put("/api/admin/advisors/referrals/override", requireAuth, requireAdmin, (req, res) => {
+  const { userId, advisorProfileId } = req.body || {};
+  if (!userId || !advisorProfileId) return res.status(400).json({ error: "userId and advisorProfileId required" });
+  db.prepare("DELETE FROM advisor_referrals WHERE user_id = ?").run(userId);
+  db.prepare("INSERT OR IGNORE INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)").run(advisorProfileId, userId);
   res.json({ success: true });
 });
 
