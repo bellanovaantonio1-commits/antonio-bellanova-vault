@@ -2310,6 +2310,9 @@ export default function App() {
     description: '', 
     materials: '', 
     gemstones: '', 
+    description_en: '', description_it: '',
+    materials_en: '', materials_it: '',
+    gemstones_en: '', gemstones_it: '',
     valuation: '', 
     rarity: 'Unique', 
     production_time: '4-6 Weeks',
@@ -2913,6 +2916,15 @@ export default function App() {
   const handleCreatePiece = async () => {
     setLoading(true);
     try {
+      const description_i18n = [newPiece.description, (newPiece as any).description_en, (newPiece as any).description_it].some(Boolean)
+        ? { de: newPiece.description || undefined, en: (newPiece as any).description_en?.trim() || undefined, it: (newPiece as any).description_it?.trim() || undefined }
+        : undefined;
+      const materials_i18n = [newPiece.materials, (newPiece as any).materials_en, (newPiece as any).materials_it].some(Boolean)
+        ? { de: newPiece.materials || undefined, en: (newPiece as any).materials_en?.trim() || undefined, it: (newPiece as any).materials_it?.trim() || undefined }
+        : undefined;
+      const gemstones_i18n = [newPiece.gemstones, (newPiece as any).gemstones_en, (newPiece as any).gemstones_it].some(Boolean)
+        ? { de: newPiece.gemstones || undefined, en: (newPiece as any).gemstones_en?.trim() || undefined, it: (newPiece as any).gemstones_it?.trim() || undefined }
+        : undefined;
       const res = await fetch('/api/admin/masterpieces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2923,6 +2935,9 @@ export default function App() {
           description: newPiece.description,
           materials: newPiece.materials,
           gemstones: newPiece.gemstones,
+          description_i18n: description_i18n && Object.values(description_i18n).some(Boolean) ? description_i18n : undefined,
+          materials_i18n: materials_i18n && Object.values(materials_i18n).some(Boolean) ? materials_i18n : undefined,
+          gemstones_i18n: gemstones_i18n && Object.values(gemstones_i18n).some(Boolean) ? gemstones_i18n : undefined,
           valuation: parseFloat(newPiece.valuation) || 0,
           rarity: newPiece.rarity,
           production_time: newPiece.production_time,
@@ -2942,6 +2957,9 @@ export default function App() {
           description: '', 
           materials: '', 
           gemstones: '', 
+          description_en: '', description_it: '',
+          materials_en: '', materials_it: '',
+          gemstones_en: '', gemstones_it: '',
           valuation: '', 
           rarity: 'Unique', 
           production_time: '4-6 Weeks',
@@ -5966,10 +5984,6 @@ export default function App() {
                               <option value="hidden">{t('pricing.mode_hidden')}</option>
                             </select>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <Input label="Materialien" value={newPiece.materials} onChange={(e: any) => setNewPiece({ ...newPiece, materials: e.target.value })} />
-                            <Input label="Edelsteine" value={newPiece.gemstones} onChange={(e: any) => setNewPiece({ ...newPiece, gemstones: e.target.value })} />
-                          </div>
                           <Input label="Zertifikatsdaten (JSON)" value={newPiece.cert_data} onChange={(e: any) => setNewPiece({ ...newPiece, cert_data: e.target.value })} placeholder='{"cut": "Ideal", "clarity": "VVS1"}' />
                           <div className="space-y-1.5">
                             <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
@@ -5978,8 +5992,35 @@ export default function App() {
                             </select>
                           </div>
                           <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Beschreibung</label>
-                            <textarea value={newPiece.description} onChange={(e) => setNewPiece({ ...newPiece, description: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 h-32" />
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Beschreibung (DE)</label>
+                            <textarea value={newPiece.description} onChange={(e) => setNewPiece({ ...newPiece, description: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 h-32" placeholder="z. B. Eine skulpturale Komposition aus …" />
+                            <p className="text-[10px] text-zinc-500 mt-1">Übersetzungen (optional) – werden je nach Sprache des Besuchers angezeigt.</p>
+                            <div className="grid grid-cols-1 gap-3 mt-2">
+                              <div>
+                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 ml-1">Beschreibung (EN)</label>
+                                <textarea value={(newPiece as any).description_en ?? ''} onChange={(e) => setNewPiece({ ...newPiece, description_en: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm focus:outline-none focus:border-amber-600/50 h-24 mt-1" placeholder="Description (English)" />
+                              </div>
+                              <div>
+                                <label className="text-[10px] uppercase tracking-widest text-zinc-500 ml-1">Beschreibung (IT)</label>
+                                <textarea value={(newPiece as any).description_it ?? ''} onChange={(e) => setNewPiece({ ...newPiece, description_it: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm focus:outline-none focus:border-amber-600/50 h-24 mt-1" placeholder="Descrizione (italiano)" />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Materialien (DE)</label>
+                            <input type="text" value={newPiece.materials} onChange={(e) => setNewPiece({ ...newPiece, materials: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50" placeholder="z. B. Weißgold oder Platin" />
+                            <div className="grid grid-cols-2 gap-3 mt-2">
+                              <Input label="Materialien (EN)" value={(newPiece as any).materials_en ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, materials_en: e.target.value })} placeholder="e.g. White gold or platinum" />
+                              <Input label="Materialien (IT)" value={(newPiece as any).materials_it ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, materials_it: e.target.value })} placeholder="es. Oro bianco o platino" />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Edelsteine (DE)</label>
+                            <input type="text" value={newPiece.gemstones} onChange={(e) => setNewPiece({ ...newPiece, gemstones: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50" placeholder="z. B. Saphir / Diamant" />
+                            <div className="grid grid-cols-2 gap-3 mt-2">
+                              <Input label="Edelsteine (EN)" value={(newPiece as any).gemstones_en ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, gemstones_en: e.target.value })} placeholder="e.g. Sapphire / Diamond" />
+                              <Input label="Edelsteine (IT)" value={(newPiece as any).gemstones_it ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, gemstones_it: e.target.value })} placeholder="es. Zaffiro / Diamante" />
+                            </div>
                           </div>
                           <div className="space-y-4">
                             <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Bilder des Meisterstücks</label>
