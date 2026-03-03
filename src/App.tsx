@@ -2279,15 +2279,6 @@ export default function App() {
     return { label: val > 0 ? `${val.toLocaleString('de-DE')} €` : '—', showInquiry: false, showNegotiation: false };
   };
 
-  const getPieceLocalized = (piece: Masterpiece & { description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string }, field: 'description' | 'materials' | 'gemstones', lang: string): string => {
-    const raw = (piece as any)[field + '_i18n'];
-    let obj: Record<string, string> | null = null;
-    if (typeof raw === 'string') { try { obj = JSON.parse(raw); } catch { obj = null; } } else if (raw && typeof raw === 'object') obj = raw;
-    const l = (lang || 'de').toLowerCase().slice(0, 2);
-    const out = (obj && obj[l]) ? obj[l] : (piece[field] ?? '');
-    return typeof out === 'string' ? out : '';
-  };
-
   const RARITY_KEYS: Record<string, string> = { Unique: 'piece.rarity_unique', Unikat: 'piece.rarity_unique', Limitiert: 'piece.rarity_limited', Limited: 'piece.rarity_limited', Selten: 'piece.rarity_rare', Rare: 'piece.rarity_rare' };
   const getPieceRarityLabel = (rarity: string) => t(RARITY_KEYS[rarity] || rarity);
 
