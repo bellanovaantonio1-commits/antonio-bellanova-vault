@@ -283,6 +283,20 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Notizen",
     "admin.new_appointment": "Neuer Termin",
     "admin.no_appointments": "Keine Termine.",
+    "admin.open_tasks": "Offene Aufgaben",
+    "admin.resale_no_decision": "Resale ohne Entscheidung",
+    "admin.appointments_proposed": "Termine vorgeschlagen",
+    "admin.atelier_moments": "Atelier-Momente",
+    "admin.atelier_moments_desc": "Editoriale Momente für das Dashboard. Reihenfolge: oben = zuerst angezeigt.",
+    "admin.field_title": "Titel",
+    "admin.field_subtitle": "Untertitel",
+    "admin.field_image_url": "Bild-URL",
+    "admin.field_body_optional": "Body (optional)",
+    "admin.add_button": "Hinzufügen",
+    "admin.save_button": "Speichern",
+    "admin.save_saving": "Speichern…",
+    "admin.remove": "Entfernen",
+    "admin.create_masterpiece": "Meisterstück erstellen",
     "admin.advisors": "Berater",
     "admin.invite_advisor": "Einladen",
     "admin.generate_password": "Passwort erzeugen",
@@ -723,6 +737,19 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Notes",
     "admin.new_appointment": "New appointment",
     "admin.no_appointments": "No appointments.",
+    "admin.open_tasks": "Open tasks",
+    "admin.resale_no_decision": "Resale without decision",
+    "admin.appointments_proposed": "Appointments proposed",
+    "admin.atelier_moments": "Atelier moments",
+    "admin.atelier_moments_desc": "Editorial moments for the dashboard. Order: top = shown first.",
+    "admin.field_title": "Title",
+    "admin.field_subtitle": "Subtitle",
+    "admin.field_image_url": "Image URL",
+    "admin.field_body_optional": "Body (optional)",
+    "admin.add_button": "Add",
+    "admin.save_button": "Save",
+    "admin.save_saving": "Saving…",
+    "admin.remove": "Remove",
     "admin.advisors": "Advisors",
     "admin.invite_advisor": "Invite",
     "admin.generate_password": "Generate password",
@@ -1150,6 +1177,19 @@ const TRANSLATIONS: any = {
     "admin.appointment_notes": "Note",
     "admin.new_appointment": "Nuovo appuntamento",
     "admin.no_appointments": "Nessun appuntamento.",
+    "admin.open_tasks": "Attività aperte",
+    "admin.resale_no_decision": "Rivendita senza decisione",
+    "admin.appointments_proposed": "Appuntamenti proposti",
+    "admin.atelier_moments": "Momenti atelier",
+    "admin.atelier_moments_desc": "Momenti editoriali per la dashboard. Ordine: in alto = mostrato per primo.",
+    "admin.field_title": "Titolo",
+    "admin.field_subtitle": "Sottotitolo",
+    "admin.field_image_url": "URL immagine",
+    "admin.field_body_optional": "Corpo (opzionale)",
+    "admin.add_button": "Aggiungi",
+    "admin.save_button": "Salva",
+    "admin.save_saving": "Salvataggio…",
+    "admin.remove": "Rimuovi",
     "admin.advisors": "Consulenti",
     "admin.invite_advisor": "Invita",
     "admin.generate_password": "Genera password",
@@ -2905,7 +2945,7 @@ export default function App() {
       currentY += blockH + 10;
     }
 
-    // Body: use tidy generated text when we have piece + contractType, else stripped HTML
+    // Body: use tidy generated text when we have piece + contractType, else stripped HTML (language-aware for contracts)
     let bodyText: string;
     if (piece && typ) {
       const serial = piece.serial_id || '—';
@@ -2913,21 +2953,33 @@ export default function App() {
       const pct = piece.deposit_pct ?? 10;
       const depositAmount = piece.valuation != null ? ((piece.valuation * pct) / 100).toLocaleString('de-DE') : '—';
       const titlePiece = (piece.title && piece.title.length > 1) ? piece.title : serial;
-      const isDe = (language || 'de').startsWith('de');
+      const lang = (language || 'de').toLowerCase().slice(0, 2);
+      const companyBlock = `${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuernummer: ${COMPANY_INFO.steuernummer}`;
       if (typ === 'deposit') {
-        bodyText = isDe
-          ? `ANZAHLUNGSVERTRAG\n\nDieser Vertrag bestätigt die formale Reservierung des Meisterstücks „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Eine nicht erstattungsfähige Anzahlung in Höhe von ${depositAmount} EUR (${pct} % des Gesamtbetrags) ist zur Einleitung der Fertigung erforderlich. Das Objekt bleibt im Antonio Bellanova Vault verwahrt. Das Eigentum verbleibt beim Atelier bis zur vollständigen Bezahlung und Übertragung.\n\nMit der Unterzeichnung erkennt der Kunde die Bedingungen an und verpflichtet sich zur Anzahlung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuernummer: ${COMPANY_INFO.steuernummer}`
-          : `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required. Governing law: Germany. Jurisdiction: Cologne.`;
+        if (lang === 'de') bodyText = `ANZAHLUNGSVERTRAG\n\nDieser Vertrag bestätigt die formale Reservierung des Meisterstücks „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Eine nicht erstattungsfähige Anzahlung in Höhe von ${depositAmount} EUR (${pct} % des Gesamtbetrags) ist zur Einleitung der Fertigung erforderlich. Das Objekt bleibt im Antonio Bellanova Vault verwahrt. Das Eigentum verbleibt beim Atelier bis zur vollständigen Bezahlung und Übertragung.\n\nMit der Unterzeichnung erkennt der Kunde die Bedingungen an und verpflichtet sich zur Anzahlung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${companyBlock}`;
+        else if (lang === 'fr') bodyText = `CONTRAT D'ACOMPTE\n\nLe présent contrat confirme la réservation formelle du Chef-d'œuvre « ${titlePiece} » (Numéro de série : ${serial}).\n\nÉvaluation totale : ${valuation}. Un acompte non remboursable de ${depositAmount} EUR (${pct} % du montant total) est requis pour lancer la fabrication. L'objet reste déposé au Antonio Bellanova Vault. La propriété reste à l'Atelier jusqu'au paiement intégral et au transfert.\n\nEn signant, le client accepte les conditions et s'engage à verser l'acompte. Droit applicable : Allemagne. Juridiction : Cologne.\n\n${companyBlock}`;
+        else if (lang === 'it') bodyText = `CONTRATTO DI ACCONTO\n\nIl presente contratto conferma la prenotazione formale del Capolavoro «${titlePiece}» (Numero di serie: ${serial}).\n\nValutazione totale: ${valuation}. Un acconto non rimborsabile di ${depositAmount} EUR (${pct}% del totale) è richiesto per avviare la realizzazione. L'oggetto resta custodito presso Antonio Bellanova Vault. La proprietà resta all'Atelier fino al pagamento completo e al trasferimento.\n\nCon la firma il cliente accetta le condizioni e si impegna a versare l'acconto. Legge applicabile: Germania. Foro: Colonia.\n\n${companyBlock}`;
+        else bodyText = `This Deposit Agreement confirms the formal reservation of the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. A non-refundable deposit of ${depositAmount} EUR (${pct}% of total) is required. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'invoice') {
-        bodyText = isDe
-          ? `KAUFVERTRAG / SCHLUSSRECHNUNG\n\nSchlussrechnung für das Meisterstück „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Der Restbetrag ist gemäß den Zahlungsanweisungen fällig. Nach vollständiger Zahlung und Bestätigung wird das Eigentum übertragen und ein Echtheitszertifikat ausgestellt.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${COMPANY_INFO.name}\n${COMPANY_INFO.address}\nUSt-IdNr.: ${COMPANY_INFO.vatId}\nSteuernummer: ${COMPANY_INFO.steuernummer}`
-          : `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. Upon full payment, ownership will be transferred and a Certificate of Authenticity will be issued. Governing law: Germany. Jurisdiction: Cologne.`;
+        if (lang === 'de') bodyText = `KAUFVERTRAG / SCHLUSSRECHNUNG\n\nSchlussrechnung für das Meisterstück „${titlePiece}" (Seriennummer: ${serial}).\n\nGesamtbewertung: ${valuation}. Der Restbetrag ist gemäß den Zahlungsanweisungen fällig. Nach vollständiger Zahlung und Bestätigung wird das Eigentum übertragen und ein Echtheitszertifikat ausgestellt.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.\n\n${companyBlock}`;
+        else if (lang === 'fr') bodyText = `CONTRAT DE VENTE / FACTURE FINALE\n\nFacture finale pour le Chef-d'œuvre « ${titlePiece} » (N° série : ${serial}).\n\nÉvaluation totale : ${valuation}. Le solde est dû selon les instructions de paiement. Après paiement intégral et confirmation, la propriété sera transférée et un certificat d'authenticité sera délivré.\n\nDroit applicable : Allemagne. Juridiction : Cologne.\n\n${companyBlock}`;
+        else if (lang === 'it') bodyText = `CONTRATTO DI VENDITA / FATTURA FINALE\n\nFattura finale per il Capolavoro «${titlePiece}» (N. serie: ${serial}).\n\nValutazione totale: ${valuation}. Il saldo è dovuto secondo le istruzioni di pagamento. Dopo il pagamento completo e la conferma, la proprietà sarà trasferita e sarà rilasciato un certificato di autenticità.\n\nLegge applicabile: Germania. Foro: Colonia.\n\n${companyBlock}`;
+        else bodyText = `Final Invoice for the Masterpiece "${titlePiece}" (Serial: ${serial}).\n\nTotal valuation: ${valuation}. Upon full payment, ownership will be transferred and a Certificate of Authenticity will be issued. Governing law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'resale_commission' || typ === 'resale') {
-        bodyText = `Resale Commission Agreement for the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. This agreement governs the secondary market sale of the asset through the Antonio Bellanova Vault platform. Commission and payout terms apply as per the signed agreement. Platform resale ensures Registry update, new Certificate, and warranty continuity.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+        if (lang === 'de') bodyText = `Wiederverkaufs- und Provisionsvereinbarung für das Objekt „${titlePiece}" (Seriennummer: ${serial}).\n\nBewertung: ${valuation}. Diese Vereinbarung regelt den Weiterverkauf über die Antonio Bellanova Vault Plattform. Provisions- und Auszahlungsbedingungen gemäß unterzeichneter Vereinbarung. Plattform-Wiederverkauf gewährleistet Registry-Aktualisierung, neues Zertifikat und Garantiefortbestand.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
+        else if (lang === 'fr') bodyText = `Accord de commission de revente pour l'actif « ${titlePiece} » (N° série : ${serial}).\n\nÉvaluation : ${valuation}. Cet accord régit la vente sur le marché secondaire via la plateforme Antonio Bellanova Vault. Commission et conditions de paiement selon l'accord signé. Droit applicable : Allemagne. Juridiction : Cologne.`;
+        else if (lang === 'it') bodyText = `Accordo di commissione di rivendita per l'asset «${titlePiece}» (N. serie: ${serial}).\n\nValutazione: ${valuation}. Il presente accordo regola la vendita sul mercato secondario tramite la piattaforma Antonio Bellanova Vault. Legge applicabile: Germania. Foro: Colonia.`;
+        else bodyText = `Resale Commission Agreement for the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. This agreement governs the secondary market sale of the asset through the Antonio Bellanova Vault platform. Commission and payout terms apply as per the signed agreement. Platform resale ensures Registry update, new Certificate, and warranty continuity.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'vip') {
-        bodyText = `VIP Membership Agreement. Annual membership benefits: 48h Early Access, Private Auction Access, Concierge Service, repair priority, reduced resale commission, invite-only events. Terms and cancellation as per Platform Terms.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+        if (lang === 'de') bodyText = `VIP-Mitgliedschaftsvereinbarung. Jährliche Vorteile: 48h Vorzugszugang, Private Auktionen, Concierge-Service, Reparatur-Priorität, reduzierte Wiederverkaufsprovision, Einladungs-Events. Kündigung gemäß Plattformbedingungen. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
+        else if (lang === 'fr') bodyText = `Accord d'adhésion VIP. Avantages annuels : accès anticipé 48h, ventes aux enchères privées, service concierge, priorité réparation, commission de revente réduite, événements sur invitation. Droit applicable : Allemagne. Juridiction : Cologne.`;
+        else if (lang === 'it') bodyText = `Accordo di membership VIP. Vantaggi annuali: accesso anticipato 48h, aste private, servizio concierge, priorità riparazioni, commissione di rivendita ridotta. Legge applicabile: Germania. Foro: Colonia.`;
+        else bodyText = `VIP Membership Agreement. Annual membership benefits: 48h Early Access, Private Auction Access, Concierge Service, repair priority, reduced resale commission, invite-only events. Terms and cancellation as per Platform Terms.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
       } else if (typ === 'fractional') {
-        bodyText = `Fractional Ownership Agreement for participation in the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. The physical asset remains in the custody of the Antonio Bellanova Vault. Exit and secondary trading as per platform rules.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
+        if (lang === 'de') bodyText = `Anteilsvereinbarung zur Beteiligung am Objekt „${titlePiece}" (Seriennummer: ${serial}).\n\nBewertung: ${valuation}. Das physische Objekt bleibt im Antonio Bellanova Vault verwahrt. Ausstieg und Sekundärhandel gemäß Plattformregeln. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
+        else if (lang === 'fr') bodyText = `Accord de propriété fractionnée pour la participation à l'actif « ${titlePiece} » (N° série : ${serial}).\n\nÉvaluation : ${valuation}. L'actif physique reste en dépôt au Antonio Bellanova Vault. Sortie et négociation secondaire selon les règles de la plateforme. Droit applicable : Allemagne. Juridiction : Cologne.`;
+        else if (lang === 'it') bodyText = `Accordo di proprietà frazionata per la partecipazione all'asset «${titlePiece}» (N. serie: ${serial}).\n\nValutazione: ${valuation}. L'asset fisico resta in custodia presso Antonio Bellanova Vault. Uscita e trading secondario secondo le regole della piattaforma. Legge applicabile: Germania. Foro: Colonia.`;
+        else bodyText = `Fractional Ownership Agreement for participation in the asset "${titlePiece}" (Serial: ${serial}).\n\nValuation: ${valuation}. The physical asset remains in the custody of the Antonio Bellanova Vault. Exit and secondary trading as per platform rules.\n\nGoverning law: Germany. Jurisdiction: Cologne.`;
       } else {
         bodyText = title + '. This document forms part of your contractual relationship with Antonio Bellanova Atelier. Governing law: Germany. Jurisdiction: Cologne.';
       }
@@ -4120,7 +4172,7 @@ export default function App() {
 
                 {atelierMoments.length > 0 && (
                   <Card className="space-y-4" hoverGlow>
-                    <h4 className="text-lg font-serif italic">Atelier-Momente</h4>
+                    <h4 className="text-lg font-serif italic">{t('admin.atelier_moments')}</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {atelierMoments.slice(0, 4).map((m: any, i: number) => (
                         <div key={m.id || i} className="rounded-2xl border border-zinc-800 overflow-hidden bg-zinc-950">
@@ -5524,34 +5576,34 @@ export default function App() {
 
                 {/* Offene Aufgaben */}
                 <Card className="p-4 border-amber-500/20 bg-amber-500/5">
-                  <h3 className="text-sm font-serif italic text-amber-500/90 mb-3">Offene Aufgaben</h3>
+                  <h3 className="text-sm font-serif italic text-amber-500/90 mb-3">{t('admin.open_tasks')}</h3>
                   <div className="flex flex-wrap gap-4 text-sm">
-                    <span className="text-zinc-400">User-Genehmigungen: <strong className="text-zinc-200">{allUsers.filter(u => u.status === 'pending').length}</strong></span>
-                    <span className="text-zinc-400">Offene Zahlungen: <strong className="text-zinc-200">{adminStats?.pendingPayments ?? 0}</strong></span>
-                    <span className="text-zinc-400">Resale ohne Entscheidung: <strong className="text-zinc-200">{adminResaleListings.filter((r: any) => ['signed', 'resale_pending'].includes(r.status) && !r.admin_decision).length}</strong></span>
-                    <span className="text-zinc-400">Investor-Anfragen: <strong className="text-zinc-200">{adminInvestorRequests.filter((r: any) => r.status === 'pending').length}</strong></span>
-                    <span className="text-zinc-400">Termine vorgeschlagen: <strong className="text-zinc-200">{adminAppointments.filter(a => a.status === 'proposed').length}</strong></span>
+                    <span className="text-zinc-400">{t('admin.user_approvals')}: <strong className="text-zinc-200">{allUsers.filter(u => u.status === 'pending').length}</strong></span>
+                    <span className="text-zinc-400">{t('admin.pending_payments')}: <strong className="text-zinc-200">{adminStats?.pendingPayments ?? 0}</strong></span>
+                    <span className="text-zinc-400">{t('admin.resale_no_decision')}: <strong className="text-zinc-200">{adminResaleListings.filter((r: any) => ['signed', 'resale_pending'].includes(r.status) && !r.admin_decision).length}</strong></span>
+                    <span className="text-zinc-400">{t('admin.investor_requests')}: <strong className="text-zinc-200">{adminInvestorRequests.filter((r: any) => r.status === 'pending').length}</strong></span>
+                    <span className="text-zinc-400">{t('admin.appointments_proposed')}: <strong className="text-zinc-200">{adminAppointments.filter(a => a.status === 'proposed').length}</strong></span>
                   </div>
                 </Card>
 
                 {/* Atelier-Momente */}
                 <Card className="p-6 space-y-6">
-                  <h3 className="text-xl font-serif italic text-amber-500/90">Atelier-Momente</h3>
-                  <p className="text-sm text-zinc-500">Editoriale Momente für das Dashboard. Reihenfolge: oben = zuerst angezeigt.</p>
+                  <h3 className="text-xl font-serif italic text-amber-500/90">{t('admin.atelier_moments')}</h3>
+                  <p className="text-sm text-zinc-500">{t('admin.atelier_moments_desc')}</p>
                   <div className="grid gap-4 max-w-2xl">
-                    <input type="text" placeholder="Titel" value={adminAtelierForm.title} onChange={e => setAdminAtelierForm(f => ({ ...f, title: e.target.value }))} className="input" />
-                    <input type="text" placeholder="Untertitel" value={adminAtelierForm.subtitle} onChange={e => setAdminAtelierForm(f => ({ ...f, subtitle: e.target.value }))} className="input" />
-                    <input type="text" placeholder="Bild-URL" value={adminAtelierForm.image_url} onChange={e => setAdminAtelierForm(f => ({ ...f, image_url: e.target.value }))} className="input" />
-                    <textarea placeholder="Body (optional)" value={adminAtelierForm.body} onChange={e => setAdminAtelierForm(f => ({ ...f, body: e.target.value }))} className="input min-h-[80px]" />
+                    <input type="text" placeholder={t('admin.field_title')} value={adminAtelierForm.title} onChange={e => setAdminAtelierForm(f => ({ ...f, title: e.target.value }))} className="input" />
+                    <input type="text" placeholder={t('admin.field_subtitle')} value={adminAtelierForm.subtitle} onChange={e => setAdminAtelierForm(f => ({ ...f, subtitle: e.target.value }))} className="input" />
+                    <input type="text" placeholder={t('admin.field_image_url')} value={adminAtelierForm.image_url} onChange={e => setAdminAtelierForm(f => ({ ...f, image_url: e.target.value }))} className="input" />
+                    <textarea placeholder={t('admin.field_body_optional')} value={adminAtelierForm.body} onChange={e => setAdminAtelierForm(f => ({ ...f, body: e.target.value }))} className="input min-h-[80px]" />
                     <div className="flex gap-3">
-                      <Button variant="secondary" className="text-sm" onClick={() => { if (adminAtelierForm.title.trim()) { setAdminAtelierMoments(prev => [...prev, { id: `new-${Date.now()}`, title: adminAtelierForm.title.trim(), subtitle: adminAtelierForm.subtitle.trim() || undefined, image_url: adminAtelierForm.image_url.trim() || undefined, body: adminAtelierForm.body.trim() || undefined }]); setAdminAtelierForm({ title: '', subtitle: '', image_url: '', body: '' }); } }}>Hinzufügen</Button>
+                      <Button variant="secondary" className="text-sm" onClick={() => { if (adminAtelierForm.title.trim()) { setAdminAtelierMoments(prev => [...prev, { id: `new-${Date.now()}`, title: adminAtelierForm.title.trim(), subtitle: adminAtelierForm.subtitle.trim() || undefined, image_url: adminAtelierForm.image_url.trim() || undefined, body: adminAtelierForm.body.trim() || undefined }]); setAdminAtelierForm({ title: '', subtitle: '', image_url: '', body: '' }); } }}>{t('admin.add_button')}</Button>
                       <Button variant="primary" className="text-sm" disabled={adminAtelierSaving} onClick={async () => {
                         setAdminAtelierSaving(true);
                         try {
                           const res = await fetch('/api/admin/atelier-moments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminAtelierMoments.map(({ id, ...r }) => r)) });
                           if (res.ok) { const data = await fetch('/api/atelier-moments').then(r => r.json()); setAtelierMoments(data); setAdminAtelierMoments(data); }
                         } finally { setAdminAtelierSaving(false); }
-                      }}>{adminAtelierSaving ? 'Speichern…' : 'Speichern'}</Button>
+                      }}>{adminAtelierSaving ? t('admin.save_saving') : t('admin.save_button')}</Button>
                     </div>
                   </div>
                   <ul className="space-y-2">
@@ -5559,7 +5611,7 @@ export default function App() {
                       <li key={m.id || i} className="flex items-center gap-4 py-2 border-b border-zinc-800/50">
                         {m.image_url && <img src={m.image_url} alt="" className="w-12 h-12 object-cover rounded" />}
                         <span className="flex-1 text-zinc-200 truncate">{m.title}{m.subtitle ? ` – ${m.subtitle}` : ''}</span>
-                        <button type="button" onClick={() => setAdminAtelierMoments(prev => prev.filter((_, j) => j !== i))} className="text-zinc-500 hover:text-red-400 text-sm">Entfernen</button>
+                        <button type="button" onClick={() => setAdminAtelierMoments(prev => prev.filter((_, j) => j !== i))} className="text-zinc-500 hover:text-red-400 text-sm">{t('admin.remove')}</button>
                       </li>
                     ))}
                   </ul>

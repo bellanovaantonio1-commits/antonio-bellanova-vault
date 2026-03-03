@@ -1,10 +1,11 @@
 node_modules
 dist
 .git
+*.db
 .env
 .env.*
-*.db
-.DS_Store
 *.log
+.DS_Store
 .cursor
-terminals
+coverage
+.nyc_output
