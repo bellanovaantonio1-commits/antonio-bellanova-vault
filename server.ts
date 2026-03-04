@@ -1521,6 +1521,20 @@ function calculateRarityScore(masterpieceId: number) {
 
 // Auth
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
+function deriveUsernameFromEmail(email: string): string {
+  const local = (email.split("@")[0] || "user").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 50) || "user";
+  const base = local.length >= 3 ? local : local + "_u";
+  return base.slice(0, 50);
+}
+function ensureUniqueUsername(base: string): string {
+  let username = base.slice(0, 50);
+  let n = 1;
+  while (db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?").get(username.toLowerCase())) {
+    const suffix = "_" + (n++);
+    username = (base.slice(0, 50 - suffix.length) + suffix).slice(0, 50);
+  }
+  return username;
+}
 app.post("/api/register", (req, res) => {
   const { email, password, name, username: rawUsername, address, wantsVip, language, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
@@ -1528,12 +1542,15 @@ app.post("/api/register", (req, res) => {
   if (requestedRole === "strategic_private_advisor") {
     return res.status(403).json({ error: "Strategic Private Advisors cannot register publicly. Contact the Atelier for an invitation." });
   }
-  const username = typeof rawUsername === "string" ? rawUsername.trim() : "";
-  if (!username) return res.status(400).json({ error: "Anmeldename erforderlich." });
-  if (!USERNAME_REGEX.test(username)) return res.status(400).json({ error: "Anmeldename: 3–50 Zeichen, nur Buchstaben, Zahlen und Unterstrich." });
-  const usernameNorm = username.toLowerCase();
-  if (db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?").get(usernameNorm)) {
-    return res.status(400).json({ error: "Anmeldename bereits vergeben." });
+  let username = typeof rawUsername === "string" ? rawUsername.trim() : "";
+  if (!username) {
+    username = ensureUniqueUsername(deriveUsernameFromEmail(String(email)));
+  } else {
+    if (!USERNAME_REGEX.test(username)) return res.status(400).json({ error: "Anmeldename: 3–50 Zeichen, nur Buchstaben, Zahlen und Unterstrich." });
+    const usernameNorm = username.toLowerCase();
+    if (db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?").get(usernameNorm)) {
+      return res.status(400).json({ error: "Anmeldename bereits vergeben." });
+    }
   }
   try {
     const hashed = hashPassword(String(password));

@@ -224,6 +224,7 @@ const TRANSLATIONS: any = {
     "auth.email_placeholder": "name@vault.com",
     "auth.email_or_username": "E-Mail oder Anmeldename",
     "auth.username": "Anmeldename",
+    "auth.username_optional": "optional – wird aus E-Mail erzeugt, wenn leer",
     "auth.username_placeholder": "z. B. max_mustermann",
     "auth.password_placeholder": "••••••••",
     "auth.apply_vip": "VIP-Mitgliedschaft beantragen",
@@ -750,6 +751,7 @@ const TRANSLATIONS: any = {
     "auth.email_placeholder": "name@vault.com",
     "auth.email_or_username": "Email or username",
     "auth.username": "Username",
+    "auth.username_optional": "optional – derived from email if left empty",
     "auth.username_placeholder": "e.g. john_doe",
     "auth.password_placeholder": "••••••••",
     "auth.apply_vip": "Apply for VIP Membership",
@@ -1262,6 +1264,7 @@ const TRANSLATIONS: any = {
     "auth.email_placeholder": "name@vault.com",
     "auth.email_or_username": "Email o nome utente",
     "auth.username": "Nome utente",
+    "auth.username_optional": "opzionale – generato dall'email se vuoto",
     "auth.username_placeholder": "es. mario_rossi",
     "auth.password_placeholder": "••••••••",
     "auth.apply_vip": "Richiedi adesione VIP",
@@ -2180,6 +2183,7 @@ export default function App() {
   const [serviceRequestForm, setServiceRequestForm] = useState({ masterpieceId: '' as number | '', type: 'restoration', description: '' });
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [masterpieces, setMasterpieces] = useState<Masterpiece[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [myBids, setMyBids] = useState<any[]>([]);
@@ -4248,7 +4252,7 @@ export default function App() {
           <Card className="p-8">
             <div className="flex gap-4 mb-8">
               <button type="button" onClick={() => { setView('login'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'login' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('login')}</button>
-              <button type="button" onClick={() => { setView('register'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'register' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('register')}</button>
+              <button type="button" onClick={() => { setView('register'); setLoginError(null); setRegisterError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'register' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('register')}</button>
               <button type="button" onClick={() => { setView('forgot-password'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'forgot-password' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('auth.forgot_password')}</button>
             </div>
 
@@ -4263,7 +4267,10 @@ export default function App() {
               {view === 'register' && (
                 <>
                   <Input label={t('auth.full_name')} icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} placeholder={t('auth.name_placeholder')} />
-                  <Input label={t('auth.username')} icon={UserIcon} value={username} onChange={(e: any) => setUsername(e.target.value)} placeholder={t('auth.username_placeholder')} autoComplete="username" />
+                  <div className="space-y-1">
+                    <Input label={t('auth.username')} icon={UserIcon} value={username} onChange={(e: any) => setUsername(e.target.value)} placeholder={t('auth.username_placeholder')} autoComplete="username" />
+                    <p className="text-[11px] text-zinc-500 ml-1">{t('auth.username_optional')}</p>
+                  </div>
                   <Input label={t('address')} icon={MapPin} value={address} onChange={(e: any) => setAddress(e.target.value)} placeholder={t('auth.address_placeholder')} />
                   <div className="space-y-1.5">
                     <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('auth.access_role')}</label>
