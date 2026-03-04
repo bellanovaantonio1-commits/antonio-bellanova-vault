@@ -41,7 +41,9 @@ import {
   Search,
   Package,
   BookOpen,
-  LineChart
+  LineChart,
+  Menu,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from "jspdf";
@@ -1676,7 +1678,7 @@ const TRANSLATIONS: any = {
 // --- Components ---
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
-  const base = "px-6 py-3 rounded-full font-medium transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]";
+  const base = "min-h-[44px] px-6 py-3 rounded-full font-medium transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]";
   const variants: any = {
     primary: "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20 hover:shadow-amber-600/25",
     secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700",
@@ -2181,6 +2183,7 @@ export default function App() {
   const [adminContactRequests, setAdminContactRequests] = useState<{ id: number; name: string; email: string; subject: string | null; message: string; created_at: string }[]>([]);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
   const [contactFormSubmitting, setContactFormSubmitting] = useState(false);
@@ -4239,56 +4242,86 @@ export default function App() {
     try { localStorage.setItem('vault-theme', next); } catch (_) {}
   };
 
+  const closeDrawer = () => setSidebarOpen(false);
+  const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
+  const navItems = [
+    navItem('dashboard', TrendingUp, t('dashboard')),
+    navItem('marketplace', ShoppingBag, t('marketplace')),
+    navItem('drops', Package, t('drops.title')),
+    navItem('auctions', Gavel, t('auctions')),
+    navItem('vault', ShieldCheck, t('vault')),
+    ...(user.role !== 'black' && user.role !== UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.concierge'))] : []),
+    ...(user.role === 'black' || user.role === UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.direct_line'))] : []),
+    navItem('portfolio', Award, t('view.portfolio')),
+    ...(user.role !== UserRole.ADMIN ? [navItem('fractional', PieChart, t('view.fractional'))] : []),
+    ...(user.role === UserRole.INVESTOR ? [navItem('investor', BarChart3, t('investor.title'))] : []),
+    ...(user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR ? [navItem('advisor', BarChart3, t('advisor.title') || 'Advisor')] : []),
+    ...(user.role === UserRole.ADMIN ? [navItem('admin', Users, t('management'))] : []),
+  ];
+
   return (
     <div className={`min-h-screen font-sans selection:bg-amber-500/30 ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`} data-theme={theme}>
-      {/* Sidebar */}
-      <nav className="fixed left-0 top-0 h-full w-20 md:w-64 bg-zinc-950 border-r border-zinc-900 z-50 flex flex-col">
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-zinc-950 border-r border-zinc-900 z-50 flex-col">
         <div className="p-6 flex items-center gap-3 mb-8">
           <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center">
             <Diamond className="w-5 h-5 text-amber-500" />
           </div>
-          <span className="hidden md:block font-serif italic text-lg text-amber-500">{t('vault')}</span>
+          <span className="font-serif italic text-lg text-amber-500">{t('vault')}</span>
         </div>
-
         <div className="flex-1 px-4 space-y-2">
-          <NavItem active={view === 'dashboard'} icon={TrendingUp} label={t('dashboard')} onClick={() => setView('dashboard')} />
-          <NavItem active={view === 'marketplace'} icon={ShoppingBag} label={t('marketplace')} onClick={() => setView('marketplace')} />
-          <NavItem active={view === 'drops'} icon={Package} label={t('drops.title')} onClick={() => setView('drops')} />
-          <NavItem active={view === 'auctions'} icon={Gavel} label={t('auctions')} onClick={() => setView('auctions')} />
-          <NavItem active={view === 'vault'} icon={ShieldCheck} label={t('vault')} onClick={() => setView('vault')} />
-          {user.role !== 'black' && user.role !== UserRole.BLACK && (
-            <NavItem active={view === 'concierge'} icon={MessageCircle} label={t('chat.concierge')} onClick={() => setView('concierge')} />
-          )}
-          {(user.role === 'black' || user.role === UserRole.BLACK) && (
-            <NavItem active={view === 'concierge'} icon={MessageCircle} label={t('chat.direct_line')} onClick={() => setView('concierge')} />
-          )}
-          <NavItem active={view === 'portfolio'} icon={Award} label={t('view.portfolio')} onClick={() => setView('portfolio')} />
-          {user.role !== UserRole.ADMIN && (
-            <NavItem active={view === 'fractional'} icon={PieChart} label={t('view.fractional')} onClick={() => setView('fractional')} />
-          )}
-          {user.role === UserRole.INVESTOR && (
-            <NavItem active={view === 'investor'} icon={BarChart3} label={t('investor.title')} onClick={() => setView('investor')} />
-          )}
-          {user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR && (
-            <NavItem active={view === 'advisor'} icon={BarChart3} label={t('advisor.title') || 'Advisor'} onClick={() => setView('advisor')} />
-          )}
-          {user.role === UserRole.ADMIN && (
-            <NavItem active={view === 'admin'} icon={Users} label={t('management')} onClick={() => setView('admin')} />
-          )}
+          {navItems.map(({ viewKey, Icon, label }) => (
+            <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => setView(viewKey as any)} />
+          ))}
         </div>
-
         <div className="p-4 border-t border-zinc-900">
           <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); }}>
             <LogOut className="w-5 h-5 text-zinc-500" />
-            <span className="hidden md:block text-sm text-zinc-400">{t('sign_out')}</span>
+            <span className="text-sm text-zinc-400">{t('sign_out')}</span>
           </div>
         </div>
       </nav>
 
+      {/* Mobile drawer overlay + drawer */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
+            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.2 }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-zinc-950 border-r border-zinc-900 flex flex-col md:hidden">
+              <div className="p-4 flex items-center justify-between border-b border-zinc-900">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center">
+                    <Diamond className="w-5 h-5 text-amber-500" />
+                  </div>
+                  <span className="font-serif italic text-lg text-amber-500">{t('vault')}</span>
+                </div>
+                <button type="button" onClick={closeDrawer} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={t('close')}>
+                  <X className="w-5 h-5 text-zinc-400" />
+                </button>
+              </div>
+              <div className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+                {navItems.map(({ viewKey, Icon, label }) => (
+                  <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => { setView(viewKey as any); closeDrawer(); }} />
+                ))}
+              </div>
+              <div className="p-4 border-t border-zinc-900">
+                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); closeDrawer(); }}>
+                  <LogOut className="w-5 h-5 text-zinc-500" />
+                  <span className="text-sm text-zinc-400">{t('sign_out')}</span>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
       {/* Main Content */}
-      <main className="pl-20 md:pl-64 min-h-screen">
-        <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-8 glass sticky top-0 z-40">
+      <main className="pl-0 md:pl-64 min-h-screen">
+        <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-4 sm:px-6 md:px-8 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
           <div className="flex items-center gap-4 flex-1 min-w-0">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/5 transition-colors shrink-0" aria-label={t('view.dashboard')}>
+              <Menu className="w-6 h-6 text-zinc-400" />
+            </button>
             <h2 className="text-xl font-serif italic text-white capitalize shrink-0">{(t as (k: string) => string)(`view.${view}`) || view}</h2>
             {user && (
               <div className="relative max-w-xs w-full hidden sm:block">
@@ -4402,7 +4435,7 @@ export default function App() {
 
         {/* Premium Trust Bar */}
         {user && (
-          <div className="trust-bar px-8 py-2 flex flex-wrap items-center justify-center gap-6 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+          <div className="trust-bar px-4 sm:px-6 md:px-8 py-2 flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
             <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-amber-500/70" /> {t('trust.secured_by')}</span>
             <span>{t('trust.ssl_encrypted')}</span>
             <span>{t('trust.dsgvo_compliant')}</span>
@@ -4447,7 +4480,7 @@ export default function App() {
         <AnimatePresence>
           {showSuccessOverlay && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[190] bg-black/80 backdrop-blur-sm flex items-center justify-center">
-              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-8 flex flex-col items-center gap-4">
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-zinc-900 border border-amber-500/30 rounded-3xl p-6 sm:p-8 flex flex-col items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center">
                   <CheckCircle className="w-8 h-8 text-emerald-500" />
                 </div>
@@ -4538,7 +4571,7 @@ export default function App() {
 
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
-          <div className="px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
+          <div className="px-4 sm:px-6 md:px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
             <button type="button" onClick={() => setView('dashboard')} className="hover:text-amber-500/80">{t('dashboard')}</button>
             <span>/</span>
             {view === 'vault' ? (
@@ -4552,7 +4585,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="p-8 max-w-7xl mx-auto">
+        <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
@@ -4945,7 +4978,7 @@ export default function App() {
                   <div className="flex-1 flex flex-col min-w-0 bg-zinc-950/50">
                     {selectedChatThread ? (
                       <>
-                        <div className="flex-1 overflow-y-auto px-8 py-10 space-y-8">
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 py-6 sm:py-10 space-y-8">
                           {chatMessages.map((m, i) => {
                             const isOwn = m.sender_id === user?.id;
                             const role = (user?.role as string) || 'client';
@@ -7219,7 +7252,7 @@ export default function App() {
 
         {/* Premium Footer */}
         {user && (
-          <footer className="premium-footer mt-16 py-8 px-8 max-w-7xl mx-auto">
+          <footer className="premium-footer mt-16 py-6 sm:py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto safe-area-bottom">
             <div className="flex flex-wrap items-center justify-between gap-6 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
               <div className="flex items-center gap-6">
                 <span className="font-serif italic text-amber-500/80">Juwelen & Schmuckatelier Antonio Bellanova</span>
@@ -7244,7 +7277,7 @@ export default function App() {
         {/* Piece Details Modal */}
         <AnimatePresence>
           {selectedPiece && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
               <motion.div 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
@@ -7269,10 +7302,10 @@ export default function App() {
                           <img src={src} alt={selectedPiece.title} className="w-full h-full object-cover" />
                           {images.length > 1 && (
                             <>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i - 1 + images.length) % images.length); }} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Vorheriges Bild">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i - 1 + images.length) % images.length); }} className="absolute left-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Vorheriges Bild">
                                 <ChevronLeft className="w-5 h-5" />
                               </button>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i + 1) % images.length); }} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Nächstes Bild">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i + 1) % images.length); }} className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Nächstes Bild">
                                 <ChevronRight className="w-5 h-5" />
                               </button>
                               <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
@@ -7289,10 +7322,10 @@ export default function App() {
                       );
                     })()}
                   </div>
-                  <div className="p-8 md:p-12 space-y-8 flex flex-col">
+                  <div className="p-4 sm:p-6 md:p-12 space-y-8 flex flex-col">
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
-                        <h3 className="text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
+                        <h3 className="text-2xl sm:text-3xl md:text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
                         {(() => {
                         const price = getPiecePriceDisplay(selectedPiece, user);
                         return <p className={price.showNegotiation || price.showInquiry ? 'text-zinc-500 italic' : 'text-amber-500 text-2xl font-bold'}>{price.label}</p>;
@@ -7795,9 +7828,9 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
 // --- Helper Components ---
 
 const NavItem = ({ active, icon: Icon, label, onClick }: any) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group ${active ? 'bg-amber-600/10 text-amber-500' : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5'}`}>
-    <Icon className={`w-5 h-5 ${active ? 'text-amber-500' : 'group-hover:text-amber-500'} transition-colors`} />
-    <span className="hidden md:block text-sm font-medium">{label}</span>
+  <button onClick={onClick} className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group min-h-[44px] ${active ? 'bg-amber-600/10 text-amber-500' : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5'}`}>
+    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-amber-500' : 'group-hover:text-amber-500'} transition-colors`} />
+    <span className="block text-sm font-medium">{label}</span>
   </button>
 );
 
