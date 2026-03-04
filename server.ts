@@ -1606,6 +1606,138 @@ app.post("/api/admin/masterpieces", (req, res) => {
   }
 });
 
+// Admin: Meisterstück bearbeiten (PATCH)
+app.patch("/api/admin/masterpieces/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
+  const existing = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  if (!existing) return res.status(404).json({ error: "Masterpiece not found" });
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
+  const serial_id = bodySerial != null && String(bodySerial).trim() ? String(bodySerial).trim() : existing.serial_id;
+  const pricing_mode = bodyPricingMode && ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : (existing.pricing_mode || 'fixed');
+  const hide_price = pricing_mode === 'hidden' ? 1 : 0;
+  const image_url = bodyImageUrl !== undefined ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : existing.image_url);
+  try {
+    db.prepare(`
+      UPDATE masterpieces SET title = ?, serial_id = ?, category = ?, description = ?, materials = ?, gemstones = ?, valuation = ?, rarity = ?, production_time = ?, cert_data = ?, deposit_pct = ?, image_url = ?
+      WHERE id = ?
+    `).run(
+      title !== undefined ? title : existing.title,
+      serial_id,
+      category !== undefined ? category : existing.category,
+      description !== undefined ? description : existing.description,
+      materials !== undefined ? materials : existing.materials,
+      gemstones !== undefined ? gemstones : existing.gemstones,
+      valuation !== undefined ? Number(valuation) : existing.valuation,
+      rarity !== undefined ? rarity : existing.rarity,
+      production_time !== undefined ? production_time : existing.production_time,
+      cert_data !== undefined ? cert_data : existing.cert_data,
+      deposit_pct !== undefined ? Number(deposit_pct) : existing.deposit_pct,
+      image_url,
+      id
+    );
+    try { db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id); } catch (_) {}
+    if (bodyPriceVisibility !== undefined) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility || '').trim(), id);
+    if (bodyImageUrls !== undefined && Array.isArray(bodyImageUrls)) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(JSON.stringify(bodyImageUrls), id);
+    if (bodyDescI18n !== undefined && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
+    if (bodyMaterialsI18n !== undefined && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
+    if (bodyGemstonesI18n !== undefined && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
+    broadcast({ type: 'MASTERPIECE_UPDATED', id });
+    res.json({ ok: true });
+  } catch (e: any) {
+    if (e.message && e.message.includes("UNIQUE constraint failed: masterpieces.serial_id")) {
+      res.status(400).json({ error: "Serial ID already exists." });
+    } else {
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+});
+
+// Admin: Stück bearbeiten (PATCH)
+app.patch("/api/admin/masterpieces/:id", (req, res) => {
+  const admin = (req as any).user;
+  if (!admin || admin.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) return res.status(400).json({ error: 'Invalid masterpiece ID' });
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  if (!piece) return res.status(404).json({ error: 'Masterpiece not found' });
+  const body = req.body || {};
+  const updates: string[] = [];
+  const values: any[] = [];
+  const str = (v: any) => (v != null ? String(v) : undefined);
+  const num = (v: any) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : undefined);
+  if (body.title !== undefined) { updates.push('title = ?'); values.push(str(body.title)); }
+  if (body.serial_id !== undefined) { updates.push('serial_id = ?'); values.push(str(body.serial_id)); }
+  if (body.category !== undefined) { updates.push('category = ?'); values.push(str(body.category)); }
+  if (body.description !== undefined) { updates.push('description = ?'); values.push(str(body.description)); }
+  if (body.materials !== undefined) { updates.push('materials = ?'); values.push(str(body.materials)); }
+  if (body.gemstones !== undefined) { updates.push('gemstones = ?'); values.push(str(body.gemstones)); }
+  if (body.valuation !== undefined) { updates.push('valuation = ?'); values.push(num(body.valuation)); }
+  if (body.rarity !== undefined) { updates.push('rarity = ?'); values.push(str(body.rarity)); }
+  if (body.production_time !== undefined) { updates.push('production_time = ?'); values.push(str(body.production_time)); }
+  if (body.cert_data !== undefined) { updates.push('cert_data = ?'); values.push(str(body.cert_data)); }
+  if (body.deposit_pct !== undefined) { updates.push('deposit_pct = ?'); values.push(num(body.deposit_pct)); }
+  if (body.image_url !== undefined) { updates.push('image_url = ?'); values.push(str(body.image_url)); }
+  if (body.image_urls !== undefined) { updates.push('image_urls = ?'); values.push(Array.isArray(body.image_urls) ? JSON.stringify(body.image_urls) : str(body.image_urls)); }
+  if (body.pricing_mode !== undefined) {
+    const mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(body.pricing_mode) ? body.pricing_mode : piece.pricing_mode;
+    updates.push('pricing_mode = ?'); values.push(mode);
+    updates.push('hide_price = ?'); values.push(mode === 'hidden' ? 1 : 0);
+  }
+  if (body.price_visibility_rules !== undefined) { updates.push('price_visibility_rules = ?'); values.push(str(body.price_visibility_rules)); }
+  if (body.description_i18n !== undefined) { updates.push('description_i18n = ?'); values.push(typeof body.description_i18n === 'object' ? JSON.stringify(body.description_i18n) : str(body.description_i18n)); }
+  if (body.materials_i18n !== undefined) { updates.push('materials_i18n = ?'); values.push(typeof body.materials_i18n === 'object' ? JSON.stringify(body.materials_i18n) : str(body.materials_i18n)); }
+  if (body.gemstones_i18n !== undefined) { updates.push('gemstones_i18n = ?'); values.push(typeof body.gemstones_i18n === 'object' ? JSON.stringify(body.gemstones_i18n) : str(body.gemstones_i18n)); }
+  if (updates.length === 0) return res.json({ ok: true });
+  values.push(id);
+  try {
+    db.prepare(`UPDATE masterpieces SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    broadcast({ type: 'MASTERPIECE_UPDATED', id });
+    res.json({ ok: true });
+  } catch (e: any) {
+    if (e.message && e.message.includes('UNIQUE constraint failed')) return res.status(400).json({ error: 'Serial ID already in use' });
+    res.status(500).json({ error: 'Update failed' });
+  }
+});
+
+// Admin: Stück bearbeiten (PATCH)
+app.patch("/api/admin/masterpieces/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
+  const updates: string[] = [];
+  const values: any[] = [];
+  if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+  if (bodySerial !== undefined) { updates.push("serial_id = ?"); values.push(String(bodySerial).trim() || piece.serial_id); }
+  if (category !== undefined) { updates.push("category = ?"); values.push(category); }
+  if (description !== undefined) { updates.push("description = ?"); values.push(description); }
+  if (materials !== undefined) { updates.push("materials = ?"); values.push(materials); }
+  if (gemstones !== undefined) { updates.push("gemstones = ?"); values.push(gemstones); }
+  if (valuation !== undefined) { updates.push("valuation = ?"); values.push(Number(valuation)); }
+  if (rarity !== undefined) { updates.push("rarity = ?"); values.push(rarity); }
+  if (production_time !== undefined) { updates.push("production_time = ?"); values.push(production_time); }
+  if (cert_data !== undefined) { updates.push("cert_data = ?"); values.push(cert_data); }
+  if (deposit_pct !== undefined) { updates.push("deposit_pct = ?"); values.push(Number(deposit_pct)); }
+  if (bodyImageUrl !== undefined) { updates.push("image_url = ?"); values.push(bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls?.length > 0 ? bodyImageUrls[0] : piece.image_url)); }
+  if (updates.length > 0) {
+    db.prepare(`UPDATE masterpieces SET ${updates.join(", ")} WHERE id = ?`).run(...values, id);
+  }
+  if (bodyPricingMode !== undefined) {
+    const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
+    const hide_price = pricing_mode === 'hidden' ? 1 : 0;
+    db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id);
+  }
+  if (bodyPriceVisibility !== undefined) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility || '').trim(), id);
+  if (Array.isArray(bodyImageUrls) && bodyImageUrls.length >= 0) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(bodyImageUrls.length > 0 ? JSON.stringify(bodyImageUrls) : null, id);
+  if (bodyDescI18n != null && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
+  if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
+  if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
+  broadcast({ type: 'MASTERPIECE_UPDATED', id });
+  res.json({ ok: true });
+});
+
 // Admin: Stück dauerhaft aus dem System löschen (mit Passwortbestätigung)
 app.post("/api/admin/masterpieces/:id/delete", (req, res) => {
   const admin = (req as any).user;

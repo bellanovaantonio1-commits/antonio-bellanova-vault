@@ -298,6 +298,7 @@ const TRANSLATIONS: any = {
     "admin.save_saving": "Speichern…",
     "admin.remove": "Entfernen",
     "admin.create_masterpiece": "Meisterstück erstellen",
+    "admin.edit_piece": "Stück bearbeiten",
     "admin.advisors": "Berater",
     "admin.invite_advisor": "Einladen",
     "admin.generate_password": "Passwort erzeugen",
@@ -2135,6 +2136,8 @@ export default function App() {
   const [appointmentScheduleForm, setAppointmentScheduleForm] = useState({ date: '', time: '09:00', title: '', notes: '' });
   const [newAppointmentForm, setNewAppointmentForm] = useState({ userId: '', date: '', time: '09:00', title: '', notes: '' });
   const [deletePieceConfirm, setDeletePieceConfirm] = useState<{ piece: Masterpiece; password: string; error: string } | null>(null);
+  const [editingPiece, setEditingPiece] = useState<(Masterpiece & { description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string }) | null>(null);
+  const [editPieceForm, setEditPieceForm] = useState<Record<string, any>>({});
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [selectedChatThread, setSelectedChatThread] = useState<ChatThread | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -2170,6 +2173,8 @@ export default function App() {
   const [showNotificationPrefsModal, setShowNotificationPrefsModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
+  const [showMarketplacePdfModal, setShowMarketplacePdfModal] = useState(false);
+  const [marketplacePdfLang, setMarketplacePdfLang] = useState<'de' | 'en' | 'it'>('de');
   const [changePasswordForm, setChangePasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [changePasswordSubmitting, setChangePasswordSubmitting] = useState(false);
   const [changePasswordError, setChangePasswordError] = useState('');
@@ -2253,6 +2258,17 @@ export default function App() {
       return fallback;
     }
   };
+  const getPieceLocalizedWithLang = (piece: any, field: 'description' | 'materials' | 'gemstones', langCode: string): string => {
+    const i18n = piece[`${field}_i18n`];
+    const fallback = piece[field] ?? '';
+    if (!i18n) return fallback;
+    try {
+      const obj = typeof i18n === 'string' ? JSON.parse(i18n) : i18n;
+      return (obj && typeof obj === 'object' && (obj[langCode] ?? obj['en'] ?? obj['de'])) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  };
   const getRarityLabel = (rarity: string): string => {
     const r = (rarity || '').toLowerCase();
     if (r === 'unique' || r === 'unikat') return t('piece.rarity_unique');
@@ -2291,7 +2307,191 @@ export default function App() {
     return piece.image_url ? [piece.image_url] : [];
   };
 
+  const getPieceLocalizedForLang = (piece: any, field: 'description' | 'materials' | 'gemstones', lang: string): string => {
+    const i18n = piece[`${field}_i18n`];
+    const fallback = piece[field] ?? '';
+    if (!i18n) return fallback;
+    try {
+      const obj = typeof i18n === 'string' ? JSON.parse(i18n) : i18n;
+      return (obj && typeof obj === 'object' && (obj[lang] ?? obj['en'] ?? obj['de'])) ?? fallback;
+    } catch { return fallback; }
+  };
+
+  const loadImageAsDataUrl = (url: string): Promise<string | null> =>
+    new Promise((resolve) => {
+      if (url.startsWith('data:')) {
+        resolve(url);
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = Math.min(img.naturalWidth, 400);
+          c.height = Math.min(img.naturalHeight, 400);
+          const ctx = c.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, c.width, c.height);
+            resolve(c.toDataURL('image/jpeg', 0.85));
+          } else resolve(null);
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+
+  const downloadMarketplacePdf = async (lang: 'de' | 'en' | 'it') => {
+    const PDF_LABELS: Record<string, Record<string, string>> = {
+      de: { title: 'Marktplatz', description: 'Beschreibung', materials: 'Materialien', gemstones: 'Edelsteine', serial_id: 'Seriennummer', price_on_request: 'Preis auf Anfrage', from: 'Ab', rarity: 'Seltenheit' },
+      en: { title: 'Marketplace', description: 'Description', materials: 'Materials', gemstones: 'Gemstones', serial_id: 'Serial ID', price_on_request: 'Price on request', from: 'From', rarity: 'Rarity' },
+      it: { title: 'Mercato', description: 'Descrizione', materials: 'Materiali', gemstones: 'Pietre preziose', serial_id: 'Numero di serie', price_on_request: 'Prezzo su richiesta', from: 'Da', rarity: 'Rarità' }
+    };
+    const L = PDF_LABELS[lang] || PDF_LABELS.de;
+    const list = filterMasterpieces(masterpieces, 'available');
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+    doc.setFontSize(18);
+    doc.text(`Antonio Bellanova — ${L.title}`, margin, y);
+    y += 10;
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(new Date().toLocaleDateString(lang === 'de' ? 'de-DE' : lang === 'it' ? 'it-IT' : 'en-GB'), margin, y);
+    y += 14;
+    for (let i = 0; i < list.length; i++) {
+      const piece = list[i] as Masterpiece & { pricing_mode?: string; description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string };
+      if (y > 250) { doc.addPage(); y = 20; }
+      const mode = piece.pricing_mode ?? (piece.hide_price ? 'hidden' : 'fixed');
+      let priceText = '';
+      if (mode === 'price_on_request' || mode === 'hidden') priceText = L.price_on_request;
+      else if (mode === 'starting_from') priceText = `${L.from} ${(piece.valuation != null ? Number(piece.valuation).toLocaleString('de-DE') : '—')} €`;
+      else priceText = piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—';
+      const imgList = getPieceImages(piece);
+      const imgUrl = imgList[0] || piece.image_url;
+      let dataUrl: string | null = null;
+      if (imgUrl && (imgUrl.startsWith('data:') || imgUrl.startsWith('http'))) {
+        if (imgUrl.startsWith('data:')) dataUrl = imgUrl;
+        else dataUrl = await loadImageAsDataUrl(imgUrl);
+      }
+      if (dataUrl) {
+        try {
+          doc.addImage(dataUrl, 'JPEG', margin, y, 35, 35);
+        } catch (_) {}
+      }
+      const hasImg = !!dataUrl;
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text((piece.title || '').substring(0, 50), hasImg ? margin + 40 : margin, y + 8);
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`${L.serial_id}: ${piece.serial_id || '—'}`, hasImg ? margin + 40 : margin, y + 16);
+      doc.text(priceText, hasImg ? margin + 40 : margin, y + 22);
+      if (piece.rarity) doc.text(`${L.rarity}: ${piece.rarity}`, hasImg ? margin + 40 : margin, y + 28);
+      doc.setFontSize(8);
+      const desc = getPieceLocalizedForLang(piece, 'description', lang);
+      const descLines = doc.splitTextToSize(desc || '—', pageW - margin * 2 - (hasImg ? 45 : 0));
+      doc.text(L.description + ': ', hasImg ? margin + 40 : margin, y + (piece.rarity ? 36 : 34));
+      doc.text(descLines.slice(0, 5), hasImg ? margin + 40 : margin, y + (piece.rarity ? 42 : 40));
+      const mat = getPieceLocalizedForLang(piece, 'materials', lang);
+      const gem = getPieceLocalizedForLang(piece, 'gemstones', lang);
+      doc.text(`${L.materials}: ${(mat || '—').substring(0, 50)}`, margin, y + (hasImg ? 58 : 56));
+      doc.text(`${L.gemstones}: ${(gem || '—').substring(0, 50)}`, margin, y + 64);
+      y += (hasImg ? 78 : 72);
+    }
+    doc.save(`Antonio-Bellanova-Marktplatz-${lang.toUpperCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   useEffect(() => { setPieceModalImageIndex(0); }, [selectedPiece?.id]);
+
+  useEffect(() => {
+    if (!editingPiece) return;
+    let descI18n: Record<string, string> = {};
+    let matI18n: Record<string, string> = {};
+    let gemI18n: Record<string, string> = {};
+    try {
+      if (editingPiece.description_i18n) descI18n = typeof editingPiece.description_i18n === 'string' ? JSON.parse(editingPiece.description_i18n) : editingPiece.description_i18n;
+      if (editingPiece.materials_i18n) matI18n = typeof editingPiece.materials_i18n === 'string' ? JSON.parse(editingPiece.materials_i18n) : editingPiece.materials_i18n;
+      if (editingPiece.gemstones_i18n) gemI18n = typeof editingPiece.gemstones_i18n === 'string' ? JSON.parse(editingPiece.gemstones_i18n) : editingPiece.gemstones_i18n;
+    } catch (_) {}
+    const images: string[] = getPieceImages(editingPiece);
+    setEditPieceForm({
+      title: editingPiece.title ?? '',
+      serial_id: editingPiece.serial_id ?? '',
+      category: (editingPiece as any).category ?? 'Jewelry',
+      description: editingPiece.description ?? '',
+      description_en: descI18n.en ?? '',
+      description_it: descI18n.it ?? '',
+      materials: editingPiece.materials ?? '',
+      materials_en: matI18n.en ?? '',
+      materials_it: matI18n.it ?? '',
+      gemstones: editingPiece.gemstones ?? '',
+      gemstones_en: gemI18n.en ?? '',
+      gemstones_it: gemI18n.it ?? '',
+      valuation: editingPiece.valuation ?? '',
+      deposit_pct: editingPiece.deposit_pct ?? 50,
+      rarity: editingPiece.rarity ?? 'Unique',
+      production_time: (editingPiece as any).production_time ?? '',
+      cert_data: (editingPiece as any).cert_data ?? '',
+      pricing_mode: (editingPiece as any).pricing_mode ?? 'fixed',
+      price_visibility_rules: (editingPiece as any).price_visibility_rules ?? '',
+      image_url: editingPiece.image_url ?? '',
+      image_urls: images.length > 0 ? images : []
+    });
+  }, [editingPiece]);
+
+  const handleSaveEditPiece = async () => {
+    if (!editingPiece) return;
+    setLoading(true);
+    try {
+      const description_i18n = [editPieceForm.description, editPieceForm.description_en, editPieceForm.description_it].some(Boolean)
+        ? { de: editPieceForm.description || undefined, en: editPieceForm.description_en?.trim() || undefined, it: editPieceForm.description_it?.trim() || undefined }
+        : undefined;
+      const materials_i18n = [editPieceForm.materials, editPieceForm.materials_en, editPieceForm.materials_it].some(Boolean)
+        ? { de: editPieceForm.materials || undefined, en: editPieceForm.materials_en?.trim() || undefined, it: editPieceForm.materials_it?.trim() || undefined }
+        : undefined;
+      const gemstones_i18n = [editPieceForm.gemstones, editPieceForm.gemstones_en, editPieceForm.gemstones_it].some(Boolean)
+        ? { de: editPieceForm.gemstones || undefined, en: editPieceForm.gemstones_en?.trim() || undefined, it: editPieceForm.gemstones_it?.trim() || undefined }
+        : undefined;
+      const res = await fetch(`/api/admin/masterpieces/${editingPiece.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: editPieceForm.title,
+          serial_id: editPieceForm.serial_id,
+          category: editPieceForm.category,
+          description: editPieceForm.description,
+          materials: editPieceForm.materials,
+          gemstones: editPieceForm.gemstones,
+          description_i18n,
+          materials_i18n,
+          gemstones_i18n,
+          valuation: parseFloat(editPieceForm.valuation) || 0,
+          deposit_pct: parseFloat(editPieceForm.deposit_pct) || 50,
+          rarity: editPieceForm.rarity,
+          production_time: editPieceForm.production_time,
+          cert_data: editPieceForm.cert_data,
+          pricing_mode: editPieceForm.pricing_mode,
+          price_visibility_rules: editPieceForm.price_visibility_rules || undefined,
+          image_url: editPieceForm.image_url,
+          image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined
+        })
+      });
+      if (res.ok) {
+        notifyUser(t('admin.piece_created'), 'success');
+        setEditingPiece(null);
+        fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        notifyUser(err.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Forms
   const [email, setEmail] = useState('');
@@ -4583,8 +4783,28 @@ export default function App() {
                         <option value="recent">{t('filter.recent_only')}</option>
                       </select>
                     )}
+                    <Button variant="outline" className="text-sm gap-2" onClick={() => setShowMarketplacePdfModal(true)}>
+                      <Download className="w-4 h-4" /> Marktplatz als PDF
+                    </Button>
                   </div>
                 </div>
+                {showMarketplacePdfModal && (
+                  <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80" onClick={() => setShowMarketplacePdfModal(false)}>
+                    <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+                      <h4 className="text-lg font-serif italic text-zinc-100 mb-2">Marktplatz als PDF</h4>
+                      <p className="text-sm text-zinc-500 mb-4">Download-Sprache wählen</p>
+                      <select value={marketplacePdfLang} onChange={e => setMarketplacePdfLang(e.target.value as 'de' | 'en' | 'it')} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-200 mb-4">
+                        <option value="de">Deutsch</option>
+                        <option value="en">English</option>
+                        <option value="it">Italiano</option>
+                      </select>
+                      <div className="flex gap-2">
+                        <Button className="flex-1" onClick={() => { downloadMarketplacePdf(marketplacePdfLang); setShowMarketplacePdfModal(false); }}>PDF herunterladen</Button>
+                        <Button variant="secondary" onClick={() => setShowMarketplacePdfModal(false)}>Abbrechen</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {listLoading && masterpieces.length === 0 ? (
                     [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
@@ -5960,6 +6180,63 @@ export default function App() {
                 )}
                 {(adminTab === 'inventory') && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      {editingPiece && (
+                        <section className="space-y-6 lg:col-span-2">
+                          <div className="flex justify-between items-center">
+                            <h3 className="text-2xl font-serif italic">{t('admin.edit_piece')}: {editingPiece.title}</h3>
+                            <Button variant="ghost" className="text-zinc-500" onClick={() => setEditingPiece(null)}>Abbrechen</Button>
+                          </div>
+                          <Card className="space-y-4 p-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <Input label="Titel" value={editPieceForm.title ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, title: e.target.value }))} />
+                              <Input label="Kategorie" value={editPieceForm.category ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, category: e.target.value }))} />
+                              <Input label="Seriennummer" value={editPieceForm.serial_id ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, serial_id: e.target.value }))} />
+                              <Input label="Produktionszeit" value={editPieceForm.production_time ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, production_time: e.target.value }))} />
+                              <Input label="Bewertung (€)" type="number" value={editPieceForm.valuation ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, valuation: e.target.value }))} />
+                              <Input label="Anzahlung %" type="number" value={editPieceForm.deposit_pct ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, deposit_pct: e.target.value }))} />
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Preisanzeige</label>
+                              <select value={editPieceForm.pricing_mode ?? 'fixed'} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, pricing_mode: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
+                                <option value="fixed">{t('pricing.mode_fixed')}</option>
+                                <option value="starting_from">{t('pricing.mode_starting_from')}</option>
+                                <option value="price_on_request">{t('pricing.mode_price_on_request')}</option>
+                                <option value="hidden">{t('pricing.mode_hidden')}</option>
+                              </select>
+                            </div>
+                            <Input label="Zertifikatsdaten (JSON)" value={editPieceForm.cert_data ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, cert_data: e.target.value }))} />
+                            <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
+                              <select value={editPieceForm.rarity ?? 'Unique'} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, rarity: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
+                                <option>Unikat</option><option>Limitiert</option><option>Selten</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Beschreibung (DE)</label>
+                              <textarea value={editPieceForm.description ?? ''} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, description: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 h-28" />
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                                <div><label className="text-[10px] uppercase text-zinc-500 ml-1">Beschreibung (EN)</label><textarea value={editPieceForm.description_en ?? ''} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, description_en: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm h-20 mt-1" /></div>
+                                <div><label className="text-[10px] uppercase text-zinc-500 ml-1">Beschreibung (IT)</label><textarea value={editPieceForm.description_it ?? ''} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, description_it: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm h-20 mt-1" /></div>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <Input label="Materialien (DE)" value={editPieceForm.materials ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials: e.target.value }))} />
+                              <Input label="Materialien (EN)" value={editPieceForm.materials_en ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials_en: e.target.value }))} />
+                              <Input label="Materialien (IT)" value={editPieceForm.materials_it ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials_it: e.target.value }))} />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <Input label="Edelsteine (DE)" value={editPieceForm.gemstones ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones: e.target.value }))} />
+                              <Input label="Edelsteine (EN)" value={editPieceForm.gemstones_en ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones_en: e.target.value }))} />
+                              <Input label="Edelsteine (IT)" value={editPieceForm.gemstones_it ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones_it: e.target.value }))} />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                              <Button className="flex-1" onClick={handleSaveEditPiece} disabled={loading}>{loading ? '…' : 'Speichern'}</Button>
+                              <Button variant="secondary" onClick={() => setEditingPiece(null)}>Abbrechen</Button>
+                            </div>
+                          </Card>
+                        </section>
+                      )}
+                      {!editingPiece && (
                       <section className="space-y-6">
                         <h3 className="text-2xl font-serif italic">Meisterstück erstellen</h3>
                         <Card className="space-y-4">
@@ -6059,6 +6336,7 @@ export default function App() {
                           <Button className="w-full" onClick={handleCreatePiece} disabled={loading}>Meisterstück erstellen</Button>
                         </Card>
                       </section>
+                      )}
 
                   <div className="space-y-8">
                     <section className="space-y-6">
@@ -7235,9 +7513,14 @@ export default function App() {
                         <MessageCircle className="w-4 h-4" /> Concierge: Zu diesem Stück anfragen
                       </Button>
                       {user?.role === UserRole.ADMIN && (
-                        <Button variant="danger" className="w-full py-3 text-sm" onClick={() => setDeletePieceConfirm({ piece: selectedPiece, password: '', error: '' })}>
-                          Aus System entfernen (Admin)
-                        </Button>
+                        <>
+                          <Button variant="secondary" className="w-full py-3 text-sm" onClick={() => { setEditingPiece(selectedPiece); setView('admin'); setAdminTab('inventory'); closePieceDetail(); }}>
+                            {t('admin.edit_piece')}
+                          </Button>
+                          <Button variant="danger" className="w-full py-3 text-sm" onClick={() => setDeletePieceConfirm({ piece: selectedPiece, password: '', error: '' })}>
+                            Aus System entfernen (Admin)
+                          </Button>
+                        </>
                       )}
                       <Button variant="ghost" className="w-full py-4 text-sm text-zinc-500" onClick={closePieceDetail}>
                         {t('close')}
