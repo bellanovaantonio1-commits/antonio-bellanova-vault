@@ -69,6 +69,65 @@ const LANGUAGES = [
   { code: 'es', name: 'Español' }
 ];
 
+type OptionI18n = { id: string; de: string; en: string; it: string };
+const MATERIAL_OPTIONS: OptionI18n[] = [
+  { id: 'gold', de: 'Gold', en: 'Gold', it: 'Oro' },
+  { id: 'rosegold', de: 'Roségold', en: 'Rose gold', it: 'Oro rosa' },
+  { id: 'white_gold', de: 'Weißgold', en: 'White gold', it: 'Oro bianco' },
+  { id: 'platin', de: 'Platin', en: 'Platinum', it: 'Platino' },
+  { id: 'silber', de: 'Silber', en: 'Silver', it: 'Argento' },
+  { id: 'palladium', de: 'Palladium', en: 'Palladium', it: 'Palladio' },
+  { id: 'stahl', de: 'Stahl', en: 'Steel', it: 'Acciaio' },
+  { id: 'kupfer', de: 'Kupfer', en: 'Copper', it: 'Rame' },
+  { id: 'titan', de: 'Titan', en: 'Titanium', it: 'Titanio' },
+];
+const GEMSTONE_OPTIONS: OptionI18n[] = [
+  { id: 'diamant', de: 'Diamant', en: 'Diamond', it: 'Diamante' },
+  { id: 'saphir', de: 'Saphir', en: 'Sapphire', it: 'Zaffiro' },
+  { id: 'rubin', de: 'Rubin', en: 'Ruby', it: 'Rubino' },
+  { id: 'smaragd', de: 'Smaragd', en: 'Emerald', it: 'Smeraldo' },
+  { id: 'perle', de: 'Perle', en: 'Pearl', it: 'Perla' },
+  { id: 'onyx', de: 'Onyx', en: 'Onyx', it: 'Onice' },
+  { id: 'amethyst', de: 'Amethyst', en: 'Amethyst', it: 'Ametista' },
+  { id: 'topas', de: 'Topas', en: 'Topaz', it: 'Topazio' },
+  { id: 'granat', de: 'Granat', en: 'Garnet', it: 'Granato' },
+  { id: 'aquamarin', de: 'Aquamarin', en: 'Aquamarine', it: 'Acquamarina' },
+  { id: 'türkis', de: 'Türkis', en: 'Turquoise', it: 'Turchese' },
+  { id: 'opal', de: 'Opal', en: 'Opal', it: 'Opale' },
+];
+
+function buildMaterialsGemstonesI18n(
+  selectedIds: string[],
+  connector: 'and' | 'or',
+  options: OptionI18n[]
+): { de: string; en: string; it: string } | null {
+  if (selectedIds.length === 0) return null;
+  const sepDe = connector === 'and' ? ' und ' : ' / ';
+  const sepEn = connector === 'and' ? ' and ' : ' / ';
+  const sepIt = connector === 'and' ? ' e ' : ' / ';
+  const labels = selectedIds.map(id => options.find(o => o.id === id)).filter(Boolean) as OptionI18n[];
+  if (labels.length === 0) return null;
+  return {
+    de: labels.map(l => l.de).join(sepDe),
+    en: labels.map(l => l.en).join(sepEn),
+    it: labels.map(l => l.it).join(sepIt)
+  };
+}
+
+function parseStoredToSelected(stored: string, options: OptionI18n[]): { ids: string[]; connector: 'and' | 'or' } {
+  const raw = (stored || '').trim();
+  if (!raw) return { ids: [], connector: 'or' };
+  const connector: 'and' | 'or' = raw.includes(' und ') ? 'and' : 'or';
+  const sep = raw.includes(' und ') ? ' und ' : (raw.includes(' / ') ? ' / ' : (raw.includes(' oder ') ? ' oder ' : raw.includes(' or ') ? ' or ' : raw.includes(' e ') ? ' e ' : ' / '));
+  const parts = raw.split(sep).map(s => s.trim()).filter(Boolean);
+  const ids: string[] = [];
+  for (const part of parts) {
+    const opt = options.find(o => o.de === part || o.en === part || o.it === part);
+    if (opt) ids.push(opt.id);
+  }
+  return { ids, connector };
+}
+
 const TRANSLATIONS: any = {
   de: {
     dashboard: "Dashboard",
@@ -217,6 +276,12 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Ausstehende Käufe",
     "admin.approve": "Genehmigen",
     "admin.reject": "Ablehnen",
+    "admin.login_link_create": "Einladungslink",
+    "admin.login_link_copied": "Einladungslink kopiert. Link an den Kunden senden – Anmeldung ohne Freischaltung.",
+    "login_link.invalid": "Link abgelaufen oder ungültig.",
+    "login_link.set_password_title": "Passwort festlegen",
+    "login_link.set_password_hint": "Bitte legen Sie Ihr Passwort für den Zugang zum Portal fest.",
+    "login_link.set_password": "Passwort festlegen",
     "admin.deposit_contract": "Anzahlungsvertrag",
     "admin.deposit_draft": "Entwurf",
     "admin.deposit_signed": "Unterzeichnet",
@@ -738,6 +803,12 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Pending Purchases",
     "admin.approve": "Approve",
     "admin.reject": "Reject",
+    "admin.login_link_create": "Invitation link",
+    "admin.login_link_copied": "Invitation link copied. Send to customer – they can sign in without manual approval.",
+    "login_link.invalid": "Link expired or invalid.",
+    "login_link.set_password_title": "Set password",
+    "login_link.set_password_hint": "Please set your password to access the portal.",
+    "login_link.set_password": "Set password",
     "admin.deposit_contract": "Deposit Contract",
     "admin.deposit_draft": "Draft",
     "admin.deposit_signed": "Signed",
@@ -1244,6 +1315,12 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Acquisti in sospeso",
     "admin.approve": "Approva",
     "admin.reject": "Rifiuta",
+    "admin.login_link_create": "Link invito",
+    "admin.login_link_copied": "Link invito copiato. Inviare al cliente – accesso senza approvazione manuale.",
+    "login_link.invalid": "Link scaduto o non valido.",
+    "login_link.set_password_title": "Imposta password",
+    "login_link.set_password_hint": "Impostare la password per accedere al portale.",
+    "login_link.set_password": "Imposta password",
     "admin.deposit_contract": "Contratto di acconto",
     "admin.deposit_draft": "Bozza",
     "admin.deposit_signed": "Firmato",
@@ -2174,6 +2251,7 @@ export default function App() {
   const [atelierMoments, setAtelierMoments] = useState<{ id: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [showNotificationPrefsModal, setShowNotificationPrefsModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [forcePasswordChangeMode, setForcePasswordChangeMode] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMarketplacePdfModal, setShowMarketplacePdfModal] = useState(false);
   const [marketplacePdfLang, setMarketplacePdfLang] = useState<'de' | 'en' | 'it'>('de');
@@ -2431,9 +2509,13 @@ export default function App() {
       materials: editingPiece.materials ?? '',
       materials_en: matI18n.en ?? '',
       materials_it: matI18n.it ?? '',
+      materials_selected: parseStoredToSelected(editingPiece.materials ?? '', MATERIAL_OPTIONS).ids,
+      materials_connector: parseStoredToSelected(editingPiece.materials ?? '', MATERIAL_OPTIONS).connector,
       gemstones: editingPiece.gemstones ?? '',
       gemstones_en: gemI18n.en ?? '',
       gemstones_it: gemI18n.it ?? '',
+      gemstones_selected: parseStoredToSelected(editingPiece.gemstones ?? '', GEMSTONE_OPTIONS).ids,
+      gemstones_connector: parseStoredToSelected(editingPiece.gemstones ?? '', GEMSTONE_OPTIONS).connector,
       valuation: editingPiece.valuation ?? '',
       deposit_pct: editingPiece.deposit_pct ?? 50,
       rarity: editingPiece.rarity ?? 'Unique',
@@ -2453,12 +2535,10 @@ export default function App() {
       const description_i18n = [editPieceForm.description, editPieceForm.description_en, editPieceForm.description_it].some(Boolean)
         ? { de: editPieceForm.description || undefined, en: editPieceForm.description_en?.trim() || undefined, it: editPieceForm.description_it?.trim() || undefined }
         : undefined;
-      const materials_i18n = [editPieceForm.materials, editPieceForm.materials_en, editPieceForm.materials_it].some(Boolean)
-        ? { de: editPieceForm.materials || undefined, en: editPieceForm.materials_en?.trim() || undefined, it: editPieceForm.materials_it?.trim() || undefined }
-        : undefined;
-      const gemstones_i18n = [editPieceForm.gemstones, editPieceForm.gemstones_en, editPieceForm.gemstones_it].some(Boolean)
-        ? { de: editPieceForm.gemstones || undefined, en: editPieceForm.gemstones_en?.trim() || undefined, it: editPieceForm.gemstones_it?.trim() || undefined }
-        : undefined;
+      const materialsBuilt = buildMaterialsGemstonesI18n(editPieceForm.materials_selected || [], editPieceForm.materials_connector || 'or', MATERIAL_OPTIONS);
+      const materials_i18n = materialsBuilt ? { de: materialsBuilt.de, en: materialsBuilt.en, it: materialsBuilt.it } : (editPieceForm.materials || editPieceForm.materials_en || editPieceForm.materials_it ? { de: editPieceForm.materials || undefined, en: editPieceForm.materials_en?.trim() || undefined, it: editPieceForm.materials_it?.trim() || undefined } : undefined);
+      const gemstonesBuilt = buildMaterialsGemstonesI18n(editPieceForm.gemstones_selected || [], editPieceForm.gemstones_connector || 'or', GEMSTONE_OPTIONS);
+      const gemstones_i18n = gemstonesBuilt ? { de: gemstonesBuilt.de, en: gemstonesBuilt.en, it: gemstonesBuilt.it } : (editPieceForm.gemstones || editPieceForm.gemstones_en || editPieceForm.gemstones_it ? { de: editPieceForm.gemstones || undefined, en: editPieceForm.gemstones_en?.trim() || undefined, it: editPieceForm.gemstones_it?.trim() || undefined } : undefined);
       const res = await fetch(`/api/admin/masterpieces/${editingPiece.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -2467,8 +2547,8 @@ export default function App() {
           serial_id: editPieceForm.serial_id,
           category: editPieceForm.category,
           description: editPieceForm.description,
-          materials: editPieceForm.materials,
-          gemstones: editPieceForm.gemstones,
+          materials: materials_i18n?.de ?? editPieceForm.materials ?? '',
+          gemstones: gemstones_i18n?.de ?? editPieceForm.gemstones ?? '',
           description_i18n,
           materials_i18n,
           gemstones_i18n,
@@ -2516,6 +2596,10 @@ export default function App() {
     description_en: '', description_it: '',
     materials_en: '', materials_it: '',
     gemstones_en: '', gemstones_it: '',
+    materials_selected: [] as string[],
+    materials_connector: 'or' as 'and' | 'or',
+    gemstones_selected: [] as string[],
+    gemstones_connector: 'or' as 'and' | 'or',
     valuation: '', 
     rarity: 'Unique', 
     production_time: '4-6 Weeks',
@@ -2543,6 +2627,13 @@ export default function App() {
       setVerifyCertId(decodeURIComponent(m[1].replace(/\/$/, '')));
       return;
     }
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    if (params?.get('login_link') === 'invalid') {
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', window.location.pathname + window.location.hash || '');
+      }
+      setTimeout(() => notifyUser(t('login_link.invalid') || 'Link abgelaufen oder ungültig.', 'error'), 300);
+    }
     fetch('/api/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -2555,6 +2646,15 @@ export default function App() {
               const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
               if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
             } catch (_) {}
+          }
+          if (data.force_password_change || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1')) {
+            setForcePasswordChangeMode(true);
+            setShowPasswordChangeModal(true);
+            if (typeof window !== 'undefined') {
+              const u = new URL(window.location.href);
+              u.searchParams.delete('must_change_password');
+              window.history.replaceState({}, '', u.pathname + u.hash || '');
+            }
           }
         }
       })
@@ -3122,12 +3222,10 @@ export default function App() {
       const description_i18n = [newPiece.description, (newPiece as any).description_en, (newPiece as any).description_it].some(Boolean)
         ? { de: newPiece.description || undefined, en: (newPiece as any).description_en?.trim() || undefined, it: (newPiece as any).description_it?.trim() || undefined }
         : undefined;
-      const materials_i18n = [newPiece.materials, (newPiece as any).materials_en, (newPiece as any).materials_it].some(Boolean)
-        ? { de: newPiece.materials || undefined, en: (newPiece as any).materials_en?.trim() || undefined, it: (newPiece as any).materials_it?.trim() || undefined }
-        : undefined;
-      const gemstones_i18n = [newPiece.gemstones, (newPiece as any).gemstones_en, (newPiece as any).gemstones_it].some(Boolean)
-        ? { de: newPiece.gemstones || undefined, en: (newPiece as any).gemstones_en?.trim() || undefined, it: (newPiece as any).gemstones_it?.trim() || undefined }
-        : undefined;
+      const materialsBuilt = buildMaterialsGemstonesI18n((newPiece as any).materials_selected || [], (newPiece as any).materials_connector || 'or', MATERIAL_OPTIONS);
+      const materials_i18n = materialsBuilt ? { de: materialsBuilt.de, en: materialsBuilt.en, it: materialsBuilt.it } : ([newPiece.materials, (newPiece as any).materials_en, (newPiece as any).materials_it].some(Boolean) ? { de: newPiece.materials || undefined, en: (newPiece as any).materials_en?.trim() || undefined, it: (newPiece as any).materials_it?.trim() || undefined } : undefined);
+      const gemstonesBuilt = buildMaterialsGemstonesI18n((newPiece as any).gemstones_selected || [], (newPiece as any).gemstones_connector || 'or', GEMSTONE_OPTIONS);
+      const gemstones_i18n = gemstonesBuilt ? { de: gemstonesBuilt.de, en: gemstonesBuilt.en, it: gemstonesBuilt.it } : ([newPiece.gemstones, (newPiece as any).gemstones_en, (newPiece as any).gemstones_it].some(Boolean) ? { de: newPiece.gemstones || undefined, en: (newPiece as any).gemstones_en?.trim() || undefined, it: (newPiece as any).gemstones_it?.trim() || undefined } : undefined);
       const res = await fetch('/api/admin/masterpieces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3136,8 +3234,8 @@ export default function App() {
           serial_id: newPiece.serial_id,
           category: newPiece.category,
           description: newPiece.description,
-          materials: newPiece.materials,
-          gemstones: newPiece.gemstones,
+          materials: materials_i18n?.de ?? newPiece.materials ?? '',
+          gemstones: gemstones_i18n?.de ?? newPiece.gemstones ?? '',
           description_i18n: description_i18n && Object.values(description_i18n).some(Boolean) ? description_i18n : undefined,
           materials_i18n: materials_i18n && Object.values(materials_i18n).some(Boolean) ? materials_i18n : undefined,
           gemstones_i18n: gemstones_i18n && Object.values(gemstones_i18n).some(Boolean) ? gemstones_i18n : undefined,
@@ -3163,6 +3261,10 @@ export default function App() {
           description_en: '', description_it: '',
           materials_en: '', materials_it: '',
           gemstones_en: '', gemstones_it: '',
+          materials_selected: [],
+          materials_connector: 'or',
+          gemstones_selected: [],
+          gemstones_connector: 'or',
           valuation: '', 
           rarity: 'Unique', 
           production_time: '4-6 Weeks',
@@ -4521,31 +4623,34 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Passwort ändern modal */}
+        {/* Passwort ändern modal (oder Passwort festlegen nach Einladungslink) */}
         <AnimatePresence>
           {showPasswordChangeModal && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowPasswordChangeModal(false)}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={forcePasswordChangeMode ? undefined : () => setShowPasswordChangeModal(false)}>
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-                <h4 className="text-lg font-serif italic">{t('notifications.change_password')}</h4>
-                <Input type="password" label={t('settings.current_password')} value={changePasswordForm.current} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, current: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
+                <h4 className="text-lg font-serif italic">{forcePasswordChangeMode ? (t('login_link.set_password_title') || 'Passwort festlegen') : t('notifications.change_password')}</h4>
+                {forcePasswordChangeMode && <p className="text-sm text-zinc-500">{t('login_link.set_password_hint') || 'Bitte legen Sie Ihr Passwort für den Zugang zum Portal fest.'}</p>}
+                {!forcePasswordChangeMode && <Input type="password" label={t('settings.current_password')} value={changePasswordForm.current} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, current: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />}
                 <Input type="password" label={t('settings.new_password')} value={changePasswordForm.new} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, new: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
                 <Input type="password" label={t('settings.confirm_password')} value={changePasswordForm.confirm} onChange={(e: any) => { setChangePasswordForm(f => ({ ...f, confirm: e.target.value })); setChangePasswordError(''); }} placeholder="••••••••" />
                 {changePasswordError && <p className="text-sm text-red-400">{changePasswordError}</p>}
                 <div className="flex gap-2 pt-2">
-                  <Button variant="ghost" className="flex-1" onClick={() => { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); }}>{t('cancel')}</Button>
-                  <Button variant="primary" className="flex-1" disabled={changePasswordSubmitting} onClick={async () => {
+                  {!forcePasswordChangeMode && <Button variant="ghost" className="flex-1" onClick={() => { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); }}>{t('cancel')}</Button>}
+                  <Button variant="primary" className={forcePasswordChangeMode ? 'w-full' : 'flex-1'} disabled={changePasswordSubmitting} onClick={async () => {
                     setChangePasswordError('');
                     if (changePasswordForm.new.length < 6) { setChangePasswordError(t('settings.password_min_length')); return; }
                     if (changePasswordForm.new !== changePasswordForm.confirm) { setChangePasswordError(t('settings.password_mismatch')); return; }
                     setChangePasswordSubmitting(true);
                     try {
-                      const res = await fetch('/api/users/me/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentPassword: changePasswordForm.current, newPassword: changePasswordForm.new }), credentials: 'include' });
+                      const body: { currentPassword?: string; newPassword: string } = { newPassword: changePasswordForm.new };
+                      if (!forcePasswordChangeMode) body.currentPassword = changePasswordForm.current;
+                      const res = await fetch('/api/users/me/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'include' });
                       const data = await res.json().catch(() => ({}));
-                      if (res.ok) { setShowPasswordChangeModal(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); notifyUser(t('settings.password_changed'), 'success'); }
+                      if (res.ok) { setShowPasswordChangeModal(false); setForcePasswordChangeMode(false); setChangePasswordForm({ current: '', new: '', confirm: '' }); setChangePasswordError(''); notifyUser(t('settings.password_changed'), 'success'); if (user) setUser({ ...user, force_password_change: 0 }); }
                       else setChangePasswordError(data.error || t('settings.password_change_error'));
                     } catch { setChangePasswordError(t('settings.network_error')); }
                     finally { setChangePasswordSubmitting(false); }
-                  }}>{changePasswordSubmitting ? t('settings.changing_password') : t('notifications.change_password')}</Button>
+                  }}>{changePasswordSubmitting ? t('settings.changing_password') : (forcePasswordChangeMode ? (t('login_link.set_password') || 'Passwort festlegen') : t('notifications.change_password'))}</Button>
                 </div>
               </motion.div>
             </motion.div>
@@ -6231,15 +6336,49 @@ export default function App() {
                                 <div><label className="text-[10px] uppercase text-zinc-500 ml-1">Beschreibung (IT)</label><textarea value={editPieceForm.description_it ?? ''} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, description_it: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm h-20 mt-1" /></div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <Input label="Materialien (DE)" value={editPieceForm.materials ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials: e.target.value }))} />
-                              <Input label="Materialien (EN)" value={editPieceForm.materials_en ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials_en: e.target.value }))} />
-                              <Input label="Materialien (IT)" value={editPieceForm.materials_it ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, materials_it: e.target.value }))} />
+                            <div className="space-y-2">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Materialien</label>
+                              <div className="flex flex-wrap gap-2 items-center mb-2">
+                                <span className="text-[10px] text-zinc-500 uppercase mr-2">Verbindung:</span>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input type="radio" name="mat-conn" checked={(editPieceForm.materials_connector || 'or') === 'and'} onChange={() => setEditPieceForm((f: any) => ({ ...f, materials_connector: 'and' }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">und</span>
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input type="radio" name="mat-conn" checked={(editPieceForm.materials_connector || 'or') === 'or'} onChange={() => setEditPieceForm((f: any) => ({ ...f, materials_connector: 'or' }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">oder</span>
+                                </label>
+                              </div>
+                              <div className="flex flex-wrap gap-3">
+                                {MATERIAL_OPTIONS.map(opt => (
+                                  <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={(editPieceForm.materials_selected || []).includes(opt.id)} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, materials_selected: e.target.checked ? [...(f.materials_selected || []), opt.id] : (f.materials_selected || []).filter((id: string) => id !== opt.id) }))} className="rounded border-zinc-600 text-amber-600" />
+                                    <span className="text-sm text-zinc-300">{opt.de}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <Input label="Edelsteine (DE)" value={editPieceForm.gemstones ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones: e.target.value }))} />
-                              <Input label="Edelsteine (EN)" value={editPieceForm.gemstones_en ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones_en: e.target.value }))} />
-                              <Input label="Edelsteine (IT)" value={editPieceForm.gemstones_it ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, gemstones_it: e.target.value }))} />
+                            <div className="space-y-2">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Edelsteine</label>
+                              <div className="flex flex-wrap gap-2 items-center mb-2">
+                                <span className="text-[10px] text-zinc-500 uppercase mr-2">Verbindung:</span>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input type="radio" name="gem-conn" checked={(editPieceForm.gemstones_connector || 'or') === 'and'} onChange={() => setEditPieceForm((f: any) => ({ ...f, gemstones_connector: 'and' }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">und</span>
+                                </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer">
+                                  <input type="radio" name="gem-conn" checked={(editPieceForm.gemstones_connector || 'or') === 'or'} onChange={() => setEditPieceForm((f: any) => ({ ...f, gemstones_connector: 'or' }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">oder</span>
+                                </label>
+                              </div>
+                              <div className="flex flex-wrap gap-3">
+                                {GEMSTONE_OPTIONS.map(opt => (
+                                  <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={(editPieceForm.gemstones_selected || []).includes(opt.id)} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, gemstones_selected: e.target.checked ? [...(f.gemstones_selected || []), opt.id] : (f.gemstones_selected || []).filter((id: string) => id !== opt.id) }))} className="rounded border-zinc-600 text-amber-600" />
+                                    <span className="text-sm text-zinc-300">{opt.de}</span>
+                                  </label>
+                                ))}
+                              </div>
                             </div>
                             <div className="flex gap-3 pt-2">
                               <Button className="flex-1" onClick={handleSaveEditPiece} disabled={loading}>{loading ? '…' : 'Speichern'}</Button>
@@ -6295,20 +6434,48 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Materialien (DE)</label>
-                            <input type="text" value={newPiece.materials} onChange={(e) => setNewPiece({ ...newPiece, materials: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50" placeholder="z. B. Weißgold oder Platin" />
-                            <div className="grid grid-cols-2 gap-3 mt-2">
-                              <Input label="Materialien (EN)" value={(newPiece as any).materials_en ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, materials_en: e.target.value })} placeholder="e.g. White gold or platinum" />
-                              <Input label="Materialien (IT)" value={(newPiece as any).materials_it ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, materials_it: e.target.value })} placeholder="es. Oro bianco o platino" />
+                          <div className="space-y-2">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Materialien</label>
+                            <div className="flex flex-wrap gap-2 items-center mb-2">
+                              <span className="text-[10px] text-zinc-500 uppercase mr-2">Verbindung:</span>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="new-mat-conn" checked={((newPiece as any).materials_connector || 'or') === 'and'} onChange={() => setNewPiece({ ...newPiece, materials_connector: 'and' })} className="rounded border-zinc-600 text-amber-600" />
+                                <span className="text-sm text-zinc-300">und</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="new-mat-conn" checked={((newPiece as any).materials_connector || 'or') === 'or'} onChange={() => setNewPiece({ ...newPiece, materials_connector: 'or' })} className="rounded border-zinc-600 text-amber-600" />
+                                <span className="text-sm text-zinc-300">oder</span>
+                              </label>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                              {MATERIAL_OPTIONS.map(opt => (
+                                <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={((newPiece as any).materials_selected || []).includes(opt.id)} onChange={(e) => setNewPiece((p: any) => ({ ...p, materials_selected: e.target.checked ? [...(p.materials_selected || []), opt.id] : (p.materials_selected || []).filter((id: string) => id !== opt.id) }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">{opt.de}</span>
+                                </label>
+                              ))}
                             </div>
                           </div>
-                          <div className="space-y-1.5">
-                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Edelsteine (DE)</label>
-                            <input type="text" value={newPiece.gemstones} onChange={(e) => setNewPiece({ ...newPiece, gemstones: e.target.value })} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50" placeholder="z. B. Saphir / Diamant" />
-                            <div className="grid grid-cols-2 gap-3 mt-2">
-                              <Input label="Edelsteine (EN)" value={(newPiece as any).gemstones_en ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, gemstones_en: e.target.value })} placeholder="e.g. Sapphire / Diamond" />
-                              <Input label="Edelsteine (IT)" value={(newPiece as any).gemstones_it ?? ''} onChange={(e: any) => setNewPiece({ ...newPiece, gemstones_it: e.target.value })} placeholder="es. Zaffiro / Diamante" />
+                          <div className="space-y-2">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Edelsteine</label>
+                            <div className="flex flex-wrap gap-2 items-center mb-2">
+                              <span className="text-[10px] text-zinc-500 uppercase mr-2">Verbindung:</span>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="new-gem-conn" checked={((newPiece as any).gemstones_connector || 'or') === 'and'} onChange={() => setNewPiece({ ...newPiece, gemstones_connector: 'and' })} className="rounded border-zinc-600 text-amber-600" />
+                                <span className="text-sm text-zinc-300">und</span>
+                              </label>
+                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                <input type="radio" name="new-gem-conn" checked={((newPiece as any).gemstones_connector || 'or') === 'or'} onChange={() => setNewPiece({ ...newPiece, gemstones_connector: 'or' })} className="rounded border-zinc-600 text-amber-600" />
+                                <span className="text-sm text-zinc-300">oder</span>
+                              </label>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                              {GEMSTONE_OPTIONS.map(opt => (
+                                <label key={opt.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input type="checkbox" checked={((newPiece as any).gemstones_selected || []).includes(opt.id)} onChange={(e) => setNewPiece((p: any) => ({ ...p, gemstones_selected: e.target.checked ? [...(p.gemstones_selected || []), opt.id] : (p.gemstones_selected || []).filter((id: string) => id !== opt.id) }))} className="rounded border-zinc-600 text-amber-600" />
+                                  <span className="text-sm text-zinc-300">{opt.de}</span>
+                                </label>
+                              ))}
                             </div>
                           </div>
                           <div className="space-y-4">
@@ -6569,9 +6736,21 @@ export default function App() {
                               {u.is_vip && <Badge variant="amber" className="text-[8px] uppercase">{t('admin.wants_vip')}</Badge>}
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, true)}>{t('admin.approve')}</Button>
                             <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApproveUser(u.id, false)}>{t('admin.reject')}</Button>
+                            <Button variant="outline" className="py-1.5 px-3 text-xs text-amber-500 border-amber-600/50 hover:bg-amber-600/10" disabled={loading} onClick={async () => {
+                              setLoading(true);
+                              try {
+                                const res = await fetch('/api/admin/login-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: u.id }), credentials: 'include' });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok && data.url) {
+                                  await navigator.clipboard.writeText(data.url);
+                                  notifyUser(t('admin.login_link_copied') || 'Einladungslink kopiert. Link an den Kunden senden – Anmeldung ohne Freischaltung.', 'success');
+                                } else notifyUser(data.error || t('errors.generic'), 'error');
+                              } catch { notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error'); }
+                              finally { setLoading(false); }
+                            }}>{t('admin.login_link_create') || 'Einladungslink'}</Button>
                           </div>
                         </Card>
                       ))}
