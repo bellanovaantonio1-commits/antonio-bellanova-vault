@@ -1183,6 +1183,83 @@ function getContractLang(lang: string | undefined | null): ContractLang {
   return 'en';
 }
 
+// Contract body templates per language (placeholders: piece.title, piece.serial_id, piece.valuation, piece.deposit_pct, user.name, depositAmount, balanceDue, regId, blockchainHash, pct)
+const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body: string }>> = {
+  de: {
+    deposit: {
+      title: 'Anzahlungsvereinbarung',
+      body: 'Diese verbindliche Urkunde bestätigt die formale Reservierung des Meisterstücks „{{piece.title}}" (Seriennr.: {{piece.serial_id}}).\n\nMit Unterzeichnung anerkennt der Kunde die Verpflichtung zum Erwerb des genannten Objekts zu einer Gesamtbewertung von {{piece.valuation}} EUR.\n\nEin nicht erstattungsfähiger Anzahlungsbetrag von {{depositAmount}} EUR ({{depositPct}} % der Gesamtbewertung) ist erforderlich, um die maßgeschneiderte Produktionsphase einzuleiten und das Objekt im Antonio Bellanova Vault zu sichern.\n\nNach Eingang der Mittel beginnt das Atelier mit der handgefertigten Realisierung. Das Eigentum verbleibt beim Atelier bis zur Endabrechnung.\n\nWEITERVERKAUFSEMPFEHLUNG: Der Kunde wird angehalten, einen künftigen Weiterverkauf über die Plattform Antonio Bellanova Vault abzuwickeln. Ein plattformseitiger Weiterverkauf gewährleistet Registeraktualisierung, Ausstellung eines neuen Echtheitszertifikats, Fortbestand der Garantie und Erhalt von Prestige-Score und Servicehistorie. Diese Vorteile gelten nicht bei Übertragungen außerhalb der Plattform.',
+    },
+    invoice: {
+      title: 'Schlussrechnung',
+      body: 'SCHLUSSRECHNUNG FÜR DEN ERWERB\n\nDiese Rechnung stellt die Endabrechnung für das Meisterstück „{{piece.title}}" dar.\n\nGesamtbewertung: {{piece.valuation}} EUR\nAnzahlung: {{depositPaid}} EUR\nRestbetrag: {{balanceDue}} EUR\n\nDie Zahlung ist innerhalb von 14 Tagen fällig, um die Treuhand-Freigabe und Lieferphase einzuleiten. Die Eigentumsübertragung erfolgt nach erfolgreicher Treuhand-Freigabe.',
+    },
+    certificate: {
+      title: 'Echtheits- und Eigentumszertifikat',
+      body: 'ECHTHEITS- UND EIGENTUMSZERTIFIKAT\n\nDieses definitive Dokument dient als dauerhafte Provenienzurkunde für das Meisterstück „{{piece.title}}".\n\nIm Antonio Bellanova Atelier handgefertigt, ist dieses Objekt nun offiziell in die Sammlung von {{user.name}} eingetragen.\n\nObjektangaben:\nSeriennummer: {{piece.serial_id}}\nRegister-ID: {{regId}}\nBlockchain-Hash: {{blockchainHash}}\n\nDas Atelier garantiert hiermit die Echtheit und außergewöhnliche Qualität dieser einzigartigen Kreation auf Dauer.',
+    },
+    vip: {
+      title: 'VIP-Mitgliedschaftsvereinbarung',
+      body: 'VIP-MITGLIEDSCHAFTSVEREINBARUNG (15.000 € jährlich)\n\nDiese Vereinbarung gewährt {{user.name}} die VIP-Mitgliedschaft im Antonio Bellanova Atelier.\n\nVorteile: 48h Vorzugszugang zu neuen Kreationen; Privatauktionen; Concierge-Service; Reparatur-Priorität; Reduzierte Weiterverkaufsprovision (6 %); Einladungs-Events. Laufzeit und Kündigung gemäß Plattformbedingungen.',
+    },
+    fractional: {
+      title: 'Anteilsvereinbarung',
+      body: 'ANTEILSVEREINBARUNG\n\nDiese Vereinbarung gewährt {{user.name}} eine {{pct}}%-Beteiligung am Objekt „{{piece.title}}" (Seriennr.: {{piece.serial_id}}).\n\nDas physische Objekt verbleibt in der Obhut des Antonio Bellanova Vault. Keine physische Teilung. Der Handel mit Anteilen kann auf der Plattform erlaubt werden. Ausstieg und Rücknahme gemäß Plattformregeln. Anwendbares Recht: Deutschland; Gerichtsstand: Köln.',
+    },
+  },
+  en: {
+    deposit: {
+      title: 'Deposit Agreement',
+      body: 'This binding instrument confirms the formal reservation of the Masterpiece identified as "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of {{piece.valuation}} EUR.\n\nA non-refundable commitment deposit of {{depositAmount}} EUR ({{depositPct}}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.',
+    },
+    invoice: {
+      title: 'Final Invoice',
+      body: 'FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "{{piece.title}}".\n\nTotal Valuation: {{piece.valuation}} EUR\nDeposit Paid: {{depositPaid}} EUR\nRemaining Balance: {{balanceDue}} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.',
+    },
+    certificate: {
+      title: 'Certificate of Authenticity',
+      body: 'CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "{{piece.title}}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of {{user.name}}.\n\nAsset Specifications:\nSerial Number: {{piece.serial_id}}\nRegistry ID: {{regId}}\nBlockchain Hash: {{blockchainHash}}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.',
+    },
+    vip: {
+      title: 'VIP Membership Agreement',
+      body: 'VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants {{user.name}} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.',
+    },
+    fractional: {
+      title: 'Fractional Ownership Agreement',
+      body: 'FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants {{user.name}} a {{pct}}% participation in the asset "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.',
+    },
+  },
+  it: {
+    deposit: {
+      title: 'Accordo di acconto',
+      body: 'Il presente strumento vincolante conferma la prenotazione formale del Capolavoro identificato come "{{piece.title}}" (Seriale: {{piece.serial_id}}).\n\nCon l\'esecuzione del presente accordo, il Cliente riconosce l\'impegno all\'acquisizione del bene summenzionato per una valutazione totale di {{piece.valuation}} EUR.\n\nUn acconto vincolante non rimborsabile di {{depositAmount}} EUR ({{depositPct}}% della valutazione totale) è richiesto per avviare la fase di produzione su misura e garantire il bene nel Vault Antonio Bellanova.\n\nAlla ricezione dei fondi, l\'Atelier avvierà la realizzazione artigianale. La proprietà rimane all\'Atelier fino al saldo finale.\n\nRACCOMANDAZIONE RIVENDITA: Si incoraggia il Cliente a condurre eventuali future rivendite di questo bene attraverso la piattaforma Antonio Bellanova Vault. La rivendita sulla piattaforma assicura aggiornamento del Registro, rilascio di un nuovo Certificato di Autenticità e continuità dei benefici di garanzia. Questi benefici non si applicano ai trasferimenti fuori piattaforma.',
+    },
+    invoice: {
+      title: 'Fattura finale',
+      body: 'FATTURA FINALE PER ACQUISIZIONE\n\nLa presente fattura rappresenta il saldo finale per il Capolavoro "{{piece.title}}".\n\nValutazione totale: {{piece.valuation}} EUR\nAcconto pagato: {{depositPaid}} EUR\nSaldo residuo: {{balanceDue}} EUR\n\nIl pagamento è dovuto entro 14 giorni per avviare la fase di rilascio Escrow e consegna. Il trasferimento di proprietà avverrà al rilascio escrow.',
+    },
+    certificate: {
+      title: 'Certificato di autenticità',
+      body: 'CERTIFICATO DI AUTENTICITÀ E PROPRIETÀ\n\nIl presente strumento definitivo serve come registrazione permanente di provenienza per il Capolavoro "{{piece.title}}".\n\nRealizzato a mano nell\'Atelier Antonio Bellanova, questo bene è ora ufficialmente registrato nella collezione di {{user.name}}.\n\nSpecifiche bene:\nNumero seriale: {{piece.serial_id}}\nID registro: {{regId}}\nHash blockchain: {{blockchainHash}}\n\nL\'Atelier garantisce con la presente l\'autenticità e l\'eccezionale qualità di questa creazione unica in perpetuo.',
+    },
+    vip: {
+      title: 'Accordo di membership VIP',
+      body: 'ACCORDO DI MEMBERSHIP VIP (15.000 € annui)\n\nIl presente accordo concede a {{user.name}} la membership VIP dell\'Atelier Antonio Bellanova.\n\nVantaggi: accesso anticipato 48h alle nuove creazioni; accesso a aste private; servizio concierge; priorità riparazioni; commissione di rivendita ridotta (6%); eventi su invito. Durata e recesso secondo i Termini della piattaforma.',
+    },
+    fractional: {
+      title: 'Accordo di proprietà frazionata',
+      body: 'ACCORDO DI PROPRIETÀ FRAZIONATA\n\nIl presente accordo concede a {{user.name}} una partecipazione del {{pct}}% nel bene "{{piece.title}}" (Seriale: {{piece.serial_id}}).\n\nIl bene fisico rimane in custodia presso il Vault Antonio Bellanova. Nessuna divisione fisica. Il trading secondario della partecipazione può essere consentito sulla piattaforma. Uscita e rimborso secondo le regole della piattaforma. Legge applicabile: Germania; Foro: Colonia.',
+    },
+  },
+};
+
+function applyContractVars(template: string, vars: Record<string, string | number>): string {
+  return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (_, key) => {
+    const val = key.split('.').reduce((o: any, k: string) => o?.[k], vars as any);
+    return val != null ? String(val) : '—';
+  });
+}
+
 function generateLuxuryDocument(type: string, content: string, user: any, piece: any, options: any = {}) {
   const lang = getContractLang(options.lang);
   const L = CONTRACT_LABELS[lang];
@@ -1193,8 +1270,8 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const clientRef = options.clientRef || `CL-${user.id}-${(user.name || '').substring(0, 3).toUpperCase()}`;
   const serialNumber = (piece && piece.serial_id) ? piece.serial_id : 'AB-VAULT-000';
   const jurisdiction = options.jurisdiction || 'Federal Republic of Germany';
-  const isCertificate = type.toUpperCase().includes('CERTIFICATE');
-  const isInvoice = type.toUpperCase().includes('INVOICE');
+  const isCertificate = type.toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('ECHTHEIT') || (options.title || '').toUpperCase().includes('AUTENTICITÀ');
+  const isInvoice = !!(options.escrowEnabled || options.balanceDue != null) || type.toUpperCase().includes('INVOICE') || (options.title || '').toUpperCase().includes('RECHNUNG') || (options.title || '').toUpperCase().includes('FATTURA');
   const title = options.title || type;
   const pieceTitle = (piece && piece.title) ? piece.title : '—';
   const pieceMaterials = (piece && piece.materials) ? piece.materials : '—';
@@ -1208,13 +1285,13 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const productImageBlock = hasPiece
     ? (pieceImage
         ? `<div style="margin-bottom: 18px;">
-            <div style="font-size: 8px; letter-spacing: 4px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 10px;">Produktbild / Asset</div>
+            <div style="font-size: 8px; letter-spacing: 4px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 10px;">${L.productImage}</div>
             <img src="${pieceImage}" style="width: 100%; max-height: 320px; object-fit: contain; border: 1px solid ${LUXURY_GOLD_DIM}; background: ${LUXURY_BG};" alt="${pieceTitle}" />
           </div>`
         : `<div style="margin-bottom: 18px;">
-            <div style="font-size: 8px; letter-spacing: 4px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 10px;">Produktbild / Asset</div>
+            <div style="font-size: 8px; letter-spacing: 4px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 10px;">${L.productImage}</div>
             <div style="width: 100%; height: 200px; border: 1px dashed ${LUXURY_GOLD_DIM}; background: rgba(201, 162, 39, 0.04); display: flex; align-items: center; justify-content: center;">
-              <span style="font-size: 10px; color: ${LUXURY_MUTED}; letter-spacing: 2px;">Kein Bild hinterlegt · Serial: ${serialNumber}</span>
+              <span style="font-size: 10px; color: ${LUXURY_MUTED}; letter-spacing: 2px;">${L.noImage} ${serialNumber}</span>
             </div>
           </div>`)
     : '';
@@ -1229,10 +1306,10 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
         <div style="font-size: 9px; letter-spacing: 8px; color: ${LUXURY_GOLD}; margin-bottom: 8px; text-transform: uppercase;">Antonio Bellanova</div>
         <h1 style="font-size: 26px; font-weight: 300; margin: 0; color: ${LUXURY_TEXT}; letter-spacing: 1px;">${title}</h1>
         <div style="display: flex; justify-content: center; gap: 20px; margin-top: 14px; flex-wrap: wrap;">
-          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">Document Ref</div><div style="font-size: 10px; font-weight: 600; color: ${LUXURY_GOLD};">${docRef}</div></div>
-          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">Client Ref</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${clientRef}</div></div>
-          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">Version</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">v${version}.0</div></div>
-          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">Date</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${date}</div></div>
+          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.documentRef}</div><div style="font-size: 10px; font-weight: 600; color: ${LUXURY_GOLD};">${docRef}</div></div>
+          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.clientRef}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${clientRef}</div></div>
+          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.version}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">v${version}.0</div></div>
+          <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.date}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${date}</div></div>
         </div>
       </div>
 
@@ -1248,32 +1325,32 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
       <div style="background: rgba(201, 162, 39, 0.06); padding: 18px 20px; margin-bottom: 24px; border: 1px solid ${LUXURY_GOLD_DIM};">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
           <div>
-            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">Asset Specifications</div>
-            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">Materials</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceMaterials}</div></div>
-            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">Gemstones</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceGemstones}</div></div>
+            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.assetSpecs}</div>
+            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.materials}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceMaterials}</div></div>
+            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.gemstones}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceGemstones}</div></div>
           </div>
           <div>
-            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">Financial Summary</div>
-            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">Total Valuation</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
-            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">Balance Due</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">Status</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
+            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
+            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.totalValuation}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
+            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
           </div>
         </div>
       </div>
 
       <div style="margin-bottom: 28px; font-size: 12px; color: ${LUXURY_TEXT}; line-height: 1.6; text-align: justify;">
         ${content.split('\n\n').map(p => `<p style="margin-bottom: 12px;">${String(p).replace(/\n/g, '<br>')}</p>`).join('')}
-        ${options.escrowEnabled ? `<div style="margin-top: 18px; padding: 12px; border: 1px dashed ${LUXURY_GOLD}; background: rgba(201, 162, 39, 0.08);"><div style="font-size: 9px; font-weight: 700; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 4px;">Escrow Protection</div><div style="font-size: 10px; color: ${LUXURY_MUTED};">Funds held by Antonio Bellanova Vault Escrow until verified delivery.</div></div>` : ''}
+        ${options.escrowEnabled ? `<div style="margin-top: 18px; padding: 12px; border: 1px dashed ${LUXURY_GOLD}; background: rgba(201, 162, 39, 0.08);"><div style="font-size: 9px; font-weight: 700; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 4px;">${L.escrowProtection}</div><div style="font-size: 10px; color: ${LUXURY_MUTED};">${L.escrowText}</div></div>` : ''}
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; align-items: end;">
         <div>
           <div style="font-size: 16px; color: ${LUXURY_GOLD}; margin-bottom: 4px; font-style: italic;">Antonio Bellanova</div>
           <div style="width: 100%; height: 1px; background: ${LUXURY_GOLD}; opacity: 0.5;"></div>
-          <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px;">Atelier Director — Digital Signature</div>
+          <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px; text-transform: uppercase; margin-top: 4px;">${L.atelierDirector}</div>
         </div>
         <div>
           <div style="height: 24px; border-bottom: 1px solid rgba(201, 162, 39, 0.4); margin-bottom: 4px;"></div>
-          <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px; text-transform: uppercase;">Client: ${(user && user.name) ? user.name : '________________'}</div>
+          <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px; text-transform: uppercase;">${L.client} ${(user && user.name) ? user.name : '________________'}</div>
         </div>
       </div>
 
@@ -1284,62 +1361,73 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
         </div>
         <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px;">Blockchain: ${blockchainHash}</div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px; line-height: 1.5; text-align: left; max-width: 640px; margin-left: auto; margin-right: auto;">
-          <strong style="color: ${LUXURY_GOLD};">Governing Law:</strong> Germany. Jurisdiction: Cologne. &bull;
-          <strong style="color: ${LUXURY_GOLD};">Shipping:</strong> Risk/title per order. &bull;
-          <strong style="color: ${LUXURY_GOLD};">Customs/VAT:</strong> Recipient unless agreed. &bull;
-          <strong style="color: ${LUXURY_GOLD};">Arbitration:</strong> ICC/DIS Cologne. &bull;
-          <strong style="color: ${LUXURY_GOLD};">Export:</strong> Client warrants compliance.
+          <strong style="color: ${LUXURY_GOLD};">${L.governingLaw}</strong> ${L.jurisdiction} &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.shipping}</strong> Risk/title per order. &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.customs}</strong> Recipient unless agreed. &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.arbitration}</strong> ICC/DIS Cologne. &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.export}</strong> Client warrants compliance.
         </div>
-        <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">DSGVO/GDPR: per Platform Terms. Save as PDF.</div>
+        <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">${L.footerGdpr}</div>
       </div>
     </div>
   `;
 }
 
-/** Regenerates contract HTML content from current user/piece data. Returns new content or null if not supported. */
-function regenerateContractContent(c: any): string | null {
+/** Regenerates contract HTML content from current user/piece data. Returns new content or null if not supported. lang: de | en | it (default from user.language or 'en'). */
+function regenerateContractContent(c: any, lang?: string): string | null {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(c.user_id) as any;
   if (!user) return null;
   const piece = c.masterpiece_id ? (db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(c.masterpiece_id) as any) : null;
   const docRef = c.doc_ref || nextContractRef(c.type);
   const dummyPiece = { id: 0, title: '—', serial_id: '—', materials: '—', gemstones: '—', valuation: 0, status: '—', description: '', image_url: '', blockchain_hash: '—' };
+  const L = getContractLang(lang || user?.language);
 
   switch (c.type) {
     case 'deposit':
       if (!piece) return null;
       const depositAmount = (piece.valuation * (piece.deposit_pct || 10)) / 100;
-      const depositContent = `This binding instrument confirms the formal reservation of the Masterpiece identified as "${piece.title}" (Serial: ${piece.serial_id}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of ${Number(piece.valuation).toLocaleString()} EUR.\n\nA non-refundable commitment deposit of ${depositAmount.toLocaleString()} EUR (${piece.deposit_pct || 10}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.`;
-      return generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement" });
+      const depositT = CONTRACT_BODIES[L].deposit;
+      const depositVars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, user, depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
+      const depositContent = applyContractVars(depositT.body, depositVars);
+      return generateLuxuryDocument(depositT.title, depositContent, user, piece, { docRef, title: depositT.title, lang: L });
 
     case 'invoice':
       if (!piece) return null;
       const balanceDue = piece.valuation - (piece.valuation * (piece.deposit_pct || 10) / 100);
-      const invContent = `FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "${piece.title}".\n\nTotal Valuation: ${Number(piece.valuation).toLocaleString()} EUR\nDeposit Paid: ${(piece.valuation * (piece.deposit_pct || 10) / 100).toLocaleString()} EUR\nRemaining Balance: ${balanceDue.toLocaleString()} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.`;
-      return generateLuxuryDocument("Final Invoice", invContent, user, piece, { docRef, title: "Final Invoice", balanceDue, escrowEnabled: true });
+      const depositPaid = (piece.valuation * (piece.deposit_pct || 10) / 100);
+      const invT = CONTRACT_BODIES[L].invoice;
+      const invVars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, user, balanceDue: balanceDue.toLocaleString(), depositPaid: depositPaid.toLocaleString() };
+      const invContent = applyContractVars(invT.body, invVars);
+      return generateLuxuryDocument(invT.title, invContent, user, piece, { docRef, title: invT.title, balanceDue, escrowEnabled: true, lang: L });
 
     case 'certificate':
       if (!piece) return null;
       const regId = piece.registry_id || 'REG-PENDING';
-      const certContent = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
-      return generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}` });
+      const certT = CONTRACT_BODIES[L].certificate;
+      const certVars = { piece: { ...piece }, user, regId, blockchainHash: piece.blockchain_hash || 'AB-SECURE-HASH-772' };
+      const certContent = applyContractVars(certT.body, certVars);
+      return generateLuxuryDocument(certT.title, certContent, user, piece, { docRef, title: certT.title, registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}`, lang: L });
 
     case 'vip':
-      const vipContent = `VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants ${user.name} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.`;
-      return generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement" });
+      const vipT = CONTRACT_BODIES[L].vip;
+      const vipContent = applyContractVars(vipT.body, { user });
+      return generateLuxuryDocument(vipT.title, vipContent, user, dummyPiece, { docRef, title: vipT.title, lang: L });
 
     case 'resale_commission':
       if (!piece) return null;
       const listing = db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?").get(c.id) as any;
       const commissionPct = listing?.commission_pct ?? 10;
       const saleMethod = listing?.sale_method || 'marketplace';
-      return generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod, docRef });
+      return generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod, docRef }, L);
 
     case 'fractional':
       if (!piece) return null;
       const shareRow = db.prepare("SELECT percentage FROM fractional_shares WHERE masterpiece_id = ? AND owner_id = ?").get(c.masterpiece_id, c.user_id) as { percentage: number } | undefined;
       const pct = shareRow?.percentage ?? 0;
-      const fracContent = `FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants ${user.name} a ${pct}% participation in the asset "${piece.title}" (Serial: ${piece.serial_id}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.`;
-      return generateLuxuryDocument("Fractional Ownership Agreement", fracContent, user, piece, { docRef, title: "Fractional Ownership Agreement" });
+      const fracT = CONTRACT_BODIES[L].fractional;
+      const fracVars = { piece: { ...piece }, user, pct };
+      const fracContent = applyContractVars(fracT.body, fracVars);
+      return generateLuxuryDocument(fracT.title, fracContent, user, piece, { docRef, title: fracT.title, lang: L });
 
     default:
       return null;
@@ -3673,21 +3761,48 @@ function computePrestigeResaleMetrics(masterpieceId: number, currentValuation: n
   return { prestige_score, market_stability_score, price_recommendation };
 }
 
-function generateResaleCommissionAgreement(piece: any, owner: any, options: { commissionPct: number; saleMethod: string; docRef: string }) {
-  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const content = `
-RESALE COMMISSION AGREEMENT
+const RESALE_AGREEMENT: Record<ContractLang, { title: string; body: (opts: { piece: any; owner: any; commissionPct: number; saleMethod: string; date: string }) => string }> = {
+  de: {
+    title: 'Weiterverkaufsprovisions-Vereinbarung',
+    body: (o) => `WEITERVERKAUFSPROVISIONS-VEREINBARUNG
+
+Diese Vereinbarung regelt den Weiterverkauf des unten genannten Objekts über die Plattform Antonio Bellanova Vault.
+
+OBJEKT: ${o.piece.title}
+SERIENNR.: ${o.piece.serial_id || '—'}
+OBJEKT-ID: ${o.piece.id}
+AKTUELLER EIGENTÜMER: ${o.owner.name}
+
+VERKAUFSART: ${o.saleMethod === 'auction' ? 'Auktion' : 'Marktplatz'}
+
+PROVISION: Die Maison behält ${o.commissionPct} % des Verkaufserlöses als Provision. Der Rest wird dem Verkäufer nach Echtheitsprüfung und Freigabe durch die Maison ausgezahlt.
+
+ZAHLUNG: Der Verkaufserlös wird treuhänderisch gehalten bis (i) Echtheitsprüfung durch das Atelier, (ii) Freigabe durch die Maison und (iii) Eigentumsübertragung. Die Provision wird bei Freigabe einbehalten; der Nettobetrag geht an den Verkäufer.
+
+FREIGABE: Die Maison kann Echtheit und Zustand prüfen, bevor Mittel freigegeben werden. Die Maison kann die Freigabe verweigern, wenn das Objekt den Anforderungen nicht entspricht.
+
+ECHTHEIT: Der Verkäufer bestätigt, dass das Objekt echt und unverändert ist. Das Atelier führt vor Abschluss eine Echtheitsprüfung durch. Dies ist verpflichtend.
+
+HAFTUNG: Die Maison handelt als Vermittler und Authentifizierer. Die Maison garantiert nicht die Richtigkeit Dritter-Bewertungen. Haftung gemäß Plattformbedingungen.
+
+ZERTIFIZIERTER WEITERVERKAUF: Nur bei Weiterverkauf über die Plattform Antonio Bellanova Vault wird das Register aktualisiert, ein neues Echtheitszertifikat ausgestellt und die Garantie sowie Prestige-Score und Servicehistorie fortgeführt. Ein Verkauf außerhalb der Plattform führt zur Markierung „extern übertragen“, ohne automatische Aktualisierung oder neues Zertifikat; Garantie und Prestige entfallen.
+
+DATUM: ${o.date}`.trim(),
+  },
+  en: {
+    title: 'Resale Commission Agreement',
+    body: (o) => `RESALE COMMISSION AGREEMENT
 
 This agreement governs the secondary market sale of the asset identified below through the Antonio Bellanova Vault platform.
 
-ASSET: ${piece.title}
-SERIAL: ${piece.serial_id || '—'}
-ASSET ID: ${piece.id}
-CURRENT OWNER: ${owner.name}
+ASSET: ${o.piece.title}
+SERIAL: ${o.piece.serial_id || '—'}
+ASSET ID: ${o.piece.id}
+CURRENT OWNER: ${o.owner.name}
 
-SALE METHOD: ${options.saleMethod === 'auction' ? 'Auction' : 'Marketplace'}
+SALE METHOD: ${o.saleMethod === 'auction' ? 'Auction' : 'Marketplace'}
 
-COMMISSION: The Maison shall retain ${options.commissionPct}% of the final sale price as commission. The remainder shall be paid to the Seller after authenticity verification and release by the Maison.
+COMMISSION: The Maison shall retain ${o.commissionPct}% of the final sale price as commission. The remainder shall be paid to the Seller after authenticity verification and release by the Maison.
 
 PAYMENT FLOW: Sale proceeds are held in escrow until (i) authenticity verification by the Atelier, (ii) Maison release approval, and (iii) transfer of ownership. The commission is deducted at release; the net amount is transferred to the Seller.
 
@@ -3699,9 +3814,44 @@ LIABILITY: The Maison acts as intermediary and authenticator. The Maison does no
 
 CERTIFIED RESALE BENEFITS: Only when resale is conducted through the Antonio Bellanova Vault platform will the Registry be updated, a new Certificate of Authenticity be issued, the Maison warranty remain valid, the Prestige Score remain active, and the Service History remain linked to the asset. A sale outside the platform does not constitute a prohibition of external disposal; however, if the asset is transferred externally, the Registry will be marked as "externally transferred", no automatic update or new certificate will be issued, the warranty will lapse, and Prestige tracking will be discontinued.
 
-DATE: ${date}
-  `.trim();
-  return generateLuxuryDocument("Resale Commission Agreement", content, owner, piece, { docRef: options.docRef, title: "Resale Commission Agreement" });
+DATE: ${o.date}`.trim(),
+  },
+  it: {
+    title: 'Accordo di commissione di rivendita',
+    body: (o) => `ACCORDO DI COMMISSIONE DI RIVENDITA
+
+Il presente accordo regola la vendita secondaria del bene identificato di seguito attraverso la piattaforma Antonio Bellanova Vault.
+
+BENE: ${o.piece.title}
+SERIALE: ${o.piece.serial_id || '—'}
+ID BENE: ${o.piece.id}
+PROPRIETARIO ATTUALE: ${o.owner.name}
+
+METODO DI VENDITA: ${o.saleMethod === 'auction' ? 'Asta' : 'Mercato'}
+
+COMMISSIONE: La Maison trattiene il ${o.commissionPct}% del prezzo di vendita finale come commissione. Il resto sarà pagato al Venditore dopo verifica dell'autenticità e rilascio da parte della Maison.
+
+PAGAMENTO: I proventi della vendita sono detenuti in escrow fino a (i) verifica autenticità da parte dell'Atelier, (ii) approvazione rilascio Maison e (iii) trasferimento di proprietà. La commissione è detratta al rilascio; l'importo netto è trasferito al Venditore.
+
+RILASCIO MAISON: La Maison si riserva di verificare autenticità e condizioni prima di autorizzare il rilascio dei fondi. La Maison può rifiutare il rilascio se il bene non rispetta gli standard.
+
+AUTENTICITÀ: Il Venditore garantisce che il bene sia autentico e inalterato. L'Atelier effettuerà un controllo prima del completamento. Obbligatorio.
+
+RESPONSABILITÀ: La Maison agisce come intermediario e autenticatore. La Maison non garantisce l'accuratezza delle valutazioni di terzi. Responsabilità limitata ai sensi dei termini della piattaforma.
+
+BENEFICI RIVENDITA CERTIFICATA: Solo quando la rivendita è effettuata attraverso la piattaforma Antonio Bellanova Vault il Registro sarà aggiornato, verrà emesso un nuovo Certificato di Autenticità e la garanzia Maison resterà valida. Una vendita fuori piattaforma comporterà la marcatura "trasferito esternamente" senza aggiornamento o nuovo certificato; garanzia e Prestige decadono.
+
+DATA: ${o.date}`.trim(),
+  },
+};
+
+function generateResaleCommissionAgreement(piece: any, owner: any, options: { commissionPct: number; saleMethod: string; docRef: string }, lang: ContractLang = 'en') {
+  const L = getContractLang(lang);
+  const locale = L === 'de' ? 'de-DE' : L === 'it' ? 'it-IT' : 'en-GB';
+  const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
+  const t = RESALE_AGREEMENT[L];
+  const content = t.body({ piece, owner, commissionPct: options.commissionPct, saleMethod: options.saleMethod, date });
+  return generateLuxuryDocument(t.title, content, owner, piece, { docRef: options.docRef, title: t.title, lang: L });
 }
 
 // Contracts

@@ -69,30 +69,8 @@ git push
 cd /opt/antonio-bellanova-vault
 git pull
 npm ci
-# Falls Build mit "loadImageAsDataUrl has already been declared" fehlschlägt:
-# Skript einmalig erstellen und ausführen (falls scripts/ noch nicht per Git da ist):
-cat > /opt/antonio-bellanova-vault/fix-duplicate.js << 'ENDOFFILE'
-const fs = require('fs');
-const path = require('path');
-const appPath = path.join(process.cwd(), 'src', 'App.tsx');
-let content = fs.readFileSync(appPath, 'utf8');
-const firstDecl = content.indexOf('const loadImageAsDataUrl');
-if (firstDecl === -1) { console.log('Keine loadImageAsDataUrl gefunden.'); process.exit(0); }
-const secondDecl = content.indexOf('const loadImageAsDataUrl', firstDecl + 1);
-if (secondDecl === -1) { console.log('Nur eine Deklaration – kein Duplikat.'); process.exit(0); }
-let i = content.indexOf('=>', secondDecl);
-i = content.indexOf('{', i);
-let depth = 1, end = i + 1;
-while (depth > 0 && end < content.length) {
-  if (content[end] === '{') depth++; else if (content[end] === '}') depth--;
-  end++;
-}
-while (end < content.length && ') ;\n '.includes(content[end])) end++;
-content = content.slice(0, secondDecl).replace(/\n{3,}/g, '\n\n') + content.slice(end).replace(/^\n{2,}/, '\n');
-fs.writeFileSync(appPath, content);
-console.log('Zweite Deklaration loadImageAsDataUrl entfernt.');
-ENDOFFILE
-cd /opt/antonio-bellanova-vault && node fix-duplicate.js && rm -f fix-duplicate.js
+# Falls Build mit "loadImageAsDataUrl has already been declared" oder "getPieceLocalized has already been declared" fehlschlägt:
+node scripts/remove-duplicate-loadImageAsDataUrl.js
 npm run build
 pm2 restart vault
 ```

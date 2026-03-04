@@ -2339,17 +2339,6 @@ export default function App() {
       return fallback;
     }
   };
-  const getPieceLocalizedWithLang = (piece: any, field: 'description' | 'materials' | 'gemstones', langCode: string): string => {
-    const i18n = piece[`${field}_i18n`];
-    const fallback = piece[field] ?? '';
-    if (!i18n) return fallback;
-    try {
-      const obj = typeof i18n === 'string' ? JSON.parse(i18n) : i18n;
-      return (obj && typeof obj === 'object' && (obj[langCode] ?? obj['en'] ?? obj['de'])) ?? fallback;
-    } catch {
-      return fallback;
-    }
-  };
   const getRarityLabel = (rarity: string): string => {
     const r = (rarity || '').toLowerCase();
     if (r === 'unique' || r === 'unikat') return t('piece.rarity_unique');
