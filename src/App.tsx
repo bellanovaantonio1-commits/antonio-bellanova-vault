@@ -439,6 +439,9 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
     "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
+    "marketplace.pdf_modal_title": "Marktplatz als PDF",
+    "marketplace.pdf_choose_lang": "Download-Sprache wählen",
+    "marketplace.pdf_download_btn": "PDF herunterladen",
     "auctions.private_auctions": "Private Auktionen",
     "auctions.subtitle": "Live-Gebote für seltene und einzigartige Meisterwerke.",
     "auctions.no_active": "Derzeit keine aktiven Auktionen.",
@@ -571,7 +574,34 @@ const TRANSLATIONS: any = {
     "errors.invalid_credentials": "Ungültige Anmeldedaten.",
     "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
+    "errors.delete_failed": "Löschen fehlgeschlagen.",
     "errors.generic": "Ein Fehler ist aufgetreten.",
+    "admin.bank_config_saved": "Bank-Konfiguration gespeichert.",
+    "admin.bank_config_title": "Bank-Konfiguration",
+    "admin.field_category": "Kategorie",
+    "admin.admin_password": "Admin-Passwort",
+    "admin.export_auctions_csv": "Auktionen CSV",
+    "admin.backup_db": "Datenbank sichern",
+    "admin.backup_success": "Datenbank-Backup heruntergeladen.",
+    "errors.backup_failed": "Backup fehlgeschlagen.",
+    "admin.section_export": "Export",
+    "admin.revenue_dashboard": "Umsatz-Dashboard",
+    "admin.resale_revenue": "Resale-Erlöse",
+    "admin.no_entries": "Keine Einträge.",
+    "admin.mark_done": "Erledigt",
+    "admin.gdpr_requests": "DSGVO Datenanfragen",
+    "admin.finance_export_gdpr": "Finanzen, Export & DSGVO",
+    "admin.deposits_label": "Anzahlungen",
+    "admin.rest_label": "Rest",
+    "admin.resale_fees_label": "Resale-Gebühren",
+    "admin.entries_label": "Einträge",
+    "admin.status_open": "offen",
+    "admin.no_open_requests": "Keine offenen Anfragen.",
+    "admin.service_requests": "Service-Anfragen",
+    "admin.no_service_requests": "Keine Service-Anfragen.",
+    "admin.contact_requests": "Kontaktanfragen",
+    "admin.no_contact_requests": "Keine Kontaktanfragen.",
+    "admin.audit_log": "Audit-Log",
     "dashboard.welcome_subtitle": "Ihr Zugang zu den exklusivsten Schmuck- und Sammlerstücken. Verwalten Sie Ihre Werte, nehmen Sie an privaten Auktionen teil und entdecken Sie den Tresor.",
     "dashboard.member_since": "Mitglied seit",
     "dashboard.portfolio_value": "Portfolio-Wert",
@@ -649,6 +679,11 @@ const TRANSLATIONS: any = {
     "notifications.change_password": "Passwort ändern",
     "filter.favorites_only": "Nur Favoriten",
     "filter.recent_only": "Nur zuletzt angesehen",
+    "filter.all_pieces": "Alle Stücke",
+    "filter.sort_newest": "Neueste",
+    "filter.sort_price_asc": "Preis aufsteigend",
+    "filter.sort_price_desc": "Preis absteigend",
+    "filter.sort_title": "Titel A–Z",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Persönliche Beratung, Termine & exklusive Anfragen — jederzeit für Sie da.",
     "concierge.secure_logged": "Sicherer Kanal · Kommunikation protokolliert",
@@ -976,6 +1011,9 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
     "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
+    "marketplace.pdf_modal_title": "Marketplace as PDF",
+    "marketplace.pdf_choose_lang": "Choose download language",
+    "marketplace.pdf_download_btn": "Download PDF",
     "auctions.private_auctions": "Private Auctions",
     "auctions.subtitle": "Live bidding on rare and unique masterpieces.",
     "auctions.no_active": "No active auctions at this time.",
@@ -1118,7 +1156,34 @@ const TRANSLATIONS: any = {
     "errors.invalid_credentials": "Invalid credentials.",
     "errors.cert_failed": "Failed to generate certificate.",
     "errors.piece_create_failed": "Failed to create masterpiece.",
+    "errors.delete_failed": "Delete failed.",
     "errors.generic": "Something went wrong.",
+    "admin.bank_config_saved": "Bank configuration saved.",
+    "admin.bank_config_title": "Bank configuration",
+    "admin.field_category": "Category",
+    "admin.admin_password": "Admin password",
+    "admin.export_auctions_csv": "Auctions CSV",
+    "admin.backup_db": "Backup database",
+    "admin.backup_success": "Database backup downloaded.",
+    "errors.backup_failed": "Backup failed.",
+    "admin.section_export": "Export",
+    "admin.revenue_dashboard": "Revenue dashboard",
+    "admin.resale_revenue": "Resale revenue",
+    "admin.no_entries": "No entries.",
+    "admin.mark_done": "Done",
+    "admin.gdpr_requests": "GDPR data requests",
+    "admin.finance_export_gdpr": "Finance, Export & GDPR",
+    "admin.deposits_label": "Deposits",
+    "admin.rest_label": "Balance",
+    "admin.resale_fees_label": "Resale fees",
+    "admin.entries_label": "entries",
+    "admin.status_open": "open",
+    "admin.no_open_requests": "No open requests.",
+    "admin.service_requests": "Service requests",
+    "admin.no_service_requests": "No service requests.",
+    "admin.contact_requests": "Contact requests",
+    "admin.no_contact_requests": "No contact requests.",
+    "admin.audit_log": "Audit log",
     "dashboard.welcome_subtitle": "Your portal to the world's most exclusive jewelry and collectible masterpieces. Manage your assets, participate in private auctions, and explore the vault.",
     "dashboard.member_since": "Member since",
     "dashboard.portfolio_value": "Portfolio Value",
@@ -1196,6 +1261,11 @@ const TRANSLATIONS: any = {
     "notifications.change_password": "Change password",
     "filter.favorites_only": "Favorites only",
     "filter.recent_only": "Recently viewed only",
+    "filter.all_pieces": "All pieces",
+    "filter.sort_newest": "Newest",
+    "filter.sort_price_asc": "Price ascending",
+    "filter.sort_price_desc": "Price descending",
+    "filter.sort_title": "Title A–Z",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Personal advice, appointments & exclusive requests — here for you anytime.",
     "concierge.secure_logged": "Secure channel · Communication logged",
@@ -1500,6 +1570,9 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
     "marketplace.subtitle": "Opere pregiate disponibili per acquisizione immediata.",
+    "marketplace.pdf_modal_title": "Mercato in PDF",
+    "marketplace.pdf_choose_lang": "Scegli lingua per download",
+    "marketplace.pdf_download_btn": "Scarica PDF",
     "auctions.private_auctions": "Aste private",
     "auctions.subtitle": "Offerte in diretta su opere rare e uniche.",
     "auctions.no_active": "Nessuna asta attiva.",
@@ -1615,7 +1688,34 @@ const TRANSLATIONS: any = {
     "errors.invalid_credentials": "Credenziali non valide.",
     "errors.cert_failed": "Impossibile generare il certificato.",
     "errors.piece_create_failed": "Impossibile creare l'opera.",
+    "errors.delete_failed": "Eliminazione non riuscita.",
     "errors.generic": "Si è verificato un errore.",
+    "admin.bank_config_saved": "Configurazione banca salvata.",
+    "admin.bank_config_title": "Configurazione banca",
+    "admin.field_category": "Categoria",
+    "admin.admin_password": "Password admin",
+    "admin.export_auctions_csv": "Aste CSV",
+    "admin.backup_db": "Backup database",
+    "admin.backup_success": "Backup database scaricato.",
+    "errors.backup_failed": "Backup non riuscito.",
+    "admin.section_export": "Esporta",
+    "admin.revenue_dashboard": "Dashboard ricavi",
+    "admin.resale_revenue": "Ricavi rivendita",
+    "admin.no_entries": "Nessuna voce.",
+    "admin.mark_done": "Completato",
+    "admin.gdpr_requests": "Richieste dati GDPR",
+    "admin.finance_export_gdpr": "Finanza, export e GDPR",
+    "admin.deposits_label": "Acconti",
+    "admin.rest_label": "Saldo",
+    "admin.resale_fees_label": "Commissioni rivendita",
+    "admin.entries_label": "voci",
+    "admin.status_open": "aperto",
+    "admin.no_open_requests": "Nessuna richiesta aperta.",
+    "admin.service_requests": "Richieste di servizio",
+    "admin.no_service_requests": "Nessuna richiesta di servizio.",
+    "admin.contact_requests": "Richieste di contatto",
+    "admin.no_contact_requests": "Nessuna richiesta di contatto.",
+    "admin.audit_log": "Registro audit",
     "dashboard.welcome_subtitle": "Il vostro accesso ai gioielli e ai capolavori da collezione più esclusivi. Gestite i vostri beni, partecipate alle aste private ed esplorate il caveau.",
     "dashboard.member_since": "Membro dal",
     "dashboard.portfolio_value": "Valore portafoglio",
@@ -1693,6 +1793,11 @@ const TRANSLATIONS: any = {
     "notifications.change_password": "Cambia password",
     "filter.favorites_only": "Solo preferiti",
     "filter.recent_only": "Solo visti di recente",
+    "filter.all_pieces": "Tutti i pezzi",
+    "filter.sort_newest": "Più recenti",
+    "filter.sort_price_asc": "Prezzo crescente",
+    "filter.sort_price_desc": "Prezzo decrescente",
+    "filter.sort_title": "Titolo A–Z",
     "concierge.cta_title": "Maison Concierge",
     "concierge.cta_subtitle": "Consulenza personale, appuntamenti e richieste esclusive — sempre a vostra disposizione.",
     "concierge.secure_logged": "Canale sicuro · Comunicazione registrata",
@@ -2183,12 +2288,12 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
   }
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <Input label="Neues Passwort" type="password" value={newPassword} onChange={(e: any) => setNewPassword(e.target.value)} placeholder="Min. 6 Zeichen" required />
-      <Input label="Passwort bestätigen" type="password" value={confirm} onChange={(e: any) => setConfirm(e.target.value)} placeholder="Wiederholen" required />
+      <Input label={t('settings.new_password')} type="password" value={newPassword} onChange={(e: any) => setNewPassword(e.target.value)} placeholder={t('settings.new_password')} required />
+      <Input label={t('settings.confirm_password')} type="password" value={confirm} onChange={(e: any) => setConfirm(e.target.value)} placeholder={t('settings.confirm_password')} required />
       {error && <p className="text-sm text-red-400">{error}</p>}
       <div className="flex gap-3">
-        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>Abbrechen</Button>
-        <Button type="submit" disabled={loading}>{loading ? 'Wird gespeichert…' : 'Passwort setzen'}</Button>
+        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>{t('cancel')}</Button>
+        <Button type="submit" disabled={loading}>{loading ? t('settings.changing_password') : t('login_link.set_password')}</Button>
       </div>
     </form>
   );
@@ -3264,20 +3369,36 @@ export default function App() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setRegisterError(null);
+    if (!email?.trim()) {
+      setRegisterError(t('errors.email_required') || 'Bitte E-Mail-Adresse eingeben.');
+      return;
+    }
+    if (!password || String(password).length < 6) {
+      setRegisterError(t('settings.password_min_length') || 'Passwort mindestens 6 Zeichen.');
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, username: username.trim() || undefined, address, wantsVip, language, role: selectedRole })
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim(), password, name: name?.trim() || undefined, username: username.trim() || undefined, address: address?.trim() || undefined, wantsVip, language: language || 'de', role: selectedRole })
       });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         notifyUser(t('auth.register_success'), 'success');
         setView('login');
       } else {
-        const data = await res.json().catch(() => ({}));
-        notifyUser(data?.error || t('errors.generic'), 'error');
+        const errMsg = data?.error || t('errors.generic');
+        setRegisterError(errMsg);
+        notifyUser(errMsg, 'error');
       }
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : t('errors.generic');
+      setRegisterError(errMsg);
+      notifyUser(errMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -3955,10 +4076,10 @@ export default function App() {
         setDeletePieceConfirm(null);
         notifyUser(data.message || 'Stück wurde dauerhaft aus dem System entfernt.', 'success');
       } else {
-        setDeletePieceConfirm(prev => prev ? { ...prev, error: data.error || 'Löschen fehlgeschlagen.' } : null);
+        setDeletePieceConfirm(prev => prev ? { ...prev, error: data.error || t('errors.delete_failed') } : null);
       }
     } catch {
-      setDeletePieceConfirm(prev => prev ? { ...prev, error: 'Netzwerkfehler.' } : null);
+      setDeletePieceConfirm(prev => prev ? { ...prev, error: t('settings.network_error') } : null);
     } finally {
       setLoading(false);
     }
@@ -4344,7 +4465,7 @@ export default function App() {
               <ResetPasswordForm token={resetPasswordToken} onBack={() => setView('login')} onSuccess={() => { setView('login'); setResetPasswordToken(''); }} />
             )}
             {view !== 'forgot-password' && view !== 'reset-password' && (
-            <form onSubmit={view === 'login' ? handleLogin : handleRegister} className="space-y-6">
+            <form id="auth-form" onSubmit={view === 'login' ? handleLogin : handleRegister} className="space-y-6" noValidate>
               {view === 'register' && (
                 <>
                   <Input label={t('auth.full_name')} icon={UserIcon} value={name} onChange={(e: any) => setName(e.target.value)} placeholder={t('auth.name_placeholder')} />
@@ -4370,11 +4491,16 @@ export default function App() {
                   </div>
                 </>
               )}
-              <Input label={t('auth.email_or_username')} icon={Mail} type="text" value={email} onChange={(e: any) => { setEmail(e.target.value); setLoginError(null); }} placeholder={t('auth.email_placeholder')} autoComplete="username" />
-              <Input label={t('password')} icon={Lock} type="password" value={password} onChange={(e: any) => { setPassword(e.target.value); setLoginError(null); }} placeholder={t('auth.password_placeholder')} />
+              <Input label={t('auth.email_or_username')} icon={Mail} type="text" value={email} onChange={(e: any) => { setEmail(e.target.value); setLoginError(null); if (view === 'register') setRegisterError(null); }} placeholder={t('auth.email_placeholder')} autoComplete="username" />
+              <Input label={t('password')} icon={Lock} type="password" value={password} onChange={(e: any) => { setPassword(e.target.value); setLoginError(null); if (view === 'register') setRegisterError(null); }} placeholder={t('auth.password_placeholder')} autoComplete={view === 'register' ? 'new-password' : 'current-password'} />
               {view === 'login' && loginError && (
                 <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3" role="alert">
                   {loginError}
+                </p>
+              )}
+              {view === 'register' && registerError && (
+                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3" role="alert">
+                  {registerError}
                 </p>
               )}
               {view === 'register' && (
@@ -4387,7 +4513,7 @@ export default function App() {
                 </label>
               )}
 
-              <Button type="submit" disabled={loading} className="w-full mt-4">
+              <Button type="submit" form="auth-form" disabled={loading} className="w-full mt-4">
                 {loading ? t('auth.processing') : view === 'login' ? t('auth.sign_in') : t('auth.create_account')}
               </Button>
               {view === 'login' && (
@@ -4965,36 +5091,36 @@ export default function App() {
                       <option value="Selten">{t('filter.rarity_rare')}</option>
                     </select>
                     <select value={sortMarket} onChange={e => setSortMarket(e.target.value as typeof sortMarket)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                      <option value="newest">Neueste</option>
-                      <option value="price_asc">Preis aufsteigend</option>
-                      <option value="price_desc">Preis absteigend</option>
-                      <option value="title">Titel A–Z</option>
+                      <option value="newest">{t('filter.sort_newest')}</option>
+                      <option value="price_asc">{t('filter.sort_price_asc')}</option>
+                      <option value="price_desc">{t('filter.sort_price_desc')}</option>
+                      <option value="title">{t('filter.sort_title')}</option>
                     </select>
                     {user && (
                       <select value={filterMarketScope} onChange={e => setFilterMarketScope(e.target.value as typeof filterMarketScope)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                        <option value="all">Alle Stücke</option>
+                        <option value="all">{t('filter.all_pieces')}</option>
                         <option value="favorites">{t('filter.favorites_only')}</option>
                         <option value="recent">{t('filter.recent_only')}</option>
                       </select>
                     )}
                     <Button variant="outline" className="text-sm gap-2" onClick={() => setShowMarketplacePdfModal(true)}>
-                      <Download className="w-4 h-4" /> Marktplatz als PDF
+                      <Download className="w-4 h-4" /> {t('marketplace.pdf_modal_title')}
                     </Button>
                   </div>
                 </div>
                 {showMarketplacePdfModal && (
                   <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80" onClick={() => setShowMarketplacePdfModal(false)}>
                     <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
-                      <h4 className="text-lg font-serif italic text-zinc-100 mb-2">Marktplatz als PDF</h4>
-                      <p className="text-sm text-zinc-500 mb-4">Download-Sprache wählen</p>
+                      <h4 className="text-lg font-serif italic text-zinc-100 mb-2">{t('marketplace.pdf_modal_title')}</h4>
+                      <p className="text-sm text-zinc-500 mb-4">{t('marketplace.pdf_choose_lang')}</p>
                       <select value={marketplacePdfLang} onChange={e => setMarketplacePdfLang(e.target.value as 'de' | 'en' | 'it')} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-200 mb-4">
                         <option value="de">Deutsch</option>
                         <option value="en">English</option>
                         <option value="it">Italiano</option>
                       </select>
                       <div className="flex gap-2">
-                        <Button className="flex-1" onClick={() => { downloadMarketplacePdf(marketplacePdfLang); setShowMarketplacePdfModal(false); }}>PDF herunterladen</Button>
-                        <Button variant="secondary" onClick={() => setShowMarketplacePdfModal(false)}>Abbrechen</Button>
+                        <Button className="flex-1" onClick={() => { downloadMarketplacePdf(marketplacePdfLang); setShowMarketplacePdfModal(false); }}>{t('marketplace.pdf_download_btn')}</Button>
+                        <Button variant="secondary" onClick={() => setShowMarketplacePdfModal(false)}>{t('cancel')}</Button>
                       </div>
                     </div>
                   </div>
@@ -6378,12 +6504,12 @@ export default function App() {
                         <section className="space-y-6 lg:col-span-2">
                           <div className="flex justify-between items-center">
                             <h3 className="text-2xl font-serif italic">{t('admin.edit_piece')}: {editingPiece.title}</h3>
-                            <Button variant="ghost" className="text-zinc-500" onClick={() => setEditingPiece(null)}>Abbrechen</Button>
+                            <Button variant="ghost" className="text-zinc-500" onClick={() => setEditingPiece(null)}>{t('cancel')}</Button>
                           </div>
                           <Card className="space-y-4 p-6">
                             <div className="grid grid-cols-2 gap-4">
-                              <Input label="Titel" value={editPieceForm.title ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, title: e.target.value }))} />
-                              <Input label="Kategorie" value={editPieceForm.category ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, category: e.target.value }))} />
+                              <Input label={t('admin.field_title')} value={editPieceForm.title ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, title: e.target.value }))} />
+                              <Input label={t('admin.field_category')} value={editPieceForm.category ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, category: e.target.value }))} />
                               <Input label="Seriennummer" value={editPieceForm.serial_id ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, serial_id: e.target.value }))} />
                               <Input label="Produktionszeit" value={editPieceForm.production_time ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, production_time: e.target.value }))} />
                               <Input label="Bewertung (€)" type="number" value={editPieceForm.valuation ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, valuation: e.target.value }))} />
@@ -6458,8 +6584,8 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex gap-3 pt-2">
-                              <Button className="flex-1" onClick={handleSaveEditPiece} disabled={loading}>{loading ? '…' : 'Speichern'}</Button>
-                              <Button variant="secondary" onClick={() => setEditingPiece(null)}>Abbrechen</Button>
+                              <Button className="flex-1" onClick={handleSaveEditPiece} disabled={loading}>{loading ? t('admin.save_saving') : t('admin.save_button')}</Button>
+                              <Button variant="secondary" onClick={() => setEditingPiece(null)}>{t('cancel')}</Button>
                             </div>
                           </Card>
                         </section>
@@ -7422,54 +7548,54 @@ export default function App() {
                   </section>
 
                   <section className="space-y-4 lg:col-span-2">
-                    <h3 className="text-xl font-serif italic">Finanzen, Export & DSGVO</h3>
+                    <h3 className="text-xl font-serif italic">{t('admin.finance_export_gdpr')}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <Card className="p-4 space-y-3">
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Umsatz-Dashboard</h4>
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.revenue_dashboard')}</h4>
                         {adminRevenue && (
                           <>
                             <p className="text-2xl font-bold text-amber-500">{(adminRevenue.total_ledger ?? 0).toLocaleString('de-DE')} €</p>
-                            <p className="text-xs text-zinc-500">Anzahlungen: {(adminRevenue.deposits_received ?? 0).toLocaleString('de-DE')} € · Rest: {(adminRevenue.full_payments_received ?? 0).toLocaleString('de-DE')} €</p>
-                            <p className="text-xs text-zinc-500">Resale-Gebühren: {(adminRevenue.total_resale_fee ?? 0).toLocaleString('de-DE')} €</p>
+                            <p className="text-xs text-zinc-500">{t('admin.deposits_label')}: {(adminRevenue.deposits_received ?? 0).toLocaleString('de-DE')} € · {t('admin.rest_label')}: {(adminRevenue.full_payments_received ?? 0).toLocaleString('de-DE')} €</p>
+                            <p className="text-xs text-zinc-500">{t('admin.resale_fees_label')}: {(adminRevenue.total_resale_fee ?? 0).toLocaleString('de-DE')} €</p>
                           </>
                         )}
                         {!adminRevenue && <p className="text-zinc-600 text-sm">—</p>}
                       </Card>
                       <Card className="p-4 space-y-3">
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Export</h4>
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.section_export')}</h4>
                         <div className="flex flex-wrap gap-2">
                           <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/inventory/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'antonio-bellanova-inventory.csv'; a.click(); }}>{t('admin.export_inventory_csv')}</Button>
-                          <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/auctions/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'auctions-export.csv'; a.click(); }}>Auktionen CSV</Button>
-                          <Button variant="outline" className="text-xs" onClick={async () => { try { const r = await fetch('/api/admin/backup'); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || 'Backup fehlgeschlagen'); } const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-vault-${new Date().toISOString().slice(0, 10)}.db`; a.click(); URL.revokeObjectURL(a.href); notifyUser('Datenbank-Backup heruntergeladen.', 'success'); } catch (err) { notifyUser(err instanceof Error ? err.message : 'Backup fehlgeschlagen.', 'error'); } }}>Datenbank sichern</Button>
+                          <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/auctions/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'auctions-export.csv'; a.click(); }}>{t('admin.export_auctions_csv')}</Button>
+                          <Button variant="outline" className="text-xs" onClick={async () => { try { const r = await fetch('/api/admin/backup'); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || t('errors.backup_failed')); } const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-vault-${new Date().toISOString().slice(0, 10)}.db`; a.click(); URL.revokeObjectURL(a.href); notifyUser(t('admin.backup_success'), 'success'); } catch (err) { notifyUser(err instanceof Error ? err.message : t('errors.backup_failed'), 'error'); } }}>{t('admin.backup_db')}</Button>
                         </div>
                       </Card>
                       <Card className="p-4 space-y-3">
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Bank-Konfiguration</h4>
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.bank_config_title')}</h4>
                         <input type="text" placeholder="IBAN" value={adminBankConfig.iban ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, iban: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <input type="text" placeholder="BIC" value={adminBankConfig.bic ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, bic: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
-                        <Button variant="outline" className="text-xs" onClick={async () => { await fetch('/api/admin/bank-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminBankConfig) }); notifyUser('Bank-Konfiguration gespeichert.', 'success'); }}>Speichern</Button>
+                        <Button variant="outline" className="text-xs" onClick={async () => { await fetch('/api/admin/bank-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminBankConfig) }); notifyUser(t('admin.bank_config_saved'), 'success'); }}>{t('admin.save_button')}</Button>
                       </Card>
                       <Card className="p-4 space-y-3">
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Resale-Erlöse</h4>
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.resale_revenue')}</h4>
                         {adminResaleRevenue && <p className="text-xl font-bold text-zinc-200">{(adminResaleRevenue.total_resale_revenue ?? 0).toLocaleString('de-DE')} €</p>}
-                        {adminResaleRevenue?.entries?.length > 0 && <p className="text-xs text-zinc-500">{adminResaleRevenue.entries.length} Einträge</p>}
-                        {(!adminResaleRevenue || !adminResaleRevenue.entries?.length) && <p className="text-zinc-600 text-sm">Keine Einträge.</p>}
+                        {adminResaleRevenue?.entries?.length > 0 && <p className="text-xs text-zinc-500">{adminResaleRevenue.entries.length} {t('admin.entries_label')}</p>}
+                        {(!adminResaleRevenue || !adminResaleRevenue.entries?.length) && <p className="text-zinc-600 text-sm">{t('admin.no_entries')}</p>}
                       </Card>
                     </div>
                     <Card className="p-4 mt-4">
-                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">DSGVO Datenanfragen</h4>
+                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">{t('admin.gdpr_requests')}</h4>
                       <div className="space-y-2 max-h-48 overflow-y-auto">
                         {adminGdprRequests.map((req: any) => (
                           <div key={req.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800">
-                            <span className="text-sm text-zinc-300">{req.name ?? req.email} · {req.status ?? 'offen'}</span>
-                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1" onClick={async () => { await fetch(`/api/admin/gdpr/data-request/${req.id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); fetchData(); }}>Erledigt</Button>}
+                            <span className="text-sm text-zinc-300">{req.name ?? req.email} · {req.status ?? t('admin.status_open')}</span>
+                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1" onClick={async () => { await fetch(`/api/admin/gdpr/data-request/${req.id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); fetchData(); }}>{t('admin.mark_done')}</Button>}
                           </div>
                         ))}
-                        {(!adminGdprRequests || adminGdprRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine offenen Anfragen.</p>}
+                        {(!adminGdprRequests || adminGdprRequests.length === 0) && <p className="text-zinc-600 text-sm">{t('admin.no_open_requests')}</p>}
                       </div>
                     </Card>
                     <Card className="p-4 mt-4">
-                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">Service-Anfragen</h4>
+                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">{t('admin.service_requests')}</h4>
                       <div className="space-y-2 max-h-48 overflow-y-auto">
                         {adminServiceRequests.map((req: any) => (
                           <div key={req.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800">
@@ -7477,16 +7603,16 @@ export default function App() {
                               <span className="text-sm text-zinc-300 block truncate">{req.user_name ?? req.user_email} · {req.type ?? '—'}</span>
                               <span className="text-xs text-zinc-500 truncate block">{req.masterpiece_title ? `${req.masterpiece_title} (${req.serial_id ?? ''})` : '—'} {req.description ? `· ${req.description}` : ''}</span>
                             </div>
-                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1 shrink-0" onClick={async () => { await fetch(`/api/admin/service-requests/${req.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); const r = await fetch('/api/admin/service-requests'); if (r.ok) setAdminServiceRequests(await r.json()); }}>Erledigt</Button>}
-                            {req.status === 'completed' && <span className="text-xs text-emerald-500 shrink-0">Erledigt</span>}
+                            {req.status !== 'completed' && <Button variant="ghost" className="text-xs py-1 shrink-0" onClick={async () => { await fetch(`/api/admin/service-requests/${req.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'completed' }) }); const r = await fetch('/api/admin/service-requests'); if (r.ok) setAdminServiceRequests(await r.json()); }}>{t('admin.mark_done')}</Button>}
+                            {req.status === 'completed' && <span className="text-xs text-emerald-500 shrink-0">{t('admin.mark_done')}</span>}
                           </div>
                         ))}
-                        {(!adminServiceRequests || adminServiceRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine Service-Anfragen.</p>}
+                        {(!adminServiceRequests || adminServiceRequests.length === 0) && <p className="text-zinc-600 text-sm">{t('admin.no_service_requests')}</p>}
                       </div>
                     </Card>
                     <Card className="p-4 mt-4">
                       <div className="flex justify-between items-center mb-3">
-                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">Kontaktanfragen</h4>
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.contact_requests')}</h4>
                         <Button variant="outline" className="text-xs" onClick={async () => {
                           const r = await fetch('/api/admin/contact-requests/export', { credentials: 'include' });
                           const blob = await r.blob();
@@ -7506,14 +7632,14 @@ export default function App() {
                             <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{req.message}</p>
                           </div>
                         ))}
-                        {(!adminContactRequests || adminContactRequests.length === 0) && <p className="text-zinc-600 text-sm">Keine Kontaktanfragen.</p>}
+                        {(!adminContactRequests || adminContactRequests.length === 0) && <p className="text-zinc-600 text-sm">{t('admin.no_contact_requests')}</p>}
                       </div>
                     </Card>
                   </section>
 
                   <section className="space-y-4 lg:col-span-2">
                     <div className="flex justify-between items-center">
-                      <h3 className="text-xl font-serif italic">Audit-Log</h3>
+                      <h3 className="text-xl font-serif italic">{t('admin.audit_log')}</h3>
                       <Button variant="outline" className="text-xs" onClick={async () => {
                         const logs = adminAuditLogs.length ? adminAuditLogs : await (await fetch('/api/admin/audit-logs?limit=500')).json();
                         const headers = ['Zeit', 'Admin', 'Aktion', 'Ziel', 'Details'];
