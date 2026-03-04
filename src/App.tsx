@@ -277,6 +277,8 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Ausstehende Käufe",
     "admin.approve": "Genehmigen",
     "admin.reject": "Ablehnen",
+    "admin.user_approved": "Nutzer genehmigt.",
+    "admin.user_rejected": "Registrierung abgelehnt.",
     "admin.login_link_create": "Einladungslink",
     "admin.login_link_copied": "Einladungslink kopiert. Link an den Kunden senden – Anmeldung ohne Freischaltung.",
     "login_link.invalid": "Link abgelaufen oder ungültig.",
@@ -814,6 +816,8 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Pending Purchases",
     "admin.approve": "Approve",
     "admin.reject": "Reject",
+    "admin.user_approved": "User approved.",
+    "admin.user_rejected": "Registration rejected.",
     "admin.login_link_create": "Invitation link",
     "admin.login_link_copied": "Invitation link copied. Send to customer – they can sign in without manual approval.",
     "login_link.invalid": "Link expired or invalid.",
@@ -1336,6 +1340,8 @@ const TRANSLATIONS: any = {
     "admin.pending_purchases": "Acquisti in sospeso",
     "admin.approve": "Approva",
     "admin.reject": "Rifiuta",
+    "admin.user_approved": "Utente approvato.",
+    "admin.user_rejected": "Registrazione rifiutata.",
     "admin.login_link_create": "Link invito",
     "admin.login_link_copied": "Link invito copiato. Inviare al cliente – accesso senza approvazione manuale.",
     "login_link.invalid": "Link scaduto o non valido.",
@@ -2901,21 +2907,21 @@ export default function App() {
 
       if (user.role === UserRole.ADMIN) {
         const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes] = await Promise.all([
-          fetch('/api/admin/stats'),
-          fetch('/api/admin/users'),
-          fetch('/api/admin/contracts'),
-          fetch('/api/admin/investor-requests'),
-          fetch('/api/admin/resale-listings'),
-          fetch('/api/admin/appointments'),
-          fetch('/api/admin/audit-logs?limit=100'),
-          fetch('/api/admin/revenue-dashboard'),
-          fetch('/api/admin/cashflow'),
-          fetch('/api/admin/resale-revenue'),
-          fetch('/api/admin/bank-config'),
-          fetch('/api/admin/gdpr/data-requests'),
-          fetch('/api/admin/fractional-offers'),
-          fetch('/api/admin/service-requests'),
-          fetch('/api/admin/contact-requests')
+          fetch('/api/admin/stats', { credentials: 'include' }),
+          fetch('/api/admin/users', { credentials: 'include' }),
+          fetch('/api/admin/contracts', { credentials: 'include' }),
+          fetch('/api/admin/investor-requests', { credentials: 'include' }),
+          fetch('/api/admin/resale-listings', { credentials: 'include' }),
+          fetch('/api/admin/appointments', { credentials: 'include' }),
+          fetch('/api/admin/audit-logs?limit=100', { credentials: 'include' }),
+          fetch('/api/admin/revenue-dashboard', { credentials: 'include' }),
+          fetch('/api/admin/cashflow', { credentials: 'include' }),
+          fetch('/api/admin/resale-revenue', { credentials: 'include' }),
+          fetch('/api/admin/bank-config', { credentials: 'include' }),
+          fetch('/api/admin/gdpr/data-requests', { credentials: 'include' }),
+          fetch('/api/admin/fractional-offers', { credentials: 'include' }),
+          fetch('/api/admin/service-requests', { credentials: 'include' }),
+          fetch('/api/admin/contact-requests', { credentials: 'include' })
         ]);
         if (statsRes.ok) setAdminStats(await statsRes.json());
         if (usersRes.ok) setAllUsers(await usersRes.json());
@@ -3785,9 +3791,16 @@ export default function App() {
       const res = await fetch('/api/admin/approve-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, approve })
+        body: JSON.stringify({ userId, approve }),
+        credentials: 'include'
       });
-      if (res.ok) fetchData();
+      if (res.ok) {
+        notifyUser(approve ? (t('admin.user_approved') || 'Nutzer genehmigt.') : (t('admin.user_rejected') || 'Registrierung abgelehnt.'), 'success');
+        fetchData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
     } finally {
       setLoading(false);
     }
@@ -6853,19 +6866,27 @@ export default function App() {
                               <Badge variant={u.status === 'approved' ? 'emerald' : u.status === 'pending' ? 'amber' : 'red'} className="text-[8px] uppercase">{u.status}</Badge>
                             </div>
                           </div>
-                          <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={async () => {
-                            if (!window.confirm(t('admin.remove_user_confirm'))) return;
-                            setLoading(true);
-                            try {
-                              const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE', credentials: 'include' });
-                              const data = await res.json().catch(() => ({}));
-                              if (res.ok) {
-                                notifyUser(t('admin.user_removed'), 'success');
-                                fetchData();
-                              } else notifyUser(data.error || t('errors.generic'), 'error');
-                            } catch { notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error'); }
-                            finally { setLoading(false); }
-                          }}>{t('admin.remove_user')}</Button>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {u.status === 'pending' && (
+                              <>
+                                <Button variant="outline" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleApproveUser(u.id, true)}>{t('admin.approve')}</Button>
+                                <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={() => handleApproveUser(u.id, false)}>{t('admin.reject')}</Button>
+                              </>
+                            )}
+                            <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={async () => {
+                              if (!window.confirm(t('admin.remove_user_confirm'))) return;
+                              setLoading(true);
+                              try {
+                                const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE', credentials: 'include' });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok) {
+                                  notifyUser(t('admin.user_removed'), 'success');
+                                  fetchData();
+                                } else notifyUser(data.error || t('errors.generic'), 'error');
+                              } catch { notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error'); }
+                              finally { setLoading(false); }
+                            }}>{t('admin.remove_user')}</Button>
+                          </div>
                         </Card>
                       ))}
                     </div>

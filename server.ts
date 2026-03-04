@@ -2894,8 +2894,8 @@ app.get("/api/admin/stats", (req, res) => {
   });
 });
 
-app.get("/api/admin/users", (req, res) => {
-  const users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted'").all();
+app.get("/api/admin/users", requireAuth, requireAdmin, (req, res) => {
+  const users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted' ORDER BY status = 'pending' DESC, created_at DESC").all();
   res.json(users);
 });
 
@@ -3802,11 +3802,14 @@ app.post("/api/admin/clients/add", (req, res) => {
   }
 });
 
-app.post("/api/admin/approve-user", (req, res) => {
-  const { userId, approve } = req.body;
+app.post("/api/admin/approve-user", requireAuth, requireAdmin, (req, res) => {
+  const userId = Number(req.body?.userId);
+  const approve = req.body?.approve === true;
+  if (!userId) return res.status(400).json({ error: "userId erforderlich." });
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(404).json({ error: "Nutzer nicht gefunden." });
   if (approve) {
     db.prepare("UPDATE users SET status = 'approved' WHERE id = ?").run(userId);
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
     if (user.is_vip) {
       const docRef = nextContractRef('vip');
       const vipContent = `VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants ${user.name} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.`;
