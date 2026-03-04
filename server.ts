@@ -778,6 +778,12 @@ db.exec(`
     used_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS session_handoff (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 try { db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0").run(); } catch (_) {}
 db.exec(`
@@ -1716,10 +1722,32 @@ app.get("/api/auth/link", (req, res) => {
   if (!user) return res.redirect(302, baseUrl + "/");
   db.prepare("UPDATE login_links SET used_at = datetime('now') WHERE token = ?").run(token);
   db.prepare("UPDATE users SET status = 'approved', force_password_change = 1 WHERE id = ?").run(user.id);
+  const handoffToken = crypto.randomBytes(24).toString("hex");
+  const handoffExpires = new Date(Date.now() + 2 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  try { db.prepare("DELETE FROM session_handoff WHERE expires_at < datetime('now')").run(); } catch (_) {}
+  db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)").run(handoffToken, user.id, handoffExpires);
   const isSecure = baseUrl.startsWith("https");
   const cookieOpts = `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
   res.setHeader("Set-Cookie", cookieOpts);
-  res.redirect(302, baseUrl + "/?must_change_password=1");
+  const redirectUrl = baseUrl + "/?must_change_password=1&session_handoff=" + handoffToken;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.status(200).send(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta http-equiv="refresh" content="0;url=${redirectUrl.replace(/"/g, "&quot;")}"/><script>window.location.replace(${JSON.stringify(redirectUrl)});</script><title>Weiterleitung</title></head><body><p>Anmeldung erfolgreich. <a href="${redirectUrl.replace(/"/g, "&quot;")}">Weiter zum Portal</a> …</p></body></html>`
+  );
+});
+
+// Session aus Handoff-Token (Fallback, wenn Cookie nach Einladungslink nicht ankommt)
+app.post("/api/auth/session-from-handoff", express.json(), (req, res) => {
+  const token = (req.body?.token || req.query?.token || "").toString().trim();
+  if (!token) return res.status(400).json({ error: "Token fehlt." });
+  const row = db.prepare("SELECT user_id FROM session_handoff WHERE token = ? AND expires_at > datetime('now')").get(token) as { user_id: number } | undefined;
+  if (!row) return res.status(400).json({ error: "Token ungültig oder abgelaufen." });
+  db.prepare("DELETE FROM session_handoff WHERE token = ?").run(token);
+  const baseUrl = getBaseUrl(req);
+  const isSecure = baseUrl.startsWith("https");
+  const cookieOpts = `session=${row.user_id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+  res.setHeader("Set-Cookie", cookieOpts);
+  res.json({ success: true });
 });
 
 // --- Admin: Einladungslink erstellen (per userId oder per E-Mail – Kunde muss sich nicht anmelden, nur Passwort setzen) ---

@@ -2676,21 +2676,32 @@ export default function App() {
         }
       }
     };
-    fetch('/api/me', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) return applyUser(data);
-        const hasMustChange = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1';
-        if (hasMustChange) {
-          setTimeout(() => {
-            fetch('/api/me', { credentials: 'include' })
-              .then(r => r.ok ? r.json() : null)
-              .then(applyUser)
-              .catch(() => {});
-          }, 400);
-        }
-      })
-      .catch(() => {});
+    const hasMustChange = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1';
+    const handoffToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('session_handoff') : null;
+    const tryMe = (attempt: number) => {
+      fetch('/api/me', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) return applyUser(data);
+          if (hasMustChange && attempt < 3) setTimeout(() => tryMe(attempt + 1), 300 * attempt);
+        })
+        .catch(() => { if (hasMustChange && attempt < 3) setTimeout(() => tryMe(attempt + 1), 300 * attempt); });
+    };
+    if (handoffToken) {
+      fetch('/api/auth/session-from-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: handoffToken }), credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(() => {
+          if (typeof window !== 'undefined') {
+            const u = new URL(window.location.href);
+            u.searchParams.delete('session_handoff');
+            window.history.replaceState({}, '', u.pathname + u.search + u.hash || '/');
+          }
+          tryMe(0);
+        })
+        .catch(() => tryMe(0));
+    } else {
+      tryMe(0);
+    }
   }, []);
 
   useEffect(() => {
