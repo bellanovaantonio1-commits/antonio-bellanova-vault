@@ -308,6 +308,11 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "Nutzer-Genehmigungen",
     "admin.wants_vip": "Wünscht VIP",
     "admin.no_pending_users": "Keine ausstehenden Registrierungen.",
+    "admin.invite_link_title": "Einladungslink erstellen",
+    "admin.invite_link_hint": "E-Mail eingeben – Empfänger muss sich nicht registrieren, setzt nur das Passwort.",
+    "admin.invite_link_email": "E-Mail des Empfängers",
+    "admin.invite_link_name": "Name (optional)",
+    "admin.invite_link_create_btn": "Link erstellen & kopieren",
     "admin.investor_requests": "Investor-Anfragen",
     "admin.request_type": "Anfrage",
     "admin.investor_label": "Investor",
@@ -836,6 +841,11 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "User Approvals",
     "admin.wants_vip": "Wants VIP",
     "admin.no_pending_users": "No pending registrations.",
+    "admin.invite_link_title": "Create invitation link",
+    "admin.invite_link_hint": "Enter email – recipient does not need to register, they only set their password.",
+    "admin.invite_link_email": "Recipient email",
+    "admin.invite_link_name": "Name (optional)",
+    "admin.invite_link_create_btn": "Create & copy link",
     "admin.investor_requests": "Investor Requests",
     "admin.request_type": "Request",
     "admin.investor_label": "Investor",
@@ -1349,6 +1359,11 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "Approvazioni utenti",
     "admin.wants_vip": "Desidera VIP",
     "admin.no_pending_users": "Nessuna registrazione in sospeso.",
+    "admin.invite_link_title": "Crea link invito",
+    "admin.invite_link_hint": "Inserisci email – il destinatario non deve registrarsi, imposta solo la password.",
+    "admin.invite_link_email": "Email destinatario",
+    "admin.invite_link_name": "Nome (opzionale)",
+    "admin.invite_link_create_btn": "Crea e copia link",
     "admin.investor_requests": "Richieste investitori",
     "admin.request_type": "Richiesta",
     "admin.investor_label": "Investitore",
@@ -2609,6 +2624,7 @@ export default function App() {
     userId: '', masterpieceId: ''
   });
   const [newClient, setNewClient] = useState({ name: '', email: '', address: '', role: 'client', isVip: false });
+  const [inviteLinkForm, setInviteLinkForm] = useState({ email: '', name: '' });
 
   const ws = useRef<WebSocket | null>(null);
 
@@ -6721,6 +6737,27 @@ export default function App() {
                   {(adminTab === 'users') && (
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.user_approvals')}</h3>
+                    <Card className="p-4 border-amber-600/20 bg-amber-500/5 space-y-3">
+                      <h4 className="text-sm font-semibold text-amber-200/90">{t('admin.invite_link_title')}</h4>
+                      <p className="text-xs text-zinc-400">{t('admin.invite_link_hint')}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Input label={t('admin.invite_link_email')} type="email" value={inviteLinkForm.email} onChange={(e: any) => setInviteLinkForm(f => ({ ...f, email: e.target.value }))} placeholder="kunde@beispiel.de" />
+                        <Input label={t('admin.invite_link_name')} type="text" value={inviteLinkForm.name} onChange={(e: any) => setInviteLinkForm(f => ({ ...f, name: e.target.value }))} placeholder={t('auth.name_placeholder')} />
+                      </div>
+                      <Button variant="primary" className="w-full sm:w-auto" disabled={loading || !inviteLinkForm.email.trim()} onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const res = await fetch('/api/admin/login-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: inviteLinkForm.email.trim(), name: inviteLinkForm.name.trim() || undefined }), credentials: 'include' });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok && data.url) {
+                            await navigator.clipboard.writeText(data.url);
+                            notifyUser(t('admin.login_link_copied') || 'Einladungslink kopiert. Link an den Kunden senden – Anmeldung ohne Freischaltung.', 'success');
+                            setInviteLinkForm({ email: '', name: '' });
+                          } else notifyUser(data.error || t('errors.generic'), 'error');
+                        } catch { notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error'); }
+                        finally { setLoading(false); }
+                      }}>{t('admin.invite_link_create_btn')}</Button>
+                    </Card>
                     <div className="space-y-4">
                       {allUsers.filter(u => u.status === 'pending').map(u => (
                         <Card key={u.id} className="flex items-center justify-between">

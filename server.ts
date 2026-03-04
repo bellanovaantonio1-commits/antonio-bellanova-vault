@@ -1724,18 +1724,57 @@ app.get("/api/auth/link", (req, res) => {
   res.redirect(302, baseUrl + "/?must_change_password=1");
 });
 
-// --- Admin: Einladungslink erstellen (Kunde direkt anmelden, nur Passwort ändern) ---
+// --- Admin: Einladungslink erstellen (per userId oder per E-Mail – Kunde muss sich nicht anmelden, nur Passwort setzen) ---
 app.post("/api/admin/login-link", requireAuth, requireAdmin, (req, res) => {
   const userId = Number(req.body?.userId);
-  if (!userId) return res.status(400).json({ error: "userId erforderlich." });
-  const target = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(userId) as any;
-  if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
+  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+  const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+
+  let targetUserId: number;
+  let targetEmail: string;
+  let targetName: string;
+
+  if (userId) {
+    const target = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(userId) as any;
+    if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
+    targetUserId = target.id;
+    targetEmail = target.email || "";
+    targetName = target.name || "";
+  } else if (email) {
+    let target = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?").get(email.toLowerCase()) as any;
+    if (!target) {
+      const username = ensureUniqueUsername(deriveUsernameFromEmail(email));
+      const tempPassword = crypto.randomBytes(24).toString("hex");
+      const hashed = hashPassword(tempPassword);
+      const displayName = name || email.split("@")[0] || "Kunde";
+      try {
+        const result = db.prepare(
+          "INSERT INTO users (email, username, password, name, address, is_vip, language, role, status) VALUES (?, ?, ?, ?, '', 0, 'de', 'client', 'approved')"
+        ).run(email, username, hashed, displayName);
+        targetUserId = result.lastInsertRowid as number;
+        targetEmail = email;
+        targetName = displayName;
+        try { db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?").run(targetUserId); } catch (_) {}
+      } catch (e: any) {
+        if (e && (e.message || "").includes("UNIQUE") && (e.message || "").toLowerCase().includes("email"))
+          return res.status(400).json({ error: "E-Mail bereits vergeben." });
+        throw e;
+      }
+    } else {
+      targetUserId = target.id;
+      targetEmail = target.email || "";
+      targetName = target.name || "";
+    }
+  } else {
+    return res.status(400).json({ error: "userId oder E-Mail erforderlich." });
+  }
+
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
-  db.prepare("INSERT INTO login_links (user_id, token, expires_at) VALUES (?, ?, ?)").run(userId, token, expiresAt);
+  db.prepare("INSERT INTO login_links (user_id, token, expires_at) VALUES (?, ?, ?)").run(targetUserId, token, expiresAt);
   const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
   const url = baseUrl + "/api/auth/link?token=" + token;
-  logAudit((req as any).userId, "LOGIN_LINK_CREATE", String(userId), target.email || target.name);
+  logAudit((req as any).userId, "LOGIN_LINK_CREATE", String(targetUserId), targetEmail || targetName);
   res.json({ url, expiresAt });
 });
 
