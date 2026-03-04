@@ -2655,28 +2655,39 @@ export default function App() {
       }
       setTimeout(() => notifyUser(t('login_link.invalid') || 'Link abgelaufen oder ungültig.', 'error'), 300);
     }
+    const applyUser = (data: any) => {
+      if (!data) return;
+      setUser(data);
+      setLanguage(data.language || 'de');
+      setView('dashboard');
+      if (data.notification_prefs) {
+        try {
+          const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
+          if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
+        } catch (_) {}
+      }
+      if (data.force_password_change || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1')) {
+        setForcePasswordChangeMode(true);
+        setShowPasswordChangeModal(true);
+        if (typeof window !== 'undefined') {
+          const u = new URL(window.location.href);
+          u.searchParams.delete('must_change_password');
+          window.history.replaceState({}, '', u.pathname + u.hash || '/');
+        }
+      }
+    };
     fetch('/api/me', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data) {
-          setUser(data);
-          setLanguage(data.language || 'de');
-          setView('dashboard');
-          if (data.notification_prefs) {
-            try {
-              const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
-              if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
-            } catch (_) {}
-          }
-          if (data.force_password_change || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1')) {
-            setForcePasswordChangeMode(true);
-            setShowPasswordChangeModal(true);
-            if (typeof window !== 'undefined') {
-              const u = new URL(window.location.href);
-              u.searchParams.delete('must_change_password');
-              window.history.replaceState({}, '', u.pathname + u.hash || '');
-            }
-          }
+        if (data) return applyUser(data);
+        const hasMustChange = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1';
+        if (hasMustChange) {
+          setTimeout(() => {
+            fetch('/api/me', { credentials: 'include' })
+              .then(r => r.ok ? r.json() : null)
+              .then(applyUser)
+              .catch(() => {});
+          }, 400);
         }
       })
       .catch(() => {});

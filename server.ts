@@ -31,6 +31,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set("trust proxy", 1);
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = Number(process.env.PORT) || 3000;
@@ -1699,28 +1700,25 @@ app.post("/api/reset-password", (req, res) => {
 });
 
 // --- Login-Link (Einladungslink: direkt anmelden, Passwort ändern) ---
+function getBaseUrl(req: express.Request): string {
+  const url = process.env.APP_URL || (req.protocol + "://" + req.get("host"));
+  return url.replace(/\/$/, "") || "http://localhost:3000";
+}
 app.get("/api/auth/link", (req, res) => {
   const token = (req.query.token as string)?.trim();
-  if (!token) {
-    const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
-    return res.redirect(302, baseUrl + "/");
-  }
+  const baseUrl = getBaseUrl(req);
+  if (!token) return res.redirect(302, baseUrl + "/");
   const row = db.prepare(
     "SELECT * FROM login_links WHERE token = ? AND expires_at > datetime('now') AND used_at IS NULL"
   ).get(token) as { user_id: number } | undefined;
-  if (!row) {
-    const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
-    return res.redirect(302, baseUrl + "/?login_link=invalid");
-  }
+  if (!row) return res.redirect(302, baseUrl + "/?login_link=invalid");
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(row.user_id) as any;
-  if (!user) {
-    const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
-    return res.redirect(302, baseUrl + "/");
-  }
+  if (!user) return res.redirect(302, baseUrl + "/");
   db.prepare("UPDATE login_links SET used_at = datetime('now') WHERE token = ?").run(token);
   db.prepare("UPDATE users SET status = 'approved', force_password_change = 1 WHERE id = ?").run(user.id);
-  const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
-  res.setHeader("Set-Cookie", `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax`);
+  const isSecure = baseUrl.startsWith("https");
+  const cookieOpts = `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
+  res.setHeader("Set-Cookie", cookieOpts);
   res.redirect(302, baseUrl + "/?must_change_password=1");
 });
 
