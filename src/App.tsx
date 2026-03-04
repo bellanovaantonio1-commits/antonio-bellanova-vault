@@ -2655,6 +2655,14 @@ export default function App() {
       }
       setTimeout(() => notifyUser(t('login_link.invalid') || 'Link abgelaufen oder ungültig.', 'error'), 300);
     }
+    if (params?.get('email') || params?.get('session_handoff') || params?.get('username')) {
+      const urlEmail = params.get('email');
+      const urlUsername = params.get('username');
+      if (urlEmail) setEmail(decodeURIComponent(urlEmail));
+      else if (urlUsername) setEmail(decodeURIComponent(urlUsername));
+      if (urlUsername) setUsername(decodeURIComponent(urlUsername));
+      setView('login');
+    }
     const applyUser = (data: any) => {
       if (!data) return;
       setUser(data);
@@ -2688,15 +2696,25 @@ export default function App() {
         .catch(() => { if (hasMustChange && attempt < 3) setTimeout(() => tryMe(attempt + 1), 300 * attempt); });
     };
     if (handoffToken) {
-      fetch('/api/auth/session-from-handoff', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: handoffToken }), credentials: 'include' })
+      fetch('/api/auth/temp-login-data?token=' + encodeURIComponent(handoffToken), { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
-        .then(() => {
+        .then((creds) => {
           if (typeof window !== 'undefined') {
             const u = new URL(window.location.href);
             u.searchParams.delete('session_handoff');
             window.history.replaceState({}, '', u.pathname + u.search + u.hash || '/');
           }
-          tryMe(0);
+          if (creds && (creds.email || creds.username) && creds.password) {
+            setEmail(creds.email || creds.username || '');
+            setPassword(creds.password);
+            setView('login');
+            fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: creds.email || creds.username, password: creds.password }), credentials: 'include' })
+              .then(r => r.ok ? r.json() : null)
+              .then((userData) => { if (userData) applyUser(userData); else tryMe(0); })
+              .catch(() => tryMe(0));
+          } else {
+            tryMe(0);
+          }
         })
         .catch(() => tryMe(0));
     } else {

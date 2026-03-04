@@ -781,11 +781,14 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS session_handoff (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
+    temp_password TEXT,
     expires_at DATETIME NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 try { db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT").run(); } catch (_) {}
 db.exec(`
   CREATE TABLE IF NOT EXISTS user_portfolio_hidden (
     user_id INTEGER NOT NULL,
@@ -1638,15 +1641,24 @@ app.post("/api/login", (req, res) => {
   const password = String(req.body?.password ?? "");
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
   const userAgent = (req.headers['user-agent'] as string) || '';
-  const user = db.prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)").get(loginInput, loginInput) as any;
-  if (user && checkPassword(password, user.password || '')) {
+  let user = db.prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)").get(loginInput, loginInput) as any;
+  let loginOk = user && checkPassword(password, user.password || '');
+  if (!loginOk && user) {
+    const handoff = db.prepare("SELECT token FROM session_handoff WHERE user_id = ? AND temp_password = ? AND expires_at > datetime('now')").get(user.id, password) as { token: string } | undefined;
+    if (handoff) {
+      db.prepare("DELETE FROM session_handoff WHERE token = ?").run(handoff.token);
+      loginOk = true;
+    }
+  }
+  if (user && loginOk) {
     if (user.status !== 'approved') {
       try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run(user.id, ip, userAgent); } catch (_) {}
       return res.status(403).json({ error: "Account pending approval" });
     }
-    try { upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
+    if (checkPassword(password, user.password || '')) try { upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
     try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 1)").run(user.id, ip, userAgent); } catch (_) {}
-    res.setHeader("Set-Cookie", `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax`);
+    const isSecure = (process.env.APP_URL || "").startsWith("https");
+    res.setHeader("Set-Cookie", `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
     const { password: _p, ...rest } = user;
     res.json(rest);
   } else {
@@ -1723,13 +1735,20 @@ app.get("/api/auth/link", (req, res) => {
   db.prepare("UPDATE login_links SET used_at = datetime('now') WHERE token = ?").run(token);
   db.prepare("UPDATE users SET status = 'approved', force_password_change = 1 WHERE id = ?").run(user.id);
   const handoffToken = crypto.randomBytes(24).toString("hex");
-  const handoffExpires = new Date(Date.now() + 2 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
+  const tempPassword = crypto.randomBytes(12).toString("base64").replace(/[+/=]/g, (c) => ({ "+": "x", "/": "y", "=": "" }[c] || c)).slice(0, 16);
+  const handoffExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
   try { db.prepare("DELETE FROM session_handoff WHERE expires_at < datetime('now')").run(); } catch (_) {}
-  db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)").run(handoffToken, user.id, handoffExpires);
+  try {
+    db.prepare("INSERT INTO session_handoff (token, user_id, expires_at, temp_password) VALUES (?, ?, ?, ?)").run(handoffToken, user.id, handoffExpires, tempPassword);
+  } catch (_) {
+    db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)").run(handoffToken, user.id, handoffExpires);
+  }
   const isSecure = baseUrl.startsWith("https");
   const cookieOpts = `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
   res.setHeader("Set-Cookie", cookieOpts);
-  const redirectUrl = baseUrl + "/?must_change_password=1&session_handoff=" + handoffToken;
+  const emailParam = (user.email || "").trim() ? "&email=" + encodeURIComponent(user.email) : "";
+  const usernameParam = (user.username || "").trim() ? "&username=" + encodeURIComponent(user.username) : "";
+  const redirectUrl = baseUrl + "/?must_change_password=1&session_handoff=" + handoffToken + emailParam + usernameParam;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.status(200).send(
     `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta http-equiv="refresh" content="0;url=${redirectUrl.replace(/"/g, "&quot;")}"/><script>window.location.replace(${JSON.stringify(redirectUrl)});</script><title>Weiterleitung</title></head><body><p>Anmeldung erfolgreich. <a href="${redirectUrl.replace(/"/g, "&quot;")}">Weiter zum Portal</a> …</p></body></html>`
@@ -1748,6 +1767,18 @@ app.post("/api/auth/session-from-handoff", express.json(), (req, res) => {
   const cookieOpts = `session=${row.user_id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
   res.setHeader("Set-Cookie", cookieOpts);
   res.json({ success: true });
+});
+
+// Einmal-Zugangsdaten für Vorausfüllen des Login-Formulars (Einladungslink)
+app.get("/api/auth/temp-login-data", (req, res) => {
+  const token = (req.query.token || "").toString().trim();
+  if (!token) return res.status(400).json({ error: "Token fehlt." });
+  const row = db.prepare("SELECT user_id, temp_password FROM session_handoff WHERE token = ? AND expires_at > datetime('now')").get(token) as { user_id: number; temp_password: string | null } | undefined;
+  if (!row || !row.temp_password) return res.status(400).json({ error: "Token ungültig oder abgelaufen." });
+  const user = db.prepare("SELECT email, username FROM users WHERE id = ?").get(row.user_id) as { email: string; username: string } | undefined;
+  if (!user) return res.status(400).json({ error: "Nutzer nicht gefunden." });
+  db.prepare("DELETE FROM session_handoff WHERE token = ?").run(token);
+  res.json({ email: user.email || "", username: user.username || "", password: row.temp_password });
 });
 
 // --- Admin: Einladungslink erstellen (per userId oder per E-Mail – Kunde muss sich nicht anmelden, nur Passwort setzen) ---
