@@ -308,6 +308,10 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "Nutzer-Genehmigungen",
     "admin.wants_vip": "Wünscht VIP",
     "admin.no_pending_users": "Keine ausstehenden Registrierungen.",
+    "admin.all_users": "Alle Nutzer",
+    "admin.remove_user": "Entfernen",
+    "admin.remove_user_confirm": "Nutzer wirklich aus dem System entfernen? Der Zugang wird deaktiviert.",
+    "admin.user_removed": "Nutzer wurde entfernt.",
     "admin.invite_link_title": "Einladungslink erstellen",
     "admin.invite_link_hint": "E-Mail eingeben – Empfänger muss sich nicht registrieren, setzt nur das Passwort.",
     "admin.invite_link_email": "E-Mail des Empfängers",
@@ -841,6 +845,10 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "User Approvals",
     "admin.wants_vip": "Wants VIP",
     "admin.no_pending_users": "No pending registrations.",
+    "admin.all_users": "All users",
+    "admin.remove_user": "Remove",
+    "admin.remove_user_confirm": "Really remove this user from the system? Their access will be disabled.",
+    "admin.user_removed": "User has been removed.",
     "admin.invite_link_title": "Create invitation link",
     "admin.invite_link_hint": "Enter email – recipient does not need to register, they only set their password.",
     "admin.invite_link_email": "Recipient email",
@@ -1359,6 +1367,10 @@ const TRANSLATIONS: any = {
     "admin.user_approvals": "Approvazioni utenti",
     "admin.wants_vip": "Desidera VIP",
     "admin.no_pending_users": "Nessuna registrazione in sospeso.",
+    "admin.all_users": "Tutti gli utenti",
+    "admin.remove_user": "Rimuovi",
+    "admin.remove_user_confirm": "Rimuovere davvero questo utente? L'accesso sarà disattivato.",
+    "admin.user_removed": "Utente rimosso.",
     "admin.invite_link_title": "Crea link invito",
     "admin.invite_link_hint": "Inserisci email – il destinatario non deve registrarsi, imposta solo la password.",
     "admin.invite_link_email": "Email destinatario",
@@ -6788,6 +6800,34 @@ export default function App() {
                         </Card>
                       ))}
                       {allUsers.filter(u => u.status === 'pending').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_users')}</p>}
+                    </div>
+                    <h4 className="text-lg font-serif italic mt-8">{t('admin.all_users')}</h4>
+                    <div className="space-y-2">
+                      {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                        <Card key={u.id} className="flex items-center justify-between py-3 px-4">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-200">{u.name || '—'}</p>
+                            <p className="text-xs text-zinc-500">{u.email} {u.address ? ` · ${u.address}` : ''}</p>
+                            <div className="flex gap-2 mt-1">
+                              <Badge variant="zinc" className="text-[8px] uppercase">{u.role}</Badge>
+                              <Badge variant={u.status === 'approved' ? 'emerald' : u.status === 'pending' ? 'amber' : 'red'} className="text-[8px] uppercase">{u.status}</Badge>
+                            </div>
+                          </div>
+                          <Button variant="danger" className="py-1.5 px-3 text-xs" disabled={loading} onClick={async () => {
+                            if (!window.confirm(t('admin.remove_user_confirm'))) return;
+                            setLoading(true);
+                            try {
+                              const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE', credentials: 'include' });
+                              const data = await res.json().catch(() => ({}));
+                              if (res.ok) {
+                                notifyUser(t('admin.user_removed'), 'success');
+                                fetchData();
+                              } else notifyUser(data.error || t('errors.generic'), 'error');
+                            } catch { notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error'); }
+                            finally { setLoading(false); }
+                          }}>{t('admin.remove_user')}</Button>
+                        </Card>
+                      ))}
                     </div>
                   </section>
                   )}

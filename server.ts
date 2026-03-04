@@ -2838,8 +2838,20 @@ app.get("/api/admin/stats", (req, res) => {
 });
 
 app.get("/api/admin/users", (req, res) => {
-  const users = db.prepare("SELECT * FROM users").all();
+  const users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted'").all();
   res.json(users);
+});
+
+// Admin: Nutzer entfernen (Soft-Delete: status = 'deleted')
+app.delete("/api/admin/users/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Nutzer-ID erforderlich." });
+  const target = db.prepare("SELECT id, role, email, name FROM users WHERE id = ?").get(id) as any;
+  if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
+  if (target.role === "admin" || target.role === "super_admin") return res.status(403).json({ error: "Admins können nicht entfernt werden." });
+  db.prepare("UPDATE users SET status = 'deleted' WHERE id = ?").run(id);
+  logAudit((req as any).userId, "USER_REMOVED", String(id), target.email || target.name);
+  res.json({ success: true });
 });
 
 app.get("/api/admin/contracts", (req, res) => {
