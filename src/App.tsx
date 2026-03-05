@@ -2534,7 +2534,8 @@ export default function App() {
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [isOnline, setIsOnline] = useState(true);
+  const [offlineBannerShown, setOfflineBannerShown] = useState(false);
   const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
   const [contactFormSubmitting, setContactFormSubmitting] = useState(false);
   const [contactFormSent, setContactFormSent] = useState(false);
@@ -2984,8 +2985,8 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onOnline = () => setIsOnline(true);
-    const onOffline = () => setIsOnline(false);
+    const onOnline = () => { setIsOnline(true); setOfflineBannerShown(false); };
+    const onOffline = () => { setIsOnline(false); setOfflineBannerShown(true); };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
@@ -4908,8 +4909,8 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Offline banner */}
-        {!isOnline && (
+        {/* Offline banner — nur anzeigen, wenn der Browser explizit "offline" gemeldet hat (vermeidet Falschanzeige bei initialem navigator.onLine) */}
+        {offlineBannerShown && !isOnline && (
           <div className="sticky top-0 z-[45] bg-amber-500/90 text-black text-center py-2 text-xs font-bold uppercase tracking-widest">
             {t('offline.banner')}
           </div>
