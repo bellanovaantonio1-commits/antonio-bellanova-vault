@@ -2556,11 +2556,6 @@ export default function App() {
   const [dropImageUploading, setDropImageUploading] = useState(false);
   const [dropImageDragOver, setDropImageDragOver] = useState(false);
   const dropImageInputRef = useRef<HTMLInputElement>(null);
-  const [dropImageUploading, setDropImageUploading] = useState(false);
-  const [dropZoneDrag, setDropZoneDrag] = useState(false);
-  const [adminDropImageUploading, setAdminDropImageUploading] = useState(false);
-  const [adminDropImageDragging, setAdminDropImageDragging] = useState(false);
-  const adminDropFileInputRef = useRef<HTMLInputElement>(null);
   const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
