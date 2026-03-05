@@ -522,6 +522,30 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
   );
+  CREATE TABLE IF NOT EXISTS fractional_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    asset_type TEXT NOT NULL DEFAULT 'vault',
+    asset_status TEXT NOT NULL DEFAULT 'financing',
+    total_shares INTEGER NOT NULL DEFAULT 100,
+    share_price REAL NOT NULL,
+    production_threshold_pct REAL DEFAULT 60,
+    masterpiece_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS asset_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    num_shares INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
 
   CREATE TABLE IF NOT EXISTS investor_view_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -944,6 +968,43 @@ try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_bel
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN responded_by INTEGER REFERENCES users(id)").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_availability ADD COLUMN min_investment_pct REAL").run(); } catch (e) {}
+try {
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS fractional_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    image_url TEXT,
+    asset_type TEXT NOT NULL DEFAULT 'vault',
+    asset_status TEXT NOT NULL DEFAULT 'financing',
+    total_shares INTEGER NOT NULL DEFAULT 100,
+    share_price REAL NOT NULL,
+    production_threshold_pct REAL DEFAULT 60,
+    masterpiece_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS asset_shares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    num_shares INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  `);
+} catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN asset_code TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_production_weeks INTEGER").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN storage_location TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN certification_status TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN gemstone_documentation TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weight REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT").run(); } catch (e) {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS prestige_tier_metrics (
@@ -5143,6 +5204,132 @@ app.post("/api/admin/fractional/execute-exit", (req, res) => {
   try { db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)").run('fractional_fee', -exitValue, user_id, masterpiece_id, `exit_${share.id}`); } catch (_) {}
   try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(user_id, `Your fractional share (${pct}%) exit has been executed by the Maison.`, 'info'); } catch (_) {}
   res.json({ success: true, exited_pct: pct, returned_to_availability: pct });
+});
+
+// --- Fractional Assets (Production / Vault) ---
+function getAssetSharesSold(assetId: number): number {
+  const row = db.prepare("SELECT COALESCE(SUM(num_shares), 0) as sold FROM asset_shares WHERE asset_id = ?").get(assetId) as { sold: number };
+  return row?.sold ?? 0;
+}
+function updateAssetStatusFromProgress(assetId: number) {
+  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  if (!asset) return;
+  const sold = getAssetSharesSold(assetId);
+  const total = asset.total_shares || 100;
+  const threshold = asset.production_threshold_pct ?? 60;
+  let next: string = asset.asset_status;
+  if (sold >= total) next = 'vault';
+  else if (sold / total >= threshold / 100) next = 'production';
+  else if (sold > 0 || asset.asset_status !== 'design') next = 'financing';
+  if (next !== asset.asset_status) {
+    db.prepare("UPDATE fractional_assets SET asset_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(next, assetId);
+  }
+}
+
+app.get("/api/fractional-assets", (req, res) => {
+  const rows = db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC").all() as any[];
+  const out = rows.map(a => {
+    const sold = getAssetSharesSold(a.id);
+    const total = a.total_shares || 100;
+    const remaining = Math.max(0, total - sold);
+    const totalValue = total * (a.share_price || 0);
+    const financingPct = total ? (sold / total) * 100 : 0;
+    return { ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct };
+  });
+  res.json(out);
+});
+
+app.get("/api/fractional-assets/:id", (req, res) => {
+  const a = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(req.params.id) as any;
+  if (!a) return res.status(404).json({ error: "Asset not found" });
+  const sold = getAssetSharesSold(a.id);
+  const total = a.total_shares || 100;
+  const remaining = Math.max(0, total - sold);
+  const totalValue = total * (a.share_price || 0);
+  const financingPct = total ? (sold / total) * 100 : 0;
+  res.json({ ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct });
+});
+
+app.post("/api/admin/fractional-assets", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id } = req.body;
+  const r = db.prepare(`
+    INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(
+    title || 'Asset', description || '', image_url || null,
+    asset_type === 'production' ? 'production' : 'vault',
+    asset_status === 'design' ? 'design' : (asset_status === 'production' ? 'production' : (asset_status === 'vault' ? 'vault' : 'financing')),
+    total_shares ?? 100, share_price ?? 0, production_threshold_pct ?? 60, masterpiece_id || null
+  );
+  res.json({ id: r.lastInsertRowid, success: true });
+});
+
+app.put("/api/admin/fractional-assets/:id", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id } = req.body;
+  const existing = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(req.params.id) as any;
+  if (!existing) return res.status(404).json({ error: "Not found" });
+  db.prepare(`
+    UPDATE fractional_assets SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
+    asset_type = COALESCE(?, asset_type), asset_status = COALESCE(?, asset_status), total_shares = COALESCE(?, total_shares), share_price = COALESCE(?, share_price),
+    production_threshold_pct = COALESCE(?, production_threshold_pct), masterpiece_id = COALESCE(?, masterpiece_id), updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, req.params.id);
+  res.json({ success: true });
+});
+
+app.post("/api/fractional-assets/:id/buy", (req, res) => {
+  const userId = getSessionUserId(req);
+  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  const numShares = Math.floor(Number(req.body?.num_shares)) || 1;
+  if (numShares < 1) return res.status(400).json({ error: "Invalid num_shares" });
+  const assetId = Number(req.params.id);
+  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  if (!asset) return res.status(404).json({ error: "Asset not found" });
+  const sold = getAssetSharesSold(assetId);
+  const remaining = (asset.total_shares || 100) - sold;
+  if (numShares > remaining) return res.status(400).json({ error: "Not enough shares available" });
+  const existing = db.prepare("SELECT * FROM asset_shares WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as any;
+  if (existing) {
+    db.prepare("UPDATE asset_shares SET num_shares = num_shares + ? WHERE asset_id = ? AND user_id = ?").run(numShares, assetId, userId);
+  } else {
+    db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares) VALUES (?, ?, ?)").run(assetId, userId, numShares);
+  }
+  updateAssetStatusFromProgress(assetId);
+  res.json({ success: true, num_shares: numShares });
+});
+
+app.get("/api/admin/fractional-assets", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC").all() as any[];
+  const out = rows.map(a => {
+    const sold = getAssetSharesSold(a.id);
+    const total = a.total_shares || 100;
+    const remaining = Math.max(0, total - sold);
+    const totalValue = total * (a.share_price || 0);
+    const financingPct = total ? (sold / total) * 100 : 0;
+    return { ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct };
+  });
+  res.json(out);
+});
+
+app.get("/api/fractional-assets/my-shares", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.json([]);
+  const rows = db.prepare(`
+    SELECT fa.*, ash.num_shares, (fa.share_price * ash.num_shares) as value
+    FROM asset_shares ash
+    JOIN fractional_assets fa ON fa.id = ash.asset_id
+    WHERE ash.user_id = ?
+  `).all(userId) as any[];
+  res.json(rows);
 });
 
 // Investor Data Room: access limited to Investor & above; optional: approved dataroom request for piece
