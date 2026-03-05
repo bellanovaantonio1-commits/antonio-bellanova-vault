@@ -7918,7 +7918,8 @@ export default function App() {
                         </div>
                       )}
 
-                      {/* Registry 2.0 & Asset Performance */}
+                      {/* Registry 2.0 & Asset Performance — nur für Investoren */}
+                      {user?.role === UserRole.INVESTOR && (
                       <div className="border-t border-zinc-800 pt-6">
                         <button
                           type="button"
@@ -7990,6 +7991,7 @@ export default function App() {
                           </div>
                         )}
                       </div>
+                      )}
                     </div>
 
                     <div className="pt-8 border-t border-zinc-900 space-y-4">
