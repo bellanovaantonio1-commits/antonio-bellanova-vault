@@ -5217,13 +5217,21 @@ function updateAssetStatusFromProgress(assetId: number) {
   const sold = getAssetSharesSold(assetId);
   const total = asset.total_shares || 100;
   const threshold = asset.production_threshold_pct ?? 60;
+  const fundingPct = total ? (sold / total) * 100 : 0;
   let next: string = asset.asset_status;
   if (sold >= total) next = 'vault';
-  else if (sold / total >= threshold / 100) next = 'production';
-  else if (sold > 0 || asset.asset_status !== 'design') next = 'financing';
+  else if (fundingPct >= threshold) next = 'production';
+  else if (fundingPct >= 10) next = 'financing';
+  else next = 'design';
   if (next !== asset.asset_status) {
     db.prepare("UPDATE fractional_assets SET asset_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(next, assetId);
   }
+}
+
+function generateAssetCode(id: number): string {
+  const year = new Date().getFullYear();
+  const seq = String(id).padStart(3, '0');
+  return `AB-ASSET-${year}-${seq}`;
 }
 
 app.get("/api/fractional-assets", (req, res) => {
@@ -5247,38 +5255,71 @@ app.get("/api/fractional-assets/:id", (req, res) => {
   const remaining = Math.max(0, total - sold);
   const totalValue = total * (a.share_price || 0);
   const financingPct = total ? (sold / total) * 100 : 0;
-  res.json({ ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct });
+  const ownershipRows = db.prepare(`
+    SELECT ash.user_id, ash.num_shares, u.name as user_name
+    FROM asset_shares ash
+    LEFT JOIN users u ON u.id = ash.user_id
+    WHERE ash.asset_id = ?
+  `).all(a.id) as any[];
+  const ownership_distribution = ownershipRows.map((r: any) => ({
+    user_id: r.user_id,
+    user_name: r.user_name || 'Investor',
+    num_shares: r.num_shares,
+    percentage: total ? (r.num_shares / total) * 100 : 0
+  }));
+  res.json({ ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct, ownership_distribution });
 });
 
 app.post("/api/admin/fractional-assets", (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id } = req.body;
+  const body = req.body;
+  const title = body.title || 'Asset';
+  const description = body.description || '';
+  const image_url = body.image_url || null;
+  const asset_type = ['production_asset', 'vault_asset', 'auction_asset', 'private_asset'].includes(body.asset_type) ? body.asset_type : (body.asset_type === 'production' ? 'production_asset' : 'vault_asset');
+  let asset_status = body.asset_status;
+  if (!['design', 'financing', 'production', 'vault', 'market', 'sold'].includes(asset_status)) asset_status = 'design';
+  const total_shares = body.total_shares ?? 100;
+  const share_price = body.share_price ?? 0;
+  const production_threshold_pct = body.production_threshold_pct ?? 60;
+  const masterpiece_id = body.masterpiece_id || null;
+  const estimated_production_weeks = body.estimated_production_weeks ?? null;
+  const storage_location = body.storage_location ?? null;
+  const certification_status = body.certification_status ?? null;
+  const gemstone_documentation = body.gemstone_documentation ?? null;
+  const estimated_carat_weight = body.estimated_carat_weight ?? null;
+  const atelier_info = body.atelier_info ?? null;
+  const available_for_resale = body.available_for_resale ? 1 : 0;
+  const images = typeof body.images === 'string' ? body.images : (Array.isArray(body.images) ? JSON.stringify(body.images) : null);
   const r = db.prepare(`
-    INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(
-    title || 'Asset', description || '', image_url || null,
-    asset_type === 'production' ? 'production' : 'vault',
-    asset_status === 'design' ? 'design' : (asset_status === 'production' ? 'production' : (asset_status === 'vault' ? 'vault' : 'financing')),
-    total_shares ?? 100, share_price ?? 0, production_threshold_pct ?? 60, masterpiece_id || null
-  );
-  res.json({ id: r.lastInsertRowid, success: true });
+    INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, images, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, images);
+  const id = Number(r.lastInsertRowid);
+  const asset_code = generateAssetCode(id);
+  try { db.prepare("UPDATE fractional_assets SET asset_code = ? WHERE id = ?").run(asset_code, id); } catch (_) {}
+  res.json({ id, asset_code, success: true });
 });
 
 app.put("/api/admin/fractional-assets/:id", (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id } = req.body;
+  const b = req.body;
   const existing = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: "Not found" });
-  db.prepare(`
-    UPDATE fractional_assets SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
-    asset_type = COALESCE(?, asset_type), asset_status = COALESCE(?, asset_status), total_shares = COALESCE(?, total_shares), share_price = COALESCE(?, share_price),
-    production_threshold_pct = COALESCE(?, production_threshold_pct), masterpiece_id = COALESCE(?, masterpiece_id), updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, req.params.id);
+  const updates: string[] = [];
+  const values: any[] = [];
+  ['title', 'description', 'image_url', 'asset_type', 'asset_status', 'total_shares', 'share_price', 'production_threshold_pct', 'masterpiece_id', 'estimated_production_weeks', 'storage_location', 'certification_status', 'gemstone_documentation', 'estimated_carat_weight', 'atelier_info', 'images'].forEach(k => {
+    if (b[k] !== undefined) { updates.push(`${k} = ?`); values.push(k === 'available_for_resale' ? (b[k] ? 1 : 0) : (k === 'images' && Array.isArray(b[k]) ? JSON.stringify(b[k]) : b[k])); }
+  });
+  if (b.available_for_resale !== undefined) { updates.push('available_for_resale = ?'); values.push(b.available_for_resale ? 1 : 0); }
+  if (updates.length) {
+    values.push(req.params.id);
+    db.prepare(`UPDATE fractional_assets SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+  }
   res.json({ success: true });
 });
 

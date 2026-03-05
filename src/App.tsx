@@ -256,10 +256,21 @@ const TRANSLATIONS: any = {
     "asset.title": "Asset",
     "asset.type_production": "Produktion",
     "asset.type_vault": "Tresor",
+    "asset.type_production_asset": "Produktion",
+    "asset.type_vault_asset": "Tresor",
+    "asset.type_auction_asset": "Auktion",
+    "asset.type_private_asset": "Privat",
     "asset.status_design": "Design",
     "asset.status_financing": "Finanzierung",
     "asset.status_production": "Produktion",
     "asset.status_vault": "Tresor",
+    "asset.status_market": "Markt",
+    "asset.status_sold": "Verkauft",
+    "asset.estimated_production": "Geschätzte Produktionszeit",
+    "asset.weeks": "Wochen",
+    "asset.certification": "Zertifizierung",
+    "asset.storage_location": "Lagerort",
+    "asset.ownership_structure": "Eigentümerstruktur",
     "asset.total_value": "Gesamtwert",
     "asset.share_price": "Preis pro Anteil",
     "asset.shares_sold": "Verkaufte Anteile",
@@ -279,6 +290,18 @@ const TRANSLATIONS: any = {
     "asset.create_btn": "Asset anlegen",
     "asset.no_assets": "Keine Assets.",
     "asset.list_title": "Fractional Assets",
+    "asset.view_details": "Details",
+    "asset.lifecycle_stage": "Lebenszyklus",
+    "asset.ownership_distribution": "Eigentümerstruktur",
+    "asset.estimated_production": "Geschätzte Produktionszeit",
+    "asset.certification": "Zertifizierung",
+    "asset.storage_location": "Lagerort",
+    "asset.gemstone_docs": "Edelstein-Dokumentation",
+    "asset.carat_weight": "Geschätztes Karat",
+    "asset.atelier_info": "Atelier",
+    "asset.available_for_resale": "Wiederverkauf möglich",
+    "asset.vault_section": "Tresor — abgeschlossene Assets",
+    "asset.weeks": "Wochen",
     "admin.fractional_assets_title": "Fractional Assets (Produktion / Tresor)",
     "admin.create_asset": "Asset anlegen",
     "admin.asset_total_shares": "Anzahl Anteile",
@@ -2596,6 +2619,9 @@ export default function App() {
   const [fractionalOffers, setFractionalOffers] = useState<any[]>([]);
   const [fractionalAssetsList, setFractionalAssetsList] = useState<any[]>([]);
   const [myFractionalShares, setMyFractionalShares] = useState<any[]>([]);
+  const [selectedAssetDetailId, setSelectedAssetDetailId] = useState<number | null>(null);
+  const [assetDetailData, setAssetDetailData] = useState<any>(null);
+  const [selectedAssetDetail, setSelectedAssetDetail] = useState<any | null>(null);
   const [adminFractionalOffers, setAdminFractionalOffers] = useState<any[]>([]);
   const [shareRequestForm, setShareRequestForm] = useState({ masterpieceId: '' as number | '', percentage: 5 });
   const [fractionalOfferForm, setFractionalOfferForm] = useState({ masterpieceId: '' as number | '', available_pct: 20, price_per_pct: '' as number | '' });
@@ -2639,7 +2665,7 @@ export default function App() {
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
   const [adminFractionalAssets, setAdminFractionalAssets] = useState<any[]>([]);
-  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production' as 'production' | 'vault', asset_status: 'design' as string, total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' as number | '' });
+  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production_asset' as string, asset_status: 'design' as string, total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' as number | '', estimated_production_weeks: '' as number | '', storage_location: '', certification_status: '', available_for_resale: false });
   const [dropImageUploading, setDropImageUploading] = useState(false);
   const [dropImageDragOver, setDropImageDragOver] = useState(false);
   const dropImageInputRef = useRef<HTMLInputElement>(null);
@@ -3385,6 +3411,14 @@ export default function App() {
       }
     })();
   }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (selectedAssetDetailId == null) { setAssetDetailData(null); return; }
+    fetch(`/api/fractional-assets/${selectedAssetDetailId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(setAssetDetailData)
+      .catch(() => setAssetDetailData(null));
+  }, [selectedAssetDetailId]);
 
   useEffect(() => {
     if (user?.role !== UserRole.ADMIN) return;
@@ -6246,15 +6280,21 @@ export default function App() {
                   <Card className="p-6 border-amber-500/20 bg-zinc-900/50">
                     <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('asset.my_investments')}</h3>
                     <div className="space-y-3">
-                      {myFractionalShares.map((s: any) => (
-                        <div key={s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
-                          <div>
-                            <p className="text-sm font-medium text-zinc-200">{s.title}</p>
-                            <p className="text-xs text-zinc-500">{s.num_shares} × {(s.share_price ?? 0).toLocaleString('de-DE')} €</p>
+                      {myFractionalShares.map((s: any) => {
+                        const totalSh = s.total_shares ?? 100;
+                        const pct = totalSh ? ((s.num_shares / totalSh) * 100).toFixed(1) : '0';
+                        const statusKey = 'asset.status_' + (s.asset_status || 'design');
+                        return (
+                          <div key={s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                            <div>
+                              <p className="text-sm font-medium text-zinc-200">{s.title}</p>
+                              <p className="text-xs text-zinc-500">Ownership: {pct}% · {s.num_shares} × {(s.share_price ?? 0).toLocaleString('de-DE')} €</p>
+                              <Badge variant="zinc" className="text-[10px] mt-1">{t(statusKey) || s.asset_status}</Badge>
+                            </div>
+                            <p className="text-amber-500 font-bold">{(Number(s.value ?? 0)).toLocaleString('de-DE')} €</p>
                           </div>
-                          <p className="text-amber-500 font-bold">{(Number(s.value ?? 0)).toLocaleString('de-DE')} €</p>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </Card>
                 )}
@@ -6271,15 +6311,18 @@ export default function App() {
                       {fractionalAssetsList.map((asset: any) => {
                         const pct = asset.financing_pct ?? 0;
                         const remaining = asset.shares_remaining ?? 0;
+                        const typeKey = 'asset.type_' + (asset.asset_type || 'production_asset').replace('_asset', '');
+                        const statusKey = 'asset.status_' + (asset.asset_status || 'design');
                         return (
-                          <Card key={asset.id} className="p-6 border-amber-500/20 bg-zinc-900/50 overflow-hidden" hoverGlow>
+                          <Card key={asset.id} className="p-6 border-amber-500/20 bg-zinc-900/50 overflow-hidden cursor-pointer" hoverGlow onClick={() => setSelectedAssetDetailId(asset.id)}>
                             <div className="aspect-[4/3] rounded-xl bg-zinc-800 mb-4 overflow-hidden">
                               {asset.image_url ? <img src={asset.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Package className="w-16 h-16" /></div>}
                             </div>
+                            {asset.asset_code && <p className="text-[10px] uppercase tracking-widest text-amber-500/80 mb-1">{asset.asset_code}</p>}
                             <h4 className="font-serif italic text-zinc-100 text-lg mb-1">{asset.title}</h4>
                             <div className="flex flex-wrap gap-2 mb-3">
-                              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500/90">{asset.asset_type === 'production' ? t('asset.type_production') : t('asset.type_vault')}</Badge>
-                              <Badge variant="zinc" className="text-[10px]">{asset.asset_status}</Badge>
+                              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-500/90">{t(typeKey) || asset.asset_type}</Badge>
+                              <Badge variant="zinc" className="text-[10px]">{t(statusKey) || asset.asset_status}</Badge>
                             </div>
                             <div className="space-y-2 text-sm text-zinc-400 mb-4">
                               <p>{t('asset.total_value')}: <span className="text-amber-500/90 font-medium">{(asset.total_asset_value ?? 0).toLocaleString('de-DE')} €</span></p>
@@ -6295,9 +6338,10 @@ export default function App() {
                               </div>
                             </div>
                             {remaining > 0 && user && (
-                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-800" onClick={e => e.stopPropagation()}>
                                 <input type="number" min={1} max={remaining} defaultValue={1} id={`asset-${asset.id}-shares`} className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-2 text-zinc-200 text-sm" />
-                                <Button variant="primary" className="flex-1 py-2 text-sm" disabled={loading} onClick={async () => {
+                                <Button variant="primary" className="flex-1 py-2 text-sm" disabled={loading} onClick={async (e) => {
+                                  e.stopPropagation();
                                   const input = document.getElementById(`asset-${asset.id}-shares`) as HTMLInputElement;
                                   const num = Math.min(remaining, Math.max(1, parseInt(input?.value || '1', 10) || 1));
                                   setLoading(true);
@@ -6316,6 +6360,30 @@ export default function App() {
                     </div>
                   )}
                 </div>
+
+                {/* Vault — completed jewelry assets */}
+                {fractionalAssetsList.filter((a: any) => (a.asset_status || '') === 'vault').length > 0 && (
+                  <div className="space-y-6">
+                    <h3 className="text-lg font-serif italic text-amber-500/90 uppercase tracking-widest">{t('asset.vault_section') || 'Tresor — abgeschlossene Assets'}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {fractionalAssetsList.filter((a: any) => (a.asset_status || '') === 'vault').map((asset: any) => (
+                        <Card key={asset.id} className="p-6 border-amber-500/20 bg-zinc-900/50 overflow-hidden cursor-pointer" hoverGlow onClick={() => setSelectedAssetDetailId(asset.id)}>
+                          <div className="aspect-[4/3] rounded-xl bg-zinc-800 mb-4 overflow-hidden">
+                            {asset.image_url ? <img src={asset.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Package className="w-16 h-16" /></div>}
+                          </div>
+                          {asset.asset_code && <p className="text-[10px] uppercase tracking-widest text-amber-500/80 mb-1">{asset.asset_code}</p>}
+                          <h4 className="font-serif italic text-zinc-100 text-lg mb-2">{asset.title}</h4>
+                          <div className="space-y-1 text-xs text-zinc-500">
+                            {asset.certification_status && <p>{t('asset.certification')}: {asset.certification_status}</p>}
+                            {asset.storage_location && <p>{t('asset.storage_location')}: {asset.storage_location}</p>}
+                            <p>{t('asset.total_value')}: <span className="text-amber-500/90">{(asset.total_asset_value ?? 0).toLocaleString('de-DE')} €</span></p>
+                            {asset.available_for_resale && <p className="text-emerald-500/90">{t('asset.available_for_resale')}</p>}
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Legacy: Anteils-Angebote (percentage-based) */}
                 <Card className="p-6 border-zinc-800">
@@ -6341,6 +6409,94 @@ export default function App() {
                   )}
                 </Card>
               </motion.div>
+            )}
+
+            {/* Asset Detail Modal (Fractional) */}
+            {selectedAssetDetailId != null && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => { setSelectedAssetDetailId(null); setAssetDetailData(null); }}>
+                <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
+                  {!assetDetailData ? (
+                    <div className="p-12 text-center text-zinc-500">{t('loading') || 'Loading…'}</div>
+                  ) : (
+                    <div className="p-6 space-y-6">
+                      <div className="flex justify-between items-start">
+                        <h3 className="text-xl font-serif italic text-zinc-100">{assetDetailData.title}</h3>
+                        <button type="button" className="text-zinc-500 hover:text-zinc-300" onClick={() => { setSelectedAssetDetailId(null); setAssetDetailData(null); }} aria-label="Close">×</button>
+                      </div>
+                      {assetDetailData.asset_code && <p className="text-xs uppercase tracking-widest text-amber-500/80">{assetDetailData.asset_code}</p>}
+                      <div className="aspect-[4/3] rounded-xl bg-zinc-800 overflow-hidden">
+                        {assetDetailData.image_url ? <img src={assetDetailData.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Package className="w-16 h-16" /></div>}
+                      </div>
+                      {assetDetailData.description && <p className="text-sm text-zinc-400">{assetDetailData.description}</p>}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <p className="text-[10px] uppercase text-zinc-500 mb-0.5">{t('asset.total_value')}</p>
+                          <p className="text-amber-500/90 font-semibold">{(assetDetailData.total_asset_value ?? 0).toLocaleString('de-DE')} €</p>
+                        </div>
+                        <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <p className="text-[10px] uppercase text-zinc-500 mb-0.5">{t('asset.share_price')}</p>
+                          <p className="text-zinc-200 font-medium">{(assetDetailData.share_price ?? 0).toLocaleString('de-DE')} €</p>
+                        </div>
+                        <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <p className="text-[10px] uppercase text-zinc-500 mb-0.5">{t('asset.shares_sold')}</p>
+                          <p className="text-zinc-200">{assetDetailData.shares_sold ?? 0} / {assetDetailData.total_shares ?? 100}</p>
+                        </div>
+                        <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <p className="text-[10px] uppercase text-zinc-500 mb-0.5">{t('asset.asset_status')}</p>
+                          <p className="text-zinc-200">{t('asset.status_' + (assetDetailData.asset_status || 'design')) || assetDetailData.asset_status}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[10px] uppercase tracking-widest text-zinc-500 mb-1">
+                          <span>{t('asset.financing_progress')}</span>
+                          <span>{Number(assetDetailData.financing_pct ?? 0).toFixed(0)}%</span>
+                        </div>
+                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                          <div className="h-full bg-amber-500/80 rounded-full" style={{ width: `${Math.min(100, assetDetailData.financing_pct ?? 0)}%` }} />
+                        </div>
+                      </div>
+                      {assetDetailData.estimated_production_weeks != null && (
+                        <p className="text-xs text-zinc-500">{t('asset.estimated_production') || 'Estimated production'}: {assetDetailData.estimated_production_weeks} {t('asset.weeks') || 'weeks'}</p>
+                      )}
+                      {assetDetailData.certification_status && (
+                        <p className="text-xs text-zinc-500">{t('asset.certification') || 'Certification'}: {assetDetailData.certification_status}</p>
+                      )}
+                      {assetDetailData.storage_location && (
+                        <p className="text-xs text-zinc-500">{t('asset.storage_location') || 'Storage'}: {assetDetailData.storage_location}</p>
+                      )}
+                      {assetDetailData.ownership_distribution && assetDetailData.ownership_distribution.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-zinc-500 mb-2">{t('asset.ownership_structure') || 'Ownership structure'}</p>
+                          <ul className="space-y-1 text-sm">
+                            {assetDetailData.ownership_distribution.map((o: any, i: number) => (
+                              <li key={i} className="flex justify-between text-zinc-400">
+                                <span>{o.user_name}</span>
+                                <span>{o.num_shares} ({typeof o.percentage === 'number' ? o.percentage.toFixed(1) : o.percentage)}%)</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {assetDetailData.shares_remaining > 0 && user && (
+                        <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                          <input type="number" min={1} max={assetDetailData.shares_remaining} defaultValue={1} id="asset-detail-shares" className="w-24 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          <Button variant="primary" className="flex-1 py-2" disabled={loading} onClick={async () => {
+                            const input = document.getElementById('asset-detail-shares') as HTMLInputElement;
+                            const num = Math.min(assetDetailData.shares_remaining, Math.max(1, parseInt(input?.value || '1', 10) || 1));
+                            setLoading(true);
+                            try {
+                              const res = await fetch(`/api/fractional-assets/${selectedAssetDetailId}/buy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ num_shares: num }), credentials: 'include' });
+                              const data = await res.json().catch(() => ({}));
+                              if (res.ok) { notifyUser(t('asset.shares_purchased'), 'success'); setSelectedAssetDetailId(null); setAssetDetailData(null); fetchData(); }
+                              else notifyUser(data.error || t('errors.generic'), 'error');
+                            } finally { setLoading(false); }
+                          }}>{t('asset.buy_shares')}</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
 
             {view === 'advisor' && user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR && (
@@ -7456,9 +7612,11 @@ export default function App() {
                           </div>
                           <div>
                             <label className="block text-xs text-zinc-500 mb-1">{t('asset.asset_type') || 'Typ'}</label>
-                            <select value={adminFractionalAssetForm.asset_type} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, asset_type: e.target.value as 'production' | 'vault' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm">
-                              <option value="production">{t('asset.type_production')}</option>
-                              <option value="vault">{t('asset.type_vault')}</option>
+                            <select value={adminFractionalAssetForm.asset_type} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, asset_type: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm">
+                              <option value="production_asset">{t('asset.type_production')}</option>
+                              <option value="vault_asset">{t('asset.type_vault')}</option>
+                              <option value="auction_asset">{t('asset.type_auction_asset')}</option>
+                              <option value="private_asset">{t('asset.type_private_asset')}</option>
                             </select>
                           </div>
                           <div>
@@ -7468,6 +7626,8 @@ export default function App() {
                               <option value="financing">{t('asset.status_financing')}</option>
                               <option value="production">{t('asset.status_production')}</option>
                               <option value="vault">{t('asset.status_vault')}</option>
+                              <option value="market">{t('asset.status_market')}</option>
+                              <option value="sold">{t('asset.status_sold')}</option>
                             </select>
                           </div>
                           <div>
@@ -7497,6 +7657,22 @@ export default function App() {
                               {masterpieces.map(p => <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>)}
                             </select>
                           </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.estimated_production')} (Wochen)</label>
+                            <input type="number" min={0} value={adminFractionalAssetForm.estimated_production_weeks === '' ? '' : adminFractionalAssetForm.estimated_production_weeks} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, estimated_production_weeks: e.target.value === '' ? '' : Number(e.target.value) }))} placeholder="—" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.storage_location')}</label>
+                            <input type="text" value={adminFractionalAssetForm.storage_location} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, storage_location: e.target.value }))} placeholder="z. B. Genf, Tresor A" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.certification')}</label>
+                            <input type="text" value={adminFractionalAssetForm.certification_status} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, certification_status: e.target.value }))} placeholder="z. B. GIA, HRD" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" id="admin-asset-resale" checked={adminFractionalAssetForm.available_for_resale} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, available_for_resale: e.target.checked }))} className="rounded border-zinc-600 bg-zinc-800 text-amber-500" />
+                            <label htmlFor="admin-asset-resale" className="text-xs text-zinc-400">{t('asset.available_for_resale') || 'Für Wiederverkauf verfügbar'}</label>
+                          </div>
                         </div>
                         <Button variant="primary" disabled={loading || !adminFractionalAssetForm.title} onClick={async () => {
                           setLoading(true);
@@ -7513,13 +7689,17 @@ export default function App() {
                                 total_shares: adminFractionalAssetForm.total_shares,
                                 share_price: Number(adminFractionalAssetForm.share_price) || 0,
                                 production_threshold_pct: adminFractionalAssetForm.production_threshold_pct,
-                                masterpiece_id: adminFractionalAssetForm.masterpiece_id || null
+                                masterpiece_id: adminFractionalAssetForm.masterpiece_id || null,
+                                estimated_production_weeks: adminFractionalAssetForm.estimated_production_weeks === '' ? null : adminFractionalAssetForm.estimated_production_weeks,
+                                storage_location: adminFractionalAssetForm.storage_location || null,
+                                certification_status: adminFractionalAssetForm.certification_status || null,
+                                available_for_resale: adminFractionalAssetForm.available_for_resale
                               }),
                               credentials: 'include'
                             });
                             const data = await res.json().catch(() => ({}));
                             if (res.ok) {
-                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production', asset_status: 'design', total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' });
+                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production_asset', asset_status: 'design', total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '', estimated_production_weeks: '', storage_location: '', certification_status: '', available_for_resale: false });
                               const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
                               setAdminFractionalAssets(list);
                               fetchData();
@@ -7534,11 +7714,12 @@ export default function App() {
                           {adminFractionalAssets.map((a: any) => (
                             <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
                               <div className="flex-1 min-w-0">
+                                {a.asset_code && <p className="text-[10px] uppercase tracking-widest text-amber-500/80 mb-0.5">{a.asset_code}</p>}
                                 <p className="font-medium text-zinc-200">{a.title}</p>
                                 <p className="text-xs text-zinc-500">{t('asset.total_value')}: {(a.total_asset_value ?? 0).toLocaleString('de-DE')} € · {a.shares_sold ?? 0}/{a.total_shares ?? 100} {t('asset.shares_sold')} · {t('asset.financing_progress')}: {(a.financing_pct ?? 0).toFixed(0)}%</p>
                                 <div className="flex gap-2 mt-1">
                                   <Badge variant="outline" className="text-[10px]">{a.asset_type}</Badge>
-                                  <Badge variant="zinc" className="text-[10px]">{a.asset_status}</Badge>
+                                  <Badge variant="zinc" className="text-[10px]">{t('asset.status_' + (a.asset_status || 'design')) || a.asset_status}</Badge>
                                 </div>
                               </div>
                               <select value={a.asset_status} onChange={async (e) => {
@@ -7546,10 +7727,12 @@ export default function App() {
                                 const r = await fetch(`/api/admin/fractional-assets/${a.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_status: status }), credentials: 'include' });
                                 if (r.ok) { fetchData(); const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(res => res.ok ? res.json() : []); setAdminFractionalAssets(list); }
                               }} className="bg-zinc-800 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs">
-                                <option value="design">{t('asset.status_design') || 'Design'}</option>
-                                <option value="financing">{t('asset.status_financing') || 'Finanzierung'}</option>
-                                <option value="production">{t('asset.status_production') || 'Produktion'}</option>
-                                <option value="vault">{t('asset.status_vault') || 'Tresor'}</option>
+                                <option value="design">{t('asset.status_design')}</option>
+                                <option value="financing">{t('asset.status_financing')}</option>
+                                <option value="production">{t('asset.status_production')}</option>
+                                <option value="vault">{t('asset.status_vault')}</option>
+                                <option value="market">{t('asset.status_market')}</option>
+                                <option value="sold">{t('asset.status_sold')}</option>
                               </select>
                             </li>
                           ))}
