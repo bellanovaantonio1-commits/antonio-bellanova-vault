@@ -955,6 +955,22 @@ const TRANSLATIONS: any = {
     "asset.create_btn": "Create asset",
     "asset.no_assets": "No assets.",
     "asset.list_title": "Fractional Assets",
+    "asset.type_production_asset": "Production",
+    "asset.type_vault_asset": "Vault",
+    "asset.type_auction_asset": "Auction",
+    "asset.type_private_asset": "Private",
+    "asset.status_market": "Market",
+    "asset.status_sold": "Sold",
+    "asset.estimated_production": "Estimated production",
+    "asset.weeks": "weeks",
+    "asset.certification": "Certification",
+    "asset.storage_location": "Storage location",
+    "asset.ownership_structure": "Ownership structure",
+    "asset.gemstone_docs": "Gemstone documentation",
+    "asset.carat_weight": "Est. carat weight",
+    "asset.atelier_info": "Atelier",
+    "asset.available_for_resale": "Available for resale",
+    "asset.vault_section": "Vault — completed assets",
     "investor.request_submitted": "Request submitted successfully. Our team will contact you shortly.",
     "admin.piece_created": "Masterpiece created successfully.",
     "admin.auction_created": "Auction created successfully.",
@@ -1592,6 +1608,22 @@ const TRANSLATIONS: any = {
     "asset.create_btn": "Crea asset",
     "asset.no_assets": "Nessun asset.",
     "asset.list_title": "Fractional Assets",
+    "asset.type_production_asset": "Produzione",
+    "asset.type_vault_asset": "Caveau",
+    "asset.type_auction_asset": "Asta",
+    "asset.type_private_asset": "Privato",
+    "asset.status_market": "Mercato",
+    "asset.status_sold": "Venduto",
+    "asset.estimated_production": "Produzione stimata",
+    "asset.weeks": "settimane",
+    "asset.certification": "Certificazione",
+    "asset.storage_location": "Ubicazione deposito",
+    "asset.ownership_structure": "Struttura proprietà",
+    "asset.gemstone_docs": "Documentazione gemme",
+    "asset.carat_weight": "Peso carati stimato",
+    "asset.atelier_info": "Atelier",
+    "asset.available_for_resale": "Disponibile per rivendita",
+    "asset.vault_section": "Caveau — asset completati",
     "investor.request_submitted": "Richiesta inviata. Il nostro team ti contatterà a breve.",
     "admin.piece_created": "Opera creata con successo.",
     "admin.auction_created": "Asta creata con successo.",
@@ -2665,7 +2697,7 @@ export default function App() {
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
   const [adminFractionalAssets, setAdminFractionalAssets] = useState<any[]>([]);
-  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production_asset' as string, asset_status: 'design' as string, total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' as number | '', estimated_production_weeks: '' as number | '', storage_location: '', certification_status: '', available_for_resale: false });
+  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production_asset' as string, asset_status: 'design' as string, total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' as number | '', estimated_production_weeks: '' as number | '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '' as number | '', atelier_info: '', available_for_resale: false });
   const [dropImageUploading, setDropImageUploading] = useState(false);
   const [dropImageDragOver, setDropImageDragOver] = useState(false);
   const dropImageInputRef = useRef<HTMLInputElement>(null);
@@ -6464,6 +6496,18 @@ export default function App() {
                       {assetDetailData.storage_location && (
                         <p className="text-xs text-zinc-500">{t('asset.storage_location') || 'Storage'}: {assetDetailData.storage_location}</p>
                       )}
+                      {assetDetailData.gemstone_documentation && (
+                        <p className="text-xs text-zinc-500">{t('asset.gemstone_docs')}: {assetDetailData.gemstone_documentation}</p>
+                      )}
+                      {assetDetailData.estimated_carat_weight != null && assetDetailData.estimated_carat_weight !== '' && (
+                        <p className="text-xs text-zinc-500">{t('asset.carat_weight')}: {assetDetailData.estimated_carat_weight}</p>
+                      )}
+                      {assetDetailData.atelier_info && (
+                        <p className="text-xs text-zinc-500">{t('asset.atelier_info')}: {assetDetailData.atelier_info}</p>
+                      )}
+                      {assetDetailData.available_for_resale && (
+                        <p className="text-xs text-emerald-500/90">{t('asset.available_for_resale')}</p>
+                      )}
                       {assetDetailData.ownership_distribution && assetDetailData.ownership_distribution.length > 0 && (
                         <div>
                           <p className="text-xs uppercase tracking-widest text-zinc-500 mb-2">{t('asset.ownership_structure') || 'Ownership structure'}</p>
@@ -7669,6 +7713,18 @@ export default function App() {
                             <label className="block text-xs text-zinc-500 mb-1">{t('asset.certification')}</label>
                             <input type="text" value={adminFractionalAssetForm.certification_status} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, certification_status: e.target.value }))} placeholder="z. B. GIA, HRD" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
                           </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.gemstone_docs')}</label>
+                            <input type="text" value={adminFractionalAssetForm.gemstone_documentation} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, gemstone_documentation: e.target.value }))} placeholder="z. B. GIA Report Nr." className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.carat_weight')}</label>
+                            <input type="number" min={0} step={0.01} value={adminFractionalAssetForm.estimated_carat_weight === '' ? '' : adminFractionalAssetForm.estimated_carat_weight} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, estimated_carat_weight: e.target.value === '' ? '' : Number(e.target.value) }))} placeholder="—" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.atelier_info')}</label>
+                            <input type="text" value={adminFractionalAssetForm.atelier_info} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, atelier_info: e.target.value }))} placeholder="z. B. Atelier Genf" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
                           <div className="flex items-center gap-2">
                             <input type="checkbox" id="admin-asset-resale" checked={adminFractionalAssetForm.available_for_resale} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, available_for_resale: e.target.checked }))} className="rounded border-zinc-600 bg-zinc-800 text-amber-500" />
                             <label htmlFor="admin-asset-resale" className="text-xs text-zinc-400">{t('asset.available_for_resale') || 'Für Wiederverkauf verfügbar'}</label>
@@ -7693,13 +7749,16 @@ export default function App() {
                                 estimated_production_weeks: adminFractionalAssetForm.estimated_production_weeks === '' ? null : adminFractionalAssetForm.estimated_production_weeks,
                                 storage_location: adminFractionalAssetForm.storage_location || null,
                                 certification_status: adminFractionalAssetForm.certification_status || null,
+                                gemstone_documentation: adminFractionalAssetForm.gemstone_documentation || null,
+                                estimated_carat_weight: adminFractionalAssetForm.estimated_carat_weight === '' ? null : adminFractionalAssetForm.estimated_carat_weight,
+                                atelier_info: adminFractionalAssetForm.atelier_info || null,
                                 available_for_resale: adminFractionalAssetForm.available_for_resale
                               }),
                               credentials: 'include'
                             });
                             const data = await res.json().catch(() => ({}));
                             if (res.ok) {
-                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production_asset', asset_status: 'design', total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '', estimated_production_weeks: '', storage_location: '', certification_status: '', available_for_resale: false });
+                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production_asset', asset_status: 'design', total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '', estimated_production_weeks: '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '', atelier_info: '', available_for_resale: false });
                               const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
                               setAdminFractionalAssets(list);
                               fetchData();
