@@ -39,6 +39,13 @@ const db = new Database(process.env.DATABASE_PATH || "vault.db");
 
 app.use(express.json({ limit: '50mb' }));
 
+const uploadsDir = path.join(__dirname, 'uploads');
+const uploadsDropsDir = path.join(uploadsDir, 'drops');
+if (!fs.existsSync(uploadsDropsDir)) {
+  fs.mkdirSync(uploadsDropsDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsDir));
+
 // --- Database Initialization ---
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -4410,6 +4417,26 @@ app.get("/api/drops/:id/pieces", (req, res) => {
 app.get("/api/admin/drops", (req, res) => {
   const rows = db.prepare("SELECT * FROM drops ORDER BY release_at DESC").all();
   res.json(rows);
+});
+
+app.post("/api/admin/upload/image", (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { data: dataUrl } = req.body || {};
+  if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return res.status(400).json({ error: "Invalid image data" });
+  const match = dataUrl.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!match) return res.status(400).json({ error: "Invalid base64 image" });
+  const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+  const base64 = match[2];
+  const name = `${crypto.randomBytes(8).toString('hex')}.${ext}`;
+  const filePath = path.join(uploadsDropsDir, name);
+  try {
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+  } catch (e: any) {
+    return res.status(500).json({ error: e?.message || "Upload failed" });
+  }
+  res.json({ url: `/uploads/drops/${name}` });
 });
 
 app.post("/api/admin/drops", (req, res) => {

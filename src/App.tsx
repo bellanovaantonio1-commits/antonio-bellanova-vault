@@ -352,6 +352,9 @@ const TRANSLATIONS: any = {
     "admin.drop_title_label": "Titel",
     "admin.drop_description_label": "Beschreibung",
     "admin.drop_image_url_label": "Bild-URL",
+    "admin.drop_image_drag": "Bild hierher ziehen oder klicken zum Hochladen",
+    "admin.drop_image_uploading": "Wird hochgeladen…",
+    "admin.drop_image_url_placeholder": "Oder URL eingeben (https://…)",
     "admin.drop_release_at": "Start (Datum/Uhrzeit)",
     "admin.drop_end_at": "Ende (Datum/Uhrzeit)",
     "admin.drop_create_btn": "Drop erstellen",
@@ -971,6 +974,9 @@ const TRANSLATIONS: any = {
     "admin.drop_title_label": "Title",
     "admin.drop_description_label": "Description",
     "admin.drop_image_url_label": "Image URL",
+    "admin.drop_image_drag": "Drag image here or click to upload",
+    "admin.drop_image_uploading": "Uploading…",
+    "admin.drop_image_url_placeholder": "Or enter URL (https://…)",
     "admin.drop_release_at": "Start (date/time)",
     "admin.drop_end_at": "End (date/time)",
     "admin.drop_create_btn": "Create drop",
@@ -1579,6 +1585,9 @@ const TRANSLATIONS: any = {
     "admin.drop_title_label": "Titolo",
     "admin.drop_description_label": "Descrizione",
     "admin.drop_image_url_label": "URL immagine",
+    "admin.drop_image_drag": "Trascina l'immagine qui o clicca per caricare",
+    "admin.drop_image_uploading": "Caricamento…",
+    "admin.drop_image_url_placeholder": "Oppure inserisci URL (https://…)",
     "admin.drop_release_at": "Inizio (data/ora)",
     "admin.drop_end_at": "Fine (data/ora)",
     "admin.drop_create_btn": "Crea drop",
@@ -2544,6 +2553,14 @@ export default function App() {
   const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
+  const [dropImageUploading, setDropImageUploading] = useState(false);
+  const [dropImageDragOver, setDropImageDragOver] = useState(false);
+  const dropImageInputRef = useRef<HTMLInputElement>(null);
+  const [dropImageUploading, setDropImageUploading] = useState(false);
+  const [dropZoneDrag, setDropZoneDrag] = useState(false);
+  const [adminDropImageUploading, setAdminDropImageUploading] = useState(false);
+  const [adminDropImageDragging, setAdminDropImageDragging] = useState(false);
+  const adminDropFileInputRef = useRef<HTMLInputElement>(null);
   const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
@@ -7266,9 +7283,63 @@ export default function App() {
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_title_label')}</label>
                           <input type="text" value={adminDropForm.title} onChange={e => setAdminDropForm(f => ({ ...f, title: e.target.value }))} placeholder="z. B. Frühlings-Kollektion" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
                         </div>
-                        <div>
+                        <div className="md:col-span-2">
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_image_url_label')}</label>
-                          <input type="text" value={adminDropForm.image_url} onChange={e => setAdminDropForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://…" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); setDropImageDragOver(true); }}
+                            onDragLeave={() => setDropImageDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setDropImageDragOver(false);
+                              const file = e.dataTransfer?.files?.[0];
+                              if (file && file.type.startsWith('image/')) {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  const dataUrl = reader.result as string;
+                                  if (!dataUrl.startsWith('data:image/')) return;
+                                  setDropImageUploading(true);
+                                  fetch('/api/admin/upload/image', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ data: dataUrl }),
+                                    credentials: 'include'
+                                  }).then(r => r.json()).then((data: { url?: string }) => {
+                                    if (data?.url) setAdminDropForm(f => ({ ...f, image_url: data.url! }));
+                                  }).catch(() => notifyUser(t('errors.generic'), 'error')).finally(() => setDropImageUploading(false));
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            onClick={() => dropImageInputRef.current?.click()}
+                            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${dropImageDragOver ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 hover:border-zinc-600 bg-zinc-900/30'}`}
+                          >
+                            <input ref={dropImageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                const dataUrl = reader.result as string;
+                                if (!dataUrl.startsWith('data:image/')) return;
+                                setDropImageUploading(true);
+                                fetch('/api/admin/upload/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: dataUrl }), credentials: 'include' })
+                                  .then(r => r.json()).then((data: { url?: string }) => { if (data?.url) setAdminDropForm(f => ({ ...f, image_url: data.url! })); })
+                                  .catch(() => notifyUser(t('errors.generic'), 'error')).finally(() => setDropImageUploading(false));
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = '';
+                            }} />
+                            {adminDropForm.image_url ? (
+                              <div className="space-y-2">
+                                <img src={adminDropForm.image_url} alt="" className="max-h-32 mx-auto rounded-lg object-cover" />
+                                <p className="text-xs text-zinc-500">{adminDropForm.image_url}</p>
+                              </div>
+                            ) : dropImageUploading ? (
+                              <p className="text-sm text-amber-500/90">{t('admin.drop_image_uploading')}</p>
+                            ) : (
+                              <p className="text-sm text-zinc-400">{t('admin.drop_image_drag')}</p>
+                            )}
+                          </div>
+                          <input type="text" value={adminDropForm.image_url} onChange={e => setAdminDropForm(f => ({ ...f, image_url: e.target.value }))} placeholder={t('admin.drop_image_url_placeholder')} className="mt-2 w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_release_at')}</label>
