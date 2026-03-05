@@ -327,7 +327,11 @@ const TRANSLATIONS: any = {
     "admin.reject_request": "Ablehnen",
     "admin.fractional_offers": "Anteils-Angebote",
     "admin.set_fractional_offer": "Anteile anbieten",
+    "admin.current_offers": "Aktuelle Angebote",
+    "admin.no_offers": "Keine.",
+    "admin.fractional_offer_saved": "Anteils-Angebot gespeichert.",
     "admin.available_pct": "Verfügbar (%)",
+    "admin.available_label": "verfügbar",
     "admin.price_per_pct": "Preis pro % (€)",
     "admin.request_approved_msg": "Anfrage genehmigt. Zugang gewährt.",
     "admin.request_rejected_msg": "Anfrage abgelehnt.",
@@ -342,6 +346,7 @@ const TRANSLATIONS: any = {
     "admin.tab_inventory": "Inventar",
     "admin.tab_users": "Nutzer",
     "admin.tab_resale": "Wiederverkauf",
+    "admin.tab_fractional": "Anteils-Angebote",
     "admin.tab_appointments": "Termine",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Begünstigte",
@@ -602,6 +607,31 @@ const TRANSLATIONS: any = {
     "admin.contact_requests": "Kontaktanfragen",
     "admin.no_contact_requests": "Keine Kontaktanfragen.",
     "admin.audit_log": "Audit-Log",
+    "admin.regenerate_contracts_btn": "Alle Verträge mit aktuellen Daten neu erstellen",
+    "admin.contracts_regenerated": "Verträge neu erstellt: {updated}/{total} aktualisiert.",
+    "admin.contracts_skipped": "{n} übersprungen.",
+    "admin.audit_export_csv": "Audit-Log exportieren (CSV)",
+    "admin.audit_time": "Zeit",
+    "admin.audit_admin": "Admin",
+    "admin.audit_action": "Aktion",
+    "admin.audit_target": "Ziel",
+    "admin.audit_details": "Details",
+    "admin.prestige_evolution": "Prestige Evolution",
+    "admin.prestige_evolution_desc": "Tier aller Kunden anhand Aktivität neu berechnen.",
+    "admin.prestige_recalc_btn": "Tier neu berechnen",
+    "admin.prestige_updated": "Tier für {n} Nutzer aktualisiert.",
+    "admin.prestige_updated_single": "Tier aktualisiert.",
+    "admin.load_legacy_requests": "Anfragen laden",
+    "admin.legacy_table_user": "Nutzer",
+    "admin.legacy_table_beneficiary": "Begünstigter",
+    "admin.legacy_table_contact": "Kontakt",
+    "admin.legacy_table_status": "Status",
+    "admin.legacy_approve": "Freigeben",
+    "admin.no_legacy_requests_hint": "Keine Legacy-Anfragen. Nutzer können unter Vault oder Profil einen Begünstigten anlegen.",
+    "admin.advisor_performance": "Advisor Performance",
+    "admin.scarcity_heatmap": "Scarcity Heatmap",
+    "admin.scarcity_heatmap_load": "Scarcity Heatmap laden",
+    "errors.regenerate_failed": "Regenerierung fehlgeschlagen.",
     "dashboard.welcome_subtitle": "Ihr Zugang zu den exklusivsten Schmuck- und Sammlerstücken. Verwalten Sie Ihre Werte, nehmen Sie an privaten Auktionen teil und entdecken Sie den Tresor.",
     "dashboard.member_since": "Mitglied seit",
     "dashboard.portfolio_value": "Portfolio-Wert",
@@ -901,6 +931,10 @@ const TRANSLATIONS: any = {
     "admin.reject_request": "Reject",
     "admin.fractional_offers": "Fractional offers",
     "admin.set_fractional_offer": "Offer shares",
+    "admin.current_offers": "Current offers",
+    "admin.no_offers": "None.",
+    "admin.fractional_offer_saved": "Fractional offer saved.",
+    "admin.available_label": "available",
     "admin.available_pct": "Available (%)",
     "admin.price_per_pct": "Price per % (€)",
     "admin.request_approved_msg": "Request approved. Access granted.",
@@ -916,6 +950,7 @@ const TRANSLATIONS: any = {
     "admin.tab_inventory": "Inventory",
     "admin.tab_users": "Users",
     "admin.tab_resale": "Resale",
+    "admin.tab_fractional": "Fractional offers",
     "admin.tab_appointments": "Appointments",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiaries",
@@ -1184,6 +1219,36 @@ const TRANSLATIONS: any = {
     "admin.contact_requests": "Contact requests",
     "admin.no_contact_requests": "No contact requests.",
     "admin.audit_log": "Audit log",
+    "admin.regenerate_contracts_btn": "Regenerate all contracts with current data",
+    "admin.contracts_regenerated": "Contracts regenerated: {updated}/{total} updated.",
+    "admin.contracts_skipped": "{n} skipped.",
+    "admin.audit_export_csv": "Export audit log (CSV)",
+    "admin.audit_time": "Time",
+    "admin.audit_admin": "Admin",
+    "admin.audit_action": "Action",
+    "admin.audit_target": "Target",
+    "admin.audit_details": "Details",
+    "admin.prestige_evolution": "Prestige Evolution",
+    "admin.prestige_evolution_desc": "Recalculate tier for all customers based on activity.",
+    "admin.prestige_recalc_btn": "Recalculate tier",
+    "admin.prestige_updated": "Tier updated for {n} users.",
+    "admin.prestige_updated_single": "Tier updated.",
+    "admin.load_legacy_requests": "Load requests",
+    "admin.legacy_table_user": "User",
+    "admin.legacy_table_beneficiary": "Beneficiary",
+    "admin.legacy_table_contact": "Contact",
+    "admin.legacy_table_status": "Status",
+    "admin.legacy_approve": "Approve",
+    "admin.no_legacy_requests_hint": "No legacy requests. Users can add a beneficiary in Vault or Profile.",
+    "admin.advisor_performance": "Advisor Performance",
+    "admin.prestige_evolution": "Prestige Evolution",
+    "admin.prestige_evolution_desc": "Recalculate tier for all customers based on activity.",
+    "admin.prestige_recalc_btn": "Recalculate tier",
+    "admin.prestige_updated": "Tier updated for {n} users.",
+    "admin.prestige_updated_single": "Tier updated.",
+    "admin.scarcity_heatmap": "Scarcity Heatmap",
+    "admin.scarcity_heatmap_load": "Load scarcity heatmap",
+    "errors.regenerate_failed": "Regeneration failed.",
     "dashboard.welcome_subtitle": "Your portal to the world's most exclusive jewelry and collectible masterpieces. Manage your assets, participate in private auctions, and explore the vault.",
     "dashboard.member_since": "Member since",
     "dashboard.portfolio_value": "Portfolio Value",
@@ -1460,6 +1525,10 @@ const TRANSLATIONS: any = {
     "admin.reject_request": "Rifiuta",
     "admin.fractional_offers": "Offerte quote",
     "admin.set_fractional_offer": "Offri quote",
+    "admin.current_offers": "Offerte attuali",
+    "admin.no_offers": "Nessuna.",
+    "admin.fractional_offer_saved": "Offerta quote salvata.",
+    "admin.available_label": "disponibile",
     "admin.available_pct": "Disponibile (%)",
     "admin.price_per_pct": "Prezzo per % (€)",
     "admin.request_approved_msg": "Richiesta approvata. Accesso concesso.",
@@ -1475,6 +1544,7 @@ const TRANSLATIONS: any = {
     "admin.tab_inventory": "Inventario",
     "admin.tab_users": "Utenti",
     "admin.tab_resale": "Rivendita",
+    "admin.tab_fractional": "Offerte quote",
     "admin.tab_appointments": "Appuntamenti",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiari",
@@ -1716,6 +1786,23 @@ const TRANSLATIONS: any = {
     "admin.contact_requests": "Richieste di contatto",
     "admin.no_contact_requests": "Nessuna richiesta di contatto.",
     "admin.audit_log": "Registro audit",
+    "admin.regenerate_contracts_btn": "Rigenera tutti i contratti con dati attuali",
+    "admin.contracts_regenerated": "Contratti rigenerati: {updated}/{total} aggiornati.",
+    "admin.contracts_skipped": "{n} saltati.",
+    "admin.audit_export_csv": "Esporta audit log (CSV)",
+    "admin.audit_time": "Ora",
+    "admin.audit_admin": "Admin",
+    "admin.audit_action": "Azione",
+    "admin.audit_target": "Obiettivo",
+    "admin.audit_details": "Dettagli",
+    "admin.prestige_evolution": "Evoluzione prestigio",
+    "admin.prestige_evolution_desc": "Ricalcola il tier di tutti i clienti in base all'attività.",
+    "admin.prestige_recalc_btn": "Ricalcola tier",
+    "admin.prestige_updated": "Tier aggiornato per {n} utenti.",
+    "admin.prestige_updated_single": "Tier aggiornato.",
+    "admin.scarcity_heatmap": "Mappa scarsità",
+    "admin.scarcity_heatmap_load": "Carica mappa scarsità",
+    "errors.regenerate_failed": "Rigenerazione non riuscita.",
     "dashboard.welcome_subtitle": "Il vostro accesso ai gioielli e ai capolavori da collezione più esclusivi. Gestite i vostri beni, partecipate alle aste private ed esplorate il caveau.",
     "dashboard.member_since": "Membro dal",
     "dashboard.portfolio_value": "Valore portafoglio",
@@ -2410,7 +2497,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
   const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
@@ -6423,9 +6510,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -7051,29 +7138,29 @@ export default function App() {
                     </div>
                   </section>
                   )}
-                  {(adminTab === 'inventory') && (
-                  <section className="space-y-4">
+                  {(adminTab === 'fractional') && (
+                  <section className="space-y-4 lg:col-span-2">
                     <h3 className="text-xl font-serif italic">{t('admin.fractional_offers')}</h3>
                     <Card className="space-y-4 p-4">
                       <div className="flex flex-wrap gap-4 items-end">
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.choose_piece')}</label>
-                          <select value={fractionalOfferForm.masterpieceId} onChange={e => setFractionalOfferForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm min-w-[200px]">
-                            <option value="">—</option>
-                            {masterpieces.filter(p => ['sold', 'fractional_open', 'fractional_full', 'fractional_resale'].includes(p.status)).map(p => (
-                              <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
+                          <select value={fractionalOfferForm.masterpieceId ?? ''} onChange={e => setFractionalOfferForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm min-w-[200px]">
+                            <option value="">{t('admin.choose_piece')}</option>
+                            {masterpieces.map(p => (
+                              <option key={p.id} value={p.id}>{p.title} {p.serial_id ? `(${p.serial_id})` : ''}</option>
                             ))}
                           </select>
                         </div>
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.available_pct')}</label>
-                          <input type="number" min={0} step={1} value={fractionalOfferForm.available_pct} onChange={e => setFractionalOfferForm(f => ({ ...f, available_pct: Number(e.target.value) || 0 }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm w-24" />
+                          <input type="number" min={0} max={100} step={1} value={fractionalOfferForm.available_pct} onChange={e => setFractionalOfferForm(f => ({ ...f, available_pct: Number(e.target.value) || 0 }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm w-24" />
                         </div>
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">{t('admin.price_per_pct')}</label>
                           <input type="number" min={0} step={100} value={fractionalOfferForm.price_per_pct === '' ? '' : fractionalOfferForm.price_per_pct} onChange={e => setFractionalOfferForm(f => ({ ...f, price_per_pct: e.target.value === '' ? '' : Number(e.target.value) }))} placeholder="optional" className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm w-28" />
                         </div>
-                        <Button variant="primary" className="py-2 px-4 text-sm" disabled={loading} onClick={async () => {
+                        <Button variant="primary" className="py-2 px-4 text-sm" disabled={loading || !fractionalOfferForm.masterpieceId} onClick={async () => {
                           if (!fractionalOfferForm.masterpieceId) return;
                           setLoading(true);
                           try {
@@ -7091,7 +7178,7 @@ export default function App() {
                             if (res.ok) {
                               const list = await fetch('/api/admin/fractional-offers', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
                               setAdminFractionalOffers(list);
-                              notifyUser("Anteils-Angebot gespeichert.", "success");
+                              notifyUser(t('admin.fractional_offer_saved'), 'success');
                             } else {
                               notifyUser(data.error || t('errors.generic'), 'error');
                             }
@@ -7101,13 +7188,13 @@ export default function App() {
                         }}>{t('admin.set_fractional_offer')}</Button>
                       </div>
                       <div className="border-t border-zinc-800 pt-3">
-                        <p className="text-xs text-zinc-500 mb-2">Aktuelle Angebote</p>
-                        {adminFractionalOffers.length === 0 ? <p className="text-zinc-600 text-sm italic">Keine.</p> : (
+                        <p className="text-xs text-zinc-500 mb-2">{t('admin.current_offers')}</p>
+                        {adminFractionalOffers.length === 0 ? <p className="text-zinc-600 text-sm italic">{t('admin.no_offers')}</p> : (
                           <ul className="space-y-1 text-sm">
                             {adminFractionalOffers.map((row: any) => (
                               <li key={row.masterpiece_id} className="flex justify-between items-center text-zinc-300">
-                                <span>{row.title} ({row.serial_id})</span>
-                                <span className="text-amber-500/90">{row.available_pct}% verfügbar{row.price_per_pct != null ? ` · ${Number(row.price_per_pct).toLocaleString('de-DE')} €/%` : ''}</span>
+                                <span>{row.title} {row.serial_id ? `(${row.serial_id})` : ''}</span>
+                                <span className="text-amber-500/90">{row.available_pct}% {t('admin.available_label')}{row.price_per_pct != null ? ` · ${Number(row.price_per_pct).toLocaleString('de-DE')} €/%` : ''}</span>
                               </li>
                             ))}
                           </ul>
@@ -7319,7 +7406,7 @@ export default function App() {
                     </Card>
                     <Card className="p-6 space-y-4">
                       <div className="flex justify-between items-center">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor Performance</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.advisor_performance')}</h4>
                         <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/intelligence/advisor-analytics/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
                       </div>
                       <div className="overflow-x-auto">
@@ -7345,7 +7432,7 @@ export default function App() {
                       </div>
                     </Card>
                     <Card className="p-6 space-y-4">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Scarcity Heatmap</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.scarcity_heatmap')}</h4>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
@@ -7369,12 +7456,12 @@ export default function App() {
                       </div>
                     </Card>
                     <Card className="p-4">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Prestige Evolution</h4>
-                      <p className="text-xs text-zinc-500 mb-2">Recalculate client tiers from spend, resale and investment activity.</p>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">{t('admin.prestige_evolution')}</h4>
+                      <p className="text-xs text-zinc-500 mb-2">{t('admin.prestige_evolution_desc')}</p>
                       <Button variant="outline" size="sm" onClick={async () => {
                         const res = await fetch('/api/admin/intelligence/recalc-prestige', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
-                        if (res.ok) { const d = await res.json(); notifyUser(d.recalculated ? `Tiers updated for ${d.recalculated} users.` : 'Tier updated.', 'success'); fetchData(); }
-                      }}>Recalc all tiers</Button>
+                        if (res.ok) { const d = await res.json(); const msg = d.recalculated ? (t('admin.prestige_updated') as string).replace('{n}', String(d.recalculated)) : t('admin.prestige_updated_single'); notifyUser(msg, 'success'); fetchData(); }
+                      }}>{t('admin.prestige_recalc_btn')}</Button>
                     </Card>
                   </section>
                   )}
@@ -7428,7 +7515,7 @@ export default function App() {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                       <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }); if (r.ok) setIntelligenceClientProfiles(await r.json()); }}>Client Profiles laden</Button>
                       <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/advisor-analytics', { credentials: 'include' }); if (r.ok) setIntelligenceAdvisorAnalytics(await r.json()); }}>Advisor Analytics laden</Button>
-                      <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' }); if (r.ok) setIntelligenceScarcityHeatmap(await r.json()); }}>Scarcity Heatmap laden</Button>
+                      <Button variant="outline" className="text-sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/scarcity-heatmap', { credentials: 'include' }); if (r.ok) setIntelligenceScarcityHeatmap(await r.json()); }}>{t('admin.scarcity_heatmap_load')}</Button>
                     </div>
                     {intelligenceClientProfiles.length > 0 && (
                       <Card className="p-4 overflow-x-auto">
@@ -7446,7 +7533,7 @@ export default function App() {
                     {intelligenceAdvisorAnalytics.length > 0 && (
                       <Card className="p-4 overflow-x-auto">
                         <div className="flex justify-between items-center mb-3">
-                          <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Advisor Performance</h4>
+                          <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.advisor_performance')}</h4>
                           <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/intelligence/advisor-analytics/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
                         </div>
                         <table className="w-full text-sm">
@@ -7461,7 +7548,7 @@ export default function App() {
                     )}
                     {intelligenceScarcityHeatmap.length > 0 && (
                       <Card className="p-4 overflow-x-auto">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Scarcity Heatmap</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">{t('admin.scarcity_heatmap')}</h4>
                         <table className="w-full text-sm">
                           <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Piece</th><th className="py-2 pr-2">Views</th><th className="py-2 pr-2">Wishlist</th><th className="py-2 pr-2">Duration</th><th className="py-2 pr-2">Demand</th><th className="py-2 pr-2">Level</th></tr></thead>
                           <tbody>
@@ -7473,21 +7560,21 @@ export default function App() {
                       </Card>
                     )}
                     <Card className="p-4">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Prestige Evolution</h4>
-                      <p className="text-xs text-zinc-500 mb-3">Tier aller Kunden anhand Aktivität neu berechnen.</p>
-                      <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/recalc-prestige', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' }); if (r.ok) { const d = await r.json(); notifyUser(d.recalculated ? `Tier für ${d.recalculated} Nutzer aktualisiert.` : 'Tier aktualisiert.', 'success'); fetchData(); } }}>Tier neu berechnen</Button>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">{t('admin.prestige_evolution')}</h4>
+                      <p className="text-xs text-zinc-500 mb-3">{t('admin.prestige_evolution_desc')}</p>
+                      <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/intelligence/recalc-prestige', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}), credentials: 'include' }); if (r.ok) { const d = await r.json(); notifyUser(d.recalculated ? (t('admin.prestige_updated') as string).replace('{n}', String(d.recalculated)) : t('admin.prestige_updated_single'), 'success'); fetchData(); } }}>{t('admin.prestige_recalc_btn')}</Button>
                     </Card>
                   </section>
                   )}
 
                   {(adminTab === 'legacy') && (
                   <section className="space-y-6">
-                    <h3 className="text-xl font-serif italic text-amber-500/90">Legacy / Begünstigte</h3>
-                    <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/legacy/requests', { credentials: 'include' }); if (r.ok) setAdminLegacyRequests(await r.json()); }}>Anfragen laden</Button>
+                    <h3 className="text-xl font-serif italic text-amber-500/90">{t('admin.tab_legacy')}</h3>
+                    <Button variant="outline" size="sm" onClick={async () => { const r = await fetch('/api/admin/legacy/requests', { credentials: 'include' }); if (r.ok) setAdminLegacyRequests(await r.json()); }}>{t('admin.load_legacy_requests')}</Button>
                     {adminLegacyRequests.length > 0 ? (
                       <Card className="p-4 overflow-x-auto">
                         <table className="w-full text-sm">
-                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">Nutzer</th><th className="py-2 pr-2">Begünstigter</th><th className="py-2 pr-2">Kontakt</th><th className="py-2 pr-2">Status</th><th className="py-2 pr-2"></th></tr></thead>
+                          <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-2">{t('admin.legacy_table_user')}</th><th className="py-2 pr-2">{t('admin.legacy_table_beneficiary')}</th><th className="py-2 pr-2">{t('admin.legacy_table_contact')}</th><th className="py-2 pr-2">{t('admin.legacy_table_status')}</th><th className="py-2 pr-2"></th></tr></thead>
                           <tbody>
                             {adminLegacyRequests.map((lr: any) => (
                               <tr key={lr.id} className="border-b border-zinc-800/50">
@@ -7495,13 +7582,13 @@ export default function App() {
                                 <td className="py-2 pr-2">{lr.beneficiary_name}</td>
                                 <td className="py-2 pr-2 text-zinc-400">{lr.beneficiary_contact || '—'}</td>
                                 <td className="py-2 pr-2"><Badge variant={lr.status === 'approved' ? 'emerald' : lr.status === 'rejected' ? 'red' : 'amber'}>{lr.status}</Badge></td>
-                                <td className="py-2 pr-2">{lr.status === 'pending' && (<><Button variant="outline" size="sm" className="mr-1" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }), credentials: 'include' }); fetchData(); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'approved' } : x)); }}>Freigeben</Button><Button variant="danger" size="sm" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }), credentials: 'include' }); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'rejected' } : x)); }}>Ablehnen</Button></>)}</td>
+                                <td className="py-2 pr-2">{lr.status === 'pending' && (<><Button variant="outline" size="sm" className="mr-1" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }), credentials: 'include' }); fetchData(); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'approved' } : x)); }}>{t('admin.legacy_approve')}</Button><Button variant="danger" size="sm" onClick={async () => { await fetch(`/api/admin/legacy/requests/${lr.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'rejected' }), credentials: 'include' }); setAdminLegacyRequests(prev => prev.map((x: any) => x.id === lr.id ? { ...x, status: 'rejected' } : x)); }}>{t('admin.reject')}</Button></>)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </Card>
-                    ) : <p className="text-zinc-500 text-sm italic">Keine Legacy-Anfragen. Nutzer können unter Vault oder Profil einen Begünstigten anlegen.</p>}
+                    ) : <p className="text-zinc-500 text-sm italic">{t('admin.no_legacy_requests_hint')}</p>}
                   </section>
                   )}
 
@@ -7516,15 +7603,16 @@ export default function App() {
                           const res = await fetch('/api/admin/contracts/regenerate', { method: 'POST', credentials: 'include' });
                           const data = await res.json().catch(() => ({}));
                           if (res.ok && data.success) {
-                            notifyUser(`Verträge neu erstellt: ${data.updated}/${data.total} aktualisiert.${data.skipped?.length ? ` ${data.skipped.length} übersprungen.` : ''}`, 'success');
+                            const msg = (t('admin.contracts_regenerated') as string).replace('{updated}', String(data.updated ?? 0)).replace('{total}', String(data.total ?? 0)) + (data.skipped?.length ? ' ' + (t('admin.contracts_skipped') as string).replace('{n}', String(data.skipped.length)) : '');
+                            notifyUser(msg, 'success');
                             fetchData();
                           } else {
-                            notifyUser(data.error || 'Regenerierung fehlgeschlagen.', 'error');
+                            notifyUser(data.error || t('errors.regenerate_failed'), 'error');
                           }
                         } finally {
                           setLoading(false);
                         }
-                      }}>Alle Verträge mit aktuellen Daten neu erstellen</Button>
+                      }}>{t('admin.regenerate_contracts_btn')}</Button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {adminContracts.filter(c => c.status === 'signed').map(c => (
@@ -7642,7 +7730,7 @@ export default function App() {
                       <h3 className="text-xl font-serif italic">{t('admin.audit_log')}</h3>
                       <Button variant="outline" className="text-xs" onClick={async () => {
                         const logs = adminAuditLogs.length ? adminAuditLogs : await (await fetch('/api/admin/audit-logs?limit=500')).json();
-                        const headers = ['Zeit', 'Admin', 'Aktion', 'Ziel', 'Details'];
+                        const headers = [t('admin.audit_time'), t('admin.audit_admin'), t('admin.audit_action'), t('admin.audit_target'), t('admin.audit_details')];
                         const rows = (Array.isArray(logs) ? logs : []).map((log: any) => [
                           new Date(log.created_at).toISOString(),
                           (log.admin_name ?? '').replace(/"/g, '""'),
@@ -7653,17 +7741,17 @@ export default function App() {
                         const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(c => `"${c}"`).join(','))].join('\n');
                         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
                         const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'audit-log.csv'; a.click(); URL.revokeObjectURL(a.href);
-                      }}>Audit-Log exportieren (CSV)</Button>
+                      }}>{t('admin.audit_export_csv')}</Button>
                     </div>
                     <div className="overflow-x-auto max-h-64 overflow-y-auto rounded-xl border border-zinc-800">
                       <table className="w-full text-left text-sm">
                         <thead className="bg-zinc-900/80 sticky top-0">
                           <tr>
-                            <th className="p-2 text-zinc-500 font-semibold">Zeit</th>
-                            <th className="p-2 text-zinc-500 font-semibold">Admin</th>
-                            <th className="p-2 text-zinc-500 font-semibold">Aktion</th>
-                            <th className="p-2 text-zinc-500 font-semibold">Ziel</th>
-                            <th className="p-2 text-zinc-500 font-semibold">Details</th>
+                            <th className="p-2 text-zinc-500 font-semibold">{t('admin.audit_time')}</th>
+                            <th className="p-2 text-zinc-500 font-semibold">{t('admin.audit_admin')}</th>
+                            <th className="p-2 text-zinc-500 font-semibold">{t('admin.audit_action')}</th>
+                            <th className="p-2 text-zinc-500 font-semibold">{t('admin.audit_target')}</th>
+                            <th className="p-2 text-zinc-500 font-semibold">{t('admin.audit_details')}</th>
                           </tr>
                         </thead>
                         <tbody>
