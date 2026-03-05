@@ -347,6 +347,20 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Nutzer",
     "admin.tab_resale": "Wiederverkauf",
     "admin.tab_fractional": "Anteils-Angebote",
+    "admin.tab_drops": "Exklusive Drops",
+    "admin.drop_create_title": "Neuer Drop",
+    "admin.drop_title_label": "Titel",
+    "admin.drop_description_label": "Beschreibung",
+    "admin.drop_image_url_label": "Bild-URL",
+    "admin.drop_release_at": "Start (Datum/Uhrzeit)",
+    "admin.drop_end_at": "Ende (Datum/Uhrzeit)",
+    "admin.drop_create_btn": "Drop erstellen",
+    "admin.drop_created": "Drop erstellt.",
+    "admin.drops_list": "Aktuelle Drops",
+    "admin.add_piece_to_drop": "Stück zum Drop hinzufügen",
+    "admin.piece_added_to_drop": "Stück zum Drop hinzugefügt.",
+    "admin.no_drops": "Keine Drops angelegt.",
+    "admin.piece_added_to_drop": "Stück zum Drop hinzugefügt.",
     "admin.tab_appointments": "Termine",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Begünstigte",
@@ -952,6 +966,19 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Users",
     "admin.tab_resale": "Resale",
     "admin.tab_fractional": "Fractional offers",
+    "admin.tab_drops": "Exclusive Drops",
+    "admin.drop_create_title": "New Drop",
+    "admin.drop_title_label": "Title",
+    "admin.drop_description_label": "Description",
+    "admin.drop_image_url_label": "Image URL",
+    "admin.drop_release_at": "Start (date/time)",
+    "admin.drop_end_at": "End (date/time)",
+    "admin.drop_create_btn": "Create drop",
+    "admin.drop_created": "Drop created.",
+    "admin.drops_list": "Current drops",
+    "admin.add_piece_to_drop": "Add piece to drop",
+    "admin.piece_added_to_drop": "Piece added to drop.",
+    "admin.no_drops": "No drops created yet.",
     "admin.tab_appointments": "Appointments",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiaries",
@@ -1547,6 +1574,19 @@ const TRANSLATIONS: any = {
     "admin.tab_users": "Utenti",
     "admin.tab_resale": "Rivendita",
     "admin.tab_fractional": "Offerte quote",
+    "admin.tab_drops": "Drop esclusivi",
+    "admin.drop_create_title": "Nuovo drop",
+    "admin.drop_title_label": "Titolo",
+    "admin.drop_description_label": "Descrizione",
+    "admin.drop_image_url_label": "URL immagine",
+    "admin.drop_release_at": "Inizio (data/ora)",
+    "admin.drop_end_at": "Fine (data/ora)",
+    "admin.drop_create_btn": "Crea drop",
+    "admin.drop_created": "Drop creato.",
+    "admin.drops_list": "Drop attuali",
+    "admin.add_piece_to_drop": "Aggiungi opera al drop",
+    "admin.piece_added_to_drop": "Opera aggiunta al drop.",
+    "admin.no_drops": "Nessun drop creato.",
     "admin.tab_appointments": "Appuntamenti",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiari",
@@ -2500,7 +2540,9 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
+  const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
+  const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
   const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
@@ -3101,7 +3143,7 @@ export default function App() {
       if (dropsRes.ok) setDropsList(await dropsRes.json());
 
       if (user.role === UserRole.ADMIN) {
-        const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes] = await Promise.all([
+        const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes, adminDropsRes] = await Promise.all([
           fetch('/api/admin/stats', { credentials: 'include' }),
           fetch('/api/admin/users', { credentials: 'include' }),
           fetch('/api/admin/contracts', { credentials: 'include' }),
@@ -3116,7 +3158,8 @@ export default function App() {
           fetch('/api/admin/gdpr/data-requests', { credentials: 'include' }),
           fetch('/api/admin/fractional-offers', { credentials: 'include' }),
           fetch('/api/admin/service-requests', { credentials: 'include' }),
-          fetch('/api/admin/contact-requests', { credentials: 'include' })
+          fetch('/api/admin/contact-requests', { credentials: 'include' }),
+          fetch('/api/admin/drops', { credentials: 'include' })
         ]);
         if (statsRes.ok) setAdminStats(await statsRes.json());
         if (usersRes.ok) setAllUsers(await usersRes.json());
@@ -3133,6 +3176,7 @@ export default function App() {
         if (fracOffersRes.ok) setAdminFractionalOffers(await fracOffersRes.json());
         if (serviceReqRes.ok) setAdminServiceRequests(await serviceReqRes.json());
         if (contactReqRes.ok) setAdminContactRequests(await contactReqRes.json());
+        if (adminDropsRes.ok) setAdminDropsList(await adminDropsRes.json());
         const advisorsRes = await fetch('/api/admin/advisors');
         if (advisorsRes.ok) setAdminAdvisors(await advisorsRes.json());
         const commissionsRes = await fetch('/api/admin/advisors/commissions');
@@ -6517,9 +6561,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -7208,6 +7252,89 @@ export default function App() {
                         )}
                       </div>
                     </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'drops') && (
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">{t('drops.title')}</h3>
+                    <Card className="p-4 space-y-4">
+                      <p className="text-sm text-zinc-500">{t('admin.drop_create_title')}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_title_label')}</label>
+                          <input type="text" value={adminDropForm.title} onChange={e => setAdminDropForm(f => ({ ...f, title: e.target.value }))} placeholder="z. B. Frühlings-Kollektion" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_image_url_label')}</label>
+                          <input type="text" value={adminDropForm.image_url} onChange={e => setAdminDropForm(f => ({ ...f, image_url: e.target.value }))} placeholder="https://…" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_release_at')}</label>
+                          <input type="datetime-local" value={adminDropForm.release_at} onChange={e => setAdminDropForm(f => ({ ...f, release_at: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_end_at')}</label>
+                          <input type="datetime-local" value={adminDropForm.end_at} onChange={e => setAdminDropForm(f => ({ ...f, end_at: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-zinc-500 mb-1">{t('admin.drop_description_label')}</label>
+                        <textarea value={adminDropForm.description} onChange={e => setAdminDropForm(f => ({ ...f, description: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                      </div>
+                      <Button variant="primary" disabled={loading} onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const res = await fetch('/api/admin/drops', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: adminDropForm.title || 'Drop',
+                              description: adminDropForm.description || '',
+                              image_url: adminDropForm.image_url || null,
+                              release_at: adminDropForm.release_at ? new Date(adminDropForm.release_at).toISOString() : new Date().toISOString(),
+                              end_at: adminDropForm.end_at ? new Date(adminDropForm.end_at).toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                            }),
+                            credentials: 'include'
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            setAdminDropForm({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
+                            const list = await fetch('/api/admin/drops', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+                            setAdminDropsList(list);
+                            setDropsList(list.filter((d: any) => new Date(d.end_at) > new Date()));
+                            notifyUser(t('admin.drop_created'), 'success');
+                          } else {
+                            notifyUser(data.error || t('errors.generic'), 'error');
+                          }
+                        } finally { setLoading(false); }
+                      }}>{t('admin.drop_create_btn')}</Button>
+                    </Card>
+                    <div className="border-t border-zinc-800 pt-4">
+                      <p className="text-sm font-medium text-zinc-400 mb-3">{t('admin.drops_list')}</p>
+                      {adminDropsList.length === 0 ? <p className="text-zinc-600 text-sm italic">{t('admin.no_drops')}</p> : (
+                        <ul className="space-y-3">
+                          {adminDropsList.map((d: any) => (
+                            <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                              <span className="text-zinc-200 font-medium">{d.title}</span>
+                              <span className="text-xs text-zinc-500">{new Date(d.release_at).toLocaleString()} – {new Date(d.end_at).toLocaleString()}</span>
+                              <div className="flex items-center gap-2">
+                                <select className="bg-zinc-800 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs" onChange={async (e) => {
+                                  const masterpieceId = e.target.value ? Number(e.target.value) : 0;
+                                  if (!masterpieceId) return;
+                                  const r = await fetch(`/api/admin/drops/${d.id}/pieces`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpiece_id: masterpieceId }), credentials: 'include' });
+                                  if (r.ok) { notifyUser(t('admin.piece_added_to_drop'), 'success'); fetchData(); }
+                                  e.target.value = '';
+                                }}>
+                                  <option value="">{t('admin.add_piece_to_drop')}…</option>
+                                  {masterpieces.map(p => <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>)}
+                                </select>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </section>
                   )}
 
