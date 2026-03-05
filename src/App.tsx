@@ -6515,7 +6515,7 @@ export default function App() {
                             {assetDetailData.ownership_distribution.map((o: any, i: number) => (
                               <li key={i} className="flex justify-between text-zinc-400">
                                 <span>{o.user_name}</span>
-                                <span>{o.num_shares} ({typeof o.percentage === 'number' ? o.percentage.toFixed(1) : o.percentage)}%)</span>
+                                <span>{`${o.num_shares} (${typeof o.percentage === 'number' ? o.percentage.toFixed(1) : o.percentage}%)`}</span>
                               </li>
                             ))}
                           </ul>
