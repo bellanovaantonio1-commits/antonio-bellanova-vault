@@ -444,6 +444,7 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
     "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
+    "marketplace.details_hint": "Weitere Details werden im persönlichen Gespräch besprochen.",
     "marketplace.pdf_modal_title": "Marktplatz als PDF",
     "marketplace.pdf_choose_lang": "Download-Sprache wählen",
     "marketplace.pdf_download_btn": "PDF herunterladen",
@@ -1046,6 +1047,7 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
     "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
+    "marketplace.details_hint": "Further details are discussed during a personal conversation.",
     "marketplace.pdf_modal_title": "Marketplace as PDF",
     "marketplace.pdf_choose_lang": "Choose download language",
     "marketplace.pdf_download_btn": "Download PDF",
@@ -1640,6 +1642,7 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
     "marketplace.subtitle": "Opere pregiate disponibili per acquisizione immediata.",
+    "marketplace.details_hint": "Ulteriori dettagli vengono discussi durante il colloquio personale.",
     "marketplace.pdf_modal_title": "Mercato in PDF",
     "marketplace.pdf_choose_lang": "Scegli lingua per download",
     "marketplace.pdf_download_btn": "Scarica PDF",
@@ -5217,25 +5220,29 @@ export default function App() {
                     [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
                   ) : (
                     <>
-                      {filterMasterpieces(masterpieces, 'available').map(piece => (
-                    <PieceCard 
-                      key={piece.id} 
-                      piece={piece} 
-                          t={t}
-                          priceLabel={getPiecePriceDisplay(piece, user).label}
-                          isFavorite={user ? favoriteIds.includes(piece.id) : false}
-                          onToggleFavorite={user ? () => {
-                            const add = !favoriteIds.includes(piece.id);
-                            fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
-                              .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
-                          } : undefined}
-                      onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
-                      onViewDetails={(p) => {
-                        setSelectedPiece(p);
-                        if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                      }} 
-                    />
-                  ))}
+                      {filterMasterpieces(masterpieces, 'available').map(piece => {
+                        const isOwnPiece = user && piece.current_owner_id === user.id;
+                        return (
+                          <PieceCard 
+                            key={piece.id} 
+                            piece={piece} 
+                            t={t}
+                            priceLabel={getPiecePriceDisplay(piece, user).label}
+                            isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                            onToggleFavorite={user ? () => {
+                              const add = !favoriteIds.includes(piece.id);
+                              fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
+                                .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
+                            } : undefined}
+                            onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
+                            onViewDetails={(p) => {
+                              setSelectedPiece(p);
+                              if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                            }} 
+                            detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
+                          />
+                        );
+                      })}
                       {filterMasterpieces(masterpieces, 'available').length === 0 && (
                     <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
                       <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
@@ -8376,7 +8383,7 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string }) => (
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string }) => (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
       <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
@@ -8406,6 +8413,9 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
         <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-zinc-500 italic text-sm' : 'text-amber-500/90 font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
       </div>
       <p className="text-xs text-zinc-500 line-clamp-2">{piece.description}</p>
+      {detailsHint && (
+        <p className="text-[11px] text-zinc-500 mt-1">{detailsHint}</p>
+      )}
       <div className="flex flex-wrap gap-1 mt-2">
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">ID: {piece.serial_id}</span>
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{piece.materials}</span>
