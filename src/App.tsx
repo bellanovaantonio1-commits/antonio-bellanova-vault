@@ -301,6 +301,12 @@ const TRANSLATIONS: any = {
     "asset.atelier_info": "Atelier",
     "asset.available_for_resale": "Wiederverkauf möglich",
     "asset.vault_section": "Tresor — abgeschlossene Assets",
+    "asset.document_vault": "Dokumenten-Tresor",
+    "asset.document_vault_hint": "Verträge, Zertifikate und Eigentumsnachweise. Als HTML herunterladen (im Browser als PDF speichern).",
+    "asset.download_pdf": "Herunterladen",
+    "asset.portfolio_total_invested": "Gesamt investiert",
+    "asset.portfolio_assets_owned": "Anzahl Assets",
+    "asset.portfolio_estimated_value": "Geschätzter Portfoliowert",
     "asset.weeks": "Wochen",
     "admin.fractional_assets_title": "Fractional Assets (Produktion / Tresor)",
     "admin.create_asset": "Asset anlegen",
@@ -971,6 +977,12 @@ const TRANSLATIONS: any = {
     "asset.atelier_info": "Atelier",
     "asset.available_for_resale": "Available for resale",
     "asset.vault_section": "Vault — completed assets",
+    "asset.document_vault": "Document Vault",
+    "asset.document_vault_hint": "Contracts, certificates and ownership records. Download as HTML (save as PDF from browser).",
+    "asset.download_pdf": "Download",
+    "asset.portfolio_total_invested": "Total Invested",
+    "asset.portfolio_assets_owned": "Assets Owned",
+    "asset.portfolio_estimated_value": "Estimated Portfolio Value",
     "investor.request_submitted": "Request submitted successfully. Our team will contact you shortly.",
     "admin.piece_created": "Masterpiece created successfully.",
     "admin.auction_created": "Auction created successfully.",
@@ -1624,6 +1636,12 @@ const TRANSLATIONS: any = {
     "asset.atelier_info": "Atelier",
     "asset.available_for_resale": "Disponibile per rivendita",
     "asset.vault_section": "Caveau — asset completati",
+    "asset.document_vault": "Caveau documenti",
+    "asset.document_vault_hint": "Contratti, certificati e attestati di proprietà. Scarica come HTML (salva come PDF dal browser).",
+    "asset.download_pdf": "Scarica",
+    "asset.portfolio_total_invested": "Totale investito",
+    "asset.portfolio_assets_owned": "Asset posseduti",
+    "asset.portfolio_estimated_value": "Valore stimato del portafoglio",
     "investor.request_submitted": "Richiesta inviata. Il nostro team ti contatterà a breve.",
     "admin.piece_created": "Opera creata con successo.",
     "admin.auction_created": "Asta creata con successo.",
@@ -2651,6 +2669,7 @@ export default function App() {
   const [fractionalOffers, setFractionalOffers] = useState<any[]>([]);
   const [fractionalAssetsList, setFractionalAssetsList] = useState<any[]>([]);
   const [myFractionalShares, setMyFractionalShares] = useState<any[]>([]);
+  const [fractionalDocuments, setFractionalDocuments] = useState<any[]>([]);
   const [selectedAssetDetailId, setSelectedAssetDetailId] = useState<number | null>(null);
   const [assetDetailData, setAssetDetailData] = useState<any>(null);
   const [selectedAssetDetail, setSelectedAssetDetail] = useState<any | null>(null);
@@ -3410,13 +3429,14 @@ export default function App() {
         if (myBidsRes.ok) setMyBids(await myBidsRes.json());
 
         if (user.role === UserRole.INVESTOR) {
-          const [analyticsRes, myReqsRes, offersRes, portfolioRes, assetsRes, mySharesRes] = await Promise.all([
+          const [analyticsRes, myReqsRes, offersRes, portfolioRes, assetsRes, mySharesRes, fracDocsRes] = await Promise.all([
             fetch('/api/investor/analytics'),
             fetch(`/api/investor/my-requests?userId=${user.id}`),
             fetch('/api/investor/fractional-offers'),
             fetch(`/api/investor/portfolio/${user.id}`),
             fetch('/api/fractional-assets', { credentials: 'include' }),
-            fetch('/api/fractional-assets/my-shares', { credentials: 'include' })
+            fetch('/api/fractional-assets/my-shares', { credentials: 'include' }),
+            fetch('/api/investor/fractional-documents', { credentials: 'include' })
           ]);
           if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
           if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
@@ -3424,16 +3444,19 @@ export default function App() {
           if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
           if (assetsRes.ok) setFractionalAssetsList(await assetsRes.json());
           if (mySharesRes.ok) setMyFractionalShares(await mySharesRes.json());
+          if (fracDocsRes.ok) setFractionalDocuments(await fracDocsRes.json());
         }
         if (user.role === UserRole.CLIENT) {
-          const [offersRes, assetsRes, mySharesRes] = await Promise.all([
+          const [offersRes, assetsRes, mySharesRes, fracDocsRes] = await Promise.all([
             fetch('/api/investor/fractional-offers'),
             fetch('/api/fractional-assets', { credentials: 'include' }),
-            fetch('/api/fractional-assets/my-shares', { credentials: 'include' })
+            fetch('/api/fractional-assets/my-shares', { credentials: 'include' }),
+            fetch('/api/investor/fractional-documents', { credentials: 'include' })
           ]);
           if (offersRes.ok) setFractionalOffers(await offersRes.json());
           if (assetsRes.ok) setFractionalAssetsList(await assetsRes.json());
           if (mySharesRes.ok) setMyFractionalShares(await mySharesRes.json());
+          if (fracDocsRes.ok) setFractionalDocuments(await fracDocsRes.json());
         }
         fetch('/api/atelier-moments').then(r => r.ok ? r.json() : []).then(setAtelierMoments).catch(() => {});
       } catch (e) {
@@ -6308,6 +6331,22 @@ export default function App() {
                 <h2 className="text-3xl font-serif italic text-zinc-100">{t('view.fractional')}</h2>
                 <p className="text-zinc-500 max-w-xl">{t('investor.fractional_offers')} — {t('investor.request_share_desc')}</p>
 
+                {/* Portfolio Summary — luxury vault dashboard */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Card className="p-6 border-amber-500/20 bg-zinc-900/50" hoverGlow>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('asset.portfolio_total_invested') || 'Total Invested Value'}</p>
+                    <p className="text-2xl font-bold text-amber-500/90">{myFractionalShares.reduce((sum, s) => sum + Number(s.value ?? 0), 0).toLocaleString('de-DE')} €</p>
+                  </Card>
+                  <Card className="p-6 border-amber-500/20 bg-zinc-900/50" hoverGlow>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('asset.assets_owned') || 'Assets Owned'}</p>
+                    <p className="text-2xl font-bold text-zinc-100">{myFractionalShares.length}</p>
+                  </Card>
+                  <Card className="p-6 border-amber-500/20 bg-zinc-900/50" hoverGlow>
+                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('asset.estimated_portfolio_value') || 'Estimated Portfolio Value'}</p>
+                    <p className="text-2xl font-bold text-amber-500/90">{myFractionalShares.reduce((sum, s) => sum + Number(s.value ?? 0), 0).toLocaleString('de-DE')} €</p>
+                  </Card>
+                </div>
+
                 {myFractionalShares.length > 0 && (
                   <Card className="p-6 border-amber-500/20 bg-zinc-900/50">
                     <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('asset.my_investments')}</h3>
@@ -6328,6 +6367,25 @@ export default function App() {
                         );
                       })}
                     </div>
+                  </Card>
+                )}
+
+                {/* Document Vault — contracts & certificates */}
+                {fractionalDocuments.length > 0 && (
+                  <Card className="p-6 border-amber-500/20 bg-zinc-900/50">
+                    <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('asset.document_vault') || 'Document Vault'}</h3>
+                    <p className="text-xs text-zinc-500 mb-4">{t('asset.document_vault_hint') || 'Contracts, certificates and ownership records. Download as HTML (save as PDF from browser).'}</p>
+                    <ul className="space-y-2">
+                      {fractionalDocuments.map((doc: any) => (
+                        <li key={doc.id} className="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-200">{doc.asset_title || doc.asset_code || 'Asset'}</p>
+                            <p className="text-xs text-zinc-500">{doc.type.replace(/_/g, ' ')} · {doc.doc_ref}</p>
+                          </div>
+                          <a href={`/api/investor/fractional-documents/${doc.id}?download=1`} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-500/90 hover:text-amber-400 border border-amber-500/40 rounded-lg py-2 px-3">{t('asset.download_pdf') || 'Download'}</a>
+                        </li>
+                      ))}
+                    </ul>
                   </Card>
                 )}
 

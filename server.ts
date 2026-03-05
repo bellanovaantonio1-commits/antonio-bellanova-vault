@@ -1005,6 +1005,21 @@ try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weigh
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT").run(); } catch (e) {}
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fractional_asset_contracts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      doc_ref TEXT UNIQUE,
+      content TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    )
+  `);
+} catch (e) {}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS prestige_tier_metrics (
@@ -5234,6 +5249,41 @@ function generateAssetCode(id: number): string {
   return `AB-ASSET-${year}-${seq}`;
 }
 
+function buildFractionalContractHtml(opts: {
+  docType: string;
+  assetId: number;
+  assetCode: string;
+  assetName: string;
+  userName: string;
+  numShares: number;
+  totalShares: number;
+  sharePrice: number;
+  purchaseDate: string;
+  contractId: string;
+}): string {
+  const pct = opts.totalShares ? ((opts.numShares / opts.totalShares) * 100).toFixed(2) : '0';
+  const totalPrice = (opts.numShares * opts.sharePrice).toFixed(2);
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${opts.docType}</title><style>
+body{font-family:Georgia,'Times New Roman',serif;background:#fff;color:#000;max-width:800px;margin:60px auto;padding:40px;line-height:1.6;font-size:12pt;}
+h1{font-size:18pt;margin-bottom:8px;} .header{text-align:center;margin-bottom:48px;border-bottom:1px solid #ccc;padding-bottom:24px;}
+.section{margin:24px 0;} .section h2{font-size:14pt;margin-bottom:12px;}
+.footer{margin-top:48px;padding-top:24px;border-top:1px solid #ccc;font-size:10pt;color:#555;}
+table{width:100%;border-collapse:collapse;} td{padding:8px 0;border-bottom:1px solid #eee;} td:first-child{font-weight:bold;width:40%;}
+</style></head><body>
+<div class="header"><h1>Antonio Bellanova</h1><p>High Jewelry Maison</p><p><strong>Official Asset Agreement</strong></p></div>
+<div class="section"><h2>${opts.docType}</h2>
+<table><tr><td>Asset ID</td><td>${opts.assetCode}</td></tr>
+<tr><td>Asset Name</td><td>${opts.assetName}</td></tr>
+<tr><td>Investor Name</td><td>${opts.userName}</td></tr>
+<tr><td>Share Percentage</td><td>${pct}%</td></tr>
+<tr><td>Number of Shares</td><td>${opts.numShares} of ${opts.totalShares}</td></tr>
+<tr><td>Purchase Price</td><td>€${totalPrice}</td></tr>
+<tr><td>Share Price</td><td>€${Number(opts.sharePrice).toLocaleString('de-DE')}</td></tr>
+<tr><td>Purchase Date</td><td>${opts.purchaseDate}</td></tr></table></div>
+<div class="footer"><p>Asset ID: ${opts.assetCode} | Contract ID: ${opts.contractId} | Date: ${opts.purchaseDate} | Page 1</p></div>
+</body></html>`;
+}
+
 app.get("/api/fractional-assets", (req, res) => {
   const rows = db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC").all() as any[];
   const out = rows.map(a => {
@@ -5342,6 +5392,43 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
     db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares) VALUES (?, ?, ?)").run(assetId, userId, numShares);
   }
   updateAssetStatusFromProgress(assetId);
+
+  const assetCode = (asset.asset_code || generateAssetCode(assetId)) as string;
+  const totalShares = asset.total_shares || 100;
+  const sharePrice = asset.share_price || 0;
+  const purchaseDate = new Date().toISOString().slice(0, 10);
+  const userName = user.name || user.email || 'Investor';
+  const contractIdBase = `FAC-${assetId}-${userId}-${Date.now()}`;
+  const assetStatus = (asset.asset_status || '').toLowerCase();
+  const docTypes: { type: string; title: string }[] = [
+    { type: 'share_purchase_agreement', title: 'Share Purchase Agreement' },
+    { type: 'asset_management_agreement', title: 'Asset Management Agreement' },
+    { type: 'investor_participation_agreement', title: 'Investor Participation Agreement' },
+    { type: 'resale_agreement', title: 'Resale Agreement' },
+    { type: 'digital_asset_certificate', title: 'Digital Asset Certificate' }
+  ];
+  if (assetStatus === 'production' || assetStatus === 'vault') {
+    docTypes.push({ type: 'production_agreement', title: 'Production Agreement' });
+  }
+  for (const d of docTypes) {
+    const docRef = `${contractIdBase}-${d.type}`;
+    const content = buildFractionalContractHtml({
+      docType: d.title,
+      assetId,
+      assetCode,
+      assetName: asset.title || 'Asset',
+      userName,
+      numShares,
+      totalShares,
+      sharePrice,
+      purchaseDate,
+      contractId: docRef
+    });
+    try {
+      db.prepare("INSERT INTO fractional_asset_contracts (asset_id, user_id, type, doc_ref, content) VALUES (?, ?, ?, ?, ?)").run(assetId, userId, d.type, docRef, content);
+    } catch (e) { /* ignore duplicate or schema */ }
+  }
+
   res.json({ success: true, num_shares: numShares });
 });
 
@@ -5371,6 +5458,30 @@ app.get("/api/fractional-assets/my-shares", (req, res) => {
     WHERE ash.user_id = ?
   `).all(userId) as any[];
   res.json(rows);
+});
+
+app.get("/api/investor/fractional-documents", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const rows = db.prepare(`
+    SELECT c.id, c.asset_id, c.type, c.doc_ref, c.created_at, fa.title as asset_title, fa.asset_code
+    FROM fractional_asset_contracts c
+    JOIN fractional_assets fa ON fa.id = c.asset_id
+    WHERE c.user_id = ?
+    ORDER BY c.created_at DESC
+  `).all(userId) as any[];
+  res.json(rows);
+});
+
+app.get("/api/investor/fractional-documents/:id", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const row = db.prepare("SELECT * FROM fractional_asset_contracts WHERE id = ? AND user_id = ?").get(req.params.id, userId) as any;
+  if (!row || !row.content) return res.status(404).json({ error: "Not found" });
+  const disposition = req.query.download === '1' ? `attachment; filename="${(row.doc_ref || 'contract')}.html"` : 'inline';
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', disposition);
+  res.send(row.content);
 });
 
 // Investor Data Room: access limited to Investor & above; optional: approved dataroom request for piece
