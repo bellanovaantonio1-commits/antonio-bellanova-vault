@@ -1005,6 +1005,8 @@ try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weigh
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_reply TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_replied_at DATETIME").run(); } catch (e) {}
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS fractional_asset_contracts (
@@ -3026,7 +3028,7 @@ app.post("/api/admin/contracts/regenerate", (req, res) => {
   }
 });
 
-app.get("/api/admin/audit-logs", (req, res) => {
+app.get("/api/admin/audit-logs", requireAuth, requireAdmin, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const rows = db.prepare(`
     SELECT al.*, u.name as admin_name FROM audit_logs al
@@ -3036,7 +3038,7 @@ app.get("/api/admin/audit-logs", (req, res) => {
   res.json(rows);
 });
 
-app.get("/api/admin/audit-logs/export", (req, res) => {
+app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 2000, 5000);
   const rows = db.prepare(`
     SELECT al.id, al.admin_id, al.action, al.target_id, al.details, al.created_at, u.name as admin_name FROM audit_logs al
@@ -3100,13 +3102,33 @@ app.get("/api/admin/contact-requests", (req, res) => {
 });
 
 app.get("/api/admin/contact-requests/export", (req, res) => {
-  const rows = db.prepare("SELECT id, name, email, subject, message, created_at FROM contact_requests ORDER BY created_at DESC").all() as any[];
-  const headers = ['id', 'name', 'email', 'subject', 'message', 'created_at'];
+  const rows = db.prepare("SELECT id, name, email, subject, message, created_at, admin_reply, admin_replied_at FROM contact_requests ORDER BY created_at DESC").all() as any[];
+  const headers = ['id', 'name', 'email', 'subject', 'message', 'created_at', 'admin_reply', 'admin_replied_at'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="antonio-bellanova-contact-requests.csv"');
   res.send('\uFEFF' + csv);
+});
+
+app.post("/api/admin/contact-requests/:id/reply", async (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const id = Number(req.params.id);
+  const reply = typeof req.body?.reply === 'string' ? req.body.reply.trim() : '';
+  const row = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(id) as any;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  db.prepare("UPDATE contact_requests SET admin_reply = ?, admin_replied_at = CURRENT_TIMESTAMP WHERE id = ?").run(reply || null, id);
+
+  if (reply && row.email) {
+    const subject = row.subject ? `Re: ${row.subject}` : "Antonio Bellanova – Antwort auf Ihre Anfrage";
+    const text = `Guten Tag ${row.name || 'Sie'},\n\nvielen Dank für Ihre Nachricht. Hier unsere Antwort:\n\n${reply}\n\nMit freundlichen Grüßen\nIhr Team – Antonio Bellanova\nHigh Jewelry Maison`;
+    const html = `<p>Guten Tag ${(row.name || 'Sie').replace(/</g, '&lt;')},</p><p>vielen Dank für Ihre Nachricht. Hier unsere Antwort:</p><p style="white-space:pre-wrap;background:#f5f5f5;padding:1em;border-radius:6px;">${reply.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p><p>Mit freundlichen Grüßen<br>Ihr Team – Antonio Bellanova<br>High Jewelry Maison</p>`;
+    const emailSent = await sendMail(row.email.trim(), subject, text, html);
+    return res.json({ success: true, emailSent: !!emailSent });
+  }
+  res.json({ success: true });
 });
 
 app.patch("/api/admin/service-requests/:id", (req, res) => {

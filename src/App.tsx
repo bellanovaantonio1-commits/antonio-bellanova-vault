@@ -684,11 +684,19 @@ const TRANSLATIONS: any = {
     "admin.no_service_requests": "Keine Service-Anfragen.",
     "admin.contact_requests": "Kontaktanfragen",
     "admin.no_contact_requests": "Keine Kontaktanfragen.",
+    "admin.your_reply": "Ihre Antwort",
+    "admin.reply_placeholder": "Antwort an den Kunden…",
+    "admin.send_reply": "Antwort speichern",
+    "admin.reply_saved": "Antwort gespeichert.",
+    "admin.reply_saved_email": "Antwort gespeichert und an den Kunden gesendet.",
     "admin.audit_log": "Audit-Log",
     "admin.regenerate_contracts_btn": "Alle Verträge mit aktuellen Daten neu erstellen",
     "admin.contracts_regenerated": "Verträge neu erstellt: {updated}/{total} aktualisiert.",
     "admin.contracts_skipped": "{n} übersprungen.",
     "admin.audit_export_csv": "Audit-Log exportieren (CSV)",
+    "admin.audit_exported": "Audit-Log exportiert.",
+    "admin.audit_export_empty": "Keine Einträge zum Exportieren.",
+    "admin.audit_refresh": "Aktualisieren",
     "admin.audit_time": "Zeit",
     "admin.audit_admin": "Admin",
     "admin.audit_action": "Aktion",
@@ -1361,11 +1369,19 @@ const TRANSLATIONS: any = {
     "admin.no_service_requests": "No service requests.",
     "admin.contact_requests": "Contact requests",
     "admin.no_contact_requests": "No contact requests.",
+    "admin.your_reply": "Your reply",
+    "admin.reply_placeholder": "Reply to the customer…",
+    "admin.send_reply": "Save reply",
+    "admin.reply_saved": "Reply saved.",
+    "admin.reply_saved_email": "Reply saved and sent to the customer.",
     "admin.audit_log": "Audit log",
     "admin.regenerate_contracts_btn": "Regenerate all contracts with current data",
     "admin.contracts_regenerated": "Contracts regenerated: {updated}/{total} updated.",
     "admin.contracts_skipped": "{n} skipped.",
     "admin.audit_export_csv": "Export audit log (CSV)",
+    "admin.audit_exported": "Audit log exported.",
+    "admin.audit_export_empty": "No entries to export.",
+    "admin.audit_refresh": "Refresh",
     "admin.audit_time": "Time",
     "admin.audit_admin": "Admin",
     "admin.audit_action": "Action",
@@ -1993,11 +2009,19 @@ const TRANSLATIONS: any = {
     "admin.no_service_requests": "Nessuna richiesta di servizio.",
     "admin.contact_requests": "Richieste di contatto",
     "admin.no_contact_requests": "Nessuna richiesta di contatto.",
+    "admin.your_reply": "La tua risposta",
+    "admin.reply_placeholder": "Risposta al cliente…",
+    "admin.send_reply": "Salva risposta",
+    "admin.reply_saved": "Risposta salvata.",
+    "admin.reply_saved_email": "Risposta salvata e inviata al cliente.",
     "admin.audit_log": "Registro audit",
     "admin.regenerate_contracts_btn": "Rigenera tutti i contratti con dati attuali",
     "admin.contracts_regenerated": "Contratti rigenerati: {updated}/{total} aggiornati.",
     "admin.contracts_skipped": "{n} saltati.",
     "admin.audit_export_csv": "Esporta audit log (CSV)",
+    "admin.audit_exported": "Audit log esportato.",
+    "admin.audit_export_empty": "Nessuna voce da esportare.",
+    "admin.audit_refresh": "Aggiorna",
     "admin.audit_time": "Ora",
     "admin.audit_admin": "Admin",
     "admin.audit_action": "Azione",
@@ -2701,7 +2725,9 @@ export default function App() {
   const [changePasswordForm, setChangePasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [changePasswordSubmitting, setChangePasswordSubmitting] = useState(false);
   const [changePasswordError, setChangePasswordError] = useState('');
-  const [adminContactRequests, setAdminContactRequests] = useState<{ id: number; name: string; email: string; subject: string | null; message: string; created_at: string }[]>([]);
+  const [adminContactRequests, setAdminContactRequests] = useState<{ id: number; name: string; email: string; subject: string | null; message: string; created_at: string; admin_reply?: string | null; admin_replied_at?: string | null }[]>([]);
+  const [contactReplyDraft, setContactReplyDraft] = useState<Record<number, string>>({});
+  const [contactReplySending, setContactReplySending] = useState<number | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -3344,7 +3370,7 @@ export default function App() {
         if (invReqRes.ok) setAdminInvestorRequests(await invReqRes.json());
         if (resaleListingsRes.ok) setAdminResaleListings(await resaleListingsRes.json());
         if (appointmentsRes.ok) setAdminAppointments(await appointmentsRes.json());
-        if (auditRes.ok) setAdminAuditLogs(await auditRes.json());
+        if (auditRes.ok) { try { const data = await auditRes.json(); setAdminAuditLogs(Array.isArray(data) ? data : []); } catch { setAdminAuditLogs([]); } } else { setAdminAuditLogs([]); }
         if (revenueRes.ok) setAdminRevenue(await revenueRes.json());
         if (cashflowRes.ok) setAdminCashflow(await cashflowRes.json());
         if (resaleRevRes.ok) setAdminResaleRevenue(await resaleRevRes.json());
@@ -8501,15 +8527,34 @@ export default function App() {
                           <FileDown className="w-3 h-3" /> CSV
                         </Button>
                       </div>
-                      <div className="space-y-3 max-h-56 overflow-y-auto">
+                      <div className="space-y-3 max-h-[28rem] overflow-y-auto">
                         {adminContactRequests.map((req: any) => (
-                          <div key={req.id} className="py-2 border-b border-zinc-800 last:border-0">
+                          <div key={req.id} className="py-3 px-3 border border-zinc-800 rounded-xl bg-zinc-900/30">
                             <div className="flex justify-between items-start gap-2">
                               <span className="text-sm font-medium text-zinc-200">{req.name}</span>
                               <span className="text-xs text-zinc-500 shrink-0">{new Date(req.created_at).toLocaleString('de-DE')}</span>
                             </div>
                             <p className="text-xs text-zinc-500">{req.email}{req.subject ? ` · ${req.subject}` : ''}</p>
                             <p className="text-sm text-zinc-400 mt-1 whitespace-pre-wrap">{req.message}</p>
+                            {req.admin_reply && (
+                              <div className="mt-3 pt-3 border-t border-zinc-800">
+                                <p className="text-[10px] uppercase tracking-widest text-amber-500/80 mb-1">{t('admin.your_reply') || 'Ihre Antwort'}{req.admin_replied_at ? ` · ${new Date(req.admin_replied_at).toLocaleString('de-DE')}` : ''}</p>
+                                <p className="text-sm text-zinc-300 whitespace-pre-wrap">{req.admin_reply}</p>
+                              </div>
+                            )}
+                            <div className="mt-3">
+                              <textarea placeholder={t('admin.reply_placeholder') || 'Antwort an den Kunden…'} id={`contact-reply-${req.id}`} rows={2} className="w-full bg-zinc-900/50 border border-zinc-700 rounded-lg py-2 px-3 text-zinc-200 text-sm placeholder-zinc-500" defaultValue={req.admin_reply || ''} />
+                              <Button variant="outline" className="mt-2 text-xs" disabled={loading} onClick={async () => {
+                                const textarea = document.getElementById(`contact-reply-${req.id}`) as HTMLTextAreaElement;
+                                const reply = textarea?.value?.trim() || '';
+                                setLoading(true);
+                                try {
+                                  const res = await fetch(`/api/admin/contact-requests/${req.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reply }), credentials: 'include' });
+                                  const data = await res.json().catch(() => ({}));
+                                  if (res.ok) { notifyUser(data.emailSent ? (t('admin.reply_saved_email') || 'Antwort gespeichert und an den Kunden gesendet.') : (t('admin.reply_saved') || 'Antwort gespeichert.'), 'success'); fetchData(); } else notifyUser(data.error || t('errors.generic'), 'error');
+                                } finally { setLoading(false); }
+                              }}>{t('admin.send_reply') || 'Antwort speichern'}</Button>
+                            </div>
                           </div>
                         ))}
                         {(!adminContactRequests || adminContactRequests.length === 0) && <p className="text-zinc-600 text-sm">{t('admin.no_contact_requests')}</p>}
@@ -8518,22 +8563,33 @@ export default function App() {
                   </section>
 
                   <section className="space-y-4 lg:col-span-2">
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center flex-wrap gap-2">
                       <h3 className="text-xl font-serif italic">{t('admin.audit_log')}</h3>
-                      <Button variant="outline" className="text-xs" onClick={async () => {
-                        const logs = adminAuditLogs.length ? adminAuditLogs : await (await fetch('/api/admin/audit-logs?limit=500')).json();
+                      <div className="flex gap-2">
+                        <Button variant="ghost" className="text-xs text-zinc-400" onClick={async () => {
+                          const r = await fetch('/api/admin/audit-logs?limit=500', { credentials: 'include' });
+                          if (r.ok) { const data = await r.json().catch(() => []); setAdminAuditLogs(Array.isArray(data) ? data : []); }
+                        }}>{t('admin.audit_refresh') || 'Aktualisieren'}</Button>
+                        <Button variant="outline" className="text-xs" onClick={async () => {
+                        const r = await fetch('/api/admin/audit-logs?limit=500', { credentials: 'include' });
+                        const list = r.ok ? (await r.json().catch(() => [])) : [];
+                        const logs = Array.isArray(list) ? list : [];
+                        if (logs.length > 0) setAdminAuditLogs(logs);
                         const headers = [t('admin.audit_time'), t('admin.audit_admin'), t('admin.audit_action'), t('admin.audit_target'), t('admin.audit_details')];
-                        const rows = (Array.isArray(logs) ? logs : []).map((log: any) => [
-                          new Date(log.created_at).toISOString(),
+                        const rows = logs.map((log: any) => [
+                          new Date(log.created_at || 0).toISOString(),
                           (log.admin_name ?? '').replace(/"/g, '""'),
                           (log.action ?? '').replace(/"/g, '""'),
                           String(log.target_id ?? ''),
                           (log.details ?? '').replace(/"/g, '""')
                         ]);
-                        const csv = [headers.join(','), ...rows.map((r: string[]) => r.map(c => `"${c}"`).join(','))].join('\n');
+                        const csv = [headers.join(','), ...rows.map((row: string[]) => row.map(c => `"${c}"`).join(','))].join('\n');
                         const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
-                        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'audit-log.csv'; a.click(); URL.revokeObjectURL(a.href);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url; a.download = 'audit-log.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                        notifyUser(logs.length ? (t('admin.audit_exported') || 'Audit-Log exportiert.') : (t('admin.audit_export_empty') || 'Keine Einträge zum Exportieren.'), 'success');
                       }}>{t('admin.audit_export_csv')}</Button>
+                      </div>
                     </div>
                     <div className="overflow-x-auto max-h-64 overflow-y-auto rounded-xl border border-zinc-800">
                       <table className="w-full text-left text-sm">
