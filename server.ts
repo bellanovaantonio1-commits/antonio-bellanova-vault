@@ -3030,12 +3030,25 @@ app.post("/api/admin/contracts/regenerate", (req, res) => {
 
 app.get("/api/admin/audit-logs", requireAuth, requireAdmin, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
-  const rows = db.prepare(`
-    SELECT al.*, u.name as admin_name FROM audit_logs al
-    LEFT JOIN users u ON al.admin_id = u.id
-    ORDER BY al.created_at DESC LIMIT ?
-  `).all(limit);
+  const action = typeof req.query.action === 'string' ? req.query.action.trim() : null;
+  const adminId = req.query.admin_id ? Number(req.query.admin_id) : null;
+  const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : null;
+  const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : null;
+  let sql = `SELECT al.*, u.name as admin_name FROM audit_logs al LEFT JOIN users u ON al.admin_id = u.id WHERE 1=1`;
+  const params: any[] = [];
+  if (action) { sql += ` AND al.action = ?`; params.push(action); }
+  if (adminId) { sql += ` AND al.admin_id = ?`; params.push(adminId); }
+  if (dateFrom) { sql += ` AND al.created_at >= ?`; params.push(dateFrom + ' 00:00:00'); }
+  if (dateTo) { sql += ` AND al.created_at <= ?`; params.push(dateTo + ' 23:59:59'); }
+  sql += ` ORDER BY al.created_at DESC LIMIT ?`;
+  params.push(limit);
+  const rows = db.prepare(sql).all(...params);
   res.json(rows);
+});
+
+app.get("/api/admin/audit-logs/actions", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare("SELECT DISTINCT action FROM audit_logs WHERE action IS NOT NULL ORDER BY action").all() as { action: string }[];
+  res.json(rows.map(r => r.action));
 });
 
 app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, (req, res) => {
@@ -3129,6 +3142,36 @@ app.post("/api/admin/contact-requests/:id/reply", async (req, res) => {
     return res.json({ success: true, emailSent: !!emailSent });
   }
   res.json({ success: true });
+});
+
+app.post("/api/admin/newsletter", async (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { subject, message, recipientType, recipientIds } = req.body || {};
+  if (!subject || !message) return res.status(400).json({ error: "subject and message required" });
+  let users: { id: number; email: string; name: string }[] = [];
+  if (Array.isArray(recipientIds) && recipientIds.length > 0) {
+    users = db.prepare("SELECT id, email, name FROM users WHERE id IN (" + recipientIds.map(() => '?').join(',') + ") AND COALESCE(status,'') = 'approved'").all(...recipientIds) as any[];
+  } else {
+    const type = recipientType || 'all_approved';
+    if (type === 'all') users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
+    else if (type === 'investors') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'investor' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
+    else if (type === 'clients') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'client' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
+    else if (type === 'vip') users = db.prepare("SELECT id, email, name FROM users WHERE (role = 'vip' OR is_vip = 1) AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
+    else users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND role NOT IN ('admin','super_admin')").all() as any[];
+  }
+  let sent = 0;
+  const text = message.replace(/<[^>]+>/g, '');
+  const html = message.replace(/\n/g, '<br>');
+  for (const u of users) {
+    if (u.email && u.email.trim()) {
+      const ok = await sendMail(u.email.trim(), subject, text, html);
+      if (ok) sent++;
+    }
+  }
+  try { logAudit(adminId, 'NEWSLETTER_SENT', String(users.length), `sent=${sent} total=${users.length} subject="${(subject || '').slice(0, 50)}"`); } catch (_) {}
+  res.json({ success: true, sent, total: users.length });
 });
 
 app.patch("/api/admin/service-requests/:id", (req, res) => {

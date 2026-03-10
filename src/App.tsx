@@ -697,6 +697,11 @@ const TRANSLATIONS: any = {
     "admin.audit_exported": "Audit-Log exportiert.",
     "admin.audit_export_empty": "Keine Einträge zum Exportieren.",
     "admin.audit_refresh": "Aktualisieren",
+    "admin.audit_filter_action": "Aktion",
+    "admin.audit_filter_admin": "Admin",
+    "admin.audit_filter_from": "Von",
+    "admin.audit_filter_to": "Bis",
+    "admin.audit_apply_filter": "Filter anwenden",
     "admin.audit_time": "Zeit",
     "admin.audit_admin": "Admin",
     "admin.audit_action": "Aktion",
@@ -2665,6 +2670,8 @@ export default function App() {
   const [adminResaleListings, setAdminResaleListings] = useState<any[]>([]);
   const [adminAppointments, setAdminAppointments] = useState<Appointment[]>([]);
   const [adminAuditLogs, setAdminAuditLogs] = useState<any[]>([]);
+  const [auditFilter, setAuditFilter] = useState<{ action: string; admin_id: string; dateFrom: string; dateTo: string }>({ action: '', admin_id: '', dateFrom: '', dateTo: '' });
+  const [auditActions, setAuditActions] = useState<string[]>([]);
   const [adminRevenue, setAdminRevenue] = useState<any>(null);
   const [adminCashflow, setAdminCashflow] = useState<any>(null);
   const [adminResaleRevenue, setAdminResaleRevenue] = useState<any>(null);
@@ -2675,6 +2682,8 @@ export default function App() {
   const [appointmentModalRequest, setAppointmentModalRequest] = useState<any>(null);
   const [appointmentScheduleForm, setAppointmentScheduleForm] = useState({ date: '', time: '09:00', title: '', notes: '' });
   const [newAppointmentForm, setNewAppointmentForm] = useState({ userId: '', date: '', time: '09:00', title: '', notes: '' });
+  const [appointmentViewMode, setAppointmentViewMode] = useState<'list' | 'calendar'>('list');
+  const [appointmentCalendarMonth, setAppointmentCalendarMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [deletePieceConfirm, setDeletePieceConfirm] = useState<{ piece: Masterpiece; password: string; error: string } | null>(null);
   const [editingPiece, setEditingPiece] = useState<(Masterpiece & { description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string }) | null>(null);
   const [editPieceForm, setEditPieceForm] = useState<Record<string, any>>({});
@@ -3371,6 +3380,7 @@ export default function App() {
         if (resaleListingsRes.ok) setAdminResaleListings(await resaleListingsRes.json());
         if (appointmentsRes.ok) setAdminAppointments(await appointmentsRes.json());
         if (auditRes.ok) { try { const data = await auditRes.json(); setAdminAuditLogs(Array.isArray(data) ? data : []); } catch { setAdminAuditLogs([]); } } else { setAdminAuditLogs([]); }
+        fetch('/api/admin/audit-logs/actions', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then((a: string[]) => setAuditActions(Array.isArray(a) ? a : []));
         if (revenueRes.ok) setAdminRevenue(await revenueRes.json());
         if (cashflowRes.ok) setAdminCashflow(await cashflowRes.json());
         if (resaleRevRes.ok) setAdminResaleRevenue(await resaleRevRes.json());
@@ -6373,6 +6383,33 @@ export default function App() {
                   </Card>
                 </div>
 
+                {/* Portfolio Allocation Chart */}
+                {myFractionalShares.length > 0 && (() => {
+                  const total = myFractionalShares.reduce((sum: number, s: any) => sum + Number(s.value ?? 0), 0);
+                  return (
+                    <Card className="p-6 border-amber-500/20 bg-zinc-900/50">
+                      <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('asset.portfolio_allocation') || 'Portfolio-Verteilung'}</h3>
+                      <div className="space-y-3">
+                        {myFractionalShares.map((s: any) => {
+                          const val = Number(s.value ?? 0);
+                          const pct = total > 0 ? (val / total) * 100 : 0;
+                          return (
+                            <div key={s.id} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-zinc-300 truncate max-w-[60%]">{s.title}</span>
+                                <span className="text-amber-500/90 font-medium shrink-0">{(val).toLocaleString('de-DE')} € ({pct.toFixed(1)}%)</span>
+                              </div>
+                              <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                <div className="h-full bg-amber-500/70 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, pct)}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  );
+                })()}
+
                 {myFractionalShares.length > 0 && (
                   <Card className="p-6 border-amber-500/20 bg-zinc-900/50">
                     <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('asset.my_investments')}</h3>
@@ -8024,7 +8061,13 @@ export default function App() {
 
                   {(adminTab === 'appointments') && (
                   <section className="space-y-4 lg:col-span-2">
-                    <h3 className="text-xl font-serif italic">{t('admin.appointments')}</h3>
+                    <div className="flex justify-between items-center flex-wrap gap-2">
+                      <h3 className="text-xl font-serif italic">{t('admin.appointments')}</h3>
+                      <div className="flex gap-2">
+                        <Button variant={appointmentViewMode === 'list' ? 'primary' : 'ghost'} className="text-xs" onClick={() => setAppointmentViewMode('list')}>{t('admin.view_list') || 'Liste'}</Button>
+                        <Button variant={appointmentViewMode === 'calendar' ? 'primary' : 'ghost'} className="text-xs" onClick={() => setAppointmentViewMode('calendar')}>{t('admin.view_calendar') || 'Kalender'}</Button>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <p className="text-xs uppercase tracking-widest text-zinc-500 font-bold">{t('admin.schedule_appointment')}</p>
@@ -8059,17 +8102,52 @@ export default function App() {
                           <Button variant="outline" className="w-full py-2 text-sm" onClick={handleCreateAppointmentFromForm}>{t('admin.schedule_appointment')}</Button>
                         </Card>
                       </div>
-                      <div className="space-y-3">
-                        {adminAppointments.map(a => (
-                          <Card key={a.id} className="p-3 flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-medium text-zinc-200">{(a as any).user_name} · {(a as any).admin_name}</p>
-                              <p className="text-xs text-zinc-500">{new Date(a.scheduled_at).toLocaleString()} {a.title && `· ${a.title}`}</p>
-                            </div>
-                            <Badge variant={a.status === 'confirmed' ? 'emerald' : a.status === 'cancelled' ? 'red' : 'amber'}>{a.status}</Badge>
-                          </Card>
-                        ))}
-                        {adminAppointments.length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_appointments')}</p>}
+                      {appointmentViewMode === 'list' ? (
+                        <div className="space-y-3">
+                          {adminAppointments.map(a => (
+                            <Card key={a.id} className="p-3 flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-medium text-zinc-200">{(a as any).user_name} · {(a as any).admin_name}</p>
+                                <p className="text-xs text-zinc-500">{new Date(a.scheduled_at).toLocaleString()} {a.title && `· ${a.title}`}</p>
+                              </div>
+                              <Badge variant={a.status === 'confirmed' ? 'emerald' : a.status === 'cancelled' ? 'red' : 'amber'}>{a.status}</Badge>
+                            </Card>
+                          ))}
+                          {adminAppointments.length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_appointments')}</p>}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <input type="month" value={appointmentCalendarMonth} onChange={e => setAppointmentCalendarMonth(e.target.value)} className="bg-zinc-900/50 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-sm" />
+                          </div>
+                          <div className="grid grid-cols-7 gap-1 text-center text-[10px] text-zinc-500 uppercase">
+                            {['Mo','Di','Mi','Do','Fr','Sa','So'].map(d => <span key={d}>{d}</span>)}
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {(() => {
+                              const [y, m] = appointmentCalendarMonth.split('-').map(Number);
+                              const first = new Date(y, m - 1, 1);
+                              const last = new Date(y, m, 0);
+                              const startPad = (first.getDay() + 6) % 7;
+                              const days: (number | null)[] = [...Array(startPad).fill(null), ...Array(last.getDate()).fill(0).map((_, i) => i + 1)];
+                              const byDate: Record<string, any[]> = {};
+                              adminAppointments.forEach(a => {
+                                const d = new Date(a.scheduled_at);
+                                if (d.getFullYear() === y && d.getMonth() === m - 1) {
+                                  const key = String(d.getDate());
+                                  if (!byDate[key]) byDate[key] = [];
+                                  byDate[key].push(a);
+                                }
+                              });
+                              return days.map((d, i) => (
+                                <div key={i} className={`min-h-[4rem] p-1 rounded-lg border ${d ? 'border-zinc-800 bg-zinc-900/30' : 'border-transparent'}`}>
+                                  {d && <><span className="text-zinc-400 text-xs">{d}</span>{(byDate[String(d)] || []).map(a => <div key={a.id} className="mt-0.5 truncate text-[10px] text-amber-500/90" title={`${(a as any).user_name} ${a.title || ''}`}>{(a as any).user_name}</div>)}</>}
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        </div>
+                      )}
                       </div>
                     </div>
                   </section>
@@ -8560,18 +8638,64 @@ export default function App() {
                         {(!adminContactRequests || adminContactRequests.length === 0) && <p className="text-zinc-600 text-sm">{t('admin.no_contact_requests')}</p>}
                       </div>
                     </Card>
+                    <Card className="p-4 mt-4">
+                      <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest mb-3">{t('admin.newsletter') || 'Newsletter / Bulk-E-Mail'}</h4>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.newsletter_subject') || 'Betreff'}</label>
+                          <input type="text" id="newsletter-subject" placeholder={t('admin.newsletter_subject_placeholder') || 'z. B. Neue Kollektion'} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.newsletter_message') || 'Nachricht'}</label>
+                          <textarea id="newsletter-message" rows={4} placeholder={t('admin.newsletter_message_placeholder') || 'Ihre Nachricht…'} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">{t('admin.newsletter_recipients') || 'Empfänger'}</label>
+                          <select id="newsletter-recipients" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm">
+                            <option value="all_approved">{t('admin.newsletter_all_approved') || 'Alle genehmigten Nutzer'}</option>
+                            <option value="investors">{t('admin.newsletter_investors') || 'Nur Investoren'}</option>
+                            <option value="clients">{t('admin.newsletter_clients') || 'Nur Kunden (Client)'}</option>
+                            <option value="vip">{t('admin.newsletter_vip') || 'Nur VIP'}</option>
+                            <option value="all">{t('admin.newsletter_all') || 'Alle (inkl. Admin)'}</option>
+                          </select>
+                        </div>
+                        <Button variant="outline" className="text-sm" disabled={loading} onClick={async () => {
+                          const subject = (document.getElementById('newsletter-subject') as HTMLInputElement)?.value?.trim();
+                          const message = (document.getElementById('newsletter-message') as HTMLTextAreaElement)?.value?.trim();
+                          if (!subject || !message) { notifyUser(t('admin.newsletter_fill') || 'Betreff und Nachricht erforderlich.', 'error'); return; }
+                          setLoading(true);
+                          try {
+                            const res = await fetch('/api/admin/newsletter', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, message, recipientType: (document.getElementById('newsletter-recipients') as HTMLSelectElement)?.value || 'all_approved' }), credentials: 'include' });
+                            const data = await res.json().catch(() => ({}));
+                            if (res.ok) notifyUser(t('admin.newsletter_sent') || `${data.sent ?? 0} von ${data.total ?? 0} E-Mails gesendet.`, 'success');
+                            else notifyUser(data.error || t('errors.generic'), 'error');
+                          } finally { setLoading(false); }
+                        }}>{t('admin.newsletter_send') || 'Senden'}</Button>
+                      </div>
+                    </Card>
                   </section>
 
                   <section className="space-y-4 lg:col-span-2">
-                    <div className="flex justify-between items-center flex-wrap gap-2">
-                      <h3 className="text-xl font-serif italic">{t('admin.audit_log')}</h3>
-                      <div className="flex gap-2">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-between items-center flex-wrap gap-2">
+                        <h3 className="text-xl font-serif italic">{t('admin.audit_log')}</h3>
+                        <div className="flex gap-2">
                         <Button variant="ghost" className="text-xs text-zinc-400" onClick={async () => {
-                          const r = await fetch('/api/admin/audit-logs?limit=500', { credentials: 'include' });
+                          const q = new URLSearchParams({ limit: '500' });
+                          if (auditFilter.action) q.set('action', auditFilter.action);
+                          if (auditFilter.admin_id) q.set('admin_id', auditFilter.admin_id);
+                          if (auditFilter.dateFrom) q.set('dateFrom', auditFilter.dateFrom);
+                          if (auditFilter.dateTo) q.set('dateTo', auditFilter.dateTo);
+                          const r = await fetch(`/api/admin/audit-logs?${q}`, { credentials: 'include' });
                           if (r.ok) { const data = await r.json().catch(() => []); setAdminAuditLogs(Array.isArray(data) ? data : []); }
                         }}>{t('admin.audit_refresh') || 'Aktualisieren'}</Button>
                         <Button variant="outline" className="text-xs" onClick={async () => {
-                        const r = await fetch('/api/admin/audit-logs?limit=500', { credentials: 'include' });
+                        const q = new URLSearchParams({ limit: '500' });
+                        if (auditFilter.action) q.set('action', auditFilter.action);
+                        if (auditFilter.admin_id) q.set('admin_id', auditFilter.admin_id);
+                        if (auditFilter.dateFrom) q.set('dateFrom', auditFilter.dateFrom);
+                        if (auditFilter.dateTo) q.set('dateTo', auditFilter.dateTo);
+                        const r = await fetch(`/api/admin/audit-logs?${q}`, { credentials: 'include' });
                         const list = r.ok ? (await r.json().catch(() => [])) : [];
                         const logs = Array.isArray(list) ? list : [];
                         if (logs.length > 0) setAdminAuditLogs(logs);
@@ -8590,6 +8714,39 @@ export default function App() {
                         notifyUser(logs.length ? (t('admin.audit_exported') || 'Audit-Log exportiert.') : (t('admin.audit_export_empty') || 'Keine Einträge zum Exportieren.'), 'success');
                       }}>{t('admin.audit_export_csv')}</Button>
                       </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2 items-end p-3 bg-zinc-900/30 rounded-xl border border-zinc-800">
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-0.5">{t('admin.audit_filter_action') || 'Aktion'}</label>
+                        <select value={auditFilter.action} onChange={e => setAuditFilter(f => ({ ...f, action: e.target.value }))} className="bg-zinc-900/50 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs min-w-[140px]">
+                          <option value="">—</option>
+                          {auditActions.map(a => <option key={a} value={a}>{a}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-0.5">{t('admin.audit_filter_admin') || 'Admin'}</label>
+                        <select value={auditFilter.admin_id} onChange={e => setAuditFilter(f => ({ ...f, admin_id: e.target.value }))} className="bg-zinc-900/50 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs min-w-[140px]">
+                          <option value="">—</option>
+                          {allUsers.filter((u: any) => u.role === 'admin' || u.role === 'super_admin').map((u: any) => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-0.5">{t('admin.audit_filter_from') || 'Von'}</label>
+                        <input type="date" value={auditFilter.dateFrom} onChange={e => setAuditFilter(f => ({ ...f, dateFrom: e.target.value }))} className="bg-zinc-900/50 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-zinc-500 mb-0.5">{t('admin.audit_filter_to') || 'Bis'}</label>
+                        <input type="date" value={auditFilter.dateTo} onChange={e => setAuditFilter(f => ({ ...f, dateTo: e.target.value }))} className="bg-zinc-900/50 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs" />
+                      </div>
+                      <Button variant="ghost" className="text-xs" onClick={async () => {
+                        const q = new URLSearchParams({ limit: '500' });
+                        if (auditFilter.action) q.set('action', auditFilter.action);
+                        if (auditFilter.admin_id) q.set('admin_id', auditFilter.admin_id);
+                        if (auditFilter.dateFrom) q.set('dateFrom', auditFilter.dateFrom);
+                        if (auditFilter.dateTo) q.set('dateTo', auditFilter.dateTo);
+                        const r = await fetch(`/api/admin/audit-logs?${q}`, { credentials: 'include' });
+                        if (r.ok) { const data = await r.json().catch(() => []); setAdminAuditLogs(Array.isArray(data) ? data : []); }
+                      }}>{t('admin.audit_apply_filter') || 'Filter anwenden'}</Button>
                     </div>
                     <div className="overflow-x-auto max-h-64 overflow-y-auto rounded-xl border border-zinc-800">
                       <table className="w-full text-left text-sm">
@@ -9126,7 +9283,7 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
                     <div className="space-y-6">
                       <div className="aspect-square bg-zinc-900 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center p-8">
                         <div className="w-32 h-32 bg-white p-2 rounded-xl mb-4">
-                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://vault.bellanova.com/verify/${selectedCert.cert_id}`} alt="Verification QR" className="w-full h-full" />
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${typeof window !== 'undefined' ? window.location.origin + (window.location.pathname || '/') : ''}#/verify/${selectedCert.cert_id}`)}`} alt="Verification QR" className="w-full h-full" />
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-zinc-600 text-center">{t('scan_verify')}</p>
                       </div>
