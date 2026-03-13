@@ -143,3 +143,24 @@ pm2 save && pm2 startup
 | Nginx neu laden | Nach Konfigurationsänderung: `sudo nginx -t && sudo systemctl reload nginx`. |
 
 Sobald der Node-Server läuft und nginx auf den richtigen Port weiterleitet, verschwindet der 502-Fehler.
+
+---
+
+## 6. Health-Check nutzen („immer noch 502?“)
+
+Die App bietet zwei Endpunkte ohne Anmeldung:
+
+- **https://vault.antoniobellanova.com/api/health**
+- **https://vault.antoniobellanova.com/health**
+
+**Test:**
+
+1. Auf dem **Server** (per SSH) prüfen, ob die Node-App überhaupt antwortet:
+   ```bash
+   curl -s http://127.0.0.1:3000/health
+   ```
+   Erwartung: `{"ok":true,"service":"Antonio Bellanova Vault","ts":"..."}`
+
+2. **Antwort kommt:** Node läuft. Dann liegt der 502 sehr wahrscheinlich an der Nginx-Konfiguration (falscher Port, falscher `proxy_pass`, Timeout). Nginx-Config und `proxy_pass` prüfen.
+
+3. **Keine Antwort / Verbindung verweigert:** Node-App läuft nicht oder nicht auf Port 3000. App starten (z. B. `npm run start` oder systemd/PM2), Logs prüfen und ggf. `PORT` in der Nginx-Config anpassen.

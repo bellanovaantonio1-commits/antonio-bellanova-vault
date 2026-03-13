@@ -1946,38 +1946,39 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. P.IVA: DE457682154. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
     },
   },
-  fr: {
-    deposit: { title: 'Accord d\'acompte', body: (CONTRACT_BODIES.en as any).deposit.body },
-    invoice: { title: 'Facture finale', body: (CONTRACT_BODIES.en as any).invoice.body },
-    certificate: { title: 'Certificat d\'authenticité', body: (CONTRACT_BODIES.en as any).certificate.body },
-    vip: { title: 'Accord de membership VIP', body: (CONTRACT_BODIES.en as any).vip.body },
-    fractional: { title: 'Accord de propriété fractionnée', body: (CONTRACT_BODIES.en as any).fractional.body },
-    deposit_resale: { title: 'Accord d\'acompte – Revente', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
-  },
-  es: {
-    deposit: { title: 'Acuerdo de depósito', body: (CONTRACT_BODIES.en as any).deposit.body },
-    invoice: { title: 'Factura final', body: (CONTRACT_BODIES.en as any).invoice.body },
-    certificate: { title: 'Certificado de autenticidad', body: (CONTRACT_BODIES.en as any).certificate.body },
-    vip: { title: 'Acuerdo de membresía VIP', body: (CONTRACT_BODIES.en as any).vip.body },
-    fractional: { title: 'Acuerdo de propiedad fraccionada', body: (CONTRACT_BODIES.en as any).fractional.body },
-    deposit_resale: { title: 'Acuerdo de depósito – Reventa', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
-  },
-  pt: {
-    deposit: { title: 'Acordo de depósito', body: (CONTRACT_BODIES.en as any).deposit.body },
-    invoice: { title: 'Fatura final', body: (CONTRACT_BODIES.en as any).invoice.body },
-    certificate: { title: 'Certificado de autenticidade', body: (CONTRACT_BODIES.en as any).certificate.body },
-    vip: { title: 'Acordo de adesão VIP', body: (CONTRACT_BODIES.en as any).vip.body },
-    fractional: { title: 'Acordo de propriedade fracionada', body: (CONTRACT_BODIES.en as any).fractional.body },
-    deposit_resale: { title: 'Acordo de depósito – Revenda', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
-  },
-  ar: {
-    deposit: { title: 'اتفاقية الدفع المسبق', body: (CONTRACT_BODIES.en as any).deposit.body },
-    invoice: { title: 'الفاتورة النهائية', body: (CONTRACT_BODIES.en as any).invoice.body },
-    certificate: { title: 'شهادة الأصالة', body: (CONTRACT_BODIES.en as any).certificate.body },
-    vip: { title: 'اتفاقية عضوية VIP', body: (CONTRACT_BODIES.en as any).vip.body },
-    fractional: { title: 'اتفاقية الملكية الجزئية', body: (CONTRACT_BODIES.en as any).fractional.body },
-    deposit_resale: { title: 'اتفاقية الدفع المسبق – إعادة البيع', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
-  },
+};
+const enBodies = CONTRACT_BODIES.en;
+(CONTRACT_BODIES as any).fr = {
+  deposit: { title: 'Accord d\'acompte', body: enBodies.deposit.body },
+  invoice: { title: 'Facture finale', body: enBodies.invoice.body },
+  certificate: { title: 'Certificat d\'authenticité', body: enBodies.certificate.body },
+  vip: { title: 'Accord de membership VIP', body: enBodies.vip.body },
+  fractional: { title: 'Accord de propriété fractionnée', body: enBodies.fractional.body },
+  deposit_resale: { title: 'Accord d\'acompte – Revente', body: enBodies.deposit_resale.body },
+};
+(CONTRACT_BODIES as any).es = {
+  deposit: { title: 'Acuerdo de depósito', body: enBodies.deposit.body },
+  invoice: { title: 'Factura final', body: enBodies.invoice.body },
+  certificate: { title: 'Certificado de autenticidad', body: enBodies.certificate.body },
+  vip: { title: 'Acuerdo de membresía VIP', body: enBodies.vip.body },
+  fractional: { title: 'Acuerdo de propiedad fraccionada', body: enBodies.fractional.body },
+  deposit_resale: { title: 'Acuerdo de depósito – Reventa', body: enBodies.deposit_resale.body },
+};
+(CONTRACT_BODIES as any).pt = {
+  deposit: { title: 'Acordo de depósito', body: enBodies.deposit.body },
+  invoice: { title: 'Fatura final', body: enBodies.invoice.body },
+  certificate: { title: 'Certificado de autenticidade', body: enBodies.certificate.body },
+  vip: { title: 'Acordo de adesão VIP', body: enBodies.vip.body },
+  fractional: { title: 'Acordo de propriedade fracionada', body: enBodies.fractional.body },
+  deposit_resale: { title: 'Acordo de depósito – Revenda', body: enBodies.deposit_resale.body },
+};
+(CONTRACT_BODIES as any).ar = {
+  deposit: { title: 'اتفاقية الدفع المسبق', body: enBodies.deposit.body },
+  invoice: { title: 'الفاتورة النهائية', body: enBodies.invoice.body },
+  certificate: { title: 'شهادة الأصالة', body: enBodies.certificate.body },
+  vip: { title: 'اتفاقية عضوية VIP', body: enBodies.vip.body },
+  fractional: { title: 'اتفاقية الملكية الجزئية', body: enBodies.fractional.body },
+  deposit_resale: { title: 'اتفاقية الدفع المسبق – إعادة البيع', body: enBodies.deposit_resale.body },
 };
 
 function applyContractVars(template: string, vars: Record<string, string | number>): string {
@@ -2284,6 +2285,16 @@ function calculateRarityScore(masterpieceId: number) {
 }
 
 // --- API Routes ---
+
+// Health-Check (für Nginx/502-Diagnose: wenn dieser Endpunkt antwortet, läuft die Node-App)
+app.get("/api/health", (_req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
+});
+app.get("/health", (_req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
+});
 
 // Auth
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
