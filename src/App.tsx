@@ -659,6 +659,7 @@ const TRANSLATIONS: any = {
     "maintenance.on": "Wartungsmodus aktiviert",
     "maintenance.off": "Wartungsmodus deaktiviert",
     "maintenance.try_again": "Erneut prüfen",
+    "maintenance.admin_login": "Als Admin anmelden",
     "errors.invalid_credentials": "Ungültige Anmeldedaten.",
     "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
@@ -1335,6 +1336,7 @@ const TRANSLATIONS: any = {
     "maintenance.on": "Maintenance mode enabled",
     "maintenance.off": "Maintenance mode disabled",
     "maintenance.try_again": "Check again",
+    "maintenance.admin_login": "Admin login",
     "errors.invalid_credentials": "Invalid credentials.",
     "errors.cert_failed": "Failed to generate certificate.",
     "errors.piece_create_failed": "Failed to create masterpiece.",
@@ -2117,7 +2119,8 @@ const TRANSLATIONS: any = {
     "maintenance.message": "Torneremo presto. Riprova più tardi.",
     "maintenance.on": "Modalità manutenzione attivata",
     "maintenance.off": "Modalità manutenzione disattivata",
-    "maintenance.try_again": "Riprova"
+    "maintenance.try_again": "Riprova",
+    "maintenance.admin_login": "Accesso admin"
   },
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
@@ -4708,9 +4711,18 @@ export default function App() {
           </div>
           <h1 className="text-2xl font-serif italic text-zinc-100">{t('maintenance.title')}</h1>
           <p className="text-zinc-400">{t('maintenance.message')}</p>
-          <Button variant="outline" className="border-zinc-600 text-zinc-300 hover:bg-zinc-800" onClick={refetchMaintenance}>
-            {t('maintenance.try_again')}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Button variant="outline" className="border-zinc-600 text-zinc-300 hover:bg-zinc-800" onClick={refetchMaintenance}>
+              {t('maintenance.try_again')}
+            </Button>
+            <button
+              type="button"
+              onClick={() => { setShowMaintenanceAfterLoginAttempt(false); setView('login'); }}
+              className="text-sm text-amber-500/90 hover:text-amber-400 underline underline-offset-2"
+            >
+              {t('maintenance.admin_login')}
+            </button>
+          </div>
         </div>
       </div>
     );
