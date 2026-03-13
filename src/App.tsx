@@ -2594,6 +2594,7 @@ export default function App() {
   const [adminResaleRevenue, setAdminResaleRevenue] = useState<any>(null);
   const [adminBankConfig, setAdminBankConfig] = useState<any>({});
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
+  const [showMaintenanceAfterLoginAttempt, setShowMaintenanceAfterLoginAttempt] = useState<boolean>(false);
   const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
   const [adminServiceRequests, setAdminServiceRequests] = useState<any[]>([]);
   const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
@@ -3107,6 +3108,9 @@ export default function App() {
     }
     fetch('/api/maintenance').then(r => r.ok ? r.json() : { maintenance: false }).then((d: { maintenance?: boolean }) => setMaintenanceMode(!!d.maintenance)).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!maintenanceMode) setShowMaintenanceAfterLoginAttempt(false);
+  }, [maintenanceMode]);
 
   useEffect(() => {
     if (verifyCertId) {
@@ -3717,10 +3721,17 @@ export default function App() {
         setUser(data);
         setLanguage(data.language);
         setView('dashboard');
+        if (maintenanceMode && (data.role === 'admin' || data.role === UserRole.ADMIN)) {
+          setShowMaintenanceAfterLoginAttempt(false);
+        }
       } else {
-        const msg = (data && data.error) || t('errors.invalid_credentials');
-        setLoginError(msg);
-        notifyUser(msg, 'error');
+        if (maintenanceMode) {
+          setShowMaintenanceAfterLoginAttempt(true);
+        } else {
+          const msg = (data && data.error) || t('errors.invalid_credentials');
+          setLoginError(msg);
+          notifyUser(msg, 'error');
+        }
       }
     } catch (err) {
       const msg = 'Verbindungsfehler. Ist der Server gestartet? (npm run dev)';
@@ -4668,7 +4679,11 @@ export default function App() {
     e.target.value = '';
   };
 
-  if (maintenanceMode && user?.role !== UserRole.ADMIN) {
+  const showMaintenance = maintenanceMode && (
+    showMaintenanceAfterLoginAttempt ||
+    (user != null && user.role !== UserRole.ADMIN)
+  );
+  if (showMaintenance) {
     return (
       <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col items-center justify-center p-6`}>
         <div className="w-full max-w-md text-center space-y-8">
@@ -4959,7 +4974,7 @@ export default function App() {
           ))}
         </div>
         <div className="p-4 border-t border-zinc-900">
-          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); }}>
+          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); }}>
             <LogOut className="w-5 h-5 text-zinc-500" />
             <span className="text-sm text-zinc-400">{t('sign_out')}</span>
           </div>
@@ -4989,7 +5004,7 @@ export default function App() {
                 ))}
               </div>
               <div className="p-4 border-t border-zinc-900">
-                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); closeDrawer(); }}>
+                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); closeDrawer(); }}>
                   <LogOut className="w-5 h-5 text-zinc-500" />
                   <span className="text-sm text-zinc-400">{t('sign_out')}</span>
                 </div>
