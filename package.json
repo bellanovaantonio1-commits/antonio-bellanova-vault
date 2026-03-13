@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=--no-deprecation --disable-warning=DEP0169 tsx server.ts",
-    "build": "vite build",
+    "build": "node scripts/dedupe-translations.cjs && vite build",
     "start": "cross-env NODE_ENV=production tsx server.ts",
     "start:prod": "npm run build && npm run start",
     "preview": "vite preview",

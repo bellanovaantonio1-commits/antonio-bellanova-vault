@@ -648,6 +648,10 @@ const TRANSLATIONS: any = {
     "settings.password_min_length": "Neues Passwort mindestens 6 Zeichen.",
     "settings.password_mismatch": "Passwörter stimmen nicht überein.",
     "concierge.send_request": "Anfrage senden",
+    "maintenance.title": "Plattform wird gewartet",
+    "maintenance.message": "Wir sind in Kürze wieder für Sie da. Bitte versuchen Sie es später erneut.",
+    "maintenance.on": "Wartungsmodus aktiviert",
+    "maintenance.off": "Wartungsmodus deaktiviert",
     "errors.invalid_credentials": "Ungültige Anmeldedaten.",
     "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
@@ -655,6 +659,8 @@ const TRANSLATIONS: any = {
     "errors.generic": "Ein Fehler ist aufgetreten.",
     "admin.bank_config_saved": "Bank-Konfiguration gespeichert.",
     "admin.bank_config_title": "Bank-Konfiguration",
+    "admin.maintenance_mode": "Wartungsmodus",
+    "admin.maintenance_mode_desc": "Kunden sehen eine Wartungsmeldung statt der Plattform.",
     "admin.field_category": "Kategorie",
     "admin.admin_password": "Admin-Passwort",
     "admin.export_auctions_csv": "Auktionen CSV",
@@ -1311,6 +1317,10 @@ const TRANSLATIONS: any = {
     "settings.password_min_length": "New password must be at least 6 characters.",
     "settings.password_mismatch": "Passwords do not match.",
     "concierge.send_request": "Send request",
+    "maintenance.title": "Platform under maintenance",
+    "maintenance.message": "We will be back shortly. Please try again later.",
+    "maintenance.on": "Maintenance mode enabled",
+    "maintenance.off": "Maintenance mode disabled",
     "errors.invalid_credentials": "Invalid credentials.",
     "errors.cert_failed": "Failed to generate certificate.",
     "errors.piece_create_failed": "Failed to create masterpiece.",
@@ -1318,6 +1328,8 @@ const TRANSLATIONS: any = {
     "errors.generic": "Something went wrong.",
     "admin.bank_config_saved": "Bank configuration saved.",
     "admin.bank_config_title": "Bank configuration",
+    "admin.maintenance_mode": "Maintenance mode",
+    "admin.maintenance_mode_desc": "Customers see a maintenance message instead of the platform.",
     "admin.field_category": "Category",
     "admin.admin_password": "Admin password",
     "admin.export_auctions_csv": "Auctions CSV",
@@ -1931,6 +1943,8 @@ const TRANSLATIONS: any = {
     "errors.generic": "Si è verificato un errore.",
     "admin.bank_config_saved": "Configurazione banca salvata.",
     "admin.bank_config_title": "Configurazione banca",
+    "admin.maintenance_mode": "Modalità manutenzione",
+    "admin.maintenance_mode_desc": "I clienti vedono un messaggio di manutenzione al posto della piattaforma.",
     "admin.field_category": "Categoria",
     "admin.admin_password": "Password admin",
     "admin.export_auctions_csv": "Aste CSV",
@@ -2078,7 +2092,11 @@ const TRANSLATIONS: any = {
     "legal.terms": "Termini e condizioni",
     "legal.contact": "Contatto",
     "legal.directions": "Come arrivare",
-    "concierge.send_request": "Invia richiesta"
+    "concierge.send_request": "Invia richiesta",
+    "maintenance.title": "Piattaforma in manutenzione",
+    "maintenance.message": "Torneremo presto. Riprova più tardi.",
+    "maintenance.on": "Modalità manutenzione attivata",
+    "maintenance.off": "Modalità manutenzione disattivata"
   },
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
@@ -2556,6 +2574,7 @@ export default function App() {
   const [adminCashflow, setAdminCashflow] = useState<any>(null);
   const [adminResaleRevenue, setAdminResaleRevenue] = useState<any>(null);
   const [adminBankConfig, setAdminBankConfig] = useState<any>({});
+  const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
   const [adminServiceRequests, setAdminServiceRequests] = useState<any[]>([]);
   const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
@@ -3067,6 +3086,7 @@ export default function App() {
     } else {
       tryMe(0);
     }
+    fetch('/api/maintenance').then(r => r.ok ? r.json() : { maintenance: false }).then((d: { maintenance?: boolean }) => setMaintenanceMode(!!d.maintenance)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -3306,6 +3326,8 @@ export default function App() {
         if (cashflowRes.ok) setAdminCashflow(await cashflowRes.json());
         if (resaleRevRes.ok) setAdminResaleRevenue(await resaleRevRes.json());
         if (bankRes.ok) setAdminBankConfig(await bankRes.json());
+        const maintRes = await fetch('/api/admin/maintenance', { credentials: 'include' });
+        if (maintRes.ok) { const d = await maintRes.json(); setMaintenanceMode(!!d.maintenance); }
         if (gdprRes.ok) setAdminGdprRequests(await gdprRes.json());
         if (fracOffersRes.ok) setAdminFractionalOffers(await fracOffersRes.json());
         const fracAssetsRes = await fetch('/api/admin/fractional-assets', { credentials: 'include' });
@@ -4624,6 +4646,20 @@ export default function App() {
     if (files?.length) processImageFiles(Array.from(files));
     e.target.value = '';
   };
+
+  if (maintenanceMode && user?.role !== UserRole.ADMIN) {
+    return (
+      <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col items-center justify-center p-6`}>
+        <div className="w-full max-w-md text-center space-y-8">
+          <div className="w-20 h-20 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
+            <Wrench className="w-10 h-10 text-amber-500" />
+          </div>
+          <h1 className="text-2xl font-serif italic text-zinc-100">{t('maintenance.title')}</h1>
+          <p className="text-zinc-400">{t('maintenance.message')}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'verify') {
     return (
@@ -8957,6 +8993,15 @@ export default function App() {
                           <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/inventory/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'antonio-bellanova-inventory.csv'; a.click(); }}>{t('admin.export_inventory_csv')}</Button>
                           <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/auctions/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'auctions-export.csv'; a.click(); }}>{t('admin.export_auctions_csv')}</Button>
                           <Button variant="outline" className="text-xs" onClick={async () => { try { const r = await fetch('/api/admin/backup'); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || t('errors.backup_failed')); } const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-vault-${new Date().toISOString().slice(0, 10)}.db`; a.click(); URL.revokeObjectURL(a.href); notifyUser(t('admin.backup_success'), 'success'); } catch (err) { notifyUser(err instanceof Error ? err.message : t('errors.backup_failed'), 'error'); } }}>{t('admin.backup_db')}</Button>
+                        </div>
+                      </Card>
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.maintenance_mode')}</h4>
+                        <div className="flex items-center justify-between gap-4">
+                          <p className="text-sm text-zinc-400">{t('admin.maintenance_mode_desc')}</p>
+                          <button type="button" role="switch" aria-checked={maintenanceMode} onClick={async () => { const next = !maintenanceMode; setMaintenanceMode(next); await fetch('/api/admin/maintenance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ maintenance: next }), credentials: 'include' }); notifyUser(next ? t('maintenance.on') : t('maintenance.off'), 'success'); }} className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 focus:ring-offset-zinc-950 ${maintenanceMode ? 'bg-amber-500' : 'bg-zinc-700'}`}>
+                          <span className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition ${maintenanceMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </button>
                         </div>
                       </Card>
                       <Card className="p-4 space-y-3">

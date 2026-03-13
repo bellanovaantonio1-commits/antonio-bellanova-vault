@@ -1826,6 +1826,7 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "POST", path: "/api/forgot-password" },
   { method: "POST", path: "/api/reset-password" },
   { method: "GET", path: "/api/auth/link" },
+  { method: "GET", path: "/api/maintenance" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -3819,6 +3820,21 @@ app.post("/api/admin/bank-config", (req, res) => {
   const value = JSON.stringify(req.body || {});
   db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
   res.json({ success: true });
+});
+
+// Maintenance mode (public read; admin write)
+app.get("/api/maintenance", (req, res) => {
+  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'").get() as { value?: string } | undefined;
+  res.json({ maintenance: row?.value === "1" });
+});
+app.get("/api/admin/maintenance", requireAuth, requireAdmin, (req, res) => {
+  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'").get() as { value?: string } | undefined;
+  res.json({ maintenance: row?.value === "1" });
+});
+app.post("/api/admin/maintenance", requireAuth, requireAdmin, (req, res) => {
+  const maintenance = req.body?.maintenance === true || req.body?.maintenance === "1";
+  db.prepare("INSERT INTO admin_config (key, value) VALUES ('maintenance_mode', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(maintenance ? "1" : "0");
+  res.json({ maintenance });
 });
 
 // --- Strategic Private Advisor: helpers & RBAC ---
