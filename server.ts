@@ -1201,6 +1201,8 @@ db.exec(`
 try { db.prepare("ALTER TABLE certificates ADD COLUMN status TEXT DEFAULT 'verified_authentic'").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE users ADD COLUMN collector_directory_visible INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE users ADD COLUMN preferred_language TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE notifications ADD COLUMN reference_id TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'unread'").run(); } catch (e) {}
 
 // Imperial Intelligence: Legacy / succession
 db.exec(`
@@ -1867,6 +1869,33 @@ function getContractLang(lang: string | undefined | null): ContractLang {
 }
 
 // Contract body templates per language (placeholders: piece.title, piece.serial_id, piece.valuation, piece.deposit_pct, user.name, depositAmount, balanceDue, regId, blockchainHash, pct)
+const CONTRACT_BODIES_EN = {
+  deposit: {
+    title: 'Deposit Agreement',
+    body: 'This binding instrument confirms the formal reservation of the Masterpiece identified as "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of {{piece.valuation}} EUR.\n\nA non-refundable commitment deposit of {{depositAmount}} EUR ({{depositPct}}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.',
+  },
+  invoice: {
+    title: 'Final Invoice',
+    body: 'FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "{{piece.title}}".\n\nTotal Valuation: {{piece.valuation}} EUR\nDeposit Paid: {{depositPaid}} EUR\nRemaining Balance: {{balanceDue}} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.',
+  },
+  certificate: {
+    title: 'Certificate of Authenticity',
+    body: 'CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "{{piece.title}}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of {{user.name}}.\n\nAsset Specifications:\nSerial Number: {{piece.serial_id}}\nRegistry ID: {{regId}}\nBlockchain Hash: {{blockchainHash}}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.',
+  },
+  vip: {
+    title: 'VIP Membership Agreement',
+    body: 'VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants {{user.name}} VIP membership to the Antonio Bellanova Atelier.\n\nVIP BENEFITS:\n• 48 hour early access to new creations\n• Access to private auctions\n• Concierge service\n• Reduced resale commission (6%)\n• Priority production in the atelier\n• One complimentary annual jewelry cleaning\n• Access to exclusive drops\n\nDuration and cancellation rules as per Platform Terms.',
+  },
+  fractional: {
+    title: 'Fractional Ownership Agreement',
+    body: 'FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants {{user.name}} a {{pct}}% participation in the asset "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.',
+  },
+  deposit_resale: {
+    title: 'Deposit Agreement – Resale (Pre-owned)',
+    body: 'DEPOSIT AGREEMENT – RESALE (PRE-OWNED COLLECTOR PIECE)\n\nSeller: Private seller, brokered via Juwelen & Schmuckatelier Antonio Bellanova (platform/intermediary), Ahorstraße 8, 50765 Cologne. VAT ID: DE457682154.\nBuyer: {{buyerName}}, {{buyerAddress}}.\n\nAsset: Masterpiece "{{piece.title}}" (Serial: {{piece.serial_id}}). This is a pre-owned piece offered for resale via the platform.\n\nTotal purchase price: {{piece.valuation}} EUR. Deposit ({{depositPct}}%): {{depositAmount}} EUR – non-refundable upon execution.\n\nBuyer acknowledges that the asset is purchased as used goods (resale). Warranty may be limited as permitted for used goods under applicable law. The Atelier performs an authenticity and condition check before release; transfer occurs only upon positive verification. Governing law: Germany. Jurisdiction: Cologne.',
+  },
+};
+
 const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body: string }>> = {
   de: {
     deposit: {
@@ -1894,32 +1923,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       body: 'ANZAHLUNGSVERTRAG – WIEDERVERKAUF (GEBRAUCHTES SAMMLERSTÜCK)\n\nVerkäufer: Privatverkäufer, vermittelt über Juwelen & Schmuckatelier Antonio Bellanova (Plattform/Vermittler), Ahorstraße 8, 50765 Köln. USt-IdNr.: DE457682154.\nKäufer: {{buyerName}}, {{buyerAddress}}.\n\nGegenstand: Meisterstück „{{piece.title}}" (Seriennr.: {{piece.serial_id}}). Es handelt sich um ein zuvor in Privatbesitz befindliches, über die Plattform zum Wiederverkauf angebotenes Objekt.\n\nKaufpreis gesamt: {{piece.valuation}} EUR.\nAnzahlung ({{depositPct}} %): {{depositAmount}} EUR – nicht erstattungsfähig bei Vertragsschluss.\n\nDer Käufer erkennt an, dass das Objekt als Gebrauchtware (Wiederverkauf) erworben wird. Die gesetzliche Gewährleistung (§§ 434 ff. BGB) kann bei Gebrauchtwaren wirksam eingeschränkt werden; der Verkäufer haftet für Sach- und Rechtsmängel nur in den gesetzlich zulässigen Grenzen. Das Atelier übernimmt vor Übergabe eine Echtheits- und Zustandsprüfung; die Freigabe zur Übergabe erfolgt nur bei positivem Befund.\n\nVermittlerrolle: Das Atelier handelt als Vermittler und Treuhänder. Der Kaufpreis wird über die Plattform abgewickelt; die Provision des Ateliers ist vom Verkäufer zu tragen. Eigentum und Risiko gehen erst mit verifizierter Übergabe auf den Käufer über.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln. Erfüllungsort: Köln. Salvatorische Klausel: Unwirksame Einzelbestimmungen berühren die übrigen nicht.',
     },
   },
-  en: {
-    deposit: {
-      title: 'Deposit Agreement',
-      body: 'This binding instrument confirms the formal reservation of the Masterpiece identified as "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of {{piece.valuation}} EUR.\n\nA non-refundable commitment deposit of {{depositAmount}} EUR ({{depositPct}}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.',
-    },
-    invoice: {
-      title: 'Final Invoice',
-      body: 'FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "{{piece.title}}".\n\nTotal Valuation: {{piece.valuation}} EUR\nDeposit Paid: {{depositPaid}} EUR\nRemaining Balance: {{balanceDue}} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.',
-    },
-    certificate: {
-      title: 'Certificate of Authenticity',
-      body: 'CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "{{piece.title}}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of {{user.name}}.\n\nAsset Specifications:\nSerial Number: {{piece.serial_id}}\nRegistry ID: {{regId}}\nBlockchain Hash: {{blockchainHash}}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.',
-    },
-    vip: {
-      title: 'VIP Membership Agreement',
-      body: 'VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants {{user.name}} VIP membership to the Antonio Bellanova Atelier.\n\nVIP BENEFITS:\n• 48 hour early access to new creations\n• Access to private auctions\n• Concierge service\n• Reduced resale commission (6%)\n• Priority production in the atelier\n• One complimentary annual jewelry cleaning\n• Access to exclusive drops\n\nDuration and cancellation rules as per Platform Terms.',
-    },
-    fractional: {
-      title: 'Fractional Ownership Agreement',
-      body: 'FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants {{user.name}} a {{pct}}% participation in the asset "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.',
-    },
-    deposit_resale: {
-      title: 'Deposit Agreement – Resale (Pre-owned)',
-      body: 'DEPOSIT AGREEMENT – RESALE (PRE-OWNED COLLECTOR PIECE)\n\nSeller: Private seller, brokered via Juwelen & Schmuckatelier Antonio Bellanova (platform/intermediary), Ahorstraße 8, 50765 Cologne. VAT ID: DE457682154.\nBuyer: {{buyerName}}, {{buyerAddress}}.\n\nAsset: Masterpiece "{{piece.title}}" (Serial: {{piece.serial_id}}). This is a pre-owned piece offered for resale via the platform.\n\nTotal purchase price: {{piece.valuation}} EUR. Deposit ({{depositPct}}%): {{depositAmount}} EUR – non-refundable upon execution.\n\nBuyer acknowledges that the asset is purchased as used goods (resale). Warranty may be limited as permitted for used goods under applicable law. The Atelier performs an authenticity and condition check before release; transfer occurs only upon positive verification. Governing law: Germany. Jurisdiction: Cologne.',
-    },
-  },
+  en: CONTRACT_BODIES_EN,
   it: {
     deposit: {
       title: 'Accordo di acconto',
@@ -1946,39 +1950,38 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. P.IVA: DE457682154. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
     },
   },
-};
-const enBodies = CONTRACT_BODIES.en;
-(CONTRACT_BODIES as any).fr = {
-  deposit: { title: 'Accord d\'acompte', body: enBodies.deposit.body },
-  invoice: { title: 'Facture finale', body: enBodies.invoice.body },
-  certificate: { title: 'Certificat d\'authenticité', body: enBodies.certificate.body },
-  vip: { title: 'Accord de membership VIP', body: enBodies.vip.body },
-  fractional: { title: 'Accord de propriété fractionnée', body: enBodies.fractional.body },
-  deposit_resale: { title: 'Accord d\'acompte – Revente', body: enBodies.deposit_resale.body },
-};
-(CONTRACT_BODIES as any).es = {
-  deposit: { title: 'Acuerdo de depósito', body: enBodies.deposit.body },
-  invoice: { title: 'Factura final', body: enBodies.invoice.body },
-  certificate: { title: 'Certificado de autenticidad', body: enBodies.certificate.body },
-  vip: { title: 'Acuerdo de membresía VIP', body: enBodies.vip.body },
-  fractional: { title: 'Acuerdo de propiedad fraccionada', body: enBodies.fractional.body },
-  deposit_resale: { title: 'Acuerdo de depósito – Reventa', body: enBodies.deposit_resale.body },
-};
-(CONTRACT_BODIES as any).pt = {
-  deposit: { title: 'Acordo de depósito', body: enBodies.deposit.body },
-  invoice: { title: 'Fatura final', body: enBodies.invoice.body },
-  certificate: { title: 'Certificado de autenticidade', body: enBodies.certificate.body },
-  vip: { title: 'Acordo de adesão VIP', body: enBodies.vip.body },
-  fractional: { title: 'Acordo de propriedade fracionada', body: enBodies.fractional.body },
-  deposit_resale: { title: 'Acordo de depósito – Revenda', body: enBodies.deposit_resale.body },
-};
-(CONTRACT_BODIES as any).ar = {
-  deposit: { title: 'اتفاقية الدفع المسبق', body: enBodies.deposit.body },
-  invoice: { title: 'الفاتورة النهائية', body: enBodies.invoice.body },
-  certificate: { title: 'شهادة الأصالة', body: enBodies.certificate.body },
-  vip: { title: 'اتفاقية عضوية VIP', body: enBodies.vip.body },
-  fractional: { title: 'اتفاقية الملكية الجزئية', body: enBodies.fractional.body },
-  deposit_resale: { title: 'اتفاقية الدفع المسبق – إعادة البيع', body: enBodies.deposit_resale.body },
+  fr: {
+    deposit: { title: 'Accord d\'acompte', body: CONTRACT_BODIES_EN.deposit.body },
+    invoice: { title: 'Facture finale', body: CONTRACT_BODIES_EN.invoice.body },
+    certificate: { title: 'Certificat d\'authenticité', body: CONTRACT_BODIES_EN.certificate.body },
+    vip: { title: 'Accord de membership VIP', body: CONTRACT_BODIES_EN.vip.body },
+    fractional: { title: 'Accord de propriété fractionnée', body: CONTRACT_BODIES_EN.fractional.body },
+    deposit_resale: { title: 'Accord d\'acompte – Revente', body: CONTRACT_BODIES_EN.deposit_resale.body },
+  },
+  es: {
+    deposit: { title: 'Acuerdo de depósito', body: CONTRACT_BODIES_EN.deposit.body },
+    invoice: { title: 'Factura final', body: CONTRACT_BODIES_EN.invoice.body },
+    certificate: { title: 'Certificado de autenticidad', body: CONTRACT_BODIES_EN.certificate.body },
+    vip: { title: 'Acuerdo de membresía VIP', body: CONTRACT_BODIES_EN.vip.body },
+    fractional: { title: 'Acuerdo de propiedad fraccionada', body: CONTRACT_BODIES_EN.fractional.body },
+    deposit_resale: { title: 'Acuerdo de depósito – Reventa', body: CONTRACT_BODIES_EN.deposit_resale.body },
+  },
+  pt: {
+    deposit: { title: 'Acordo de depósito', body: CONTRACT_BODIES_EN.deposit.body },
+    invoice: { title: 'Fatura final', body: CONTRACT_BODIES_EN.invoice.body },
+    certificate: { title: 'Certificado de autenticidade', body: CONTRACT_BODIES_EN.certificate.body },
+    vip: { title: 'Acordo de adesão VIP', body: CONTRACT_BODIES_EN.vip.body },
+    fractional: { title: 'Acordo de propriedade fracionada', body: CONTRACT_BODIES_EN.fractional.body },
+    deposit_resale: { title: 'Acordo de depósito – Revenda', body: CONTRACT_BODIES_EN.deposit_resale.body },
+  },
+  ar: {
+    deposit: { title: 'اتفاقية الدفع المسبق', body: CONTRACT_BODIES_EN.deposit.body },
+    invoice: { title: 'الفاتورة النهائية', body: CONTRACT_BODIES_EN.invoice.body },
+    certificate: { title: 'شهادة الأصالة', body: CONTRACT_BODIES_EN.certificate.body },
+    vip: { title: 'اتفاقية عضوية VIP', body: CONTRACT_BODIES_EN.vip.body },
+    fractional: { title: 'اتفاقية الملكية الجزئية', body: CONTRACT_BODIES_EN.fractional.body },
+    deposit_resale: { title: 'اتفاقية الدفع المسبق – إعادة البيع', body: CONTRACT_BODIES_EN.deposit_resale.body },
+  },
 };
 
 function applyContractVars(template: string, vars: Record<string, string | number>): string {
@@ -2204,6 +2207,13 @@ function regenerateContractContent(c: any, lang?: string): string | null {
 function notifyUser(userId: number, message: string, type: string = 'info') {
   db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(userId, message, type);
   broadcast({ type: 'NOTIFICATION', userId, message, notificationType: type });
+}
+
+function createActivityNotification(userId: number, type: 'new_room' | 'new_contract' | 'new_message' | 'new_offer', referenceId: string, message: string) {
+  try {
+    db.prepare("INSERT INTO notifications (user_id, type, reference_id, message, status) VALUES (?, ?, ?, ?, 'unread')").run(userId, type, referenceId, message);
+    broadcast({ type: 'NOTIFICATION', userId, message, notificationType: type });
+  } catch (_) {}
 }
 
 // --- Optional E-Mail (SMTP env: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, MAIL_FROM) ---
@@ -3348,13 +3358,15 @@ app.post("/api/marketplace/buy", (req, res) => {
       const content = applyContractVars(resaleT.body, vars);
       const html = generateLuxuryDocument(resaleT.title, content, user, piece, { docRef, title: resaleT.title, lang: L });
       const metaResale = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResale);
+      const rr = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResale);
+      createActivityNotification(userId, 'new_contract', String(rr.lastInsertRowid), 'Contract ready for signature');
     } else {
       const docRef = 'DEP-RSL-' + Date.now();
       const content = `Anzahlungsvertrag Wiederverkauf – ${piece.title} (${piece.serial_id}). Kaufpreis: ${piece.valuation} EUR. Anzahlung: ${depositAmount} EUR. Privatverkäufer über Antonio Bellanova Vault. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
       const html = generateLuxuryDocument("Anzahlungsvertrag Wiederverkauf", content, user, piece, { docRef, title: "Anzahlungsvertrag Wiederverkauf", lang: 'de' });
       const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResaleFallback);
+      const rrf = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResaleFallback);
+      createActivityNotification(userId, 'new_contract', String(rrf.lastInsertRowid), 'Contract ready for signature');
     }
   } else {
     const content = `
@@ -3368,9 +3380,11 @@ app.post("/api/marketplace/buy", (req, res) => {
     Datum: ${new Date().toLocaleDateString('de-DE')}
   `;
     try {
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content, meta);
+      const rd = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content, meta);
+      createActivityNotification(userId, 'new_contract', String(rd.lastInsertRowid), 'Contract ready for signature');
     } catch (_) {
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content);
+      const rd2 = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content);
+      createActivityNotification(userId, 'new_contract', String(rd2.lastInsertRowid), 'Contract ready for signature');
     }
   }
 
@@ -3417,9 +3431,11 @@ app.post("/api/admin/approve-purchase", (req, res) => {
     // Deposit Contract
     const depositContent = `This binding instrument confirms the formal reservation of the Masterpiece identified as "${piece.title}" (Serial: ${piece.serial_id}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of ${piece.valuation.toLocaleString()} EUR.\n\nA non-refundable commitment deposit of ${depositAmount.toLocaleString()} EUR (${piece.deposit_pct}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.`;
     const depositHtml = generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement" });
-    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')").run(
+    const contractRun = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')").run(
       user.id, masterpieceId, docRef, depositHtml
     );
+    const contractId = Number(contractRun.lastInsertRowid);
+    createActivityNotification(user.id, 'new_contract', String(contractId), 'Contract ready for signature');
 
     // 3. Notification
     notifyUser(user.id, "Your acquisition request has been approved. The Deposit Agreement is ready for signature in your Vault.", "success");
@@ -3590,12 +3606,18 @@ db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purch
 });
 
 app.get("/api/notifications/:userId", (req, res) => {
-  const notifications = db.prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").all(req.params.userId);
-  res.json(notifications);
+  const rows = db.prepare(`
+    SELECT id, user_id, type, reference_id, message, status, is_read, created_at
+    FROM notifications WHERE user_id = ?
+    ORDER BY CASE WHEN type = 'new_contract' THEN 0 WHEN type = 'new_room' THEN 1 WHEN type = 'new_message' THEN 2 WHEN type = 'new_offer' THEN 3 ELSE 4 END,
+    created_at DESC
+    LIMIT 50
+  `).all(req.params.userId) as any[];
+  res.json(rows);
 });
 
 app.post("/api/notifications/:userId/read-all", (req, res) => {
-  db.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?").run(req.params.userId);
+  db.prepare("UPDATE notifications SET is_read = 1, status = 'read' WHERE user_id = ?").run(req.params.userId);
   res.json({ success: true });
 });
 
@@ -6799,10 +6821,12 @@ app.get("/api/private-gallery", (req, res) => {
 app.post("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
   const { masterpieceId, clientId, message, expiresInDays } = req.body;
   const expiresAt = new Date(Date.now() + (expiresInDays || 14) * 24 * 60 * 60 * 1000).toISOString();
-  db.prepare("INSERT INTO private_offers (masterpiece_id, client_id, offered_by, message, expires_at) VALUES (?, ?, ?, ?, ?)").run(
+  const r = db.prepare("INSERT INTO private_offers (masterpiece_id, client_id, offered_by, message, expires_at) VALUES (?, ?, ?, ?, ?)").run(
     masterpieceId, clientId, (req as any).user?.id, message || null, expiresAt
   );
-  res.json({ success: true, id: db.prepare("SELECT last_insert_rowid()").get() });
+  const offerId = Number(r.lastInsertRowid);
+  createActivityNotification(Number(clientId), 'new_offer', String(offerId), 'New offer available');
+  res.json({ success: true, id: offerId });
 });
 
 app.get("/api/private-offers", (req, res) => {
@@ -7220,7 +7244,9 @@ app.post("/api/private-clients/conversations/:id/messages", requireAuth, (req, r
     VALUES (?, ?, ?, ?, ?, ?, 'sent')
   `).run(conv.id, userId, receiverId, message_text || null, attachmentsStr, product_share_masterpiece_id ? Number(product_share_masterpiece_id) : null);
   db.prepare("UPDATE private_client_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(conv.id);
-  res.status(201).json({ id: r.lastInsertRowid, status: 'sent' });
+  const msgId = Number(r.lastInsertRowid);
+  createActivityNotification(receiverId, 'new_message', String(msgId), 'New message received');
+  res.status(201).json({ id: msgId, status: 'sent' });
 });
 
 app.patch("/api/private-clients/messages/:id/status", requireAuth, (req, res) => {
@@ -7478,6 +7504,38 @@ app.patch("/api/collector-rooms/:id", requireAuth, requireAdmin, (req, res) => {
   if (status !== undefined) { updates.push("status = ?"); values.push(status); }
   if (updates.length) { values.push(id); db.prepare(`UPDATE collector_rooms SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values); }
   res.json({ success: true });
+});
+
+app.post("/api/admin/collector-rooms/:id/assign", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { client_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: "client_id erforderlich." });
+  const room = db.prepare("SELECT id FROM collector_rooms WHERE id = ?").get(id);
+  if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
+  try {
+    db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('collector', ?, ?)").run(id, client_id);
+    createActivityNotification(Number(client_id), 'new_room', `collector:${id}`, 'New Collector Room assigned');
+    res.status(201).json({ success: true });
+  } catch (e: any) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Client bereits zugewiesen." });
+    throw e;
+  }
+});
+
+app.post("/api/admin/deal-rooms/:id/assign", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { client_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: "client_id erforderlich." });
+  const room = db.prepare("SELECT id FROM deal_rooms WHERE id = ?").get(id);
+  if (!room) return res.status(404).json({ error: "Deal-Raum nicht gefunden." });
+  try {
+    db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)").run(id, client_id);
+    createActivityNotification(Number(client_id), 'new_room', `deal:${id}`, 'New Deal Room available');
+    res.status(201).json({ success: true });
+  } catch (e: any) {
+    if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Client bereits zugewiesen." });
+    throw e;
+  }
 });
 
 app.get("/api/stone-library", requireAuth, (req, res) => {

@@ -796,6 +796,17 @@ const TRANSLATIONS: any = {
     "dashboard.prestige_score": "Collector Prestige Score",
     "dashboard.collector_ranking": "Collector Ranking",
     "dashboard.collector_ranking_hint": "Top collectors by collection value and prestige.",
+    "dashboard.activity_center": "Aktivität",
+    "dashboard.activity_center_desc": "Wichtige Meldungen und Aktionen für Sie.",
+    "activity.contract_ready": "Vertrag zur Unterzeichnung bereit",
+    "activity.sign_contract": "Vertrag unterschreiben",
+    "activity.open_room": "Raum öffnen",
+    "activity.new_deal_room": "Neuer Deal-Raum verfügbar",
+    "activity.new_collector_room": "Neuer Collector Room zugewiesen",
+    "activity.new_message": "Neue Nachricht erhalten",
+    "activity.view_message": "Nachricht ansehen",
+    "activity.new_offer": "Neues Angebot verfügbar",
+    "activity.review_offer": "Angebot prüfen",
     "verify.piece_name": "Piece Name",
     "verify.owner": "Owner",
     "verify.creation_date": "Creation Date",
@@ -1500,6 +1511,17 @@ const TRANSLATIONS: any = {
     "dashboard.member_since": "Member since",
     "dashboard.collection_value": "COLLECTION VALUE",
     "dashboard.active_pieces": "ACTIVE PIECES",
+    "dashboard.activity_center": "Activity",
+    "dashboard.activity_center_desc": "Important updates and actions for you.",
+    "activity.contract_ready": "Contract ready for signature",
+    "activity.sign_contract": "Sign Contract",
+    "activity.open_room": "Open Room",
+    "activity.new_deal_room": "New Deal Room available",
+    "activity.new_collector_room": "New Collector Room assigned",
+    "activity.new_message": "New message received",
+    "activity.view_message": "View Message",
+    "activity.new_offer": "New offer available",
+    "activity.review_offer": "Review Offer",
     "dashboard.collection_value_short": "Collection Value",
     "dashboard.portfolio_value": "Portfolio Value",
     "dashboard.recent_views": "Recently viewed",
@@ -2834,6 +2856,7 @@ export default function App() {
   const [investorDocs, setInvestorDocs] = useState<any[]>([]);
   const [prestigeScore, setPrestigeScore] = useState<number | null>(null);
   const [collectorLeaderboard, setCollectorLeaderboard] = useState<any[]>([]);
+  const [dashboardActivity, setDashboardActivity] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
   const [privateClientSubTab, setPrivateClientSubTab] = useState<'list' | 'conversations' | 'projects' | 'stone_requests'>('list');
@@ -3814,6 +3837,7 @@ export default function App() {
     if (view === 'dashboard' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
       fetch('/api/collector/prestige-score', { credentials: 'include' }).then(r => r.ok ? r.json() : {}).then((d: any) => setPrestigeScore(d.prestige_score ?? null));
       fetch('/api/collector/leaderboard?limit=10', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
+      fetch(`/api/notifications/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setDashboardActivity);
     }
   }, [view, user?.id, user?.role]);
 
@@ -5387,7 +5411,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="pl-0 md:pl-64 min-h-screen">
+      <main className="pl-0 md:pl-64 min-h-screen luxury-bg diamond-texture relative">
         <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-4 sm:px-6 md:px-8 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/5 transition-colors shrink-0" aria-label={t('view.dashboard')}>
@@ -5814,6 +5838,53 @@ export default function App() {
                     <p className="text-xs text-zinc-500 pt-2 border-t border-amber-500/20 w-full">{t('dashboard.member_since')} {new Date(user.created_at).toLocaleDateString()}</p>
                   </Card>
                 </div>
+
+                {/* Dashboard Activity Center — priority: contracts, new rooms, messages, offers */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && dashboardActivity.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4 relative overflow-hidden" hoverGlow>
+                    <div className="watermark-bellanova" aria-hidden="true"><span>ANTONIO BELLANOVA</span></div>
+                    <h4 className="text-lg font-serif italic relative z-10">{t('dashboard.activity_center') || 'Activity'}</h4>
+                    <p className="text-sm text-zinc-500 relative z-10">{t('dashboard.activity_center_desc') || 'Important updates and actions for you.'}</p>
+                    <ul className="space-y-3 relative z-10">
+                      {dashboardActivity.filter((n: any) => ['new_contract', 'new_room', 'new_message', 'new_offer'].includes(n.type)).slice(0, 10).map((n: any) => {
+                        const refId = n.reference_id;
+                        const onSignContract = () => { setView('vault'); setVaultTab('contracts'); };
+                        const onOpenRoom = () => {
+                          if (!refId) return;
+                          const [rtype, rid] = refId.includes(':') ? refId.split(':') : [null, refId];
+                          if (rtype === 'collector' || rtype === 'deal') {
+                            setView('private_clients'); setClientViewSubTab('rooms');
+                            setSelectedRoomType(rtype as 'collector' | 'deal'); setSelectedRoomId(parseInt(rid, 10));
+                          }
+                        };
+                        const onViewMessage = () => { setView('private_clients'); setClientViewSubTab('messages'); };
+                        const onReviewOffer = () => { setView('dashboard'); };
+                        let label = n.message;
+                        let action: React.ReactNode = null;
+                        if (n.type === 'new_contract') {
+                          label = t('activity.contract_ready') || 'Contract ready for signature';
+                          action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onSignContract}>{t('activity.sign_contract') || 'Sign Contract'}</Button>;
+                        } else if (n.type === 'new_room') {
+                          label = refId?.startsWith('deal') ? (t('activity.new_deal_room') || 'New Deal Room available') : (t('activity.new_collector_room') || 'New Collector Room assigned');
+                          action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onOpenRoom}>{t('activity.open_room') || 'Open Room'}</Button>;
+                        } else if (n.type === 'new_message') {
+                          label = t('activity.new_message') || 'New message received';
+                          action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onViewMessage}>{t('activity.view_message') || 'View Message'}</Button>;
+                        } else if (n.type === 'new_offer') {
+                          label = t('activity.new_offer') || 'New offer available';
+                          action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onReviewOffer}>{t('activity.review_offer') || 'Review Offer'}</Button>;
+                        } else { label = n.message; }
+                        return (
+                          <li key={n.id} className="flex items-center justify-between gap-4 py-2 border-b border-zinc-800/50 last:border-0">
+                            <span className="text-sm text-zinc-300 truncate flex-1">{label}</span>
+                            {action}
+                            <span className="text-[10px] text-zinc-500 shrink-0">{new Date(n.created_at).toLocaleDateString()}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </Card>
+                )}
 
                 {/* Private offers for you — client only; admin must not see client features */}
                 {privateOffers.length > 0 && user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
@@ -6606,11 +6677,12 @@ export default function App() {
                     </div>
                   )}
                   {vaultTab === 'documents' && (
-                    <div className="space-y-6">
-                      <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('vault.documents_hint') || 'View and download your documents. Read-only.'}</p>
+                    <div className="space-y-6 relative">
+                      <div className="watermark-bellanova" aria-hidden="true"><span>ANTONIO BELLANOVA</span></div>
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest relative z-10">{t('vault.documents_hint') || 'View and download your documents. Read-only.'}</p>
                       <div className="space-y-3">
                         {vaultData.contracts?.filter((c: Contract) => c.status !== 'archived').map((contract: Contract) => (
-                          <Card key={`c-${contract.id}`} className="p-4 flex items-center justify-between gap-4">
+                          <Card key={`c-${contract.id}`} className="p-4 flex items-center justify-between gap-4 relative z-10">
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-xl bg-zinc-800/50 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-500/80" /></div>
                               <div>
@@ -6622,7 +6694,7 @@ export default function App() {
                           </Card>
                         ))}
                         {vaultData.certs?.map((cert: Certificate) => (
-                          <Card key={`cert-${cert.cert_id}`} className="p-4 flex items-center justify-between gap-4">
+                          <Card key={`cert-${cert.cert_id}`} className="p-4 flex items-center justify-between gap-4 relative z-10">
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-emerald-500/80" /></div>
                               <div>
@@ -6634,7 +6706,7 @@ export default function App() {
                           </Card>
                         ))}
                         {(vaultData.vault_documents || []).filter((vd: any) => !vaultData.contracts?.some((c: Contract) => c.id === vd.contract_id) && !vaultData.certs?.some((cert: Certificate) => cert.id === vd.certificate_id)).map((vd: any) => (
-                          <Card key={`vd-${vd.id}`} className="p-4 flex items-center justify-between gap-4">
+                          <Card key={`vd-${vd.id}`} className="p-4 flex items-center justify-between gap-4 relative z-10">
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-xl bg-zinc-800/50 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-500/80" /></div>
                               <div>
@@ -6675,7 +6747,9 @@ export default function App() {
                     </div>
                   )}
                   {vaultTab === 'contracts' && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 relative">
+                      <div className="watermark-bellanova" aria-hidden="true"><span>ANTONIO BELLANOVA</span></div>
+                      <div className="relative z-10 space-y-6">
                       {vipMembershipStatus?.membership?.status === 'WAITING_FOR_PAYMENT' && vipMembershipStatus?.paymentInstructions && (
                         <Card className="p-6 border-amber-500/30 bg-amber-500/5">
                           <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">VIP Membership – Zahlungsanweisung</h3>
@@ -6746,6 +6820,7 @@ export default function App() {
                         </Card>
                       ))}
                       {vaultData.contracts.length === 0 && <EmptyState icon={FileText} text="No active agreements found." />}
+                      </div>
                     </div>
                   )}
                   {vaultTab === 'resale' && (
@@ -7156,19 +7231,20 @@ export default function App() {
                         ) : roomDetailError ? (
                           <Card className="p-6 border-red-500/20"><p className="text-red-400">{roomDetailError}</p></Card>
                         ) : roomDetailData?.room ? (
-                          <Card className="p-6 border-amber-500/20">
-                            <h4 className="font-serif italic text-amber-500/90 mb-2">{roomDetailData.room.project_title}</h4>
-                            <p className="text-xs text-zinc-500 mb-4">{selectedRoomType === 'collector' ? 'Collector Room' : 'Deal Room'} · {roomDetailData.room.status}</p>
-                            {roomDetailData.client && <p className="text-sm text-zinc-400 mb-2">{roomDetailData.client.name} · {roomDetailData.client.email}</p>}
+                          <Card className="p-6 border-amber-500/20 relative overflow-hidden">
+                            <div className="watermark-bellanova" aria-hidden="true"><span>ANTONIO BELLANOVA</span></div>
+                            <h4 className="font-serif italic text-amber-500/90 mb-2 relative z-10">{roomDetailData.room.project_title}</h4>
+                            <p className="text-xs text-zinc-500 mb-4 relative z-10">{selectedRoomType === 'collector' ? 'Collector Room' : 'Deal Room'} · {roomDetailData.room.status}</p>
+                            {roomDetailData.client && <p className="text-sm text-zinc-400 mb-2 relative z-10">{roomDetailData.client.name} · {roomDetailData.client.email}</p>}
                             {selectedRoomType === 'collector' && (roomDetailData.conversations?.length > 0 || roomDetailData.projects?.length > 0 || roomDetailData.designs?.length > 0 || (roomDetailData.documents?.length > 0) || (roomDetailData.contracts?.length > 0) || (roomDetailData.certificates?.length > 0)) && (
-                              <div className="grid gap-2 mt-4 text-sm text-zinc-500">
+                              <div className="grid gap-2 mt-4 text-sm text-zinc-500 relative z-10">
                                 {roomDetailData.conversations?.length > 0 && <span>Konversationen: {roomDetailData.conversations.length}</span>}
                                 {roomDetailData.projects?.length > 0 && <span>Projekte: {roomDetailData.projects.length}</span>}
                                 {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
                               </div>
                             )}
                             {selectedRoomType === 'deal' && ((roomDetailData.contracts?.length > 0) || (roomDetailData.certificates?.length > 0)) && (
-                              <div className="grid gap-2 mt-4 text-sm text-zinc-500">
+                              <div className="grid gap-2 mt-4 text-sm text-zinc-500 relative z-10">
                                 {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
                               </div>
                             )}
@@ -7181,20 +7257,35 @@ export default function App() {
                         {myCollectorRooms.length === 0 && myDealRooms.length === 0 ? (
                           <p className="text-zinc-500 italic">{t('private_clients.no_rooms') || 'Keine Räume.'}</p>
                         ) : (
-                          <>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             {myCollectorRooms.map((r: any) => (
-                              <Card key={r.id} className="p-4 cursor-pointer hover:border-amber-500/40 transition-colors" onClick={() => openRoom('collector', r.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('collector', r.id)}>
-                                <p className="font-medium text-zinc-200">{r.project_title}</p>
-                                <p className="text-xs text-zinc-500">Collector Room · {r.status}</p>
+                              <Card key={r.id} className="overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors p-0" onClick={() => openRoom('collector', r.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('collector', r.id)}>
+                                <div className="aspect-[4/3] bg-zinc-900 relative">
+                                  {r.image_url ? <img src={r.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-amber-500/10 to-zinc-900 flex items-center justify-center"><Diamond className="w-12 h-12 text-amber-500/30" /></div>}
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">Collector Room</span>
+                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{r.status || 'Active'}</span>
+                                </div>
+                                <div className="p-4">
+                                  <p className="font-medium text-zinc-200">{r.project_title}</p>
+                                  <p className="text-xs text-zinc-500 mt-1">Status: {r.status || 'Active'}</p>
+                                </div>
                               </Card>
                             ))}
                             {myDealRooms.map((d: any) => (
-                              <Card key={d.id} className="p-4 cursor-pointer hover:border-amber-500/40 transition-colors" onClick={() => openRoom('deal', d.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('deal', d.id)}>
-                                <p className="font-medium text-zinc-200">{d.project_title}</p>
-                                <p className="text-xs text-zinc-500">{d.price != null ? `${Number(d.price).toLocaleString('de-DE')} €` : ''} · Deal Room · {d.status}</p>
+                              <Card key={d.id} className="overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors p-0" onClick={() => openRoom('deal', d.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('deal', d.id)}>
+                                <div className="aspect-[4/3] bg-zinc-900 relative">
+                                  {d.image_url ? <img src={d.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-amber-500/10 to-zinc-900 flex items-center justify-center"><Diamond className="w-12 h-12 text-amber-500/30" /></div>}
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">Deal Room</span>
+                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{d.status || 'Active'}</span>
+                                </div>
+                                <div className="p-4">
+                                  <p className="font-medium text-zinc-200">{d.project_title}</p>
+                                  <p className="text-amber-500/90 font-semibold mt-1">{d.price != null ? `€${Number(d.price).toLocaleString('de-DE')}` : '—'}</p>
+                                  <p className="text-xs text-zinc-500">Status: {d.status || 'Active'}</p>
+                                </div>
                               </Card>
                             ))}
-                          </>
+                          </div>
                         )}
                       </>
                     )}
