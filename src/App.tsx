@@ -48,6 +48,13 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { jsPDF } from "jspdf";
 import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest, ChatThread, ChatMessage, ConciergeAvailability, Appointment } from './types';
+import deLocale from './locales/de.json';
+import enLocale from './locales/en.json';
+import itLocale from './locales/it.json';
+import frLocale from './locales/fr.json';
+import esLocale from './locales/es.json';
+import ptLocale from './locales/pt.json';
+import arLocale from './locales/ar.json';
 
 // --- Constants ---
 const COMPANY_INFO = {
@@ -62,12 +69,14 @@ const COMPANY_INFO = {
 const LANGUAGES = [
   { code: 'de', name: 'Deutsch' },
   { code: 'en', name: 'English' },
-  { code: 'fr', name: 'Français' },
   { code: 'it', name: 'Italiano' },
+  { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' },
+  { code: 'pt', name: 'Português' },
   { code: 'ar', name: 'العربية' },
-  { code: 'zh', name: '中文' },
-  { code: 'es', name: 'Español' }
+  { code: 'zh', name: '中文' }
 ];
+const PLATFORM_LANGUAGES = LANGUAGES.filter(l => ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'].includes(l.code));
 
 type OptionI18n = { id: string; de: string; en: string; it: string };
 const MATERIAL_OPTIONS: OptionI18n[] = [
@@ -382,6 +391,7 @@ const TRANSLATIONS: any = {
     "admin.template_key": "Schlüssel",
     "settings.addresses": "Adressen",
     "settings.add_address": "Adresse hinzufügen",
+    "settings.language": "Sprache",
     "settings.default_billing": "Rechnungsadresse",
     "settings.default_shipping": "Lieferadresse",
     "settings.notification_preferences": "Benachrichtigungen",
@@ -555,6 +565,7 @@ const TRANSLATIONS: any = {
     "vault.export_my_data_gdpr": "Meine Daten exportieren (DSGVO)",
     "vault.portfolio_overview": "Portfolio-Übersicht",
     "vault.total_value": "Gesamtwert",
+    "vault.total_collection_value": "TOTAL COLLECTION VALUE",
     "vault.legacy": "Legacy",
     "vault.legacy_title": "Legacy & Begünstigte",
     "vault.legacy_subtitle": "Begünstigten anlegen und Nachfolge-Dokumentation hinterlegen. Die Freischaltung erfolgt nach Prüfung durch das Atelier.",
@@ -779,6 +790,16 @@ const TRANSLATIONS: any = {
     "errors.regenerate_failed": "Regenerierung fehlgeschlagen.",
     "dashboard.welcome_subtitle": "Ihr Zugang zu den exklusivsten Schmuck- und Sammlerstücken. Verwalten Sie Ihre Werte, nehmen Sie an privaten Auktionen teil und entdecken Sie den Tresor.",
     "dashboard.member_since": "Mitglied seit",
+    "dashboard.collection_value": "COLLECTION VALUE",
+    "dashboard.active_pieces": "ACTIVE PIECES",
+    "dashboard.collection_value_short": "Collection Value",
+    "dashboard.prestige_score": "Collector Prestige Score",
+    "dashboard.collector_ranking": "Collector Ranking",
+    "dashboard.collector_ranking_hint": "Top collectors by collection value and prestige.",
+    "verify.piece_name": "Piece Name",
+    "verify.owner": "Owner",
+    "verify.creation_date": "Creation Date",
+    "verify.certificate_status": "Certificate Status",
     "dashboard.portfolio_value": "Portfolio-Wert",
     "dashboard.recent_views": "Zuletzt angesehen",
     "dashboard.favorites": "Favoriten",
@@ -804,10 +825,14 @@ const TRANSLATIONS: any = {
     "identity.client_id": "Client-ID",
     "identity.prestige_level": "Prestige Level",
     "identity.member_tier": "Member Tier",
+    "identity.collector_level": "Collector Level",
     "identity.asset_count": "Assets",
     "identity.vault_status": "Tresor-Status",
     "identity.vault_active": "Aktiv",
     "identity.vault_ready": "Bereit",
+    "identity.account_type_atelier": "Account Type: Atelier",
+    "identity.system_role_administrator": "System Role: Administrator",
+    "identity.atelier_admin_badge": "ATELIER ADMIN",
     "prestige.admin": "Administration",
     "prestige.client": "Client",
     "prestige.vip": "VIP",
@@ -1103,6 +1128,7 @@ const TRANSLATIONS: any = {
     "admin.template_key": "Key",
     "settings.addresses": "Addresses",
     "settings.add_address": "Add address",
+    "settings.language": "Language",
     "settings.default_billing": "Billing default",
     "settings.default_shipping": "Shipping default",
     "settings.notification_preferences": "Notifications",
@@ -1472,6 +1498,9 @@ const TRANSLATIONS: any = {
     "errors.regenerate_failed": "Regeneration failed.",
     "dashboard.welcome_subtitle": "Your portal to the world's most exclusive jewelry and collectible masterpieces. Manage your assets, participate in private auctions, and explore the vault.",
     "dashboard.member_since": "Member since",
+    "dashboard.collection_value": "COLLECTION VALUE",
+    "dashboard.active_pieces": "ACTIVE PIECES",
+    "dashboard.collection_value_short": "Collection Value",
     "dashboard.portfolio_value": "Portfolio Value",
     "dashboard.recent_views": "Recently viewed",
     "dashboard.favorites": "Favorites",
@@ -1497,10 +1526,14 @@ const TRANSLATIONS: any = {
     "identity.client_id": "Client ID",
     "identity.prestige_level": "Prestige Level",
     "identity.member_tier": "Member Tier",
+    "identity.collector_level": "Collector Level",
     "identity.asset_count": "Assets",
     "identity.vault_status": "Vault Status",
     "identity.vault_active": "Active",
     "identity.vault_ready": "Ready",
+    "identity.account_type_atelier": "Account Type: Atelier",
+    "identity.system_role_administrator": "System Role: Administrator",
+    "identity.atelier_admin_badge": "ATELIER ADMIN",
     "prestige.admin": "Administration",
     "prestige.client": "Client",
     "prestige.vip": "VIP",
@@ -1773,6 +1806,7 @@ const TRANSLATIONS: any = {
     "admin.template_key": "Chiave",
     "settings.addresses": "Indirizzi",
     "settings.add_address": "Aggiungi indirizzo",
+    "settings.language": "Lingua",
     "settings.default_billing": "Fatturazione predefinita",
     "settings.default_shipping": "Spedizione predefinita",
     "settings.notification_preferences": "Notifiche",
@@ -2131,10 +2165,14 @@ const TRANSLATIONS: any = {
     "identity.client_id": "ID cliente",
     "identity.prestige_level": "Prestige Level",
     "identity.member_tier": "Member Tier",
+    "identity.collector_level": "Livello collezionista",
     "identity.asset_count": "Asset",
     "identity.vault_status": "Stato caveau",
     "identity.vault_active": "Attivo",
     "identity.vault_ready": "Pronto",
+    "identity.account_type_atelier": "Tipo account: Atelier",
+    "identity.system_role_administrator": "Ruolo di sistema: Amministratore",
+    "identity.atelier_admin_badge": "ATELIER ADMIN",
     "prestige.admin": "Amministrazione",
     "prestige.client": "Cliente",
     "prestige.vip": "VIP",
@@ -2214,18 +2252,24 @@ const TRANSLATIONS: any = {
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
   zh: {} as Record<string, string>,
-  es: {} as Record<string, string>
+  es: {} as Record<string, string>,
+  pt: {} as Record<string, string>
 };
-// Fill fr, ar, zh, es from en so all languages have keys; override with translations below
+// Fill fr, ar, zh, es, pt from en so all languages have keys; override with translations below
 (function () {
   const en = TRANSLATIONS.en as Record<string, string>;
-  const fill = (lang: 'fr' | 'ar' | 'zh' | 'es', overrides: Record<string, string>) => {
+  const fill = (lang: 'fr' | 'ar' | 'zh' | 'es' | 'pt', overrides: Record<string, string>) => {
     TRANSLATIONS[lang] = { ...en, ...overrides };
   };
   fill('fr', { dashboard: "Tableau de bord", marketplace: "Marché", auctions: "Enchères", vault: "Coffre", management: "Gestion", welcome: "Bienvenue à l'Atelier", login: "Connexion", register: "S'inscrire", "auth.sign_in": "Connexion", "auth.create_account": "Créer un compte", "view.portfolio": "Portefeuille", "view.admin": "Gestion", "investor.title": "Investisseur", "cert.title": "Certificat d'authenticité", "ceremony.enter_vault": "Entrer dans le coffre", "ceremony.view_certificate": "Voir le certificat", sign_out: "Déconnexion", "auth.processing": "Traitement…", "admin.approve": "Approuver", "admin.reject": "Refuser" });
   fill('ar', { dashboard: "لوحة التحكم", marketplace: "السوق", auctions: "المزادات", vault: "الخزينة", login: "تسجيل الدخول", register: "التسجيل", "auth.sign_in": "تسجيل الدخول", "auth.create_account": "إنشاء حساب", "cert.title": "شهادة الأصالة", "view.portfolio": "المحفظة", "view.admin": "الإدارة", "investor.title": "مستثمر", "ceremony.enter_vault": "الدخول إلى الخزينة", "ceremony.view_certificate": "عرض شهادة الأصالة", sign_out: "تسجيل الخروج", "auth.processing": "جاري المعالجة…", "admin.approve": "موافقة", "admin.reject": "رفض" });
   fill('zh', { dashboard: "仪表板", marketplace: "市场", auctions: "拍卖", vault: "金库", login: "登录", register: "注册", "auth.sign_in": "登录", "auth.create_account": "创建账户", "cert.title": "真品证书", "view.portfolio": "投资组合", "view.admin": "管理", "investor.title": "投资者", "ceremony.enter_vault": "进入金库", "ceremony.view_certificate": "查看真品证书", sign_out: "退出", "auth.processing": "处理中…", "admin.approve": "批准", "admin.reject": "拒绝" });
   fill('es', { dashboard: "Panel", marketplace: "Mercado", auctions: "Subastas", vault: "Bóveda", login: "Iniciar sesión", register: "Registrarse", "auth.sign_in": "Iniciar sesión", "auth.create_account": "Crear cuenta", "cert.title": "Certificado de autenticidad", "view.portfolio": "Cartera", "view.admin": "Gestión", "investor.title": "Inversor", "ceremony.enter_vault": "Entrar en la bóveda", "ceremony.view_certificate": "Ver certificado", sign_out: "Cerrar sesión", "auth.processing": "Procesando…", "admin.approve": "Aprobar", "admin.reject": "Rechazar" });
+  fill('pt', { dashboard: "Painel", marketplace: "Mercado", auctions: "Leilões", vault: "Cofre", management: "Gestão", welcome: "Bem-vindo ao Atelier", login: "Entrar", register: "Registar", "auth.sign_in": "Entrar", "auth.create_account": "Criar conta", "view.portfolio": "Portfólio", "view.admin": "Gestão", "investor.title": "Investidor", "cert.title": "Certificado de autenticidade", "ceremony.enter_vault": "Entrar no cofre", "ceremony.view_certificate": "Ver certificado", sign_out: "Sair", "auth.processing": "A processar…", "admin.approve": "Aprovar", "admin.reject": "Rejeitar", "private_clients.my_rooms": "Os meus quartos", "private_clients.messages": "Mensagens", "private_clients.my_documents": "Os meus documentos", "private_clients.my_projects": "Os meus projetos", "private_clients.production": "Produção", "private_clients.shared_stones": "Pedras atribuídas", "private_clients.no_rooms": "Nenhuma sala.", "private_clients.no_stones": "Nenhuma pedra atribuída.", settings: "Definições", documents: "Documentos", projects: "Projetos", contracts: "Contratos", certificates: "Certificados", messages: "Mensagens", logout: "Sair" });
+  const localeFiles: Record<string, Record<string, string>> = { de: deLocale as Record<string, string>, en: enLocale as Record<string, string>, it: itLocale as Record<string, string>, fr: frLocale as Record<string, string>, es: esLocale as Record<string, string>, pt: ptLocale as Record<string, string>, ar: arLocale as Record<string, string> };
+  Object.keys(localeFiles).forEach(lang => {
+    if (TRANSLATIONS[lang]) TRANSLATIONS[lang] = { ...TRANSLATIONS[lang], ...localeFiles[lang] };
+  });
 })();
 
 // --- Components ---
@@ -2782,7 +2826,14 @@ export default function App() {
   const [myCollectorRooms, setMyCollectorRooms] = useState<any[]>([]);
   const [mySharedStones, setMySharedStones] = useState<any[]>([]);
   const [myDealRooms, setMyDealRooms] = useState<any[]>([]);
+  const [selectedRoomType, setSelectedRoomType] = useState<'collector' | 'deal' | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const [roomDetailData, setRoomDetailData] = useState<any>(null);
+  const [roomDetailLoading, setRoomDetailLoading] = useState(false);
+  const [roomDetailError, setRoomDetailError] = useState<string | null>(null);
   const [investorDocs, setInvestorDocs] = useState<any[]>([]);
+  const [prestigeScore, setPrestigeScore] = useState<number | null>(null);
+  const [collectorLeaderboard, setCollectorLeaderboard] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
   const [privateClientSubTab, setPrivateClientSubTab] = useState<'list' | 'conversations' | 'projects' | 'stone_requests'>('list');
@@ -3163,14 +3214,21 @@ export default function App() {
 
   useEffect(() => {
     const pathname = typeof window !== 'undefined' ? window.location.pathname || '' : '';
-    const pathMatch = pathname.match(/^\/verify\/(.+)/);
+    const pathMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
     if (pathMatch) {
       setView('verify');
       setVerifyCertId(decodeURIComponent(pathMatch[1].replace(/\/$/, '')));
       return;
     }
+    const roomMatch = pathname.match(/^\/rooms\/(collector|deal)\/(\d+)$/);
+    if (roomMatch) {
+      setView('private_clients');
+      setClientViewSubTab('rooms');
+      setSelectedRoomType(roomMatch[1] as 'collector' | 'deal');
+      setSelectedRoomId(parseInt(roomMatch[2], 10));
+    }
     const hash = typeof window !== 'undefined' ? window.location.hash : '';
-    const m = hash.match(/^#?\/?verify\/(.+)/);
+    const m = hash.match(/^#?\/?(?:verify|certificate)\/(.+)/);
     if (m) {
       setView('verify');
       setVerifyCertId(decodeURIComponent(m[1].replace(/\/$/, '')));
@@ -3194,7 +3252,7 @@ export default function App() {
     const applyUser = (data: any) => {
       if (!data) return;
       setUser(data);
-      setLanguage(data.language || 'de');
+      setLanguage(data.preferred_language || data.language || 'de');
       setView('dashboard');
       if (data.notification_prefs) {
         try {
@@ -3753,7 +3811,64 @@ export default function App() {
     if (view === 'dashboard' && user?.id && (user.role === 'investor' || user.role === 'admin' || user.role === 'super_admin')) {
       fetch('/api/investor-documents', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setInvestorDocs);
     }
+    if (view === 'dashboard' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
+      fetch('/api/collector/prestige-score', { credentials: 'include' }).then(r => r.ok ? r.json() : {}).then((d: any) => setPrestigeScore(d.prestige_score ?? null));
+      fetch('/api/collector/leaderboard?limit=10', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
+    }
   }, [view, user?.id, user?.role]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.setAttribute('dir', dir);
+    document.documentElement.setAttribute('lang', (language || 'en').slice(0, 2));
+  }, [language]);
+
+  useEffect(() => {
+    if (!selectedRoomType || selectedRoomId == null || !user?.id) return;
+    setRoomDetailLoading(true);
+    setRoomDetailError(null);
+    const api = selectedRoomType === 'collector' ? `/api/collector-rooms/${selectedRoomId}` : `/api/deal-rooms/${selectedRoomId}`;
+    fetch(api, { credentials: 'include' })
+      .then(r => {
+        if (r.status === 403) throw new Error('Kein Zugriff.');
+        if (!r.ok) throw new Error('Raum nicht gefunden.');
+        return r.json();
+      })
+      .then(setRoomDetailData)
+      .catch((e: Error) => setRoomDetailError(e.message || 'Fehler'))
+      .finally(() => setRoomDetailLoading(false));
+  }, [selectedRoomType, selectedRoomId, user?.id]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const pathname = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+      if (!pathname.match(/^\/rooms\/(collector|deal)\/\d+$/)) {
+        setSelectedRoomType(null);
+        setSelectedRoomId(null);
+        setRoomDetailData(null);
+        setRoomDetailError(null);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  const openRoom = (type: 'collector' | 'deal', id: number) => {
+    setSelectedRoomType(type);
+    setSelectedRoomId(id);
+    setRoomDetailData(null);
+    setRoomDetailError(null);
+    if (typeof window !== 'undefined') window.history.pushState({}, '', `/rooms/${type}/${id}`);
+  };
+
+  const closeRoom = () => {
+    setSelectedRoomType(null);
+    setSelectedRoomId(null);
+    setRoomDetailData(null);
+    setRoomDetailError(null);
+    if (typeof window !== 'undefined') window.history.replaceState({}, '', window.location.pathname.replace(/\/rooms\/[^/]+\/\d+$/, '') || '/');
+  };
 
   const handleInvestorRequestReview = async (requestId: number, approve: boolean) => {
     setLoading(true);
@@ -3948,7 +4063,7 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setUser(data);
-        setLanguage(data.language);
+        setLanguage(data.preferred_language || data.language || 'de');
         setView('dashboard');
         if (maintenanceMode && (data.role === 'admin' || data.role === UserRole.ADMIN)) {
           setShowMaintenanceAfterLoginAttempt(false);
@@ -4959,10 +5074,12 @@ export default function App() {
               </div>
               <p className="text-zinc-400 text-sm">Dieses Zertifikat ist im Antonio Bellanova Vault registriert.</p>
               <div className="grid grid-cols-1 gap-3 pt-2 border-t border-zinc-800">
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Certificate ID</span><br /><span className="font-mono text-amber-500/90">{verifyData.cert?.cert_id ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.piece_name') || 'Piece Name'}</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.title ?? '—'}</span></div>
                 <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Seriennummer</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.serial_id ?? '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Registry ID</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.registry_id ?? '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Datum</span><br /><span className="text-zinc-300">{verifyData.cert?.created_at ? new Date(verifyData.cert.created_at).toLocaleDateString('de-DE') : '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.owner') || 'Owner'}</span><br /><span className="text-zinc-300">{verifyData.owner_name ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.creation_date') || 'Creation Date'}</span><br /><span className="text-zinc-300">{verifyData.cert?.created_at ? new Date(verifyData.cert.created_at).toLocaleDateString('de-DE') : '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.certificate_status') || 'Certificate Status'}</span><br /><span className="text-emerald-400 font-medium">{verifyData.cert?.status_label ?? 'Verified Authentic'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Certificate ID</span><br /><span className="font-mono text-amber-500/90">{verifyData.cert?.cert_id ?? '—'}</span></div>
               </div>
               {verifyData.piece?.image_url && (
                 <div className="pt-2">
@@ -5361,14 +5478,17 @@ export default function App() {
             <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
               {theme === 'dark' ? <Sun className="w-5 h-5 text-zinc-400 hover:text-amber-500" /> : <Moon className="w-5 h-5 text-zinc-500 hover:text-amber-600" />}
             </button>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" title={t('settings.language')}>
               <Globe className="w-3 h-3 text-zinc-500 shrink-0" />
               <select value={language} onChange={(e) => {
                 const lang = e.target.value;
                 setLanguage(lang);
-                if (user?.id) fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, language: lang }) }).catch(() => {});
-              }} className="bg-transparent border-none text-[10px] uppercase font-bold text-zinc-400 focus:ring-0 focus:outline-none cursor-pointer hover:text-amber-500/80 appearance-none pr-6 py-1" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0 center', backgroundSize: '14px' }}>
-                {LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                if (user?.id) {
+                  setUser(prev => prev ? { ...prev, preferred_language: lang, language: lang } : null);
+                  fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, language: lang, preferred_language: lang }) }).catch(() => {});
+                }
+              }} className="bg-transparent border-none text-sm font-medium text-zinc-300 focus:ring-0 focus:outline-none cursor-pointer hover:text-amber-500/90 appearance-none pr-6 py-1.5 rounded-lg hover:bg-white/5 min-w-[7rem]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.25rem center', backgroundSize: '14px' }} aria-label={t('settings.language')}>
+                {PLATFORM_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
               </select>
             </div>
             <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title={t('shortcuts.title')}>?</button>
@@ -5377,18 +5497,31 @@ export default function App() {
                 <div className="flex items-center gap-2 justify-end">
                 <p className="text-sm font-medium text-zinc-200">{user.name}</p>
                   {(() => {
-                    const level = (user as any).collector_level || ((user.role === 'vip' || user.is_vip) ? 'vip' : user.role);
-                    const badges: Record<string, string> = { legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP Member', collector: 'Collector' };
-                    const label = badges[level] || (user.role === 'vip' || user.is_vip ? 'VIP Member' : null);
-                    if (!label) return null;
+                    const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
+                    if (isAdmin) {
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                          {t('identity.atelier_admin_badge') || 'ATELIER ADMIN'}
+                        </span>
+                      );
+                    }
+                    const level = (user as any).collector_level || 'collector';
+                    const badges: Record<string, string> = { legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' };
+                    const label = badges[level] || level;
                     return (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest border ${getCollectorBadgeClasses(level)}`}>
                         <Diamond className="w-3 h-3" /> {label}
                       </span>
                     );
                   })()}
                 </div>
-                <p className="text-[10px] uppercase tracking-widest text-amber-500">{(user as any).collector_level || user.role}</p>
+                {(() => {
+                  const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
+                  if (isAdmin) return <p className="text-[10px] uppercase tracking-widest text-amber-500">{t('identity.system_role_administrator') || 'Administrator'}</p>;
+                  const level = (user as any).collector_level || 'collector';
+                  const badges: Record<string, string> = { legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' };
+                  return <p className="text-[10px] uppercase tracking-widest text-amber-500">{badges[level] || level}</p>;
+                })()}
               </div>
               <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center ring-2 ring-transparent hover:ring-amber-500/20 transition-all">
                 <UserIcon className="w-5 h-5 text-zinc-400" />
@@ -5454,13 +5587,27 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        {/* Notification prefs modal */}
+        {/* Settings modal (notifications, language, addresses, password) */}
         <AnimatePresence>
           {showNotificationPrefsModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowNotificationPrefsModal(false)}>
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-                <h4 className="text-lg font-serif italic">{t('notifications.title')}</h4>
-                <p className="text-xs text-zinc-500">{t('notifications.description')}</p>
+                <h4 className="text-lg font-serif italic">{t('settings')}</h4>
+                <div className="space-y-1">
+                  <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold">{t('settings.language')}</label>
+                  <select value={language} onChange={(e) => {
+                    const lang = e.target.value;
+                    setLanguage(lang);
+                    if (user?.id) {
+                      setUser(prev => prev ? { ...prev, preferred_language: lang, language: lang } : null);
+                      fetch('/api/users/me', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, language: lang, preferred_language: lang }) }).catch(() => {});
+                    }
+                  }} className="w-full bg-zinc-800/80 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm focus:outline-none focus:border-amber-500/50">
+                    {PLATFORM_LANGUAGES.map(l => <option key={l.code} value={l.code}>{l.name}</option>)}
+                  </select>
+                </div>
+                <p className="text-xs uppercase tracking-widest text-zinc-500 font-semibold pt-2 border-t border-zinc-800">{t('settings.notification_preferences')}</p>
+                <p className="text-xs text-zinc-500 -mt-1">{t('notifications.description')}</p>
                 <label className="flex items-center justify-between gap-4 cursor-pointer">
                   <span className="text-sm text-zinc-300">{t('settings.notify_email')}</span>
                   <input type="checkbox" checked={userNotificationSettings.notify_email} onChange={e => setUserNotificationSettings(p => ({ ...p, notify_email: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
@@ -5613,6 +5760,19 @@ export default function App() {
           <AnimatePresence mode="wait">
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
+                {/* Section 2: Client-only COLLECTION VALUE + ACTIVE PIECES */}
+                {(user.role !== 'admin' && user.role !== 'super_admin' && user.role !== UserRole.ADMIN) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent overflow-hidden" hoverGlow>
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('dashboard.collection_value') || 'COLLECTION VALUE'}</p>
+                      <p className="text-3xl font-bold text-amber-500/90">{visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || Number(p.estimated_market_value) || 0), 0).toLocaleString('de-DE')} €</p>
+                    </Card>
+                    <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-transparent overflow-hidden" hoverGlow>
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">{t('dashboard.active_pieces') || 'ACTIVE PIECES'}</p>
+                      <p className="text-3xl font-bold text-amber-500/90">{visiblePortfolioPieces.length}</p>
+                    </Card>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <Card className="lg:col-span-2 space-y-6" hoverGlow>
                     <h3 className="text-3xl font-serif italic">{t('welcome')}, {user.name.split(' ')[0]}</h3>
@@ -5632,21 +5792,31 @@ export default function App() {
                     <Award className="w-12 h-12 text-amber-500" />
                     <h4 className="text-xl font-serif italic">{t('membership')}</h4>
                     <div className="w-full space-y-3 text-left">
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.client_id')}</span><span className="font-mono text-amber-500/90">AB-{String(user.id).padStart(5, '0')}</span></div>
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.prestige_level')}</span><span className="text-zinc-200">{(t as (k: string) => string)(`prestige.${(user as any).prestige_tier || user.role}`) || (user as any).prestige_tier || user.role}</span></div>
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><Badge variant="amber">{(user as any).prestige_tier ? (t as (k: string) => string)(`prestige.${(user as any).prestige_tier}`) : user.role}</Badge></div>
-                      {(user.role === 'vip' || user.role === UserRole.VIP || (user as any).is_vip) && (
-                        <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">VIP</span><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30"><Diamond className="w-3 h-3" /> VIP MEMBER</span></div>
+                      {(user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN) ? (
+                        <>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.account_type_atelier') || 'Account Type: Atelier'}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.system_role_administrator') || 'System Role: Administrator'}</span><span className="text-zinc-200 font-medium">Admin</span></div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.client_id')}</span><span className="font-mono text-amber-500/90">AB-{String(user.id).padStart(5, '0')}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getCollectorBadgeClasses((user as any).collector_level || 'collector')}`}>{({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.collector_level') || 'Collector Level'}</span><span className="text-zinc-200">{({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('dashboard.collection_value_short') || 'Collection Value'}</span><span className="text-zinc-200 font-medium">{visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || Number(p.estimated_market_value) || 0), 0).toLocaleString('de-DE')} €</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.asset_count')}</span><span className="text-zinc-200">{visiblePortfolioPieces.length}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.vault_status')}</span><span className={vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? 'text-emerald-400' : 'text-zinc-400'}>{vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? t('identity.vault_active') : t('identity.vault_ready')}</span></div>
+                          {prestigeScore != null && (
+                            <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('dashboard.prestige_score') || 'Collector Prestige Score'}</span><span className="text-amber-500/90 font-medium">{prestigeScore}</span></div>
+                          )}
+                        </>
                       )}
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.asset_count')}</span><span className="text-zinc-200">{visiblePortfolioPieces.length}</span></div>
-                      <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.vault_status')}</span><span className={vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? 'text-emerald-400' : 'text-zinc-400'}>{vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? t('identity.vault_active') : t('identity.vault_ready')}</span></div>
                     </div>
                     <p className="text-xs text-zinc-500 pt-2 border-t border-amber-500/20 w-full">{t('dashboard.member_since')} {new Date(user.created_at).toLocaleDateString()}</p>
                   </Card>
                 </div>
 
-                {/* Private offers for you */}
-                {privateOffers.length > 0 && (
+                {/* Private offers for you — client only; admin must not see client features */}
+                {privateOffers.length > 0 && user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
                   <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
                     <h4 className="text-lg font-serif italic flex items-center gap-2">
                       <Diamond className="w-5 h-5 text-amber-500" />
@@ -5684,6 +5854,24 @@ export default function App() {
                         </a>
                       ))}
                     </div>
+                  </Card>
+                )}
+
+                {/* Section 17: Collector Ranking — Top collectors by prestige & collection value */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && collectorLeaderboard.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('dashboard.collector_ranking') || 'Collector Ranking'}</h4>
+                    <p className="text-xs text-zinc-500">{t('dashboard.collector_ranking_hint') || 'Top collectors by collection value and prestige.'}</p>
+                    <ul className="space-y-2">
+                      {collectorLeaderboard.slice(0, 5).map((row: any, i: number) => (
+                        <li key={row.user_id} className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0">
+                          <span className="text-zinc-400 font-mono w-6">#{i + 1}</span>
+                          <span className="text-zinc-200 truncate flex-1 mx-2">{row.name || '—'}</span>
+                          <span className="text-amber-500/90 text-xs">{Number(row.collection_value || 0).toLocaleString('de-DE')} €</span>
+                          <span className="text-[10px] text-zinc-500 ml-2">Prestige {row.prestige_score}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </Card>
                 )}
 
@@ -6374,6 +6562,12 @@ export default function App() {
                 <div className="min-h-[400px]">
                   {vaultTab === 'pieces' && (
                     <div className="space-y-8">
+                      {user?.role !== 'admin' && user?.role !== 'super_admin' && (
+                        <Card className="p-4 border-amber-500/20 bg-amber-500/5">
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('vault.total_collection_value') || 'TOTAL COLLECTION VALUE'}</p>
+                          <p className="text-2xl font-bold text-amber-500/90">{visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || Number((p as any).estimated_market_value) || 0), 0).toLocaleString('de-DE')} €</p>
+                        </Card>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {listLoading && vaultData.pieces.length === 0 ? (
                           [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
@@ -6950,17 +7144,58 @@ export default function App() {
                 )}
                 {clientViewSubTab === 'rooms' && (
                   <div className="space-y-6">
-                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">{t('private_clients.my_rooms') || 'Meine Räume'}</h4>
-                    {myCollectorRooms.length === 0 && myDealRooms.length === 0 ? (
-                      <p className="text-zinc-500 italic">{t('private_clients.no_rooms') || 'Keine Räume.'}</p>
+                    {selectedRoomId != null ? (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={closeRoom} className="text-zinc-500 hover:text-zinc-300 text-sm flex items-center gap-1">
+                            <ChevronLeft className="w-4 h-4" /> {t('private_clients.my_rooms') || 'Meine Räume'}
+                          </button>
+                        </div>
+                        {roomDetailLoading ? (
+                          <p className="text-zinc-500 italic">Laden…</p>
+                        ) : roomDetailError ? (
+                          <Card className="p-6 border-red-500/20"><p className="text-red-400">{roomDetailError}</p></Card>
+                        ) : roomDetailData?.room ? (
+                          <Card className="p-6 border-amber-500/20">
+                            <h4 className="font-serif italic text-amber-500/90 mb-2">{roomDetailData.room.project_title}</h4>
+                            <p className="text-xs text-zinc-500 mb-4">{selectedRoomType === 'collector' ? 'Collector Room' : 'Deal Room'} · {roomDetailData.room.status}</p>
+                            {roomDetailData.client && <p className="text-sm text-zinc-400 mb-2">{roomDetailData.client.name} · {roomDetailData.client.email}</p>}
+                            {selectedRoomType === 'collector' && (roomDetailData.conversations?.length > 0 || roomDetailData.projects?.length > 0 || roomDetailData.designs?.length > 0 || (roomDetailData.documents?.length > 0) || (roomDetailData.contracts?.length > 0) || (roomDetailData.certificates?.length > 0)) && (
+                              <div className="grid gap-2 mt-4 text-sm text-zinc-500">
+                                {roomDetailData.conversations?.length > 0 && <span>Konversationen: {roomDetailData.conversations.length}</span>}
+                                {roomDetailData.projects?.length > 0 && <span>Projekte: {roomDetailData.projects.length}</span>}
+                                {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
+                              </div>
+                            )}
+                            {selectedRoomType === 'deal' && ((roomDetailData.contracts?.length > 0) || (roomDetailData.certificates?.length > 0)) && (
+                              <div className="grid gap-2 mt-4 text-sm text-zinc-500">
+                                {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
+                              </div>
+                            )}
+                          </Card>
+                        ) : null}
+                      </>
                     ) : (
                       <>
-                        {myCollectorRooms.map((r: any) => (
-                          <Card key={r.id} className="p-4"><p className="font-medium text-zinc-200">{r.project_title}</p><p className="text-xs text-zinc-500">Collector Room · {r.status}</p></Card>
-                        ))}
-                        {myDealRooms.map((d: any) => (
-                          <Card key={d.id} className="p-4"><p className="font-medium text-zinc-200">{d.project_title}</p><p className="text-xs text-zinc-500">{d.price != null ? `${Number(d.price).toLocaleString('de-DE')} €` : ''} · Deal Room · {d.status}</p></Card>
-                        ))}
+                        <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">{t('private_clients.my_rooms') || 'Meine Räume'}</h4>
+                        {myCollectorRooms.length === 0 && myDealRooms.length === 0 ? (
+                          <p className="text-zinc-500 italic">{t('private_clients.no_rooms') || 'Keine Räume.'}</p>
+                        ) : (
+                          <>
+                            {myCollectorRooms.map((r: any) => (
+                              <Card key={r.id} className="p-4 cursor-pointer hover:border-amber-500/40 transition-colors" onClick={() => openRoom('collector', r.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('collector', r.id)}>
+                                <p className="font-medium text-zinc-200">{r.project_title}</p>
+                                <p className="text-xs text-zinc-500">Collector Room · {r.status}</p>
+                              </Card>
+                            ))}
+                            {myDealRooms.map((d: any) => (
+                              <Card key={d.id} className="p-4 cursor-pointer hover:border-amber-500/40 transition-colors" onClick={() => openRoom('deal', d.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('deal', d.id)}>
+                                <p className="font-medium text-zinc-200">{d.project_title}</p>
+                                <p className="text-xs text-zinc-500">{d.price != null ? `${Number(d.price).toLocaleString('de-DE')} €` : ''} · Deal Room · {d.status}</p>
+                              </Card>
+                            ))}
+                          </>
+                        )}
                       </>
                     )}
                     <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('private_clients.shared_stones') || 'Ihnen zugewiesene Steine'}</h4>
@@ -10898,7 +11133,7 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
                     <div className="space-y-6">
                       <div className="aspect-square bg-zinc-900 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center p-8">
                         <div className="w-32 h-32 bg-white p-2 rounded-xl mb-4">
-                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/verify/${selectedCert.cert_id}` : '')}`} alt="Verification QR" className="w-full h-full" />
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('https://vault.bellanova.com/certificate/' + (selectedCert?.cert_id ?? ''))}`} alt="Verification QR" className="w-full h-full" />
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-zinc-600 text-center">{t('scan_verify')}</p>
                       </div>
@@ -10990,6 +11225,18 @@ const StatCard = ({ label, value, icon: Icon }: any) => (
     <p className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</p>
   </div>
 );
+
+/** Section 3: Collector tier → luxury badge styling (gold, black, platinum, diamond, imperial) */
+const COLLECTOR_BADGE_STYLES: Record<string, string> = {
+  collector: 'bg-amber-400/20 border-amber-400/50 text-amber-300',
+  vip: 'bg-zinc-800 border-zinc-600 text-zinc-200',
+  private_collector: 'bg-zinc-300/20 border-zinc-400/50 text-zinc-200',
+  grand_collector: 'bg-cyan-500/10 border-cyan-400/40 text-cyan-300',
+  legacy_collector: 'bg-purple-500/20 border-purple-400/50 text-purple-300'
+};
+function getCollectorBadgeClasses(level: string): string {
+  return COLLECTOR_BADGE_STYLES[level] || COLLECTOR_BADGE_STYLES.collector;
+}
 
 const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${active ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-200 border border-zinc-800'}`}>

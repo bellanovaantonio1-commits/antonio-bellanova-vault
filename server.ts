@@ -1187,6 +1187,20 @@ db.exec(`
 `);
 try { db.prepare("ALTER TABLE private_client_conversations ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE client_projects ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS room_assigned_clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_type TEXT NOT NULL CHECK(room_type IN ('collector','deal')),
+    room_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(room_type, room_id, client_id),
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+`);
+try { db.prepare("ALTER TABLE certificates ADD COLUMN status TEXT DEFAULT 'verified_authentic'").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN collector_directory_visible INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN preferred_language TEXT").run(); } catch (e) {}
 
 // Imperial Intelligence: Legacy / succession
 db.exec(`
@@ -1337,6 +1351,9 @@ try { db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT").ru
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
+for (const code of ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar']) {
+  try { db.prepare(`ALTER TABLE masterpieces ADD COLUMN description_${code} TEXT`).run(); } catch (e) {}
+}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN responded_by INTEGER REFERENCES users(id)").run(); } catch (e) {}
@@ -1643,7 +1660,7 @@ const LUXURY_TEXT = '#e8e6e3';
 const LUXURY_MUTED = '#8a8784';
 const UST_IDNR = 'DE457682154';
 
-type ContractLang = 'de' | 'en' | 'it';
+type ContractLang = 'de' | 'en' | 'it' | 'fr' | 'es' | 'pt' | 'ar';
 const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
   de: {
     documentRef: 'Dokumentenref.',
@@ -1659,6 +1676,8 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     totalValuation: 'Gesamtbewertung',
     balanceDue: 'Restbetrag',
     status: 'Status',
+    membershipFee: 'Mitgliedsgebühr',
+    membershipFeePerYear: '15.000 EUR / Jahr',
     escrowProtection: 'Treuhandschutz',
     escrowText: 'Mittel werden von Antonio Bellanova Vault Treuhand gehalten bis verifizierte Lieferung.',
     governingLaw: 'Anwendbares Recht:',
@@ -1685,6 +1704,8 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     totalValuation: 'Total Valuation',
     balanceDue: 'Balance Due',
     status: 'Status',
+    membershipFee: 'Membership Fee',
+    membershipFeePerYear: '15,000 EUR / year',
     escrowProtection: 'Escrow Protection',
     escrowText: 'Funds held by Antonio Bellanova Vault Escrow until verified delivery.',
     governingLaw: 'Governing Law:',
@@ -1711,6 +1732,8 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     totalValuation: 'Valutazione totale',
     balanceDue: 'Saldo dovuto',
     status: 'Stato',
+    membershipFee: 'Quota di iscrizione',
+    membershipFeePerYear: '15.000 EUR / anno',
     escrowProtection: 'Protezione escrow',
     escrowText: 'I fondi sono detenuti in escrow da Antonio Bellanova Vault fino alla consegna verificata.',
     governingLaw: 'Legge applicabile:',
@@ -1723,10 +1746,123 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     atelierDirector: 'Direttore Atelier — Firma digitale',
     footerGdpr: 'GDPR: secondo i Termini della piattaforma. Salva come PDF.',
   },
+  fr: {
+    documentRef: 'Réf. document',
+    clientRef: 'Réf. client',
+    version: 'Version',
+    date: 'Date',
+    productImage: 'Image produit / Actif',
+    noImage: 'Aucune image · Série',
+    assetSpecs: 'Spécifications actif',
+    materials: 'Matériaux',
+    gemstones: 'Pierres précieuses',
+    financialSummary: 'Résumé financier',
+    totalValuation: 'Évaluation totale',
+    balanceDue: 'Solde dû',
+    status: 'Statut',
+    membershipFee: 'Frais d\'adhésion',
+    membershipFeePerYear: '15 000 EUR / an',
+    escrowProtection: 'Protection séquestre',
+    escrowText: 'Les fonds sont détenus par Antonio Bellanova Vault jusqu\'à livraison vérifiée.',
+    governingLaw: 'Droit applicable :',
+    jurisdiction: 'Allemagne. Juridiction : Cologne.',
+    shipping: 'Expédition :',
+    customs: 'Douane/TVA :',
+    arbitration: 'Arbitrage :',
+    export: 'Export :',
+    client: 'Client :',
+    atelierDirector: 'Directeur Atelier — Signature numérique',
+    footerGdpr: 'RGPD : selon les Conditions de la plateforme. Enregistrer en PDF.',
+  },
+  es: {
+    documentRef: 'Ref. documento',
+    clientRef: 'Ref. cliente',
+    version: 'Versión',
+    date: 'Fecha',
+    productImage: 'Imagen producto / Activo',
+    noImage: 'Sin imagen · Serie',
+    assetSpecs: 'Especificaciones activo',
+    materials: 'Materiales',
+    gemstones: 'Piedras preciosas',
+    financialSummary: 'Resumen financiero',
+    totalValuation: 'Valoración total',
+    balanceDue: 'Saldo pendiente',
+    status: 'Estado',
+    membershipFee: 'Cuota de membresía',
+    membershipFeePerYear: '15.000 EUR / año',
+    escrowProtection: 'Protección de depósito',
+    escrowText: 'Los fondos son retenidos por Antonio Bellanova Vault hasta entrega verificada.',
+    governingLaw: 'Ley aplicable:',
+    jurisdiction: 'Alemania. Jurisdicción: Colonia.',
+    shipping: 'Envío:',
+    customs: 'Aduanas/IVA:',
+    arbitration: 'Arbitraje:',
+    export: 'Exportación:',
+    client: 'Cliente:',
+    atelierDirector: 'Director Atelier — Firma digital',
+    footerGdpr: 'RGPD: según Términos de la plataforma. Guardar como PDF.',
+  },
+  pt: {
+    documentRef: 'Ref. documento',
+    clientRef: 'Ref. cliente',
+    version: 'Versão',
+    date: 'Data',
+    productImage: 'Imagem do produto / Ativo',
+    noImage: 'Sem imagem · Série',
+    assetSpecs: 'Especificações do ativo',
+    materials: 'Materiais',
+    gemstones: 'Pedras preciosas',
+    financialSummary: 'Resumo financeiro',
+    totalValuation: 'Avaliação total',
+    balanceDue: 'Saldo devido',
+    status: 'Estado',
+    membershipFee: 'Taxa de adesão',
+    membershipFeePerYear: '15.000 EUR / ano',
+    escrowProtection: 'Proteção de depósito',
+    escrowText: 'Fundos retidos por Antonio Bellanova Vault até entrega verificada.',
+    governingLaw: 'Lei aplicável:',
+    jurisdiction: 'Alemanha. Jurisdição: Colônia.',
+    shipping: 'Envio:',
+    customs: 'Alfândega/IVA:',
+    arbitration: 'Arbitragem:',
+    export: 'Exportação:',
+    client: 'Cliente:',
+    atelierDirector: 'Diretor Atelier — Assinatura digital',
+    footerGdpr: 'RGPD: conforme Termos da plataforma. Guardar como PDF.',
+  },
+  ar: {
+    documentRef: 'مرجع المستند',
+    clientRef: 'مرجع العميل',
+    version: 'الإصدار',
+    date: 'التاريخ',
+    productImage: 'صورة المنتج / الأصل',
+    noImage: 'لا توجد صورة · السلسلة',
+    assetSpecs: 'مواصفات الأصل',
+    materials: 'المواد',
+    gemstones: 'الأحجار الكريمة',
+    financialSummary: 'الملخص المالي',
+    totalValuation: 'التقييم الإجمالي',
+    balanceDue: 'الرصيد المستحق',
+    status: 'الحالة',
+    membershipFee: 'رسوم العضوية',
+    membershipFeePerYear: '15.000 يورو / سنة',
+    escrowProtection: 'حماية الضمان',
+    escrowText: 'الأموال محفوظة لدى Antonio Bellanova Vault حتى التسليم المؤكد.',
+    governingLaw: 'القانون الحاكم:',
+    jurisdiction: 'ألمانيا. الاختصاص: كولونيا.',
+    shipping: 'الشحن:',
+    customs: 'الجمركة/ضريبة القيمة المضافة:',
+    arbitration: 'التحكيم:',
+    export: 'التصدير:',
+    client: 'العميل:',
+    atelierDirector: 'مدير الأتلييه — التوقيع الرقمي',
+    footerGdpr: 'حماية البيانات: وفقاً لشروط المنصة. حفظ كـ PDF.',
+  },
 };
 
 function getContractLang(lang: string | undefined | null): ContractLang {
-  if (lang === 'de' || lang === 'it') return lang;
+  const l = (lang || '').toLowerCase().slice(0, 2);
+  if (['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'].includes(l)) return l as ContractLang;
   return 'en';
 }
 
@@ -1810,6 +1946,38 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. P.IVA: DE457682154. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
     },
   },
+  fr: {
+    deposit: { title: 'Accord d\'acompte', body: (CONTRACT_BODIES.en as any).deposit.body },
+    invoice: { title: 'Facture finale', body: (CONTRACT_BODIES.en as any).invoice.body },
+    certificate: { title: 'Certificat d\'authenticité', body: (CONTRACT_BODIES.en as any).certificate.body },
+    vip: { title: 'Accord de membership VIP', body: (CONTRACT_BODIES.en as any).vip.body },
+    fractional: { title: 'Accord de propriété fractionnée', body: (CONTRACT_BODIES.en as any).fractional.body },
+    deposit_resale: { title: 'Accord d\'acompte – Revente', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
+  },
+  es: {
+    deposit: { title: 'Acuerdo de depósito', body: (CONTRACT_BODIES.en as any).deposit.body },
+    invoice: { title: 'Factura final', body: (CONTRACT_BODIES.en as any).invoice.body },
+    certificate: { title: 'Certificado de autenticidad', body: (CONTRACT_BODIES.en as any).certificate.body },
+    vip: { title: 'Acuerdo de membresía VIP', body: (CONTRACT_BODIES.en as any).vip.body },
+    fractional: { title: 'Acuerdo de propiedad fraccionada', body: (CONTRACT_BODIES.en as any).fractional.body },
+    deposit_resale: { title: 'Acuerdo de depósito – Reventa', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
+  },
+  pt: {
+    deposit: { title: 'Acordo de depósito', body: (CONTRACT_BODIES.en as any).deposit.body },
+    invoice: { title: 'Fatura final', body: (CONTRACT_BODIES.en as any).invoice.body },
+    certificate: { title: 'Certificado de autenticidade', body: (CONTRACT_BODIES.en as any).certificate.body },
+    vip: { title: 'Acordo de adesão VIP', body: (CONTRACT_BODIES.en as any).vip.body },
+    fractional: { title: 'Acordo de propriedade fracionada', body: (CONTRACT_BODIES.en as any).fractional.body },
+    deposit_resale: { title: 'Acordo de depósito – Revenda', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
+  },
+  ar: {
+    deposit: { title: 'اتفاقية الدفع المسبق', body: (CONTRACT_BODIES.en as any).deposit.body },
+    invoice: { title: 'الفاتورة النهائية', body: (CONTRACT_BODIES.en as any).invoice.body },
+    certificate: { title: 'شهادة الأصالة', body: (CONTRACT_BODIES.en as any).certificate.body },
+    vip: { title: 'اتفاقية عضوية VIP', body: (CONTRACT_BODIES.en as any).vip.body },
+    fractional: { title: 'اتفاقية الملكية الجزئية', body: (CONTRACT_BODIES.en as any).fractional.body },
+    deposit_resale: { title: 'اتفاقية الدفع المسبق – إعادة البيع', body: (CONTRACT_BODIES.en as any).deposit_resale.body },
+  },
 };
 
 function applyContractVars(template: string, vars: Record<string, string | number>): string {
@@ -1819,10 +1987,25 @@ function applyContractVars(template: string, vars: Record<string, string | numbe
   });
 }
 
+/** Fills description_de, description_en, ... for a masterpiece. Called once on create. When OPENAI_API_KEY is set, can be extended to call AI translation. */
+function fillDescriptionTranslations(masterpieceId: number, description: string, sourceLang: string): void {
+  if (!description || typeof description !== 'string') return;
+  const langs = ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'];
+  const translations: Record<string, string> = {};
+  for (const lang of langs) translations[lang] = description;
+  // TODO: when OPENAI_API_KEY or TRANSLATE_API is set, call AI to translate description into each target lang and fill translations[lang]
+  try {
+    db.prepare(`UPDATE masterpieces SET description_de=?, description_en=?, description_it=?, description_fr=?, description_es=?, description_pt=?, description_ar=? WHERE id=?`).run(
+      translations.de, translations.en, translations.it, translations.fr, translations.es, translations.pt, translations.ar, masterpieceId
+    );
+  } catch (e) {}
+}
+
 function generateLuxuryDocument(type: string, content: string, user: any, piece: any, options: any = {}) {
   const lang = getContractLang(options.lang);
   const L = CONTRACT_LABELS[lang];
-  const locale = lang === 'de' ? 'de-DE' : lang === 'it' ? 'it-IT' : 'en-GB';
+  const localeMap: Record<ContractLang, string> = { de: 'de-DE', en: 'en-GB', it: 'it-IT', fr: 'fr-FR', es: 'es-ES', pt: 'pt-PT', ar: 'ar' };
+  const locale = localeMap[lang] || 'en-GB';
   const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
   const version = options.version || 1;
   const docRef = options.docRef || `${type.substring(0, 3).toUpperCase()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
@@ -1831,6 +2014,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const jurisdiction = options.jurisdiction || 'Federal Republic of Germany';
   const isCertificate = type.toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('ECHTHEIT') || (options.title || '').toUpperCase().includes('AUTENTICITÀ');
   const isInvoice = !!(options.escrowEnabled || options.balanceDue != null) || type.toUpperCase().includes('INVOICE') || (options.title || '').toUpperCase().includes('RECHNUNG') || (options.title || '').toUpperCase().includes('FATTURA');
+  const isVipAgreement = !!(options.isVipAgreement || (options.title && String(options.title).toUpperCase().includes('VIP MEMBERSHIP')));
   const title = options.title || type;
   const pieceTitle = (piece && piece.title) ? piece.title : '—';
   const pieceMaterials = (piece && piece.materials) ? piece.materials : '—';
@@ -1839,7 +2023,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const pieceStatus = (piece && piece.status) ? piece.status : '—';
   const pieceDescription = (piece && piece.description) ? piece.description.substring(0, 220) : '';
   const pieceImage = (piece && piece.image_url) ? String(piece.image_url).trim() : '';
-  const hasPiece = piece && (piece.title || piece.serial_id);
+  const hasPiece = !isVipAgreement && piece && (piece.title || piece.serial_id);
   const blockchainHash = (piece && piece.blockchain_hash) ? piece.blockchain_hash : 'PENDING_VERIFICATION';
   const productImageBlock = hasPiece
     ? (pieceImage
@@ -1854,6 +2038,41 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
             </div>
           </div>`)
     : '';
+
+  const assetAndFinanceBlock = isVipAgreement
+    ? `<div style="background: rgba(201, 162, 39, 0.06); padding: 18px 20px; margin-bottom: 24px; border: 1px solid ${LUXURY_GOLD_DIM};">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div>
+            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
+            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.membershipFee || 'Membership Fee'}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${L.membershipFeePerYear || '15,000 EUR / year'}</div></div>
+            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">Active</div></div>
+          </div>
+        </div>
+      </div>`
+    : `<div style="background: rgba(201, 162, 39, 0.06); padding: 18px 20px; margin-bottom: 24px; border: 1px solid ${LUXURY_GOLD_DIM};">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div>
+            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.assetSpecs}</div>
+            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.materials}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceMaterials}</div></div>
+            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.gemstones}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceGemstones}</div></div>
+          </div>
+          <div>
+            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
+            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.totalValuation}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
+            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
+          </div>
+        </div>
+      </div>`;
+
+  const pieceBlock = isVipAgreement ? '' : `
+      <div style="margin-bottom: 24px;">
+        ${productImageBlock}
+        <div style="text-align: center;">
+          <h2 style="font-size: 18px; font-weight: 400; margin-bottom: 4px; color: ${LUXURY_TEXT};">${pieceTitle}</h2>
+          <div style="font-size: 8px; letter-spacing: 3px; color: ${LUXURY_GOLD}; text-transform: uppercase;">Serial: ${serialNumber}</div>
+          ${pieceDescription ? `<p style="font-size: 11px; color: ${LUXURY_MUTED}; font-style: italic; margin-top: 8px; line-height: 1.5;">${pieceDescription}${pieceDescription.length >= 220 ? '…' : ''}</p>` : ''}
+        </div>
+      </div>`;
 
   return `
     <div style="font-family: 'Georgia', 'Times New Roman', serif; padding: 40px 36px; color: ${LUXURY_TEXT}; background: ${LUXURY_BG}; max-width: 720px; margin: auto; position: relative; line-height: 1.5; box-sizing: border-box;">
@@ -1871,30 +2090,8 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
           <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.date}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${date}</div></div>
         </div>
       </div>
-
-      <div style="margin-bottom: 24px;">
-        ${productImageBlock}
-        <div style="text-align: center;">
-          <h2 style="font-size: 18px; font-weight: 400; margin-bottom: 4px; color: ${LUXURY_TEXT};">${pieceTitle}</h2>
-          <div style="font-size: 8px; letter-spacing: 3px; color: ${LUXURY_GOLD}; text-transform: uppercase;">Serial: ${serialNumber}</div>
-          ${pieceDescription ? `<p style="font-size: 11px; color: ${LUXURY_MUTED}; font-style: italic; margin-top: 8px; line-height: 1.5;">${pieceDescription}${pieceDescription.length >= 220 ? '…' : ''}</p>` : ''}
-        </div>
-      </div>
-
-      <div style="background: rgba(201, 162, 39, 0.06); padding: 18px 20px; margin-bottom: 24px; border: 1px solid ${LUXURY_GOLD_DIM};">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          <div>
-            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.assetSpecs}</div>
-            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.materials}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceMaterials}</div></div>
-            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.gemstones}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceGemstones}</div></div>
-          </div>
-          <div>
-            <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
-            <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.totalValuation}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
-            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
-          </div>
-        </div>
-      </div>
+      ${pieceBlock}
+      ${assetAndFinanceBlock}
 
       <div style="margin-bottom: 28px; font-size: 12px; color: ${LUXURY_TEXT}; line-height: 1.6; text-align: justify;">
         ${content.split('\n\n').map(p => `<p style="margin-bottom: 12px;">${String(p).replace(/\n/g, '<br>')}</p>`).join('')}
@@ -1940,7 +2137,7 @@ function regenerateContractContent(c: any, lang?: string): string | null {
   const piece = c.masterpiece_id ? (db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(c.masterpiece_id) as any) : null;
   const docRef = c.doc_ref || nextContractRef(c.type);
   const dummyPiece = { id: 0, title: '—', serial_id: '—', materials: '—', gemstones: '—', valuation: 0, status: '—', description: '', image_url: '', blockchain_hash: '—' };
-  const L = getContractLang(lang || user?.language);
+  const L = getContractLang(lang || user?.preferred_language || user?.language);
 
   switch (c.type) {
     case 'deposit':
@@ -1980,7 +2177,7 @@ function regenerateContractContent(c: any, lang?: string): string | null {
     case 'vip':
       const vipT = CONTRACT_BODIES[L].vip;
       const vipContent = applyContractVars(vipT.body, { user });
-      return generateLuxuryDocument(vipT.title, vipContent, user, dummyPiece, { docRef, title: vipT.title, lang: L });
+      return generateLuxuryDocument(vipT.title, vipContent, user, dummyPiece, { docRef, title: vipT.title, lang: L, isVipAgreement: true });
 
     case 'resale_commission':
       if (!piece) return null;
@@ -2688,6 +2885,7 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, (req, res, next) =>
       const id = Number(result.lastInsertRowid);
       inserted.push({ id, title: p.title, serial_id: p.serial_id });
       try {
+        if (p.description) fillDescriptionTranslations(id, p.description, 'de');
         updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
         calculateRarityScore(id);
       } catch (_) {}
@@ -2727,7 +2925,7 @@ app.post("/api/admin/masterpieces", (req, res) => {
       if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
     } catch (_) {}
     broadcast({ type: 'MASTERPIECE_CREATED', id });
-    
+    if (description && typeof description === 'string') fillDescriptionTranslations(id, description, (req as any).body?.description_lang || 'de');
     // Initial Provenance
     updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
     calculateRarityScore(id);
@@ -3132,7 +3330,7 @@ app.post("/api/marketplace/buy", (req, res) => {
 
   if (isResale) {
     const docRef = nextContractRef('deposit');
-    const L: ContractLang = (user.language === 'de' || user.language === 'it') ? user.language : 'en';
+    const L: ContractLang = getContractLang(user.preferred_language || user.language);
     const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
     if (resaleT) {
       const vars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, buyerName: user.name || '—', buyerAddress: user.address || '—', depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
@@ -4944,22 +5142,30 @@ app.post("/api/contact", async (req, res) => {
   res.json({ success: true, emailSent });
 });
 
-// --- Public: Certificate verification (no auth) ---
+// --- Public: Certificate verification (no auth) — Section 8: Piece Name, Serial, Owner, Creation Date, Certificate Status ---
 app.get("/api/verify/certificate/:certId", (req, res) => {
   const cert = db.prepare("SELECT * FROM certificates WHERE cert_id = ?").get(req.params.certId) as any;
   if (!cert) return res.status(404).json({ error: "Certificate not found" });
   const piece = cert.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(cert.masterpiece_id) as any : null;
   const owner = db.prepare("SELECT id, name FROM users WHERE id = ?").get(cert.owner_id) as any;
-  res.json({ cert, piece, owner_name: owner?.name ?? null });
+  const status = cert.status || 'verified_authentic';
+  const statusLabel = status === 'archived' ? 'Archived' : status === 'transferred' ? 'Transferred' : 'Verified Authentic';
+  res.json({ cert: { ...cert, status, status_label: statusLabel }, piece, owner_name: owner?.name ?? null });
 });
 
 // --- Profile: language & notification prefs ---
 app.patch("/api/users/me", (req, res) => {
-  const { userId, language, notification_prefs } = req.body;
+  const { userId, language, preferred_language, notification_prefs } = req.body;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const u = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
   if (!u) return res.status(404).json({ error: "User not found" });
-  if (language != null) db.prepare("UPDATE users SET language = ? WHERE id = ?").run(language, userId);
+  const allowedLangs = ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'];
+  if (language != null && allowedLangs.includes(String(language))) {
+    db.prepare("UPDATE users SET language = ?, preferred_language = ? WHERE id = ?").run(language, language, userId);
+  }
+  if (preferred_language != null && allowedLangs.includes(String(preferred_language))) {
+    db.prepare("UPDATE users SET preferred_language = ? WHERE id = ?").run(preferred_language, userId);
+  }
   if (notification_prefs != null) db.prepare("UPDATE users SET notification_prefs = ? WHERE id = ?").run(typeof notification_prefs === 'string' ? notification_prefs : JSON.stringify(notification_prefs), userId);
   res.json({ success: true });
 });
@@ -5229,7 +5435,7 @@ app.post("/api/admin/approve-user", requireAuth, requireAdmin, (req, res) => {
       const docRef = nextContractRef('vip');
       const vipContent = `VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants ${user.name} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.`;
       const dummyPiece = { serial_id: 'VIP', title: 'VIP Membership', materials: '—', gemstones: '—', valuation: 15000, status: 'active', description: 'VIP Annual Membership', blockchain_hash: '' };
-      const content = generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement" });
+      const content = generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement", isVipAgreement: true });
       db.prepare("INSERT INTO contracts (user_id, type, doc_ref, content) VALUES (?, 'vip', ?, ?)").run(userId, docRef, content);
     }
   } else {
@@ -6655,6 +6861,38 @@ app.patch("/api/collector/preferences", (req, res) => {
   res.json({ success: true });
 });
 
+// Section 12: Collector Prestige Score
+app.get("/api/collector/prestige-score", (req, res) => {
+  const userId = Number(req.query.userId) || getSessionUserId(req);
+  if (!userId) return res.json({ prestige_score: 0 });
+  const payments = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(userId) as any;
+  const pieces = db.prepare("SELECT COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?").get(userId) as any;
+  const user = db.prepare("SELECT collector_level FROM users WHERE id = ?").get(userId) as any;
+  const eventCount = db.prepare("SELECT COUNT(*) as c FROM event_rsvps WHERE user_id = ?").get(userId) as any;
+  const levelBonus: Record<string, number> = { legacy_collector: 80, grand_collector: 60, private_collector: 40, vip: 25, collector: 10 };
+  const bonus = levelBonus[(user?.collector_level) || 'collector'] ?? 10;
+  const purchaseScore = Math.min((payments?.c ?? 0) * 15, 100);
+  const valueScore = Math.min(Math.floor((pieces?.total ?? 0) / 10000), 150);
+  const eventScore = Math.min((eventCount?.c ?? 0) * 5, 30);
+  const prestige_score = purchaseScore + valueScore + bonus + eventScore;
+  res.json({ prestige_score: Math.max(0, prestige_score), user_id: userId });
+});
+
+// Section 17: Collector leaderboard
+app.get("/api/collector/leaderboard", (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const clients = db.prepare("SELECT id, name, email, collector_level FROM users WHERE role != 'admin' AND role != 'super_admin'").all() as any[];
+  const rows = clients.map((u: any) => {
+    const pieces = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?").get(u.id) as any;
+    const payments = db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(u.id) as any;
+    const levelBonus: Record<string, number> = { legacy_collector: 80, grand_collector: 60, private_collector: 40, vip: 25, collector: 10 };
+    const prestige = Math.min((payments?.c ?? 0) * 15, 100) + Math.min(Math.floor((pieces?.total ?? 0) / 10000), 150) + (levelBonus[u.collector_level || 'collector'] ?? 10);
+    return { user_id: u.id, name: u.name, collector_level: u.collector_level, collection_value: pieces?.total ?? 0, purchase_count: payments?.c ?? 0, prestige_score: prestige };
+  });
+  rows.sort((a: any, b: any) => (b.prestige_score - a.prestige_score) || (b.collection_value - a.collection_value));
+  res.json(rows.slice(0, limit));
+});
+
 // Asset insurance
 app.get("/api/masterpieces/:id/insurance", (req, res) => {
   const rows = db.prepare("SELECT * FROM asset_insurance WHERE masterpiece_id = ? ORDER BY id DESC").all(req.params.id);
@@ -6677,6 +6915,17 @@ app.patch("/api/me/private-portfolio", (req, res) => {
   const enabled = !!req.body?.enabled;
   db.prepare("UPDATE users SET private_portfolio_visibility = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
   res.json({ success: true, private_portfolio_visibility: enabled });
+});
+
+// Section 17: Collector directory — allow other collectors to view my collection
+app.patch("/api/me/collector-directory-visibility", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const enabled = !!req.body?.enabled;
+  try {
+    db.prepare("UPDATE users SET collector_directory_visible = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+  } catch (_) {}
+  res.json({ success: true, collector_directory_visible: enabled });
 });
 
 // Section 20: Discreet transaction mode (ultra-luxury)
@@ -7168,8 +7417,16 @@ app.get("/api/collector-rooms", requireAuth, (req, res) => {
     `).all();
     return res.json(rooms);
   }
-  const rooms = db.prepare("SELECT * FROM collector_rooms WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
-  res.json(rooms);
+  const owned = db.prepare("SELECT *, 1 as is_owner FROM collector_rooms WHERE client_id = ?").all(userId) as any[];
+  const assigned = db.prepare(`
+    SELECT r.*, 0 as is_owner FROM collector_rooms r
+    JOIN room_assigned_clients a ON a.room_type = 'collector' AND a.room_id = r.id AND a.client_id = ?
+    WHERE r.client_id != ?
+  `).all(userId, userId) as any[];
+  const seen = new Set((owned as any[]).map((x: any) => x.id));
+  const combined = [...owned, ...(assigned as any[]).filter((x: any) => !seen.has(x.id))];
+  combined.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  res.json(combined);
 });
 app.post("/api/collector-rooms", requireAuth, requireAdmin, (req, res) => {
   const { client_id, project_title, status } = req.body || {};
@@ -7183,7 +7440,9 @@ app.get("/api/collector-rooms/:id", requireAuth, (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   const room = db.prepare("SELECT * FROM collector_rooms WHERE id = ?").get(id) as any;
   if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
-  if (!isAdminUser(user) && room.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const isOwner = room.client_id === userId;
+  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'collector' AND room_id = ? AND client_id = ?").get(id, userId);
+  if (!isAdminUser(user) && !isOwner && !isAssigned) return res.status(403).json({ error: "Kein Zugriff." });
   const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
   const conversations = db.prepare("SELECT * FROM private_client_conversations WHERE client_id = ? ORDER BY updated_at DESC").all(room.client_id);
   const projects = db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
@@ -7260,8 +7519,16 @@ app.get("/api/deal-rooms", requireAuth, (req, res) => {
     `).all();
     return res.json(rooms);
   }
-  const rooms = db.prepare("SELECT * FROM deal_rooms WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
-  res.json(rooms);
+  const owned = db.prepare("SELECT *, 1 as is_owner FROM deal_rooms WHERE client_id = ?").all(userId) as any[];
+  const assigned = db.prepare(`
+    SELECT d.*, 0 as is_owner FROM deal_rooms d
+    JOIN room_assigned_clients a ON a.room_type = 'deal' AND a.room_id = d.id AND a.client_id = ?
+    WHERE d.client_id != ?
+  `).all(userId, userId) as any[];
+  const seen = new Set((owned as any[]).map((x: any) => x.id));
+  const combined = [...owned, ...(assigned as any[]).filter((x: any) => !seen.has(x.id))];
+  combined.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  res.json(combined);
 });
 app.post("/api/deal-rooms", requireAuth, requireAdmin, (req, res) => {
   const { collector_room_id, client_id, project_title, price, payment_plan, status } = req.body || {};
@@ -7278,7 +7545,9 @@ app.get("/api/deal-rooms/:id", requireAuth, (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(id) as any;
   if (!room) return res.status(404).json({ error: "Deal-Raum nicht gefunden." });
-  if (!isAdminUser(user) && room.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const isOwner = room.client_id === userId;
+  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(id, userId);
+  if (!isAdminUser(user) && !isOwner && !isAssigned) return res.status(403).json({ error: "Kein Zugriff." });
   const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
   const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
   const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
