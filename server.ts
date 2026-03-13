@@ -9,6 +9,7 @@ import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
+import multer from "multer";
 import { fileURLToPath } from "url";
 
 const BCRYPT_ROUNDS = 10;
@@ -42,13 +43,42 @@ app.use(express.json({ limit: '50mb' }));
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadsDropsDir = path.join(uploadsDir, 'drops');
 const uploadsDocumentsDir = path.join(uploadsDir, 'documents');
+const vaultStorageDir = path.join(__dirname, 'vault-storage');
+const vaultStorageProjekteDir = path.join(vaultStorageDir, 'projekte');
 if (!fs.existsSync(uploadsDropsDir)) {
   fs.mkdirSync(uploadsDropsDir, { recursive: true });
 }
 if (!fs.existsSync(uploadsDocumentsDir)) {
   fs.mkdirSync(uploadsDocumentsDir, { recursive: true });
 }
+if (!fs.existsSync(vaultStorageProjekteDir)) {
+  fs.mkdirSync(vaultStorageProjekteDir, { recursive: true });
+}
 app.use('/uploads', express.static(uploadsDir));
+app.use('/vault-storage', express.static(vaultStorageDir));
+
+const projectImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const vaultId = (req as any).vaultId || 'unknown';
+    const dir = path.join(vaultStorageProjekteDir, String(vaultId));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    const safe = /^[a-zA-Z0-9.-]+$/.test(ext) ? ext : '.jpg';
+    cb(null, `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${safe}`);
+  }
+});
+const projectImageUpload = multer({
+  storage: projectImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Nur JPG, PNG und WEBP erlaubt'));
+  }
+});
 
 // --- Database Initialization ---
 db.exec(`
@@ -776,6 +806,18 @@ db.exec(`
     FOREIGN KEY(certificate_id) REFERENCES certificates(id),
     FOREIGN KEY(created_by) REFERENCES users(id)
   );
+
+  -- Projekt-Bilder (Hauptbild, Detailbilder, Zertifikatsbild)
+  CREATE TABLE IF NOT EXISTS project_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id INTEGER NOT NULL,
+    image_type TEXT NOT NULL DEFAULT 'detail',
+    file_path TEXT NOT NULL,
+    file_name TEXT,
+    sort_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES vault_projects(id)
+  );
 `);
 
 try {
@@ -832,6 +874,11 @@ try {
 try {
   db.prepare("ALTER TABLE users ADD COLUMN username TEXT").run();
 } catch (e) {}
+try { db.prepare("ALTER TABLE vault_projects ADD COLUMN vault_id TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE vault_projects ADD COLUMN serial_id TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE vault_projects ADD COLUMN production_start TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE vault_projects ADD COLUMN production_duration TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE vault_projects ADD COLUMN completion_date TEXT").run(); } catch (e) {}
 db.exec(`
   CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1193,6 +1240,28 @@ function nextRegRef(): string {
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
   `).run(key, year, nextVal);
   return `REG-${year}-${String(nextVal).padStart(4, '0')}`;
+}
+function nextVaultId(): string {
+  const year = new Date().getFullYear();
+  const key = `vault_bv_${year}`;
+  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const nextVal = (row ? row.last_value + 1 : 1);
+  db.prepare(`
+    INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
+    ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
+  `).run(key, year, nextVal);
+  return `BV-${year}-${String(nextVal).padStart(4, '0')}`;
+}
+function nextProjectSerialId(): string {
+  const year = new Date().getFullYear();
+  const key = `project_ab_${year}`;
+  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const nextVal = (row ? row.last_value + 1 : 1);
+  db.prepare(`
+    INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
+    ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
+  `).run(key, year, nextVal);
+  return `AB-${year}-${String(nextVal).padStart(4, '0')}`;
 }
 
 // Seed Admin: immer admin@bellanova.com / admin123 und Anmeldename "admin" verfügbar
@@ -3086,11 +3155,13 @@ app.post("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id } = req.body || {};
-  if (!project_name || typeof project_name !== 'string' || !project_name.trim()) return res.status(400).json({ error: "project_name required" });
+  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, production_start, production_duration, completion_date } = req.body || {};
+  if (!project_name || typeof project_name !== 'string' || !project_name.trim()) return res.status(400).json({ error: "Projektname erforderlich" });
+  const vaultId = nextVaultId();
+  const serialId = nextProjectSerialId();
   const result = db.prepare(`
-    INSERT INTO vault_projects (masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO vault_projects (masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, vault_id, serial_id, production_start, production_duration, completion_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     masterpiece_id ? Number(masterpiece_id) : null,
     String(project_name).trim(),
@@ -3098,10 +3169,17 @@ app.post("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
     material ? String(material).trim() : null,
     gemstones ? String(gemstones).trim() : null,
     weight ? String(weight).trim() : null,
-    client_id ? Number(client_id) : null
+    client_id ? Number(client_id) : null,
+    vaultId,
+    serialId,
+    production_start ? String(production_start).trim() : null,
+    production_duration ? String(production_duration).trim() : null,
+    completion_date ? String(completion_date).trim() : null
   );
+  const projectDir = path.join(vaultStorageProjekteDir, vaultId);
+  if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
   try { logAudit(adminId!, 'PROJECT_CREATED', String(result.lastInsertRowid), project_name); } catch (_) {}
-  res.json({ success: true, id: result.lastInsertRowid });
+  res.json({ success: true, id: result.lastInsertRowid, vault_id: vaultId, serial_id: serialId });
 });
 
 app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
@@ -3109,9 +3187,9 @@ app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const id = Number(req.params.id);
-  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id } = req.body || {};
-  const row = db.prepare("SELECT * FROM vault_projects WHERE id = ?").get(id);
-  if (!row) return res.status(404).json({ error: "Project not found" });
+  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, production_start, production_duration, completion_date } = req.body || {};
+  const row = db.prepare("SELECT * FROM vault_projects WHERE id = ?").get(id) as any;
+  if (!row) return res.status(404).json({ error: "Projekt nicht gefunden" });
   db.prepare(`
     UPDATE vault_projects SET
       masterpiece_id = COALESCE(?, masterpiece_id),
@@ -3120,7 +3198,10 @@ app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
       material = COALESCE(?, material),
       gemstones = COALESCE(?, gemstones),
       weight = COALESCE(?, weight),
-      client_id = COALESCE(?, client_id)
+      client_id = COALESCE(?, client_id),
+      production_start = COALESCE(?, production_start),
+      production_duration = COALESCE(?, production_duration),
+      completion_date = COALESCE(?, completion_date)
     WHERE id = ?
   `).run(
     masterpiece_id != null ? Number(masterpiece_id) : null,
@@ -3130,8 +3211,58 @@ app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
     gemstones != null ? String(gemstones).trim() : null,
     weight != null ? String(weight).trim() : null,
     client_id != null ? Number(client_id) : null,
+    production_start != null ? String(production_start).trim() : null,
+    production_duration != null ? String(production_duration).trim() : null,
+    completion_date != null ? String(completion_date).trim() : null,
     id
   );
+  res.json({ success: true });
+});
+
+app.get("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare(`
+    SELECT p.*, u.name as client_name, u.email as client_email, m.serial_id as masterpiece_serial, m.title as masterpiece_title
+    FROM vault_projects p
+    LEFT JOIN users u ON p.client_id = u.id
+    LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
+    WHERE p.id = ?
+  `).get(id) as any;
+  if (!row) return res.status(404).json({ error: "Projekt nicht gefunden" });
+  const images = db.prepare("SELECT * FROM project_images WHERE project_id = ? ORDER BY image_type = 'main' DESC, sort_order ASC, id ASC").all(id) as any[];
+  res.json({ ...row, images });
+});
+
+app.post("/api/admin/projects/:id/images", requireAuth, requireAdmin, (req, res, next) => {
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?").get(id) as { vault_id: string } | undefined;
+  if (!row || !row.vault_id) return res.status(404).json({ error: "Projekt nicht gefunden oder keine Vault ID" });
+  (req as any).vaultId = row.vault_id;
+  next();
+}, projectImageUpload.array('images', 20), (req, res) => {
+  const projectId = Number(req.params.id);
+  const imageType = (req.body?.image_type as string) || 'detail';
+  const files = (req as any).files as Express.Multer.File[];
+  if (!files || files.length === 0) return res.status(400).json({ error: "Keine Bilder hochgeladen" });
+  const allowedTypes = ['main', 'detail', 'certificate'];
+  const type = allowedTypes.includes(imageType) ? imageType : 'detail';
+  const row = db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?").get(projectId) as { vault_id: string };
+  files.forEach((f, i) => {
+    const relPath = path.relative(__dirname, f.path);
+    const webPath = '/' + relPath.replace(/\\/g, '/');
+    db.prepare("INSERT INTO project_images (project_id, image_type, file_path, file_name, sort_order) VALUES (?, ?, ?, ?, ?)").run(projectId, type, webPath, f.originalname || f.filename, i);
+  });
+  res.json({ success: true, count: files.length });
+});
+
+app.delete("/api/admin/projects/:projectId/images/:imageId", requireAuth, requireAdmin, (req, res) => {
+  const projectId = Number(req.params.projectId);
+  const imageId = Number(req.params.imageId);
+  const img = db.prepare("SELECT * FROM project_images WHERE id = ? AND project_id = ?").get(imageId, projectId) as { file_path: string } | undefined;
+  if (!img) return res.status(404).json({ error: "Bild nicht gefunden" });
+  const fullPath = path.join(__dirname, img.file_path.replace(/^\//, ''));
+  if (fs.existsSync(fullPath)) try { fs.unlinkSync(fullPath); } catch (_) {}
+  db.prepare("DELETE FROM project_images WHERE id = ?").run(imageId);
   res.json({ success: true });
 });
 
@@ -3177,7 +3308,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { document_type, contract_type, client_id, project_id } = req.body || {};
+  const { document_type, contract_type, certificate_type, client_id, project_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id required" });
   if (!document_type || !['contract', 'invoice', 'certificate'].includes(document_type)) return res.status(400).json({ error: "document_type must be contract, invoice, or certificate" });
   if (document_type === 'contract' && (!contract_type || !CONTRACT_TYPES.includes(contract_type as any))) return res.status(400).json({ error: "contract_type required and must be one of: " + CONTRACT_TYPES.join(', ') });
@@ -3197,7 +3328,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
       WHERE p.id = ?
     `).get(Number(project_id)) as any;
     if (project) {
-      vaultId = project.masterpiece_serial || project.masterpiece_id ? (db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any)?.serial_id : '';
+      vaultId = project.vault_id || project.masterpiece_serial || (project.masterpiece_id ? (db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any)?.serial_id : '') || '';
       if (project.masterpiece_id) masterpiece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any;
     }
   }
@@ -3206,6 +3337,13 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
   let content = '';
   let contractId: number | null = null;
   let certificateId: number | null = null;
+
+  const CERTIFICATE_TYPES: Record<string, string> = {
+    ownership: 'Eigentumszertifikat',
+    provenance: 'Provenienz-Zertifikat',
+    collector: 'Sammler-Zertifikat',
+    quality: 'Qualitätszertifikat'
+  };
 
   if (document_type === 'contract') {
     content = generateAdminContractContent(contract_type, client, project, masterpiece);
@@ -3224,15 +3362,21 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
     contractId = ins.lastInsertRowid as number;
   } else if (document_type === 'certificate') {
     const piece = masterpiece || (project?.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any : null);
+    const certType = (req.body as any).certificate_type || 'ownership';
+    const certTitle = CERTIFICATE_TYPES[certType] || CERTIFICATE_TYPES.ownership;
     const certId = `CERT-${Date.now()}-${client.id}`;
+    const serialId = project?.serial_id || piece?.serial_id || '—';
+    vaultId = project?.vault_id || vaultId || piece?.serial_id || '';
     content = `<div style="font-family:Georgia,serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:24px;">
-<h2 style="border-bottom:1px solid #c9a227;">Echtheitszertifikat</h2>
+<h2 style="border-bottom:1px solid #c9a227;">${certTitle}</h2>
 <p><strong>Vault ID:</strong> ${vaultId || piece?.serial_id || '—'}</p>
+<p><strong>Seriennummer:</strong> ${serialId}</p>
+<p><strong>Projekt:</strong> ${project?.project_name || piece?.title || '—'}</p>
+<p><strong>Kunde:</strong> ${client.name}</p>
 <p><strong>Objekt:</strong> ${piece?.title || project?.project_name || '—'}</p>
-<p><strong>Eigentümer:</strong> ${client.name}</p>
 <p><strong>Zertifikat-ID:</strong> ${certId}</p>
 <p>Dieses Zertifikat bestätigt die Authentizität und Eigentümerschaft des genannten Objekts.</p>
-<p style="font-size:12px;color:#666;">Antonio Bellanova Atelier · Köln</p>
+<p style="font-size:12px;color:#666;">Juwelen & Schmuckatelier Antonio Bellanova · Köln</p>
 </div>`;
     const certIns = db.prepare(`
       INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash)

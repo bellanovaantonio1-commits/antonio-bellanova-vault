@@ -2747,8 +2747,14 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings' | 'projects' | 'documents' | 'contract-generator'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings' | 'projects' | 'documents' | 'contract-generator'>('overview');
   const [adminProjects, setAdminProjects] = useState<any[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectDetail, setSelectedProjectDetail] = useState<any>(null);
+  const [projectImageUploading, setProjectImageUploading] = useState(false);
+  const [projectImageDragOver, setProjectImageDragOver] = useState(false);
+  const projectImageInputRef = useRef<HTMLInputElement>(null);
+  const [adminDocFormType, setAdminDocFormType] = useState<'contract' | 'invoice' | 'certificate'>('contract');
   const [adminDocuments, setAdminDocuments] = useState<{ vault_documents: any[]; contracts: any[]; certificates: any[] }>({ vault_documents: [], contracts: [], certificates: [] });
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
@@ -3450,6 +3456,16 @@ export default function App() {
       }
     }
   }, [user?.role, adminTab]);
+
+  useEffect(() => {
+    if (selectedProjectId && user?.role === UserRole.ADMIN) {
+      fetch(`/api/admin/projects/${selectedProjectId}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => setSelectedProjectDetail(data));
+    } else {
+      setSelectedProjectDetail(null);
+    }
+  }, [selectedProjectId, user?.role]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -7141,9 +7157,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'projects' ? (t('admin.doc_projects') || 'Projects') : tab === 'documents' ? (t('admin.doc_panel') || 'Documents') : tab === 'contract-generator' ? (t('admin.contract_generator') || 'Contract Generator') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -8220,6 +8236,40 @@ export default function App() {
                   </section>
                   )}
 
+                  {(adminTab === 'kunden') && (
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">Kunden</h3>
+                    <p className="text-sm text-zinc-500">Alle Kunden des Ateliers. Kunden können nur ihre eigenen Schmuckstücke, Dokumente, Zertifikate und Rechnungen einsehen.</p>
+                    <Card className="p-6">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">Name</th>
+                              <th className="py-2 pr-2">E-Mail</th>
+                              <th className="py-2 pr-2">Status</th>
+                              <th className="py-2 pr-2">Rolle</th>
+                              <th className="py-2 pr-2">Registriert</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {allUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'super_admin').map((u: any) => (
+                              <tr key={u.id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-200">{u.name || '—'}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{u.email || '—'}</td>
+                                <td className="py-2 pr-2"><Badge variant={u.status === 'approved' ? 'emerald' : u.status === 'rejected' ? 'red' : 'amber'}>{u.status || 'pending'}</Badge></td>
+                                <td className="py-2 pr-2 text-zinc-400">{u.role || 'client'}</td>
+                                <td className="py-2 pr-2 text-zinc-500">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {allUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'super_admin').length === 0 && <p className="text-zinc-500 text-sm italic py-4">Keine Kunden vorhanden.</p>}
+                    </Card>
+                  </section>
+                  )}
+
                   {(adminTab === 'advisors') && (
                   <section className="space-y-6">
                     <h3 className="text-xl font-serif italic">{t('admin.advisors') || 'Strategic Private Advisors'}</h3>
@@ -8341,45 +8391,57 @@ export default function App() {
                   )}
 
                   {(adminTab === 'projects') && (
-                  <section className="space-y-6">
-                    <h3 className="text-xl font-serif italic">{t('admin.doc_projects') || 'Projects'}</h3>
-                    <p className="text-sm text-zinc-500">Each jewelry piece is a project. Create and manage projects linked to clients and masterpieces.</p>
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">Projekte</h3>
+                    <p className="text-sm text-zinc-500">Jedes Schmuckstück ist ein Projekt. Vault ID und Seriennummer werden automatisch generiert.</p>
                     <Card className="p-6 space-y-4">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">New Project</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Neues Projekt anlegen</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Project Name</label>
-                          <input type="text" id="admin-project-name" placeholder="e.g. Emerald Ring Commission" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          <label className="block text-xs text-zinc-500 mb-1">Projektname</label>
+                          <input type="text" id="admin-project-name" placeholder="z.B. Smaragdring Kommission" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Jewelry Piece</label>
-                          <input type="text" id="admin-project-piece" placeholder="e.g. Ring, Necklace" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          <label className="block text-xs text-zinc-500 mb-1">Schmuckstück</label>
+                          <input type="text" id="admin-project-piece" placeholder="z.B. Ring, Halskette" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">Material</label>
-                          <input type="text" id="admin-project-material" placeholder="e.g. 18K Gold" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          <input type="text" id="admin-project-material" placeholder="z.B. 18K Gold" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Gemstones</label>
-                          <input type="text" id="admin-project-gemstones" placeholder="e.g. Emerald, Diamond" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          <label className="block text-xs text-zinc-500 mb-1">Edelsteine</label>
+                          <input type="text" id="admin-project-gemstones" placeholder="z.B. Smaragd, Diamant" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Weight</label>
-                          <input type="text" id="admin-project-weight" placeholder="e.g. 12.5g" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                          <label className="block text-xs text-zinc-500 mb-1">Gewicht</label>
+                          <input type="text" id="admin-project-weight" placeholder="z.B. 12,5g" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Client</label>
+                          <label className="block text-xs text-zinc-500 mb-1">Kunde</label>
                           <select id="admin-project-client" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="">— Select Client —</option>
+                            <option value="">— Kunde auswählen —</option>
                             {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
                               <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                             ))}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Masterpiece (optional)</label>
+                          <label className="block text-xs text-zinc-500 mb-1">Produktionsstart</label>
+                          <input type="date" id="admin-project-production-start" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Produktionsdauer</label>
+                          <input type="text" id="admin-project-production-duration" placeholder="z.B. 6 Wochen" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Fertigstellungsdatum</label>
+                          <input type="date" id="admin-project-completion-date" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Meisterstück (optional)</label>
                           <select id="admin-project-masterpiece" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="">— None —</option>
+                            <option value="">— Keines —</option>
                             {masterpieces.map(m => (
                               <option key={m.id} value={m.id}>{m.title} ({m.serial_id})</option>
                             ))}
@@ -8388,7 +8450,7 @@ export default function App() {
                       </div>
                       <Button variant="primary" onClick={async () => {
                         const name = (document.getElementById('admin-project-name') as HTMLInputElement)?.value?.trim();
-                        if (!name) { notifyUser('Project name required', 'error'); return; }
+                        if (!name) { notifyUser('Projektname erforderlich', 'error'); return; }
                         const res = await fetch('/api/admin/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
                           project_name: name,
                           jewelry_piece: (document.getElementById('admin-project-piece') as HTMLInputElement)?.value?.trim() || undefined,
@@ -8396,36 +8458,125 @@ export default function App() {
                           gemstones: (document.getElementById('admin-project-gemstones') as HTMLInputElement)?.value?.trim() || undefined,
                           weight: (document.getElementById('admin-project-weight') as HTMLInputElement)?.value?.trim() || undefined,
                           client_id: (document.getElementById('admin-project-client') as HTMLSelectElement)?.value ? Number((document.getElementById('admin-project-client') as HTMLSelectElement).value) : undefined,
-                          masterpiece_id: (document.getElementById('admin-project-masterpiece') as HTMLSelectElement)?.value ? Number((document.getElementById('admin-project-masterpiece') as HTMLSelectElement).value) : undefined
+                          masterpiece_id: (document.getElementById('admin-project-masterpiece') as HTMLSelectElement)?.value ? Number((document.getElementById('admin-project-masterpiece') as HTMLSelectElement).value) : undefined,
+                          production_start: (document.getElementById('admin-project-production-start') as HTMLInputElement)?.value || undefined,
+                          production_duration: (document.getElementById('admin-project-production-duration') as HTMLInputElement)?.value?.trim() || undefined,
+                          completion_date: (document.getElementById('admin-project-completion-date') as HTMLInputElement)?.value || undefined
                         }), credentials: 'include' });
-                        if (res.ok) { notifyUser('Project created', 'success'); fetchData(); (document.getElementById('admin-project-name') as HTMLInputElement).value = ''; }
-                        else { const e = await res.json(); notifyUser(e.error || 'Error', 'error'); }
-                      }}>Create Project</Button>
+                        if (res.ok) {
+                          const data = await res.json();
+                          notifyUser(`Projekt erstellt. Vault ID: ${data.vault_id}`, 'success');
+                          fetchData();
+                          (document.getElementById('admin-project-name') as HTMLInputElement).value = '';
+                          (document.getElementById('admin-project-production-start') as HTMLInputElement).value = '';
+                          (document.getElementById('admin-project-production-duration') as HTMLInputElement).value = '';
+                          (document.getElementById('admin-project-completion-date') as HTMLInputElement).value = '';
+                        } else { const e = await res.json(); notifyUser(e.error || 'Fehler', 'error'); }
+                      }}>Projekt anlegen</Button>
                     </Card>
                     <div className="space-y-3">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">All Projects</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Alle Projekte</h4>
                       {adminProjects.map((p: any) => (
                         <Card key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-4">
                           <div>
                             <p className="font-medium text-zinc-200">{p.project_name}</p>
-                            <p className="text-xs text-zinc-500">Vault ID: {p.masterpiece_serial || p.masterpiece_id || '—'} · Client: {p.client_name || '—'}</p>
+                            <p className="text-xs text-zinc-500">Vault ID: {p.vault_id || p.masterpiece_serial || '—'} · Seriennummer: {p.serial_id || '—'} · Kunde: {p.client_name || '—'}</p>
                             <p className="text-[10px] text-zinc-600 mt-1">{p.material || '—'} · {p.gemstones || '—'} · {p.weight || '—'}</p>
                           </div>
-                          <span className="text-[10px] text-zinc-500">{new Date(p.created_at).toLocaleDateString()}</span>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setSelectedProjectId(p.id)}>Details</Button>
+                            <span className="text-[10px] text-zinc-500">{new Date(p.created_at).toLocaleDateString()}</span>
+                          </div>
                         </Card>
                       ))}
-                      {adminProjects.length === 0 && <p className="text-zinc-500 text-sm italic">No projects yet.</p>}
+                      {adminProjects.length === 0 && <p className="text-zinc-500 text-sm italic">Noch keine Projekte.</p>}
                     </div>
+
+                    {selectedProjectId && selectedProjectDetail && (
+                    <Card className="p-6 space-y-6 border-amber-500/20">
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-lg font-serif italic">Projektdetails</h4>
+                        <Button variant="ghost" size="sm" onClick={() => { setSelectedProjectId(null); setSelectedProjectDetail(null); }}>Schließen</Button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2 text-sm">
+                          <p><span className="text-zinc-500">Vault ID:</span> <span className="font-mono text-amber-500">{selectedProjectDetail.vault_id || '—'}</span></p>
+                          <p><span className="text-zinc-500">Seriennummer:</span> <span className="font-mono">{selectedProjectDetail.serial_id || '—'}</span></p>
+                          <p><span className="text-zinc-500">Kunde:</span> {selectedProjectDetail.client_name || '—'}</p>
+                          <p><span className="text-zinc-500">Schmuckstück:</span> {selectedProjectDetail.jewelry_piece || '—'}</p>
+                          <p><span className="text-zinc-500">Material:</span> {selectedProjectDetail.material || '—'}</p>
+                          <p><span className="text-zinc-500">Edelsteine:</span> {selectedProjectDetail.gemstones || '—'}</p>
+                          <p><span className="text-zinc-500">Gewicht:</span> {selectedProjectDetail.weight || '—'}</p>
+                          <p><span className="text-zinc-500">Produktionsstart:</span> {selectedProjectDetail.production_start ? new Date(selectedProjectDetail.production_start).toLocaleDateString() : '—'}</p>
+                          <p><span className="text-zinc-500">Produktionsdauer:</span> {selectedProjectDetail.production_duration || '—'}</p>
+                          <p><span className="text-zinc-500">Fertigstellung:</span> {selectedProjectDetail.completion_date ? new Date(selectedProjectDetail.completion_date).toLocaleDateString() : '—'}</p>
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold uppercase tracking-widest text-zinc-400 mb-2">Bilder</h5>
+                          <div
+                            className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${projectImageDragOver ? 'border-amber-500/50 bg-amber-500/5' : 'border-zinc-700'}`}
+                            onDragOver={(e) => { e.preventDefault(); setProjectImageDragOver(true); }}
+                            onDragLeave={() => setProjectImageDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setProjectImageDragOver(false);
+                              const files = Array.from(e.dataTransfer.files).filter(f => /\.(jpe?g|png|webp)$/i.test(f.name));
+                              if (files.length === 0) { notifyUser('Nur JPG, PNG und WEBP erlaubt', 'error'); return; }
+                              const fd = new FormData();
+                              files.forEach(f => fd.append('images', f));
+                              fd.append('image_type', 'detail');
+                              setProjectImageUploading(true);
+                              fetch(`/api/admin/projects/${selectedProjectId}/images`, { method: 'POST', body: fd, credentials: 'include' })
+                                .then(r => r.ok ? fetch(`/api/admin/projects/${selectedProjectId}`, { credentials: 'include' }).then(x => x.json()).then(setSelectedProjectDetail) : r.json().then(e => { throw new Error(e.error); }))
+                                .then(() => { notifyUser('Bilder hochgeladen', 'success'); fetchData(); })
+                                .catch(err => notifyUser(err.message || 'Upload fehlgeschlagen', 'error'))
+                                .finally(() => setProjectImageUploading(false));
+                            }}
+                          >
+                            <input ref={projectImageInputRef} type="file" accept=".jpg,.jpeg,.png,.webp" multiple className="hidden" onChange={(e) => {
+                              const files = e.target.files ? Array.from(e.target.files) : [];
+                              if (files.length === 0) return;
+                              const fd = new FormData();
+                              files.forEach(f => fd.append('images', f));
+                              fd.append('image_type', 'detail');
+                              setProjectImageUploading(true);
+                              fetch(`/api/admin/projects/${selectedProjectId}/images`, { method: 'POST', body: fd, credentials: 'include' })
+                                .then(r => r.ok ? fetch(`/api/admin/projects/${selectedProjectId}`, { credentials: 'include' }).then(x => x.json()).then(setSelectedProjectDetail) : r.json().then(e => { throw new Error(e.error); }))
+                                .then(() => { notifyUser('Bilder hochgeladen', 'success'); fetchData(); })
+                                .catch(err => notifyUser(err.message || 'Upload fehlgeschlagen', 'error'))
+                                .finally(() => setProjectImageUploading(false));
+                              e.target.value = '';
+                            }} />
+                            <p className="text-zinc-500 text-sm mb-2">Bilder per Drag & Drop hier ablegen oder</p>
+                            <Button variant="outline" size="sm" disabled={projectImageUploading} onClick={() => projectImageInputRef.current?.click()}>Bilder auswählen</Button>
+                            <p className="text-[10px] text-zinc-600 mt-2">JPG, PNG, WEBP</p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4">
+                            {(selectedProjectDetail.images || []).map((img: any) => (
+                              <div key={img.id} className="relative group">
+                                <img src={img.file_path} alt="" className="w-full aspect-square object-cover rounded-lg border border-zinc-800" />
+                                <button type="button" className="absolute top-1 right-1 p-1 rounded bg-red-500/80 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity" onClick={async () => {
+                                  if (!confirm('Bild löschen?')) return;
+                                  const r = await fetch(`/api/admin/projects/${selectedProjectId}/images/${img.id}`, { method: 'DELETE', credentials: 'include' });
+                                  if (r.ok) { setSelectedProjectDetail((p: any) => ({ ...p, images: (p.images || []).filter((i: any) => i.id !== img.id) })); fetchData(); }
+                                }}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                    )}
                   </section>
                   )}
 
                   {(adminTab === 'documents') && (
-                  <section className="space-y-6">
-                    <h3 className="text-xl font-serif italic">{t('admin.doc_panel') || 'Document Panel'}</h3>
-                    <p className="text-sm text-zinc-500">Contracts, Invoices, Certificates. Admin-created documents linked to clients and projects.</p>
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">Dokumente</h3>
+                    <p className="text-sm text-zinc-500">Verträge, Rechnungen, Zertifikate. Alle Dokumente sind mit Vault ID und Projekt verknüpft.</p>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <Card className="p-4">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Contracts</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Verträge</h4>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {(adminDocuments.contracts || []).slice(0, 20).map((c: any) => (
                             <div key={c.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
@@ -8436,11 +8587,11 @@ export default function App() {
                               <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
-                          {(adminDocuments.contracts || []).length === 0 && <p className="text-zinc-500 text-xs italic">No contracts</p>}
+                          {(adminDocuments.contracts || []).length === 0 && <p className="text-zinc-500 text-xs italic">Keine Verträge</p>}
                         </div>
                       </Card>
                       <Card className="p-4">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Invoices</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Rechnungen</h4>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').slice(0, 20).map((c: any) => (
                             <div key={c.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
@@ -8451,11 +8602,11 @@ export default function App() {
                               <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
-                          {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').length === 0 && <p className="text-zinc-500 text-xs italic">No invoices</p>}
+                          {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').length === 0 && <p className="text-zinc-500 text-xs italic">Keine Rechnungen</p>}
                         </div>
                       </Card>
                       <Card className="p-4">
-                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Certificates</h4>
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Zertifikate</h4>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
                           {(adminDocuments.certificates || []).slice(0, 20).map((cert: any) => (
                             <div key={cert.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
@@ -8466,12 +8617,12 @@ export default function App() {
                               <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
-                          {(adminDocuments.certificates || []).length === 0 && <p className="text-zinc-500 text-xs italic">No certificates</p>}
+                          {(adminDocuments.certificates || []).length === 0 && <p className="text-zinc-500 text-xs italic">Keine Zertifikate</p>}
                         </div>
                       </Card>
                     </div>
                     <Card className="p-4">
-                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Vault Documents (Admin-generated)</h4>
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Vault-Dokumente</h4>
                       <div className="space-y-2">
                         {(adminDocuments.vault_documents || []).map((vd: any) => (
                           <div key={vd.id} className="flex items-center justify-between gap-4 py-2 border-b border-zinc-800/50">
@@ -8482,79 +8633,94 @@ export default function App() {
                             <a href={`/api/documents/${vd.id}/download`} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                           </div>
                         ))}
-                        {(adminDocuments.vault_documents || []).length === 0 && <p className="text-zinc-500 text-xs italic">No vault documents</p>}
+                        {(adminDocuments.vault_documents || []).length === 0 && <p className="text-zinc-500 text-xs italic">Keine Vault-Dokumente</p>}
                       </div>
                     </Card>
                   </section>
                   )}
 
                   {(adminTab === 'contract-generator') && (
-                  <section className="space-y-6">
-                    <h3 className="text-xl font-serif italic">{t('admin.contract_generator') || 'Contract Generator'}</h3>
-                    <p className="text-sm text-zinc-500">Create contracts, invoices, or certificates. Link to client and project. Stored in Vault.</p>
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">Vertragsgenerator</h3>
+                    <p className="text-sm text-zinc-500">Verträge, Rechnungen oder Zertifikate erstellen. Verknüpft mit Kunde und Projekt. Automatisch im Vault gespeichert.</p>
                     <Card className="p-6 space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Document Type</label>
-                          <select id="admin-doc-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="contract">Contract</option>
-                            <option value="invoice">Invoice</option>
-                            <option value="certificate">Certificate</option>
+                          <label className="block text-xs text-zinc-500 mb-1">Dokumentart</label>
+                          <select id="admin-doc-type" value={adminDocFormType} onChange={e => setAdminDocFormType(e.target.value as 'contract' | 'invoice' | 'certificate')} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="contract">Vertrag</option>
+                            <option value="invoice">Rechnung</option>
+                            <option value="certificate">Zertifikat</option>
                           </select>
                         </div>
-                        <div id="admin-contract-type-wrap">
-                          <label className="block text-xs text-zinc-500 mb-1">Contract Type</label>
-                          <select id="admin-contract-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="purchase_agreement">Purchase Agreement</option>
-                            <option value="deposit_agreement">Deposit Agreement</option>
-                            <option value="production_agreement">Production Agreement</option>
-                            <option value="delivery_agreement">Delivery Agreement</option>
-                            <option value="supplier_agreement">Supplier Agreement</option>
-                            <option value="commission_agreement">Commission Agreement</option>
-                            <option value="nda">NDA</option>
-                          </select>
-                        </div>
+                        {adminDocFormType === 'contract' && (
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Client *</label>
+                          <label className="block text-xs text-zinc-500 mb-1">Vertragsart</label>
+                          <select id="admin-contract-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="purchase_agreement">Kaufvertrag</option>
+                            <option value="deposit_agreement">Anzahlungsvereinbarung</option>
+                            <option value="production_agreement">Produktionsvertrag</option>
+                            <option value="delivery_agreement">Liefervertrag</option>
+                            <option value="supplier_agreement">Lieferantenvertrag</option>
+                            <option value="commission_agreement">Provisionsvertrag</option>
+                            <option value="nda">Vertraulichkeitsvereinbarung (NDA)</option>
+                          </select>
+                        </div>
+                        )}
+                        {adminDocFormType === 'certificate' && (
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Zertifikatsart</label>
+                          <select id="admin-certificate-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="ownership">Eigentumszertifikat</option>
+                            <option value="provenance">Provenienz-Zertifikat</option>
+                            <option value="collector">Sammler-Zertifikat</option>
+                            <option value="quality">Qualitätszertifikat</option>
+                          </select>
+                        </div>
+                        )}
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Kunde *</label>
                           <select id="admin-doc-client" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="">— Select Client —</option>
+                            <option value="">— Kunde auswählen —</option>
                             {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
                               <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
                             ))}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Project (optional)</label>
+                          <label className="block text-xs text-zinc-500 mb-1">Projekt (optional)</label>
                           <select id="admin-doc-project" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="">— None —</option>
+                            <option value="">— Keines —</option>
                             {adminProjects.map((p: any) => (
-                              <option key={p.id} value={p.id}>{p.project_name} ({p.client_name || '—'})</option>
+                              <option key={p.id} value={p.id}>{p.project_name} ({p.vault_id || p.client_name || '—'})</option>
                             ))}
                           </select>
                         </div>
                       </div>
                       <Button variant="primary" onClick={async () => {
-                        const docType = (document.getElementById('admin-doc-type') as HTMLSelectElement)?.value || 'contract';
+                        const docType = adminDocFormType;
                         const contractType = (document.getElementById('admin-contract-type') as HTMLSelectElement)?.value || 'purchase_agreement';
+                        const certificateType = (document.getElementById('admin-certificate-type') as HTMLSelectElement)?.value || 'ownership';
                         const clientId = (document.getElementById('admin-doc-client') as HTMLSelectElement)?.value;
                         const projectId = (document.getElementById('admin-doc-project') as HTMLSelectElement)?.value;
-                        if (!clientId) { notifyUser('Client required', 'error'); return; }
-                        if (docType === 'contract' && !contractType) { notifyUser('Contract type required', 'error'); return; }
+                        if (!clientId) { notifyUser('Kunde erforderlich', 'error'); return; }
+                        if (docType === 'contract' && !contractType) { notifyUser('Vertragsart erforderlich', 'error'); return; }
                         const res = await fetch('/api/admin/documents/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
                           document_type: docType,
                           contract_type: docType === 'contract' ? contractType : undefined,
+                          certificate_type: docType === 'certificate' ? certificateType : undefined,
                           client_id: Number(clientId),
                           project_id: projectId ? Number(projectId) : undefined
                         }), credentials: 'include' });
                         if (res.ok) {
                           const data = await res.json();
-                          notifyUser(`Document created: ${data.doc_ref}`, 'success');
+                          notifyUser(`Dokument erstellt: ${data.doc_ref}`, 'success');
                           fetchData();
                         } else {
                           const e = await res.json();
-                          notifyUser(e.error || 'Error', 'error');
+                          notifyUser(e.error || 'Fehler', 'error');
                         }
-                      }}>Generate & Store in Vault</Button>
+                      }}>Erstellen & im Vault speichern</Button>
                     </Card>
                   </section>
                   )}
