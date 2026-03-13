@@ -2754,6 +2754,9 @@ export default function App() {
   const [projectImageUploading, setProjectImageUploading] = useState(false);
   const [projectImageDragOver, setProjectImageDragOver] = useState(false);
   const projectImageInputRef = useRef<HTMLInputElement>(null);
+  const [pdfImportLoading, setPdfImportLoading] = useState(false);
+  const [pdfImportDragOver, setPdfImportDragOver] = useState(false);
+  const pdfImportInputRef = useRef<HTMLInputElement>(null);
   const [adminDocFormType, setAdminDocFormType] = useState<'contract' | 'invoice' | 'certificate'>('contract');
   const [adminDocuments, setAdminDocuments] = useState<{ vault_documents: any[]; contracts: any[]; certificates: any[] }>({ vault_documents: [], contracts: [], certificates: [] });
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
@@ -3340,6 +3343,26 @@ export default function App() {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ msg, type });
     toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
+  };
+
+  const doPdfImport = async (file: File) => {
+    setPdfImportLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('pdf', file);
+      const res = await fetch('/api/admin/import/pdf', { method: 'POST', body: fd, credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notifyUser(`${data.inserted ?? 0} Produkte importiert${(data.skipped ?? 0) > 0 ? `, ${data.skipped} übersprungen (bereits vorhanden)` : ''}`, 'success');
+        fetchData();
+      } else {
+        notifyUser(data.error || 'Import fehlgeschlagen', 'error');
+      }
+    } catch (err) {
+      notifyUser('Import fehlgeschlagen', 'error');
+    } finally {
+      setPdfImportLoading(false);
+    }
   };
 
   const fetchData = async () => {
@@ -7233,6 +7256,33 @@ export default function App() {
                 </>
                 )}
                 {(adminTab === 'inventory') && (
+                    <>
+                    <Card className="p-6 border-amber-500/20 bg-amber-500/5 lg:col-span-2">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Marktplatz-PDF importieren</h4>
+                      <p className="text-xs text-zinc-500 mb-4">PDF-Datei hier ablegen oder auswählen. Alle Produkte werden automatisch erkannt und dem Marktplatz hinzugefügt. Bereits vorhandene Seriennummern werden übersprungen.</p>
+                      <div
+                        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${pdfImportDragOver ? 'border-amber-500/50 bg-amber-500/10' : 'border-zinc-700'}`}
+                        onDragOver={(e) => { e.preventDefault(); setPdfImportDragOver(true); }}
+                        onDragLeave={() => setPdfImportDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setPdfImportDragOver(false);
+                          const files = Array.from(e.dataTransfer.files).filter(f => f.type === 'application/pdf');
+                          if (files.length === 0) { notifyUser('Nur PDF-Dateien erlaubt', 'error'); return; }
+                          doPdfImport(files[0]);
+                        }}
+                      >
+                        <input ref={pdfImportInputRef} type="file" accept=".pdf,application/pdf" className="hidden" onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) doPdfImport(f);
+                          e.target.value = '';
+                        }} />
+                        <p className="text-zinc-500 text-sm mb-2">PDF hier ablegen oder</p>
+                        <Button variant="outline" size="sm" disabled={pdfImportLoading} onClick={() => pdfImportInputRef.current?.click()}>
+                          {pdfImportLoading ? 'Importiere…' : 'PDF auswählen'}
+                        </Button>
+                      </div>
+                    </Card>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       {editingPiece && (
                         <section className="space-y-6 lg:col-span-2">
@@ -7533,6 +7583,7 @@ export default function App() {
                     </section>
                   </div>
                 </div>
+                </>
                 )}
 
                 {/* Approval Queues */}

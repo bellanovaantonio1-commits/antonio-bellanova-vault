@@ -11,6 +11,9 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import { fileURLToPath } from "url";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 const BCRYPT_ROUNDS = 10;
 function hashPassword(plain: string): string {
@@ -77,6 +80,17 @@ const projectImageUpload = multer({
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (allowed.includes(file.mimetype)) cb(null, true);
     else cb(new Error('Nur JPG, PNG und WEBP erlaubt'));
+  }
+});
+
+const pdfUploadDir = path.join(uploadsDir, 'import');
+if (!fs.existsSync(pdfUploadDir)) fs.mkdirSync(pdfUploadDir, { recursive: true });
+const pdfUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Nur PDF-Dateien erlaubt'));
   }
 });
 
@@ -2102,6 +2116,70 @@ app.post("/api/admin/assign-piece", (req, res) => {
   
   broadcast({ type: 'PIECE_ASSIGNED', userId, masterpieceId });
   res.json({ success: true });
+});
+
+function parseMarktplatzPdfText(text: string): { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] {
+  const products: { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] = [];
+  const regex = /([^\n]+)\nSeriennummer:\s*([^\n]+)\n(Ab\s+[\d.,]+\s*€|Preis auf Anfrage)\nSeltenheit:\s*([^\n]+)\nBeschreibung:\s*\n([\s\S]*?)\nMaterialien:\s*([^\n]+)\nEdelsteine:\s*([^\n]+)/gi;
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    const title = m[1].trim();
+    const serial_id = m[2].trim();
+    const priceStr = m[3].trim();
+    const rarity = m[4].trim();
+    const description = m[5].trim().replace(/\n+/g, ' ');
+    const materials = m[6].trim();
+    const gemstones = m[7].trim();
+    if (/^\d|^--|^Antonio|^\d+\.\d+\.\d+/.test(title)) continue;
+    let valuation: number | null = null;
+    let pricing_mode = 'price_on_request';
+    const priceMatch = priceStr.match(/Ab\s+([\d.,]+)\s*€/);
+    if (priceMatch) {
+      valuation = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'));
+      pricing_mode = 'starting_from';
+    }
+    products.push({ title, serial_id, valuation, pricing_mode, description, materials, gemstones, rarity });
+  }
+  return products;
+}
+
+app.post("/api/admin/import/pdf", requireAuth, requireAdmin, pdfUpload.single('pdf'), async (req, res) => {
+  const userId = getSessionUserId(req);
+  const admin = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const file = (req as any).file;
+  if (!file || !file.buffer) return res.status(400).json({ error: "Keine PDF-Datei hochgeladen" });
+  try {
+    const data = await pdfParse(file.buffer);
+    const text = data.text || '';
+    const products = parseMarktplatzPdfText(text);
+    const inserted: { id: number; title: string; serial_id: string }[] = [];
+    const skipped: { serial_id: string; reason: string }[] = [];
+    const insStmt = db.prepare(`
+      INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, status, pricing_mode, hide_price)
+      VALUES (?, ?, 'jewelry', ?, ?, ?, ?, ?, 'available', ?, ?)
+    `);
+    for (const p of products) {
+      const existing = db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?").get(p.serial_id);
+      if (existing) {
+        skipped.push({ serial_id: p.serial_id, reason: 'Seriennummer bereits vorhanden' });
+        continue;
+      }
+      const hide_price = p.pricing_mode === 'price_on_request' ? 1 : 0;
+      const result = insStmt.run(p.title, p.serial_id, p.description, p.materials, p.gemstones, p.valuation, p.rarity, p.pricing_mode, hide_price);
+      const id = Number(result.lastInsertRowid);
+      inserted.push({ id, title: p.title, serial_id: p.serial_id });
+      try {
+        updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
+        calculateRarityScore(id);
+      } catch (_) {}
+    }
+    try { logAudit(userId!, 'PDF_IMPORT', String(inserted.length), `Importiert: ${inserted.length}, Übersprungen: ${skipped.length}`); } catch (_) {}
+    res.json({ success: true, inserted: inserted.length, skipped: skipped.length, details: { inserted, skipped } });
+  } catch (err: any) {
+    console.error("[admin/import/pdf]", err);
+    res.status(500).json({ error: err?.message || "PDF-Import fehlgeschlagen" });
+  }
 });
 
 app.post("/api/admin/masterpieces", (req, res) => {
