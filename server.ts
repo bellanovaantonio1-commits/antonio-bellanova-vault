@@ -2120,9 +2120,54 @@ app.post("/api/admin/assign-piece", (req, res) => {
 
 function parseMarktplatzPdfText(text: string): { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] {
   const products: { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] = [];
+  const nl = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  function extractFromBlock(block: string, prevLines: string): { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string } | null {
+    const sn = block.match(/Seriennummer:\s*([A-Za-z0-9\-\.\/]+)/i);
+    if (!sn) return null;
+    const serial_id = sn[1].trim();
+    const titleCandidates = prevLines.trim().split('\n').filter(Boolean);
+    const title = titleCandidates.length > 0 ? titleCandidates[titleCandidates.length - 1].trim() : '';
+    if (!title || /^\d|^--|^Antonio|^\d+\.\d+\.\d+/.test(title)) return null;
+
+    const mat = block.match(/Materialien:\s*([^\n]+)/i);
+    const gem = block.match(/Edelsteine:\s*([^\n]+)/i);
+    const materials = mat ? mat[1].trim() : '';
+    const gemstones = gem ? gem[1].trim() : '';
+
+    let valuation: number | null = null;
+    let pricing_mode = 'price_on_request';
+    const priceAb = block.match(/Ab\s+([\d.,]+)\s*€/);
+    if (priceAb) {
+      valuation = parseFloat(priceAb[1].replace(/\./g, '').replace(',', '.'));
+      pricing_mode = 'starting_from';
+    } else if (/Preis auf Anfrage/i.test(block)) {
+      pricing_mode = 'price_on_request';
+    }
+
+    const descMatch = block.match(/Beschreibung:\s*\n?([\s\S]*?)(?=\nMaterialien:|\nEdelsteine:|$)/i);
+    const description = descMatch ? descMatch[1].trim().replace(/\n+/g, ' ').slice(0, 2000) : '';
+
+    const rarityMatch = block.match(/Seltenheit:\s*([^\n]+)/i);
+    const rarity = rarityMatch ? rarityMatch[1].trim() : 'Unique';
+
+    return { title, serial_id, valuation, pricing_mode, description, materials, gemstones, rarity };
+  }
+
+  const parts = nl.split(/(?=Seriennummer:)/i);
+  for (let i = 1; i < parts.length; i++) {
+    const prevLines = parts[i - 1];
+    const block = parts[i];
+    if (!block || block.trim().length < 5) continue;
+    const p = extractFromBlock(block, prevLines);
+    if (p && p.serial_id && p.title) products.push(p);
+  }
+
+  if (products.length > 0) return products;
+
   const regex = /([^\n]+)\nSeriennummer:\s*([^\n]+)\n(Ab\s+[\d.,]+\s*€|Preis auf Anfrage)\nSeltenheit:\s*([^\n]+)\nBeschreibung:\s*\n([\s\S]*?)\nMaterialien:\s*([^\n]+)\nEdelsteine:\s*([^\n]+)/gi;
   let m;
-  while ((m = regex.exec(text)) !== null) {
+  while ((m = regex.exec(nl)) !== null) {
     const title = m[1].trim();
     const serial_id = m[2].trim();
     const priceStr = m[3].trim();
@@ -2143,12 +2188,17 @@ function parseMarktplatzPdfText(text: string): { title: string; serial_id: strin
   return products;
 }
 
-app.post("/api/admin/import/pdf", requireAuth, requireAdmin, pdfUpload.single('pdf'), async (req, res) => {
+app.post("/api/admin/import/pdf", requireAuth, requireAdmin, (req, res, next) => {
+  pdfUpload.single('pdf')(req, res, (err: any) => {
+    if (err) return res.status(400).json({ error: err.message || "Nur PDF-Dateien erlaubt" });
+    next();
+  });
+}, async (req, res) => {
   const userId = getSessionUserId(req);
   const admin = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const file = (req as any).file;
-  if (!file || !file.buffer) return res.status(400).json({ error: "Keine PDF-Datei hochgeladen" });
+  if (!file || !file.buffer) return res.status(400).json({ error: "Keine PDF-Datei hochgeladen. Bitte eine PDF-Datei auswählen." });
   try {
     const data = await pdfParse(file.buffer);
     const text = data.text || '';
@@ -2175,7 +2225,7 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, pdfUpload.single('p
       } catch (_) {}
     }
     try { logAudit(userId!, 'PDF_IMPORT', String(inserted.length), `Importiert: ${inserted.length}, Übersprungen: ${skipped.length}`); } catch (_) {}
-    res.json({ success: true, inserted: inserted.length, skipped: skipped.length, details: { inserted, skipped } });
+    res.json({ success: true, inserted: inserted.length, skipped: skipped.length, parsed: products.length, details: { inserted, skipped } });
   } catch (err: any) {
     console.error("[admin/import/pdf]", err);
     res.status(500).json({ error: err?.message || "PDF-Import fehlgeschlagen" });

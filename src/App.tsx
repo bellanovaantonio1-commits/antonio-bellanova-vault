@@ -3353,7 +3353,16 @@ export default function App() {
       const res = await fetch('/api/admin/import/pdf', { method: 'POST', body: fd, credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        notifyUser(`${data.inserted ?? 0} Produkte importiert${(data.skipped ?? 0) > 0 ? `, ${data.skipped} übersprungen (bereits vorhanden)` : ''}`, 'success');
+        const ins = data.inserted ?? 0;
+        const sk = data.skipped ?? 0;
+        const parsed = data.parsed ?? 0;
+        if (ins > 0 || sk > 0) {
+          notifyUser(`${ins} Produkte importiert${sk > 0 ? `, ${sk} übersprungen (bereits vorhanden)` : ''}`, 'success');
+        } else if (parsed === 0) {
+          notifyUser('Keine Produkte im PDF gefunden. Bitte prüfen Sie, ob das PDF die Felder Seriennummer, Materialien und Edelsteine enthält.', 'error');
+        } else {
+          notifyUser('Import abgeschlossen.', 'success');
+        }
         fetchData();
       } else {
         notifyUser(data.error || 'Import fehlgeschlagen', 'error');
