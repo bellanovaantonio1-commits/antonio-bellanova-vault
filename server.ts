@@ -2126,9 +2126,11 @@ function parseMarktplatzPdfText(text: string): { title: string; serial_id: strin
     const sn = block.match(/Seriennummer:\s*([A-Za-z0-9\-\.\/]+)/i);
     if (!sn) return null;
     const serial_id = sn[1].trim();
-    const titleCandidates = prevLines.trim().split('\n').filter(Boolean);
-    const title = titleCandidates.length > 0 ? titleCandidates[titleCandidates.length - 1].trim() : '';
-    if (!title || /^\d|^--|^Antonio|^\d+\.\d+\.\d+/.test(title)) return null;
+    const lines = prevLines.trim().split('\n').map(s => s.trim()).filter(Boolean);
+    const skipLine = (line: string) => /^--\s*\d+\s+of\s+\d+\s*--$/.test(line) || /^Antonio\s/i.test(line) || /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(line) || line.length < 2;
+    const titleCandidates = lines.filter(l => !skipLine(l));
+    const title = titleCandidates.length > 0 ? titleCandidates[titleCandidates.length - 1] : '';
+    if (!title || title.length < 2) return null;
 
     const mat = block.match(/Materialien:\s*([^\n]+)/i);
     const gem = block.match(/Edelsteine:\s*([^\n]+)/i);
@@ -2139,14 +2141,15 @@ function parseMarktplatzPdfText(text: string): { title: string; serial_id: strin
     let pricing_mode = 'price_on_request';
     const priceAb = block.match(/Ab\s+([\d.,]+)\s*€/);
     if (priceAb) {
-      valuation = parseFloat(priceAb[1].replace(/\./g, '').replace(',', '.'));
+      const numStr = priceAb[1].replace(/\./g, '').replace(',', '.');
+      valuation = parseFloat(numStr) || null;
       pricing_mode = 'starting_from';
     } else if (/Preis auf Anfrage/i.test(block)) {
       pricing_mode = 'price_on_request';
     }
 
-    const descMatch = block.match(/Beschreibung:\s*\n?([\s\S]*?)(?=\nMaterialien:|\nEdelsteine:|$)/i);
-    const description = descMatch ? descMatch[1].trim().replace(/\n+/g, ' ').slice(0, 2000) : '';
+    const descMatch = block.match(/Beschreibung:\s*\n?([\s\S]*?)(?=\s*Materialien:|\s*Edelsteine:|$)/i);
+    const description = descMatch ? descMatch[1].trim().replace(/\s+/g, ' ').slice(0, 2000) : '';
 
     const rarityMatch = block.match(/Seltenheit:\s*([^\n]+)/i);
     const rarity = rarityMatch ? rarityMatch[1].trim() : 'Unique';
