@@ -41,8 +41,12 @@ app.use(express.json({ limit: '50mb' }));
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadsDropsDir = path.join(uploadsDir, 'drops');
+const uploadsDocumentsDir = path.join(uploadsDir, 'documents');
 if (!fs.existsSync(uploadsDropsDir)) {
   fs.mkdirSync(uploadsDropsDir, { recursive: true });
+}
+if (!fs.existsSync(uploadsDocumentsDir)) {
+  fs.mkdirSync(uploadsDocumentsDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsDir));
 
@@ -734,6 +738,43 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(resale_listing_id) REFERENCES resale_listings(id),
     FOREIGN KEY(admin_id) REFERENCES users(id)
+  );
+
+  -- Admin Document Management: Projects (jewelry pieces as projects)
+  CREATE TABLE IF NOT EXISTS vault_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    masterpiece_id INTEGER,
+    project_name TEXT NOT NULL,
+    jewelry_piece TEXT,
+    material TEXT,
+    gemstones TEXT,
+    weight TEXT,
+    client_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id),
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+
+  -- Admin Document Management: Documents (contracts, invoices, certificates)
+  CREATE TABLE IF NOT EXISTS vault_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_type TEXT NOT NULL,
+    contract_type TEXT,
+    project_id INTEGER,
+    client_id INTEGER NOT NULL,
+    vault_id TEXT,
+    file_path TEXT,
+    content TEXT,
+    doc_ref TEXT UNIQUE,
+    contract_id INTEGER,
+    certificate_id INTEGER,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(project_id) REFERENCES vault_projects(id),
+    FOREIGN KEY(client_id) REFERENCES users(id),
+    FOREIGN KEY(contract_id) REFERENCES contracts(id),
+    FOREIGN KEY(certificate_id) REFERENCES certificates(id),
+    FOREIGN KEY(created_by) REFERENCES users(id)
   );
 `);
 
@@ -2918,9 +2959,10 @@ app.get("/api/vault/:userId", (req, res) => {
   const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId);
   const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(userId);
   const contracts = db.prepare("SELECT * FROM contracts WHERE user_id = ?").all(userId);
+  const vault_documents = db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(userId);
   const hiddenRows = db.prepare("SELECT masterpiece_id FROM user_portfolio_hidden WHERE user_id = ?").all(userId) as { masterpiece_id: number }[];
   const portfolio_hidden_ids = hiddenRows.map((r) => r.masterpiece_id);
-  res.json({ pieces, certs, contracts, portfolio_hidden_ids });
+  res.json({ pieces, certs, contracts, vault_documents, portfolio_hidden_ids });
 });
 
 // Portfolio: Stück aus Anzeige entfernen / wieder anzeigen (nur Besitzer)
@@ -3026,6 +3068,278 @@ app.post("/api/admin/contracts/regenerate", (req, res) => {
     console.error("[admin/contracts/regenerate]", err);
     res.status(500).json({ error: err?.message || "Regenerierung fehlgeschlagen." });
   }
+});
+
+// --- Admin Document Management: Projects ---
+app.get("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.*, u.name as client_name, u.email as client_email, m.serial_id as masterpiece_serial, m.title as masterpiece_title
+    FROM vault_projects p
+    LEFT JOIN users u ON p.client_id = u.id
+    LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
+    ORDER BY p.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+app.post("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id } = req.body || {};
+  if (!project_name || typeof project_name !== 'string' || !project_name.trim()) return res.status(400).json({ error: "project_name required" });
+  const result = db.prepare(`
+    INSERT INTO vault_projects (masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    masterpiece_id ? Number(masterpiece_id) : null,
+    String(project_name).trim(),
+    jewelry_piece ? String(jewelry_piece).trim() : null,
+    material ? String(material).trim() : null,
+    gemstones ? String(gemstones).trim() : null,
+    weight ? String(weight).trim() : null,
+    client_id ? Number(client_id) : null
+  );
+  try { logAudit(adminId!, 'PROJECT_CREATED', String(result.lastInsertRowid), project_name); } catch (_) {}
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const id = Number(req.params.id);
+  const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id } = req.body || {};
+  const row = db.prepare("SELECT * FROM vault_projects WHERE id = ?").get(id);
+  if (!row) return res.status(404).json({ error: "Project not found" });
+  db.prepare(`
+    UPDATE vault_projects SET
+      masterpiece_id = COALESCE(?, masterpiece_id),
+      project_name = COALESCE(?, project_name),
+      jewelry_piece = COALESCE(?, jewelry_piece),
+      material = COALESCE(?, material),
+      gemstones = COALESCE(?, gemstones),
+      weight = COALESCE(?, weight),
+      client_id = COALESCE(?, client_id)
+    WHERE id = ?
+  `).run(
+    masterpiece_id != null ? Number(masterpiece_id) : null,
+    project_name != null ? String(project_name).trim() : null,
+    jewelry_piece != null ? String(jewelry_piece).trim() : null,
+    material != null ? String(material).trim() : null,
+    gemstones != null ? String(gemstones).trim() : null,
+    weight != null ? String(weight).trim() : null,
+    client_id != null ? Number(client_id) : null,
+    id
+  );
+  res.json({ success: true });
+});
+
+// --- Admin Document Management: Contract Generator ---
+const CONTRACT_TYPES = ['purchase_agreement', 'deposit_agreement', 'production_agreement', 'delivery_agreement', 'supplier_agreement', 'commission_agreement', 'nda'] as const;
+
+function generateAdminContractContent(contractType: string, client: any, project: any, masterpiece: any): string {
+  const clientName = client?.name || 'Client';
+  const clientAddr = client?.address || '';
+  const vaultId = project?.vault_id || masterpiece?.serial_id || project?.masterpiece_serial || '—';
+  const projectName = project?.project_name || masterpiece?.title || '—';
+  const material = project?.material || masterpiece?.materials || '—';
+  const gemstones = project?.gemstones || masterpiece?.gemstones || '—';
+  const weight = project?.weight || '—';
+  const valuation = masterpiece?.valuation ? `${Number(masterpiece.valuation).toLocaleString('de-DE')} EUR` : '—';
+  const companyBlock = `Antonio Bellanova Atelier\nKöln, Germany\nUSt-IdNr.: DE123456789\n`;
+  const typeLabels: Record<string, string> = {
+    purchase_agreement: 'Kaufvertrag',
+    deposit_agreement: 'Anzahlungsvertrag',
+    production_agreement: 'Produktionsvertrag',
+    delivery_agreement: 'Liefervertrag',
+    supplier_agreement: 'Zulieferervertrag',
+    commission_agreement: 'Provisionsvereinbarung',
+    nda: 'Geheimhaltungsvereinbarung (NDA)'
+  };
+  const title = typeLabels[contractType] || contractType;
+  return `<div style="font-family:Georgia,serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:24px;">
+<h2 style="border-bottom:1px solid #c9a227;padding-bottom:8px;">${title}</h2>
+<p><strong>Vault ID:</strong> ${vaultId}</p>
+<p><strong>Projekt:</strong> ${projectName}</p>
+<p><strong>Kunde:</strong> ${clientName}</p>
+<p><strong>Material:</strong> ${material}</p>
+<p><strong>Edelsteine:</strong> ${gemstones}</p>
+<p><strong>Gewicht:</strong> ${weight}</p>
+${valuation !== '—' ? `<p><strong>Bewertung:</strong> ${valuation}</p>` : ''}
+<p style="margin-top:24px;">Dieses Dokument wurde vom Antonio Bellanova Vault erstellt und ist mit dem Projekt (Vault ID: ${vaultId}) sowie dem Kunden verknüpft.</p>
+<p style="margin-top:16px;font-size:12px;color:#666;">${companyBlock}</p>
+<p style="font-size:11px;color:#999;">Anwendbares Recht: Deutschland. Gerichtsstand: Köln.</p>
+</div>`;
+}
+
+app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const { document_type, contract_type, client_id, project_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: "client_id required" });
+  if (!document_type || !['contract', 'invoice', 'certificate'].includes(document_type)) return res.status(400).json({ error: "document_type must be contract, invoice, or certificate" });
+  if (document_type === 'contract' && (!contract_type || !CONTRACT_TYPES.includes(contract_type as any))) return res.status(400).json({ error: "contract_type required and must be one of: " + CONTRACT_TYPES.join(', ') });
+
+  const client = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(client_id)) as any;
+  if (!client) return res.status(404).json({ error: "Client not found" });
+
+  let project: any = null;
+  let masterpiece: any = null;
+  let vaultId = '';
+
+  if (project_id) {
+    project = db.prepare(`
+      SELECT p.*, m.serial_id as masterpiece_serial, m.title as masterpiece_title, m.materials, m.gemstones, m.valuation
+      FROM vault_projects p
+      LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
+      WHERE p.id = ?
+    `).get(Number(project_id)) as any;
+    if (project) {
+      vaultId = project.masterpiece_serial || project.masterpiece_id ? (db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any)?.serial_id : '';
+      if (project.masterpiece_id) masterpiece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any;
+    }
+  }
+
+  const docRef = `${(contract_type || document_type).toUpperCase().slice(0, 3)}-${Date.now()}-${client_id}`;
+  let content = '';
+  let contractId: number | null = null;
+  let certificateId: number | null = null;
+
+  if (document_type === 'contract') {
+    content = generateAdminContractContent(contract_type, client, project, masterpiece);
+    const ins = db.prepare(`
+      INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
+      VALUES (?, ?, ?, ?, ?, 'draft')
+    `).run(client.id, project?.masterpiece_id || null, contract_type, docRef, content);
+    contractId = ins.lastInsertRowid as number;
+  } else if (document_type === 'invoice') {
+    content = generateAdminContractContent('purchase_agreement', client, project, masterpiece);
+    content = content.replace('Kaufvertrag', 'Rechnung / Schlussrechnung');
+    const ins = db.prepare(`
+      INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
+      VALUES (?, ?, ?, ?, ?, 'draft')
+    `).run(client.id, project?.masterpiece_id || null, 'invoice', docRef, content);
+    contractId = ins.lastInsertRowid as number;
+  } else if (document_type === 'certificate') {
+    const piece = masterpiece || (project?.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any : null);
+    const certId = `CERT-${Date.now()}-${client.id}`;
+    content = `<div style="font-family:Georgia,serif;color:#1a1a1a;max-width:600px;margin:0 auto;padding:24px;">
+<h2 style="border-bottom:1px solid #c9a227;">Echtheitszertifikat</h2>
+<p><strong>Vault ID:</strong> ${vaultId || piece?.serial_id || '—'}</p>
+<p><strong>Objekt:</strong> ${piece?.title || project?.project_name || '—'}</p>
+<p><strong>Eigentümer:</strong> ${client.name}</p>
+<p><strong>Zertifikat-ID:</strong> ${certId}</p>
+<p>Dieses Zertifikat bestätigt die Authentizität und Eigentümerschaft des genannten Objekts.</p>
+<p style="font-size:12px;color:#666;">Antonio Bellanova Atelier · Köln</p>
+</div>`;
+    const certIns = db.prepare(`
+      INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(project?.masterpiece_id || null, client.id, certId, content, 'Antonio Bellanova Atelier', null);
+    certificateId = certIns.lastInsertRowid as number;
+  }
+
+  const vdIns = db.prepare(`
+    INSERT INTO vault_documents (document_type, contract_type, project_id, client_id, vault_id, content, doc_ref, contract_id, certificate_id, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    document_type,
+    document_type === 'contract' ? contract_type : null,
+    project_id ? Number(project_id) : null,
+    client.id,
+    vaultId || (project?.masterpiece_serial || ''),
+    content,
+    docRef,
+    contractId,
+    certificateId,
+    adminId
+  );
+
+  try { logAudit(adminId!, 'DOCUMENT_GENERATED', String(vdIns.lastInsertRowid), `${document_type} ${docRef}`); } catch (_) {}
+  res.json({ success: true, id: vdIns.lastInsertRowid, contract_id: contractId, certificate_id: certificateId, doc_ref: docRef });
+});
+
+// --- Admin Document Management: Document Panel ---
+app.get("/api/admin/documents", requireAuth, requireAdmin, (req, res) => {
+  const typeFilter = typeof req.query.type === 'string' ? req.query.type : null;
+  let sql = `
+    SELECT vd.*, u.name as client_name, u.email as client_email, p.project_name, p.masterpiece_id as project_masterpiece_id
+    FROM vault_documents vd
+    JOIN users u ON vd.client_id = u.id
+    LEFT JOIN vault_projects p ON vd.project_id = p.id
+    WHERE 1=1
+  `;
+  const params: any[] = [];
+  if (typeFilter && ['contract', 'invoice', 'certificate'].includes(typeFilter)) {
+    sql += ` AND vd.document_type = ?`;
+    params.push(typeFilter);
+  }
+  sql += ` ORDER BY vd.created_at DESC`;
+  const rows = db.prepare(sql).all(...params);
+  const contracts = db.prepare(`
+    SELECT c.*, u.name as user_name, m.title as piece_title, m.serial_id
+    FROM contracts c
+    JOIN users u ON c.user_id = u.id
+    LEFT JOIN masterpieces m ON c.masterpiece_id = m.id
+    ORDER BY c.created_at DESC
+  `).all();
+  const certificates = db.prepare(`
+    SELECT cert.*, u.name as owner_name, m.title as piece_title, m.serial_id
+    FROM certificates cert
+    JOIN users u ON cert.owner_id = u.id
+    LEFT JOIN masterpieces m ON cert.masterpiece_id = m.id
+    ORDER BY cert.created_at DESC
+  `).all();
+  res.json({ vault_documents: rows, contracts, certificates });
+});
+
+// --- Client Documents (read-only) ---
+app.get("/api/client/documents", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user || (user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Clients only" });
+
+  const contracts = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at, masterpiece_id FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+  const certs = db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?").all(userId);
+  const vaultDocs = db.prepare(`
+    SELECT id, document_type, contract_type, doc_ref, vault_id, created_at
+    FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC
+  `).all(userId);
+
+  res.json({ contracts, certificates: certs, vault_documents: vaultDocs });
+});
+
+// --- Document Download (contract by id, certificate by cert_id) ---
+app.get("/api/documents/:id/download", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const docId = Number(req.params.id);
+  const vd = db.prepare("SELECT * FROM vault_documents WHERE id = ?").get(docId) as any;
+  if (vd) {
+    if (vd.client_id !== userId) {
+      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+      if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${vd.doc_ref || 'Document'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${vd.content || ''}</body></html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${(vd.doc_ref || 'document')}.html"`);
+    return res.send(html);
+  }
+  const c = db.prepare("SELECT * FROM contracts WHERE id = ?").get(docId) as any;
+  if (c) {
+    if (c.user_id !== userId) {
+      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+      if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || 'Contract'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${c.content || ''}</body></html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${(c.doc_ref || 'contract')}.html"`);
+    return res.send(html);
+  }
+  return res.status(404).json({ error: "Document not found" });
 });
 
 app.get("/api/admin/audit-logs", requireAuth, requireAdmin, (req, res) => {
@@ -3187,10 +3501,18 @@ app.patch("/api/admin/service-requests/:id", (req, res) => {
 app.get("/api/contracts/:id/download", (req, res) => {
   const c = db.prepare("SELECT * FROM contracts WHERE id = ?").get(req.params.id) as any;
   if (!c) return res.status(404).send("Contract not found");
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(c.user_id) as any;
-  const piece = c.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(c.masterpiece_id) as any : null;
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || 'Contract'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${c.content || ''}</body></html>`;
   const filename = `Antonio-Bellanova-${String(c.doc_ref || c.id).replace(/\s/g, '-')}.html`;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(html);
+});
+
+app.get("/api/certificates/download/:id", (req, res) => {
+  const cert = db.prepare("SELECT * FROM certificates WHERE id = ?").get(req.params.id) as any;
+  if (!cert) return res.status(404).send("Certificate not found");
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${cert.cert_id || 'Certificate'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${cert.content || ''}</body></html>`;
+  const filename = `Antonio-Bellanova-${String(cert.cert_id || cert.id).replace(/\s/g, '-')}.html`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(html);

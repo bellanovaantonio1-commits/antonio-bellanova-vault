@@ -2639,7 +2639,7 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy'>('pieces');
   const [clientLegacyRequests, setClientLegacyRequests] = useState<any[]>([]);
   const [legacyForm, setLegacyForm] = useState({ beneficiary_name: '', beneficiary_contact: '', transfer_protocol: '' });
   const [serviceRequestForm, setServiceRequestForm] = useState({ masterpieceId: '' as number | '', type: 'restoration', description: '' });
@@ -2649,7 +2649,7 @@ export default function App() {
   const [masterpieces, setMasterpieces] = useState<Masterpiece[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [myBids, setMyBids] = useState<any[]>([]);
-  const [vaultData, setVaultData] = useState<{ pieces: Masterpiece[], certs: Certificate[], contracts: Contract[], portfolio_hidden_ids?: number[] }>({ pieces: [], certs: [], contracts: [] });
+  const [vaultData, setVaultData] = useState<{ pieces: Masterpiece[], certs: Certificate[], contracts: Contract[], vault_documents?: any[], portfolio_hidden_ids?: number[] }>({ pieces: [], certs: [], contracts: [] });
   const [payments, setPayments] = useState<Payment[]>([]);
   const [adminStats, setAdminStats] = useState<any>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -2747,7 +2747,9 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'intelligence' | 'legacy' | 'settings' | 'projects' | 'documents' | 'contract-generator'>('overview');
+  const [adminProjects, setAdminProjects] = useState<any[]>([]);
+  const [adminDocuments, setAdminDocuments] = useState<{ vault_documents: any[]; contracts: any[]; certificates: any[] }>({ vault_documents: [], contracts: [], certificates: [] });
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
   const [adminFractionalAssets, setAdminFractionalAssets] = useState<any[]>([]);
@@ -3406,6 +3408,18 @@ export default function App() {
           const lrRes = await fetch('/api/admin/legacy/requests', { credentials: 'include' });
           if (lrRes.ok) setAdminLegacyRequests(await lrRes.json());
         }
+        if (adminTab === 'projects') {
+          const prRes = await fetch('/api/admin/projects', { credentials: 'include' });
+          if (prRes.ok) setAdminProjects(await prRes.json());
+        }
+        if (adminTab === 'documents' || adminTab === 'contract-generator') {
+          const docRes = await fetch('/api/admin/documents', { credentials: 'include' });
+          if (docRes.ok) setAdminDocuments(await docRes.json());
+        }
+        if (adminTab === 'contract-generator') {
+          const prRes = await fetch('/api/admin/projects', { credentials: 'include' });
+          if (prRes.ok) setAdminProjects(await prRes.json());
+        }
       }
 
       setListLoading(false);
@@ -3413,7 +3427,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy')) {
+    if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy' || adminTab === 'projects' || adminTab === 'documents' || adminTab === 'contract-generator')) {
       if (adminTab === 'intelligence') {
         Promise.all([
           fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }),
@@ -3424,8 +3438,15 @@ export default function App() {
           if (aaRes.ok) aaRes.json().then(setIntelligenceAdvisorAnalytics);
           if (shRes.ok) shRes.json().then(setIntelligenceScarcityHeatmap);
         });
-      } else {
+      } else if (adminTab === 'legacy') {
         fetch('/api/admin/legacy/requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminLegacyRequests));
+      } else if (adminTab === 'projects') {
+        fetch('/api/admin/projects', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminProjects));
+      } else if (adminTab === 'documents' || adminTab === 'contract-generator') {
+        fetch('/api/admin/documents', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminDocuments));
+        if (adminTab === 'contract-generator') {
+          fetch('/api/admin/projects', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminProjects));
+        }
       }
     }
   }, [user?.role, adminTab]);
@@ -5839,6 +5860,7 @@ export default function App() {
                 )}
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   <TabButton active={vaultTab === 'pieces'} label={t('my_pieces')} onClick={() => setVaultTab('pieces')} icon={Award} />
+                  <TabButton active={vaultTab === 'documents'} label={t('vault.documents') || 'Documents'} onClick={() => setVaultTab('documents')} icon={FileText} />
                   <TabButton active={vaultTab === 'certs'} label={t('certificates')} onClick={() => setVaultTab('certs')} icon={ShieldCheck} />
                   <TabButton active={vaultTab === 'contracts'} label={t('contracts')} onClick={() => setVaultTab('contracts')} icon={FileText} />
                   <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => setVaultTab('payments')} icon={CreditCard} />
@@ -5931,6 +5953,52 @@ export default function App() {
                         </>
                         )}
                       </div>
+                    </div>
+                  )}
+                  {vaultTab === 'documents' && (
+                    <div className="space-y-6">
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest">{t('vault.documents_hint') || 'View and download your documents. Read-only.'}</p>
+                      <div className="space-y-3">
+                        {vaultData.contracts?.filter((c: Contract) => c.status !== 'archived').map((contract: Contract) => (
+                          <Card key={`c-${contract.id}`} className="p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-zinc-800/50 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-500/80" /></div>
+                              <div>
+                                <p className="font-medium text-zinc-200">{contract.type === 'invoice' ? t('invoice') || 'Invoice' : (contract.type || 'Contract')} · {contract.doc_ref}</p>
+                                <p className="text-xs text-zinc-500">{new Date(contract.created_at!).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <a href={`/api/contracts/${contract.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
+                          </Card>
+                        ))}
+                        {vaultData.certs?.map((cert: Certificate) => (
+                          <Card key={`cert-${cert.cert_id}`} className="p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center"><ShieldCheck className="w-6 h-6 text-emerald-500/80" /></div>
+                              <div>
+                                <p className="font-medium text-zinc-200">{t('certificates')} · {cert.cert_id}</p>
+                                <p className="text-xs text-zinc-500">{new Date(cert.created_at!).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
+                          </Card>
+                        ))}
+                        {(vaultData.vault_documents || []).filter((vd: any) => !vaultData.contracts?.some((c: Contract) => c.id === vd.contract_id) && !vaultData.certs?.some((cert: Certificate) => cert.id === vd.certificate_id)).map((vd: any) => (
+                          <Card key={`vd-${vd.id}`} className="p-4 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-zinc-800/50 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-500/80" /></div>
+                              <div>
+                                <p className="font-medium text-zinc-200">{vd.document_type} {vd.contract_type ? `· ${vd.contract_type}` : ''} · {vd.doc_ref}</p>
+                                <p className="text-xs text-zinc-500">{new Date(vd.created_at).toLocaleDateString()}</p>
+                              </div>
+                            </div>
+                            <a href={`/api/documents/${vd.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
+                          </Card>
+                        ))}
+                      </div>
+                      {(vaultData.contracts?.length || 0) + (vaultData.certs?.length || 0) + (vaultData.vault_documents?.length || 0) === 0 && (
+                        <EmptyState icon={FileText} text={t('vault.no_documents') || 'No documents yet.'} />
+                      )}
                     </div>
                   )}
                   {vaultTab === 'certs' && (
@@ -7071,11 +7139,11 @@ export default function App() {
             )}
 
             {view === 'admin' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
+              <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'projects' ? (t('admin.doc_projects') || 'Projects') : tab === 'documents' ? (t('admin.doc_panel') || 'Documents') : tab === 'contract-generator' ? (t('admin.contract_generator') || 'Contract Generator') : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -8148,7 +8216,6 @@ export default function App() {
                           </div>
                         </div>
                       )}
-                      </div>
                     </div>
                   </section>
                   )}
@@ -8269,6 +8336,225 @@ export default function App() {
                         <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">{t('admin.export_commissions')}</h4>
                         <Button variant="outline" size="sm" onClick={() => window.open('/api/admin/advisors/commissions/export', '_blank')}><FileDown className="w-4 h-4" /> CSV</Button>
                       </div>
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'projects') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic">{t('admin.doc_projects') || 'Projects'}</h3>
+                    <p className="text-sm text-zinc-500">Each jewelry piece is a project. Create and manage projects linked to clients and masterpieces.</p>
+                    <Card className="p-6 space-y-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">New Project</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Project Name</label>
+                          <input type="text" id="admin-project-name" placeholder="e.g. Emerald Ring Commission" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Jewelry Piece</label>
+                          <input type="text" id="admin-project-piece" placeholder="e.g. Ring, Necklace" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Material</label>
+                          <input type="text" id="admin-project-material" placeholder="e.g. 18K Gold" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Gemstones</label>
+                          <input type="text" id="admin-project-gemstones" placeholder="e.g. Emerald, Diamond" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Weight</label>
+                          <input type="text" id="admin-project-weight" placeholder="e.g. 12.5g" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Client</label>
+                          <select id="admin-project-client" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">— Select Client —</option>
+                            {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Masterpiece (optional)</label>
+                          <select id="admin-project-masterpiece" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">— None —</option>
+                            {masterpieces.map(m => (
+                              <option key={m.id} value={m.id}>{m.title} ({m.serial_id})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <Button variant="primary" onClick={async () => {
+                        const name = (document.getElementById('admin-project-name') as HTMLInputElement)?.value?.trim();
+                        if (!name) { notifyUser('Project name required', 'error'); return; }
+                        const res = await fetch('/api/admin/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                          project_name: name,
+                          jewelry_piece: (document.getElementById('admin-project-piece') as HTMLInputElement)?.value?.trim() || undefined,
+                          material: (document.getElementById('admin-project-material') as HTMLInputElement)?.value?.trim() || undefined,
+                          gemstones: (document.getElementById('admin-project-gemstones') as HTMLInputElement)?.value?.trim() || undefined,
+                          weight: (document.getElementById('admin-project-weight') as HTMLInputElement)?.value?.trim() || undefined,
+                          client_id: (document.getElementById('admin-project-client') as HTMLSelectElement)?.value ? Number((document.getElementById('admin-project-client') as HTMLSelectElement).value) : undefined,
+                          masterpiece_id: (document.getElementById('admin-project-masterpiece') as HTMLSelectElement)?.value ? Number((document.getElementById('admin-project-masterpiece') as HTMLSelectElement).value) : undefined
+                        }), credentials: 'include' });
+                        if (res.ok) { notifyUser('Project created', 'success'); fetchData(); (document.getElementById('admin-project-name') as HTMLInputElement).value = ''; }
+                        else { const e = await res.json(); notifyUser(e.error || 'Error', 'error'); }
+                      }}>Create Project</Button>
+                    </Card>
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">All Projects</h4>
+                      {adminProjects.map((p: any) => (
+                        <Card key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-4">
+                          <div>
+                            <p className="font-medium text-zinc-200">{p.project_name}</p>
+                            <p className="text-xs text-zinc-500">Vault ID: {p.masterpiece_serial || p.masterpiece_id || '—'} · Client: {p.client_name || '—'}</p>
+                            <p className="text-[10px] text-zinc-600 mt-1">{p.material || '—'} · {p.gemstones || '—'} · {p.weight || '—'}</p>
+                          </div>
+                          <span className="text-[10px] text-zinc-500">{new Date(p.created_at).toLocaleDateString()}</span>
+                        </Card>
+                      ))}
+                      {adminProjects.length === 0 && <p className="text-zinc-500 text-sm italic">No projects yet.</p>}
+                    </div>
+                  </section>
+                  )}
+
+                  {(adminTab === 'documents') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic">{t('admin.doc_panel') || 'Document Panel'}</h3>
+                    <p className="text-sm text-zinc-500">Contracts, Invoices, Certificates. Admin-created documents linked to clients and projects.</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <Card className="p-4">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Contracts</h4>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {(adminDocuments.contracts || []).slice(0, 20).map((c: any) => (
+                            <div key={c.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-200 truncate">{c.type} · {c.user_name}</p>
+                                <p className="text-[10px] text-zinc-500 font-mono">{c.doc_ref}</p>
+                              </div>
+                              <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                            </div>
+                          ))}
+                          {(adminDocuments.contracts || []).length === 0 && <p className="text-zinc-500 text-xs italic">No contracts</p>}
+                        </div>
+                      </Card>
+                      <Card className="p-4">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Invoices</h4>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').slice(0, 20).map((c: any) => (
+                            <div key={c.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-200 truncate">{c.user_name}</p>
+                                <p className="text-[10px] text-zinc-500 font-mono">{c.doc_ref}</p>
+                              </div>
+                              <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                            </div>
+                          ))}
+                          {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').length === 0 && <p className="text-zinc-500 text-xs italic">No invoices</p>}
+                        </div>
+                      </Card>
+                      <Card className="p-4">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Certificates</h4>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {(adminDocuments.certificates || []).slice(0, 20).map((cert: any) => (
+                            <div key={cert.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-200 truncate">{cert.owner_name} · {cert.piece_title || cert.serial_id}</p>
+                                <p className="text-[10px] text-zinc-500 font-mono">{cert.cert_id}</p>
+                              </div>
+                              <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                            </div>
+                          ))}
+                          {(adminDocuments.certificates || []).length === 0 && <p className="text-zinc-500 text-xs italic">No certificates</p>}
+                        </div>
+                      </Card>
+                    </div>
+                    <Card className="p-4">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">Vault Documents (Admin-generated)</h4>
+                      <div className="space-y-2">
+                        {(adminDocuments.vault_documents || []).map((vd: any) => (
+                          <div key={vd.id} className="flex items-center justify-between gap-4 py-2 border-b border-zinc-800/50">
+                            <div>
+                              <p className="text-sm text-zinc-200">{vd.document_type} {vd.contract_type ? `· ${vd.contract_type}` : ''} · {vd.client_name}</p>
+                              <p className="text-[10px] text-zinc-500 font-mono">{vd.doc_ref} · Vault: {vd.vault_id || '—'}</p>
+                            </div>
+                            <a href={`/api/documents/${vd.id}/download`} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                          </div>
+                        ))}
+                        {(adminDocuments.vault_documents || []).length === 0 && <p className="text-zinc-500 text-xs italic">No vault documents</p>}
+                      </div>
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'contract-generator') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic">{t('admin.contract_generator') || 'Contract Generator'}</h3>
+                    <p className="text-sm text-zinc-500">Create contracts, invoices, or certificates. Link to client and project. Stored in Vault.</p>
+                    <Card className="p-6 space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Document Type</label>
+                          <select id="admin-doc-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="contract">Contract</option>
+                            <option value="invoice">Invoice</option>
+                            <option value="certificate">Certificate</option>
+                          </select>
+                        </div>
+                        <div id="admin-contract-type-wrap">
+                          <label className="block text-xs text-zinc-500 mb-1">Contract Type</label>
+                          <select id="admin-contract-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="purchase_agreement">Purchase Agreement</option>
+                            <option value="deposit_agreement">Deposit Agreement</option>
+                            <option value="production_agreement">Production Agreement</option>
+                            <option value="delivery_agreement">Delivery Agreement</option>
+                            <option value="supplier_agreement">Supplier Agreement</option>
+                            <option value="commission_agreement">Commission Agreement</option>
+                            <option value="nda">NDA</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Client *</label>
+                          <select id="admin-doc-client" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">— Select Client —</option>
+                            {allUsers.filter(u => u.role !== 'admin' && u.role !== 'super_admin').map(u => (
+                              <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-zinc-500 mb-1">Project (optional)</label>
+                          <select id="admin-doc-project" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">— None —</option>
+                            {adminProjects.map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.project_name} ({p.client_name || '—'})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <Button variant="primary" onClick={async () => {
+                        const docType = (document.getElementById('admin-doc-type') as HTMLSelectElement)?.value || 'contract';
+                        const contractType = (document.getElementById('admin-contract-type') as HTMLSelectElement)?.value || 'purchase_agreement';
+                        const clientId = (document.getElementById('admin-doc-client') as HTMLSelectElement)?.value;
+                        const projectId = (document.getElementById('admin-doc-project') as HTMLSelectElement)?.value;
+                        if (!clientId) { notifyUser('Client required', 'error'); return; }
+                        if (docType === 'contract' && !contractType) { notifyUser('Contract type required', 'error'); return; }
+                        const res = await fetch('/api/admin/documents/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                          document_type: docType,
+                          contract_type: docType === 'contract' ? contractType : undefined,
+                          client_id: Number(clientId),
+                          project_id: projectId ? Number(projectId) : undefined
+                        }), credentials: 'include' });
+                        if (res.ok) {
+                          const data = await res.json();
+                          notifyUser(`Document created: ${data.doc_ref}`, 'success');
+                          fetchData();
+                        } else {
+                          const e = await res.json();
+                          notifyUser(e.error || 'Error', 'error');
+                        }
+                      }}>Generate & Store in Vault</Button>
                     </Card>
                   </section>
                   )}
@@ -8772,6 +9058,7 @@ export default function App() {
                         </tbody>
                       </table>
                       {adminAuditLogs.length === 0 && <p className="p-4 text-zinc-600 text-sm italic">Keine Einträge.</p>}
+                    </div>
                     </div>
                   </section>
                   </>
