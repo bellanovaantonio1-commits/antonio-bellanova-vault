@@ -84,6 +84,9 @@ const projectImageUpload = multer({
   }
 });
 
+const privateClientsUploadDir = path.join(uploadsDir, 'private-clients');
+if (!fs.existsSync(privateClientsUploadDir)) fs.mkdirSync(privateClientsUploadDir, { recursive: true });
+
 const pdfUploadDir = path.join(uploadsDir, 'import');
 if (!fs.existsSync(pdfUploadDir)) fs.mkdirSync(pdfUploadDir, { recursive: true });
 const pdfUpload = multer({
@@ -965,6 +968,74 @@ db.exec(`
   );
 `);
 
+// --- Private Client Communication System (Sections 1–12) ---
+db.exec(`
+  CREATE TABLE IF NOT EXISTS private_client_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    project_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(admin_id) REFERENCES users(id),
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS private_client_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    receiver_id INTEGER NOT NULL,
+    message_text TEXT,
+    attachments TEXT,
+    product_share_masterpiece_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'sent',
+    FOREIGN KEY(conversation_id) REFERENCES private_client_conversations(id),
+    FOREIGN KEY(sender_id) REFERENCES users(id),
+    FOREIGN KEY(receiver_id) REFERENCES users(id),
+    FOREIGN KEY(product_share_masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS client_projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    project_type TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    title TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS stone_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    gemstone_type TEXT,
+    carat_size TEXT,
+    origin_preference TEXT,
+    budget_range TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS private_design_gallery (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    image TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS design_gallery_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    design_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    comment_text TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(design_id) REFERENCES private_design_gallery(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+try { db.prepare("ALTER TABLE private_client_conversations ADD COLUMN project_id INTEGER").run(); } catch (e) {}
+
 // --- Strategic Private Advisor ---
 db.exec(`
   CREATE TABLE IF NOT EXISTS advisor_profiles (
@@ -1046,6 +1117,77 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
+
+// --- High Jewelry Client Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
+db.exec(`
+  CREATE TABLE IF NOT EXISTS collector_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    project_title TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS deal_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collector_room_id INTEGER,
+    client_id INTEGER NOT NULL,
+    project_title TEXT NOT NULL,
+    price REAL,
+    payment_plan TEXT,
+    status TEXT DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id),
+    FOREIGN KEY(collector_room_id) REFERENCES collector_rooms(id)
+  );
+  CREATE TABLE IF NOT EXISTS stone_library (
+    stone_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stone_type TEXT NOT NULL,
+    carat REAL,
+    cut TEXT,
+    origin TEXT,
+    color TEXT,
+    clarity TEXT,
+    supplier TEXT,
+    price_estimate REAL,
+    status TEXT DEFAULT 'available',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS stone_assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    stone_id INTEGER NOT NULL,
+    collector_room_id INTEGER,
+    client_id INTEGER NOT NULL,
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(stone_id) REFERENCES stone_library(stone_id),
+    FOREIGN KEY(collector_room_id) REFERENCES collector_rooms(id),
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS collector_reputation (
+    user_id INTEGER PRIMARY KEY,
+    total_purchases INTEGER DEFAULT 0,
+    total_spent REAL DEFAULT 0,
+    projects_completed INTEGER DEFAULT 0,
+    trust_score INTEGER DEFAULT 100,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS investor_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    document_type TEXT NOT NULL,
+    title TEXT,
+    file_path TEXT NOT NULL,
+    access_control TEXT DEFAULT 'investor',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+try { db.prepare("ALTER TABLE private_client_conversations ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE client_projects ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
+
 // Imperial Intelligence: Legacy / succession
 db.exec(`
   CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
@@ -1101,6 +1243,7 @@ try { db.prepare("ALTER TABLE users ADD COLUMN collector_level TEXT DEFAULT 'col
 try { db.prepare("ALTER TABLE users ADD COLUMN private_portfolio_visibility INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE waitlist ADD COLUMN position INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE waitlist ADD COLUMN priority_level INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE waitlist ADD COLUMN collector_level TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE ownership_history ADD COLUMN certificate_reference TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_gallery INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE masterpieces ADD COLUMN purchase_price REAL").run(); } catch (e) {}
@@ -3538,7 +3681,14 @@ app.get("/api/vault/:userId", (req, res) => {
       return res.status(403).json({ error: "Portfolio is private." });
   }
   enforceVipExpiry(Number(userId));
-  const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId);
+  const piecesRaw = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  const pieces = piecesRaw.map((p: any) => {
+    const purchase = Number(p.purchase_price) || 0;
+    const estimated = p.estimated_market_value != null ? Number(p.estimated_market_value) : null;
+    let value_growth: number | null = null;
+    if (purchase > 0 && estimated != null) value_growth = (estimated - purchase) / purchase;
+    return { ...p, value_growth };
+  });
   const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(userId);
   const contracts = db.prepare("SELECT * FROM contracts WHERE user_id = ?").all(userId);
   const vault_documents = db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(userId);
@@ -6353,11 +6503,18 @@ app.post("/api/admin/service/add", (req, res) => {
 app.post("/api/waitlist/join", (req, res) => {
   const { userId, masterpieceId, requestType, preferredBudget, preferredMaterials } = req.body;
   const user = db.prepare("SELECT collector_level FROM users WHERE id = ?").get(userId) as any;
-  const priorityLevel = getCollectorLevelPriority(user?.collector_level);
+  const collectorLevel = user?.collector_level || 'collector';
+  const priorityLevel = getCollectorLevelPriority(collectorLevel);
   const count = (db.prepare("SELECT COUNT(*) as c FROM waitlist WHERE masterpiece_id = ?").get(masterpieceId || 0) as any)?.c ?? 0;
-  db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
-    masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1
-  );
+  try {
+    db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position, collector_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+      masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1, collectorLevel
+    );
+  } catch (_) {
+    db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1
+    );
+  }
   res.json({ success: true });
 });
 
@@ -6452,12 +6609,13 @@ app.get("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
   res.json(rows);
 });
 
-// Bellanova Registry — master list
+// Bellanova Registry — master list (Section 15: serial_number, vault_id, certificate_id, owner, creation_date, estimated_value)
 app.get("/api/registry", (req, res) => {
   const rows = db.prepare(`
     SELECT m.id, m.serial_id as serial_number, m.id as vault_id, m.title, m.created_at as creation_date,
            (SELECT cert_id FROM certificates WHERE masterpiece_id = m.id ORDER BY id DESC LIMIT 1) as certificate_reference,
-           u.name as owner_name, u.id as owner_id
+           u.name as owner_name, u.id as owner_id,
+           COALESCE(m.estimated_market_value, m.valuation) as estimated_value
     FROM masterpieces m
     LEFT JOIN users u ON u.id = m.current_owner_id
     ORDER BY m.serial_id
@@ -6713,6 +6871,486 @@ app.post("/api/admin/concierge/update", (req, res) => {
   }
   
   logAudit(adminId, 'CONCIERGE_UPDATE', requestId.toString(), `Updated concierge request to ${status}`);
+  res.json({ success: true });
+});
+
+// --- Private Client Communication System (Sections 1–12) ---
+function canAccessPrivateConversation(conversation: { admin_id: number; client_id: number }, userId: number, isAdmin: boolean): boolean {
+  if (!conversation || !userId) return false;
+  return isAdmin || conversation.client_id === userId || conversation.admin_id === userId;
+}
+function isAdminUser(user: { role?: string } | null): boolean {
+  return !!(user && (user.role === 'admin' || user.role === 'super_admin'));
+}
+
+app.get("/api/private-clients/conversations", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const admin = isAdminUser(user);
+  if (admin) {
+    const rows = db.prepare(`
+      SELECT c.id, c.admin_id, c.client_id, c.project_id, c.created_at, c.updated_at,
+             u.name as client_name, u.email as client_email
+      FROM private_client_conversations c
+      JOIN users u ON u.id = c.client_id
+      ORDER BY c.updated_at DESC
+    `).all();
+    return res.json(rows);
+  }
+  const rows = db.prepare(`
+    SELECT c.id, c.admin_id, c.client_id, c.project_id, c.created_at, c.updated_at
+    FROM private_client_conversations c
+    WHERE c.client_id = ?
+    ORDER BY c.updated_at DESC
+  `).all(userId);
+  res.json(rows);
+});
+
+app.post("/api/private-clients/conversations", requireAuth, requireAdmin, (req, res) => {
+  const adminId = getSessionUserId(req)!;
+  const { client_id, project_id } = req.body || {};
+  const clientId = Number(client_id);
+  if (!clientId) return res.status(400).json({ error: "client_id erforderlich." });
+  const existing = db.prepare("SELECT id FROM private_client_conversations WHERE admin_id = ? AND client_id = ?").get(adminId, clientId) as { id: number } | undefined;
+  if (existing) return res.json({ id: existing.id });
+  const r = db.prepare("INSERT INTO private_client_conversations (admin_id, client_id, project_id) VALUES (?, ?, ?)").run(adminId, clientId, project_id ? Number(project_id) : null);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.get("/api/private-clients/conversations/:id", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
+  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(conv.client_id) as any;
+  res.json({ ...conv, client_name: client?.name, client_email: client?.email });
+});
+
+app.get("/api/private-clients/conversations/:id/messages", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
+  const rows = db.prepare(`
+    SELECT m.*, s.name as sender_name
+    FROM private_client_messages m
+    LEFT JOIN users s ON s.id = m.sender_id
+    WHERE m.conversation_id = ?
+    ORDER BY m.created_at ASC
+  `).all(conv.id) as any[];
+  const withProduct = rows.map((m: any) => {
+    if (m.product_share_masterpiece_id) {
+      m.product_share = db.prepare("SELECT id, title, description, image_url, serial_id FROM masterpieces WHERE id = ?").get(m.product_share_masterpiece_id);
+    }
+    return m;
+  });
+  res.json(withProduct);
+});
+
+app.post("/api/private-clients/conversations/:id/messages", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
+  const { message_text, attachments, product_share_masterpiece_id } = req.body || {};
+  const receiverId = userId === conv.admin_id ? conv.client_id : conv.admin_id;
+  const attachmentsStr = attachments != null ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null;
+  const r = db.prepare(`
+    INSERT INTO private_client_messages (conversation_id, sender_id, receiver_id, message_text, attachments, product_share_masterpiece_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, 'sent')
+  `).run(conv.id, userId, receiverId, message_text || null, attachmentsStr, product_share_masterpiece_id ? Number(product_share_masterpiece_id) : null);
+  db.prepare("UPDATE private_client_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(conv.id);
+  res.status(201).json({ id: r.lastInsertRowid, status: 'sent' });
+});
+
+app.patch("/api/private-clients/messages/:id/status", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const msg = db.prepare("SELECT * FROM private_client_messages WHERE id = ?").get(Number(req.params.id)) as any;
+  if (!msg || msg.receiver_id !== userId) return res.status(404).json({ error: "Nachricht nicht gefunden." });
+  const { status } = req.body || {};
+  if (!['sent', 'delivered', 'seen'].includes(status)) return res.status(400).json({ error: "Ungültiger Status." });
+  db.prepare("UPDATE private_client_messages SET status = ? WHERE id = ?").run(status, msg.id);
+  res.json({ success: true });
+});
+
+app.post("/api/private-clients/upload", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const { client_id, conversation_id, base64, filename, mimeType } = req.body || {};
+  const clientId = Number(client_id);
+  if (!clientId) return res.status(400).json({ error: "client_id erforderlich." });
+  const conv = conversation_id ? db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(conversation_id)) as any : null;
+  const allowed = conv ? canAccessPrivateConversation(conv, userId, isAdminUser(user)) : (isAdminUser(user) || userId === clientId);
+  if (!allowed) return res.status(403).json({ error: "Kein Zugriff." });
+  const dir = path.join(privateClientsUploadDir, String(clientId));
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const ext = path.extname(filename || '') || (mimeType && mimeType.startsWith('image/') ? '.jpg' : '.pdf');
+  const name = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
+  const filePath = path.join(dir, name);
+  if (base64) {
+    try {
+      fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+    } catch (e) {
+      return res.status(500).json({ error: "Upload fehlgeschlagen." });
+    }
+  } else return res.status(400).json({ error: "base64 oder Datei erforderlich." });
+  const url = `/uploads/private-clients/${clientId}/${name}`;
+  res.json({ url, name, path: url });
+});
+
+app.get("/api/private-clients/projects", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const rows = db.prepare(`
+      SELECT p.*, u.name as client_name
+      FROM client_projects p
+      JOIN users u ON u.id = p.client_id
+      ORDER BY p.updated_at DESC
+    `).all();
+    return res.json(rows);
+  }
+  const rows = db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
+  res.json(rows);
+});
+
+app.post("/api/private-clients/projects", requireAuth, requireAdmin, (req, res) => {
+  const { client_id, project_type, title, status } = req.body || {};
+  const clientId = Number(client_id);
+  if (!clientId || !title) return res.status(400).json({ error: "client_id und title erforderlich." });
+  const type = ['custom_jewelry', 'stone_request', 'consultation'].includes(project_type) ? project_type : 'consultation';
+  const r = db.prepare("INSERT INTO client_projects (client_id, project_type, title, status) VALUES (?, ?, ?, ?)").run(clientId, type, String(title).trim(), status || 'active');
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.get("/api/private-clients/stone-requests", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const rows = db.prepare(`
+      SELECT r.*, u.name as client_name, u.email as client_email
+      FROM stone_requests r JOIN users u ON u.id = r.client_id
+      ORDER BY r.created_at DESC
+    `).all();
+    return res.json(rows);
+  }
+  const rows = db.prepare("SELECT * FROM stone_requests WHERE client_id = ? ORDER BY created_at DESC").all(userId);
+  res.json(rows);
+});
+
+app.post("/api/private-clients/stone-requests", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const { gemstone_type, carat_size, origin_preference, budget_range } = req.body || {};
+  db.prepare("INSERT INTO stone_requests (client_id, gemstone_type, carat_size, origin_preference, budget_range, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(
+    userId, gemstone_type || null, carat_size || null, origin_preference || null, budget_range || null
+  );
+  res.status(201).json({ success: true });
+});
+
+app.get("/api/private-clients/design-gallery", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const clientId = req.query.client_id ? Number(req.query.client_id) : userId;
+  if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const rows = db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC").all(clientId);
+  res.json(rows);
+});
+
+app.post("/api/private-clients/design-gallery", requireAuth, requireAdmin, (req, res) => {
+  const { client_id, image, description } = req.body || {};
+  const clientId = Number(client_id);
+  if (!clientId || !image) return res.status(400).json({ error: "client_id und image (URL) erforderlich." });
+  const r = db.prepare("INSERT INTO private_design_gallery (client_id, image, description) VALUES (?, ?, ?)").run(clientId, String(image), description || null);
+  res.status(201).json({ id: r.lastInsertRowid });
+});
+
+app.get("/api/private-clients/design-gallery/:id/comments", requireAuth, (req, res) => {
+  const designId = Number(req.params.id);
+  const design = db.prepare("SELECT * FROM private_design_gallery WHERE id = ?").get(designId) as any;
+  if (!design) return res.status(404).json({ error: "Design nicht gefunden." });
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!isAdminUser(user) && design.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const rows = db.prepare(`
+    SELECT c.*, u.name as user_name
+    FROM design_gallery_comments c
+    JOIN users u ON u.id = c.user_id
+    WHERE c.design_id = ?
+    ORDER BY c.created_at ASC
+  `).all(designId);
+  res.json(rows);
+});
+
+app.post("/api/private-clients/design-gallery/:id/comments", requireAuth, (req, res) => {
+  const designId = Number(req.params.id);
+  const design = db.prepare("SELECT * FROM private_design_gallery WHERE id = ?").get(designId) as any;
+  if (!design) return res.status(404).json({ error: "Design nicht gefunden." });
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!isAdminUser(user) && design.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const { comment_text } = req.body || {};
+  if (!comment_text || !String(comment_text).trim()) return res.status(400).json({ error: "comment_text erforderlich." });
+  db.prepare("INSERT INTO design_gallery_comments (design_id, user_id, comment_text) VALUES (?, ?, ?)").run(designId, userId, String(comment_text).trim());
+  res.status(201).json({ success: true });
+});
+
+app.get("/api/private-clients/documents", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const clientId = req.query.client_id ? Number(req.query.client_id) : userId;
+  if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const rows = db.prepare(`
+    SELECT id, document_type, contract_type, doc_ref, created_at, file_path
+    FROM vault_documents
+    WHERE client_id = ?
+    ORDER BY created_at DESC
+  `).all(clientId);
+  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(clientId);
+  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(clientId);
+  res.json({ documents: rows, contracts, certificates: certs });
+});
+
+app.get("/api/private-clients/production-timeline/:masterpieceId", requireAuth, (req, res) => {
+  const masterpieceId = Number(req.params.masterpieceId);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+  if (!isAdminUser(user) && piece.current_owner_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const stages = db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC, timestamp ASC").all(masterpieceId) as any[];
+  const defaultStages = [
+    { step_name: 'Design bestätigt', status: 'pending' },
+    { step_name: 'Steinbeschaffung', status: 'pending' },
+    { step_name: 'Steinschliff', status: 'pending' },
+    { step_name: 'Fassung', status: 'pending' },
+    { step_name: 'Politur', status: 'pending' },
+    { step_name: 'Qualitätskontrolle', status: 'pending' },
+    { step_name: 'Abgeschlossen', status: 'pending' }
+  ];
+  const merged = defaultStages.map((d, i) => {
+    const s = stages.find((st: any) => st.step_index === i) || stages[i];
+    return s ? { ...d, ...s } : { step_index: i, step_name: d.step_name, status: d.status };
+  });
+  res.json({ masterpiece_id: masterpieceId, stages: stages.length ? stages : merged });
+});
+
+app.get("/api/private-clients/my-production", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.json({ pieces: [] });
+  const defaultStageNames = ['Design bestätigt', 'Steinbeschaffung', 'Steinschliff', 'Fassung', 'Politur', 'Qualitätskontrolle', 'Abgeschlossen'];
+  const pieces = db.prepare("SELECT id, title, serial_id, image_url FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  const result = pieces.map((p: any) => {
+    const stages = db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC").all(p.id) as any[];
+    const merged = defaultStageNames.map((name, i) => {
+      const s = stages.find((st: any) => st.step_index === i) || stages[i];
+      return s ? { step_index: i, step_name: s.step_name || name, status: s.status || 'pending' } : { step_index: i, step_name: name, status: 'pending' };
+    });
+    return { ...p, stages: stages.length ? stages : merged };
+  });
+  res.json({ pieces: result });
+});
+
+app.get("/api/private-clients/collector-preferences/:clientId", requireAuth, requireAdmin, (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId);
+  res.json(row || null);
+});
+
+// --- High Jewelry Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
+app.get("/api/collector-rooms", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const rooms = db.prepare(`
+      SELECT r.*, u.name as client_name, u.email as client_email
+      FROM collector_rooms r JOIN users u ON u.id = r.client_id
+      ORDER BY r.updated_at DESC
+    `).all();
+    return res.json(rooms);
+  }
+  const rooms = db.prepare("SELECT * FROM collector_rooms WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
+  res.json(rooms);
+});
+app.post("/api/collector-rooms", requireAuth, requireAdmin, (req, res) => {
+  const { client_id, project_title, status } = req.body || {};
+  if (!client_id || !project_title) return res.status(400).json({ error: "client_id und project_title erforderlich." });
+  const r = db.prepare("INSERT INTO collector_rooms (client_id, project_title, status) VALUES (?, ?, ?)").run(client_id, String(project_title).trim(), status || 'active');
+  res.status(201).json({ id: r.lastInsertRowid, success: true });
+});
+app.get("/api/collector-rooms/:id", requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const room = db.prepare("SELECT * FROM collector_rooms WHERE id = ?").get(id) as any;
+  if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
+  if (!isAdminUser(user) && room.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
+  const conversations = db.prepare("SELECT * FROM private_client_conversations WHERE client_id = ? ORDER BY updated_at DESC").all(room.client_id);
+  const projects = db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const designs = db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const stones = db.prepare(`
+    SELECT s.*, sa.assigned_at FROM stone_library s
+    JOIN stone_assignments sa ON sa.stone_id = s.stone_id
+    WHERE sa.client_id = ? AND (sa.collector_room_id = ? OR sa.collector_room_id IS NULL)
+  `).all(room.client_id, id);
+  const docs = db.prepare("SELECT id, document_type, doc_ref, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
+  res.json({ room, client, conversations, projects, designs, stones, documents: docs, contracts, certificates: certs });
+});
+app.patch("/api/collector-rooms/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { project_title, status } = req.body || {};
+  const room = db.prepare("SELECT id FROM collector_rooms WHERE id = ?").get(id);
+  if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
+  const updates: string[] = []; const values: any[] = [];
+  if (project_title !== undefined) { updates.push("project_title = ?"); values.push(project_title); }
+  if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+  if (updates.length) { values.push(id); db.prepare(`UPDATE collector_rooms SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values); }
+  res.json({ success: true });
+});
+
+app.get("/api/stone-library", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const stones = db.prepare("SELECT * FROM stone_library ORDER BY created_at DESC").all();
+    return res.json(stones);
+  }
+  const stones = db.prepare(`
+    SELECT s.*, sa.assigned_at, sa.collector_room_id FROM stone_library s
+    JOIN stone_assignments sa ON sa.stone_id = s.stone_id WHERE sa.client_id = ?
+    ORDER BY sa.assigned_at DESC
+  `).all(userId);
+  res.json(stones);
+});
+app.post("/api/stone-library", requireAuth, requireAdmin, (req, res) => {
+  const { stone_type, carat, cut, origin, color, clarity, supplier, price_estimate, status } = req.body || {};
+  if (!stone_type) return res.status(400).json({ error: "stone_type erforderlich." });
+  const r = db.prepare(`
+    INSERT INTO stone_library (stone_type, carat, cut, origin, color, clarity, supplier, price_estimate, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(stone_type, carat ?? null, cut ?? null, origin ?? null, color ?? null, clarity ?? null, supplier ?? null, price_estimate ?? null, status || 'available');
+  res.status(201).json({ stone_id: r.lastInsertRowid, success: true });
+});
+app.patch("/api/stone-library/:stoneId", requireAuth, requireAdmin, (req, res) => {
+  const stoneId = Number(req.params.stoneId);
+  const body = req.body || {};
+  const cols = ['stone_type', 'carat', 'cut', 'origin', 'color', 'clarity', 'supplier', 'price_estimate', 'status'];
+  const updates: string[] = []; const values: any[] = [];
+  cols.forEach(c => { if (body[c] !== undefined) { updates.push(`${c} = ?`); values.push(body[c]); } });
+  if (updates.length) { values.push(stoneId); db.prepare(`UPDATE stone_library SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE stone_id = ?`).run(...values); }
+  res.json({ success: true });
+});
+app.post("/api/stone-library/assign", requireAuth, requireAdmin, (req, res) => {
+  const { stone_id, collector_room_id, client_id } = req.body || {};
+  if (!stone_id || !client_id) return res.status(400).json({ error: "stone_id und client_id erforderlich." });
+  db.prepare("INSERT INTO stone_assignments (stone_id, collector_room_id, client_id) VALUES (?, ?, ?)").run(stone_id, collector_room_id ?? null, client_id);
+  db.prepare("UPDATE stone_library SET status = 'reserved' WHERE stone_id = ?").run(stone_id);
+  res.status(201).json({ success: true });
+});
+
+app.get("/api/deal-rooms", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const rooms = db.prepare(`
+      SELECT d.*, u.name as client_name, u.email as client_email
+      FROM deal_rooms d JOIN users u ON u.id = d.client_id ORDER BY d.updated_at DESC
+    `).all();
+    return res.json(rooms);
+  }
+  const rooms = db.prepare("SELECT * FROM deal_rooms WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
+  res.json(rooms);
+});
+app.post("/api/deal-rooms", requireAuth, requireAdmin, (req, res) => {
+  const { collector_room_id, client_id, project_title, price, payment_plan, status } = req.body || {};
+  if (!client_id || !project_title) return res.status(400).json({ error: "client_id und project_title erforderlich." });
+  const r = db.prepare(`
+    INSERT INTO deal_rooms (collector_room_id, client_id, project_title, price, payment_plan, status)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(collector_room_id ?? null, client_id, String(project_title).trim(), price ?? null, payment_plan ?? null, status || 'active');
+  res.status(201).json({ id: r.lastInsertRowid, success: true });
+});
+app.get("/api/deal-rooms/:id", requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(id) as any;
+  if (!room) return res.status(404).json({ error: "Deal-Raum nicht gefunden." });
+  if (!isAdminUser(user) && room.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
+  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
+  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
+  res.json({ room, client, contracts, certificates: certs });
+});
+
+app.get("/api/collector-reputation", requireAuth, requireAdmin, (req, res) => {
+  const clientId = req.query.client_id ? Number(req.query.client_id) : null;
+  if (clientId) {
+    const row = db.prepare("SELECT * FROM collector_reputation WHERE user_id = ?").get(clientId) as any;
+    const payments = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount),0) as total FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(clientId) as any;
+    const projects = db.prepare("SELECT COUNT(*) as c FROM client_projects WHERE client_id = ? AND status = 'completed'").get(clientId) as any;
+    const totalPurchases = row?.total_purchases ?? payments?.c ?? 0;
+    const totalSpent = row?.total_spent ?? payments?.total ?? 0;
+    const projectsCompleted = row?.projects_completed ?? projects?.c ?? 0;
+    const trustScore = row?.trust_score ?? 100;
+    return res.json({ user_id: clientId, total_purchases: totalPurchases, total_spent: totalSpent, projects_completed: projectsCompleted, trust_score: trustScore });
+  }
+  const list = db.prepare(`
+    SELECT r.*, u.name, u.email FROM collector_reputation r JOIN users u ON u.id = r.user_id ORDER BY r.trust_score DESC
+  `).all();
+  res.json(list);
+});
+app.patch("/api/collector-reputation/:userId", requireAuth, requireAdmin, (req, res) => {
+  const userId = Number(req.params.userId);
+  const { total_purchases, total_spent, projects_completed, trust_score } = req.body || {};
+  const existing = db.prepare("SELECT user_id FROM collector_reputation WHERE user_id = ?").get(userId);
+  if (existing) {
+    const updates: string[] = []; const values: any[] = [];
+    if (total_purchases !== undefined) { updates.push("total_purchases = ?"); values.push(total_purchases); }
+    if (total_spent !== undefined) { updates.push("total_spent = ?"); values.push(total_spent); }
+    if (projects_completed !== undefined) { updates.push("projects_completed = ?"); values.push(projects_completed); }
+    if (trust_score !== undefined) { updates.push("trust_score = ?"); values.push(trust_score); }
+    if (updates.length) { values.push(userId); db.prepare(`UPDATE collector_reputation SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`).run(...values); }
+  } else {
+    db.prepare("INSERT INTO collector_reputation (user_id, total_purchases, total_spent, projects_completed, trust_score) VALUES (?, ?, ?, ?, ?)").run(
+      userId, total_purchases ?? 0, total_spent ?? 0, projects_completed ?? 0, trust_score ?? 100);
+  }
+  res.json({ success: true });
+});
+
+app.get("/api/investor-documents", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (isAdminUser(user)) {
+    const docs = db.prepare("SELECT * FROM investor_documents ORDER BY created_at DESC").all();
+    return res.json(docs);
+  }
+  const role = (user?.role || '').toLowerCase();
+  if (role !== 'investor' && role !== 'admin' && role !== 'super_admin') return res.json([]);
+  const docs = db.prepare("SELECT id, document_type, title, file_path, created_at FROM investor_documents WHERE access_control IN ('investor', 'all') ORDER BY created_at DESC").all();
+  res.json(docs);
+});
+app.post("/api/investor-documents", requireAuth, requireAdmin, (req, res) => {
+  const { document_type, title, file_path, access_control } = req.body || {};
+  if (!document_type || !file_path) return res.status(400).json({ error: "document_type und file_path erforderlich." });
+  const type = ['pitch_deck', 'business_plan', 'investment_proposal'].includes(document_type) ? document_type : 'investment_proposal';
+  const r = db.prepare(`
+    INSERT INTO investor_documents (document_type, title, file_path, access_control)
+    VALUES (?, ?, ?, ?)
+  `).run(type, title ?? null, file_path, access_control || 'investor');
+  res.status(201).json({ id: r.lastInsertRowid, success: true });
+});
+app.patch("/api/investor-documents/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { title, access_control } = req.body || {};
+  const doc = db.prepare("SELECT id FROM investor_documents WHERE id = ?").get(id);
+  if (!doc) return res.status(404).json({ error: "Dokument nicht gefunden." });
+  const updates: string[] = []; const values: any[] = [];
+  if (title !== undefined) { updates.push("title = ?"); values.push(title); }
+  if (access_control !== undefined) { updates.push("access_control = ?"); values.push(access_control); }
+  if (updates.length) { values.push(id); db.prepare(`UPDATE investor_documents SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values); }
   res.json({ success: true });
 });
 

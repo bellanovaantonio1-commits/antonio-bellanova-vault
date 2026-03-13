@@ -625,8 +625,35 @@ const TRANSLATIONS: any = {
     "view.auctions": "Auktionen",
     "view.vault": "Tresor",
     "view.private_gallery": "Private Gallery",
+    "view.private_clients": "Nachrichten",
     "view.admin": "Verwaltung",
     "view.portfolio": "Portfolio",
+    "private_clients.menu": "Nachrichten",
+    "private_clients.subtitle": "Ihre Nachrichten, Projekte und Dokumente.",
+    "private_clients.messages": "Nachrichten",
+    "private_clients.my_projects": "Meine Projekte",
+    "private_clients.my_documents": "Meine Dokumente",
+    "private_clients.no_conversations": "Keine Konversationen.",
+    "private_clients.conversation": "Konversation",
+    "private_clients.open": "Öffnen",
+    "private_clients.write_message": "Nachricht…",
+    "private_clients.no_projects": "Keine Projekte.",
+    "private_clients.other_docs": "Sonstige Dokumente",
+    "private_clients.client_list": "Kundenliste",
+    "private_clients.conversations": "Konversationen",
+    "private_clients.projects": "Projekte",
+    "private_clients.stone_requests": "Steinanfragen",
+    "private_clients.open_conversation": "Konversation öffnen",
+    "private_clients.select_conversation": "Konversation auswählen",
+    "private_clients.production": "Produktion",
+    "private_clients.production_subtitle": "Fortschritt Ihrer Stücke.",
+    "private_clients.no_production": "Keine Stücke in Produktion.",
+    "private_clients.view_piece": "Zum Stück",
+    "private_clients.my_rooms": "Meine Räume",
+    "private_clients.no_rooms": "Keine Räume.",
+    "private_clients.shared_stones": "Ihnen zugewiesene Steine",
+    "private_clients.no_stones": "Keine Steine zugewiesen.",
+    "admin.private_clients": "Private Clients",
     "view.fractional": "Anteile",
     "view.investor": "Investor",
     "view.concierge": "Concierge",
@@ -1322,6 +1349,7 @@ const TRANSLATIONS: any = {
     "view.auctions": "Auctions",
     "view.vault": "Vault",
     "view.private_gallery": "Private Gallery",
+    "view.private_clients": "Messages",
     "view.admin": "Management",
     "view.portfolio": "Portfolio",
     "view.fractional": "Shares",
@@ -1990,6 +2018,7 @@ const TRANSLATIONS: any = {
     "view.auctions": "Aste",
     "view.vault": "Caveau",
     "view.private_gallery": "Galleria privata",
+    "view.private_clients": "Messaggi",
     "view.admin": "Gestione",
     "view.portfolio": "Portafoglio",
     "view.fractional": "Quote",
@@ -2609,7 +2638,7 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
@@ -2744,9 +2773,30 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry'>('overview');
+  const [adminCollectorRooms, setAdminCollectorRooms] = useState<any[]>([]);
+  const [adminStoneLibrary, setAdminStoneLibrary] = useState<any[]>([]);
+  const [adminDealRooms, setAdminDealRooms] = useState<any[]>([]);
+  const [adminCollectorReputation, setAdminCollectorReputation] = useState<any[]>([]);
+  const [adminInvestorDocuments, setAdminInvestorDocuments] = useState<any[]>([]);
+  const [myCollectorRooms, setMyCollectorRooms] = useState<any[]>([]);
+  const [mySharedStones, setMySharedStones] = useState<any[]>([]);
+  const [myDealRooms, setMyDealRooms] = useState<any[]>([]);
+  const [investorDocs, setInvestorDocs] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
+  const [privateClientSubTab, setPrivateClientSubTab] = useState<'list' | 'conversations' | 'projects' | 'stone_requests'>('list');
+  const [privateClientConversations, setPrivateClientConversations] = useState<any[]>([]);
+  const [privateClientProjects, setPrivateClientProjects] = useState<any[]>([]);
+  const [privateClientStoneRequests, setPrivateClientStoneRequests] = useState<any[]>([]);
+  const [selectedPrivateConversation, setSelectedPrivateConversation] = useState<any>(null);
+  const [privateClientMessages, setPrivateClientMessages] = useState<any[]>([]);
+  const [privateClientMessageText, setPrivateClientMessageText] = useState('');
+  const [clientViewSubTab, setClientViewSubTab] = useState<'messages' | 'projects' | 'documents' | 'stone_request' | 'production' | 'rooms'>('messages');
+  const [myProductionPieces, setMyProductionPieces] = useState<any[]>([]);
+  const [myPrivateConversations, setMyPrivateConversations] = useState<any[]>([]);
+  const [myPrivateProjects, setMyPrivateProjects] = useState<any[]>([]);
+  const [myPrivateDocuments, setMyPrivateDocuments] = useState<any>({ documents: [], contracts: [], certificates: [] });
   const [adminVipMembers, setAdminVipMembers] = useState<any[]>([]);
   const [adminProjects, setAdminProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -3664,7 +3714,46 @@ export default function App() {
       const q = adminConciergeFilter ? `?requestType=${encodeURIComponent(adminConciergeFilter)}` : '';
       fetch(`/api/admin/concierge/requests${q}`, { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminConciergeRequests)).catch(() => setAdminConciergeRequests([]));
     }
+    if (adminTab === 'private_clients') {
+      Promise.all([
+        fetch('/api/private-clients/conversations', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setPrivateClientConversations),
+        fetch('/api/private-clients/projects', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setPrivateClientProjects),
+        fetch('/api/private-clients/stone-requests', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setPrivateClientStoneRequests)
+      ]).catch(() => {});
+    }
+    if (adminTab === 'collector_rooms') {
+      fetch('/api/collector-rooms', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminCollectorRooms);
+    }
+    if (adminTab === 'stone_library') {
+      fetch('/api/stone-library', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminStoneLibrary);
+    }
+    if (adminTab === 'deal_rooms') {
+      fetch('/api/deal-rooms', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminDealRooms);
+    }
+    if (adminTab === 'collector_reputation') {
+      fetch('/api/collector-reputation', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminCollectorReputation);
+    }
+    if (adminTab === 'investor_dashboard') {
+      fetch('/api/investor-documents', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminInvestorDocuments);
+    }
   }, [user?.role, adminTab, adminConciergeFilter]);
+  useEffect(() => {
+    if (view === 'private_clients' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
+      const prodPromise = fetch('/api/private-clients/my-production', { credentials: 'include' }).then(r => r.ok ? r.json() : { pieces: [] }).then((d: any) => setMyProductionPieces(d.pieces || []));
+      Promise.all([
+        fetch('/api/private-clients/conversations', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setMyPrivateConversations),
+        fetch('/api/private-clients/projects', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setMyPrivateProjects),
+        fetch('/api/private-clients/documents', { credentials: 'include' }).then(r => r.ok ? r.json() : { documents: [], contracts: [], certificates: [] }).then(setMyPrivateDocuments),
+        prodPromise,
+        fetch('/api/collector-rooms', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setMyCollectorRooms),
+        fetch('/api/stone-library', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setMySharedStones),
+        fetch('/api/deal-rooms', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setMyDealRooms)
+      ]).catch(() => {});
+    }
+    if (view === 'dashboard' && user?.id && (user.role === 'investor' || user.role === 'admin' || user.role === 'super_admin')) {
+      fetch('/api/investor-documents', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setInvestorDocs);
+    }
+  }, [view, user?.id, user?.role]);
 
   const handleInvestorRequestReview = async (requestId: number, approve: boolean) => {
     setLoading(true);
@@ -5116,6 +5205,7 @@ export default function App() {
     ...(['vip','private_collector','grand_collector','legacy_collector'].includes((user as any).collector_level) || user.role === 'admin' || user.role === 'super_admin' ? [navItem('private_gallery', Diamond, t('view.private_gallery') || 'Private Gallery')] : []),
     ...(user.role !== 'black' && user.role !== UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.concierge'))] : []),
     ...(user.role === 'black' || user.role === UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.direct_line'))] : []),
+    ...(user.role !== 'admin' && user.role !== 'super_admin' ? [navItem('private_clients', MessageCircle, t('private_clients.menu') || 'Nachrichten')] : []),
     navItem('portfolio', Award, t('view.portfolio')),
     ...(user.role !== UserRole.ADMIN ? [navItem('fractional', PieChart, t('view.fractional'))] : []),
     ...(user.role === UserRole.INVESTOR ? [navItem('investor', BarChart3, t('investor.title'))] : []),
@@ -5577,6 +5667,22 @@ export default function App() {
                           </button>
                         );
                       })}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Investor Documents — Section 14 */}
+                {(user.role === 'investor' || user.role === UserRole.ADMIN || (user as any).role === 'super_admin') && investorDocs.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('investor_docs.title') || 'Investor Documents'}</h4>
+                    <p className="text-sm text-zinc-500">{t('investor_docs.subtitle') || 'Pitch deck, business plan, investment proposal.'}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {investorDocs.map((doc: any) => (
+                        <a key={doc.id} href={doc.file_path} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-zinc-800 hover:border-amber-500/40 bg-zinc-900/50 p-4 flex items-center gap-3 transition-colors">
+                          <span className="text-amber-500/90 font-medium capitalize">{doc.document_type?.replace('_', ' ')}</span>
+                          <span className="text-sm text-zinc-400 truncate">{doc.title || doc.document_type}</span>
+                        </a>
+                      ))}
                     </div>
                   </Card>
                 )}
@@ -6727,6 +6833,149 @@ export default function App() {
               </motion.div>
             )}
 
+            {view === 'private_clients' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <h3 className="text-3xl font-serif italic text-amber-500/90">{t('private_clients.menu') || 'Nachrichten'}</h3>
+                <p className="text-zinc-500">{t('private_clients.subtitle') || 'Ihre Nachrichten, Projekte und Dokumente.'}</p>
+                <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
+                  {(['messages', 'projects', 'documents', 'stone_request', 'production', 'rooms'] as const).map(sub => (
+                    <button key={sub} type="button" onClick={() => setClientViewSubTab(sub)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider ${clientViewSubTab === sub ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                      {sub === 'messages' ? (t('private_clients.messages') || 'Nachrichten') : sub === 'projects' ? (t('private_clients.my_projects') || 'Meine Projekte') : sub === 'documents' ? (t('private_clients.my_documents') || 'Meine Dokumente') : sub === 'stone_request' ? (t('private_clients.stone_request_tab') || 'Steinanfrage') : sub === 'production' ? (t('private_clients.production') || 'Produktion') : (t('private_clients.my_rooms') || 'Meine Räume')}
+                    </button>
+                  ))}
+                </div>
+                {clientViewSubTab === 'messages' && (
+                  <div className="space-y-4">
+                    {myPrivateConversations.length === 0 ? (
+                      <p className="text-zinc-500 italic">{t('private_clients.no_conversations') || 'Keine Konversationen. Das Atelier wird sich bei Bedarf bei Ihnen melden.'}</p>
+                    ) : (
+                      myPrivateConversations.map((c: any) => (
+                        <Card key={c.id} className="p-4">
+                          <p className="text-sm font-medium text-zinc-200">{t('private_clients.conversation') || 'Konversation'} #{c.id}</p>
+                          <p className="text-xs text-zinc-500">{new Date(c.updated_at || c.created_at).toLocaleString()}</p>
+                          <Button variant="outline" size="sm" className="mt-2" onClick={async () => { setSelectedPrivateConversation(c); const r = await fetch(`/api/private-clients/conversations/${c.id}/messages`, { credentials: 'include' }); setPrivateClientMessages(r.ok ? await r.json() : []); setClientViewSubTab('messages'); }}>{t('private_clients.open') || 'Öffnen'}</Button>
+                        </Card>
+                      ))
+                    )}
+                    {selectedPrivateConversation && privateClientMessages.length >= 0 && (
+                      <Card className="p-6 border-amber-500/20">
+                        <div className="flex justify-between items-center mb-4"><h4 className="font-serif italic text-amber-500/90">{t('private_clients.conversation') || 'Konversation'}</h4><button type="button" onClick={() => { setSelectedPrivateConversation(null); setPrivateClientMessages([]); }} className="text-zinc-500 hover:text-zinc-300 text-sm">Schließen</button></div>
+                        <div className="space-y-3 max-h-80 overflow-y-auto mb-4">
+                          {privateClientMessages.map((m: any) => (
+                            <div key={m.id} className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                              <div className={`max-w-[85%] rounded-xl px-4 py-2 ${m.sender_id === user?.id ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-zinc-800 border border-zinc-700'}`}>
+                                <p className="text-xs text-zinc-500">{m.sender_name}</p>
+                                {m.message_text && <p className="text-sm text-zinc-200">{m.message_text}</p>}
+                                {m.product_share && (
+                                  <div className="mt-2 rounded-lg bg-zinc-800/50 p-2">
+                                    <div className="flex items-center gap-2"><img src={m.product_share.image_url} alt="" className="w-12 h-12 rounded object-cover" /><span className="text-amber-500/90 text-sm">{m.product_share.title}</span></div>
+                                    <button type="button" onClick={() => { setView('marketplace'); setSelectedPiece({ id: m.product_share.id, title: m.product_share.title, image_url: m.product_share.image_url, serial_id: m.product_share.serial_id, description: m.product_share.description } as any); }} className="mt-1 text-xs text-amber-500 hover:underline">{t('private_clients.view_piece') || 'Zum Stück'}</button>
+                                  </div>
+                                )}
+                                <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input type="text" value={privateClientMessageText} onChange={e => setPrivateClientMessageText(e.target.value)} placeholder={t('private_clients.write_message') || 'Nachricht…'} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm" onKeyDown={e => { if (e.key === 'Enter') document.getElementById('client-send-msg')?.click(); }} />
+                          <Button id="client-send-msg" onClick={async () => { if (!privateClientMessageText.trim() || !selectedPrivateConversation) return; const r = await fetch(`/api/private-clients/conversations/${selectedPrivateConversation.id}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_text: privateClientMessageText }), credentials: 'include' }); if (r.ok) { setPrivateClientMessageText(''); const msgRes = await fetch(`/api/private-clients/conversations/${selectedPrivateConversation.id}/messages`, { credentials: 'include' }); setPrivateClientMessages(msgRes.ok ? await msgRes.json() : []); }} }>{t('send') || 'Senden'}</Button>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+                {clientViewSubTab === 'projects' && (
+                  <div className="space-y-3">
+                    {myPrivateProjects.length === 0 ? <p className="text-zinc-500 italic">{t('private_clients.no_projects') || 'Keine Projekte.'}</p> : myPrivateProjects.map((p: any) => (
+                      <Card key={p.id} className="p-4 flex items-center justify-between">
+                        <div><p className="font-medium text-zinc-200">{p.title}</p><p className="text-xs text-zinc-500">{p.project_type} · {p.status}</p></div>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+                {clientViewSubTab === 'stone_request' && (
+                  <Card className="p-6 max-w-lg">
+                    <h4 className="font-serif italic text-amber-500/90 mb-4">{t('private_clients.stone_request_title') || 'Steinanfrage'}</h4>
+                    <p className="text-sm text-zinc-500 mb-4">{t('private_clients.stone_request_hint') || 'Beschreiben Sie Ihren Wunsch (z. B. 10 Karat Burma-Rubin).'}</p>
+                    <form onSubmit={async (e) => { e.preventDefault(); const form = e.target as HTMLFormElement; const fd = new FormData(form); const r = await fetch('/api/private-clients/stone-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gemstone_type: fd.get('gemstone_type'), carat_size: fd.get('carat_size'), origin_preference: fd.get('origin_preference'), budget_range: fd.get('budget_range') }), credentials: 'include' }); if (r.ok) { notifyUser(t('private_clients.stone_request_sent') || 'Anfrage gesendet.', 'success'); form.reset(); } }} className="space-y-4">
+                      <input name="gemstone_type" placeholder={t('private_clients.gemstone_type') || 'Steinart (z. B. Rubin, Smaragd)'} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm text-zinc-200" />
+                      <input name="carat_size" placeholder={t('private_clients.carat_size') || 'Karat'} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm text-zinc-200" />
+                      <input name="origin_preference" placeholder={t('private_clients.origin_preference') || 'Herkunftswunsch'} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm text-zinc-200" />
+                      <input name="budget_range" placeholder={t('private_clients.budget_range') || 'Budget (z. B. 50.000–100.000 €)'} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm text-zinc-200" />
+                      <Button type="submit">{t('private_clients.submit_request') || 'Anfrage senden'}</Button>
+                    </form>
+                  </Card>
+                )}
+                {clientViewSubTab === 'documents' && (
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">{t('contracts')}</h4>
+                    {(myPrivateDocuments.contracts || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine Verträge.</p> : (myPrivateDocuments.contracts || []).map((c: any) => (
+                      <Card key={c.id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{c.type} — {c.doc_ref}</span><a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
+                    ))}
+                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('certificates')}</h4>
+                    {(myPrivateDocuments.certificates || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine Zertifikate.</p> : (myPrivateDocuments.certificates || []).map((cert: any) => (
+                      <Card key={cert.cert_id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{cert.cert_id}</span><a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
+                    ))}
+                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('private_clients.other_docs') || 'Sonstige Dokumente'}</h4>
+                    {(myPrivateDocuments.documents || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine.</p> : (myPrivateDocuments.documents || []).map((d: any) => (
+                      <Card key={d.id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{d.document_type} — {d.doc_ref}</span>{d.file_path && <a href={d.file_path} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Öffnen</a>}</Card>
+                    ))}
+                  </div>
+                )}
+                {clientViewSubTab === 'production' && (
+                  <div className="space-y-4">
+                    <p className="text-zinc-500 text-sm">{t('private_clients.production_subtitle') || 'Fortschritt Ihrer Stücke.'}</p>
+                    {myProductionPieces.length === 0 ? (
+                      <p className="text-zinc-500 italic">{t('private_clients.no_production') || 'Keine Stücke in Produktion.'}</p>
+                    ) : (
+                      myProductionPieces.map((p: any) => (
+                        <Card key={p.id} className="p-4">
+                          <div className="flex items-center gap-3 mb-3">
+                            {p.image_url && <img src={p.image_url} alt="" className="w-14 h-14 rounded-lg object-cover" />}
+                            <div><p className="font-medium text-zinc-200">{p.title}</p><p className="text-xs text-zinc-500">{p.serial_id}</p></div>
+                          </div>
+                          <div className="space-y-1">
+                            {(p.stages || []).map((s: any, i: number) => (
+                              <div key={i} className="flex items-center gap-2 text-sm">
+                                <span className={`w-2 h-2 rounded-full ${s.status === 'completed' ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+                                <span className={s.status === 'completed' ? 'text-zinc-400' : 'text-zinc-500'}>{s.step_name || s.step_index}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                )}
+                {clientViewSubTab === 'rooms' && (
+                  <div className="space-y-6">
+                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">{t('private_clients.my_rooms') || 'Meine Räume'}</h4>
+                    {myCollectorRooms.length === 0 && myDealRooms.length === 0 ? (
+                      <p className="text-zinc-500 italic">{t('private_clients.no_rooms') || 'Keine Räume.'}</p>
+                    ) : (
+                      <>
+                        {myCollectorRooms.map((r: any) => (
+                          <Card key={r.id} className="p-4"><p className="font-medium text-zinc-200">{r.project_title}</p><p className="text-xs text-zinc-500">Collector Room · {r.status}</p></Card>
+                        ))}
+                        {myDealRooms.map((d: any) => (
+                          <Card key={d.id} className="p-4"><p className="font-medium text-zinc-200">{d.project_title}</p><p className="text-xs text-zinc-500">{d.price != null ? `${Number(d.price).toLocaleString('de-DE')} €` : ''} · Deal Room · {d.status}</p></Card>
+                        ))}
+                      </>
+                    )}
+                    <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('private_clients.shared_stones') || 'Ihnen zugewiesene Steine'}</h4>
+                    {mySharedStones.length === 0 ? <p className="text-zinc-500 text-sm italic">{t('private_clients.no_stones') || 'Keine Steine zugewiesen.'}</p> : (
+                      <div className="grid gap-2">
+                        {mySharedStones.map((s: any) => (
+                          <Card key={`${s.stone_id}-${s.assigned_at}`} className="p-3 flex flex-wrap items-center justify-between gap-2"><span className="text-zinc-200">{s.stone_type} · {s.carat ?? '—'} ct · {s.color ?? '—'}</span><span className="text-xs text-zinc-500">{s.price_estimate != null ? `${Number(s.price_estimate).toLocaleString('de-DE')} €` : ''} · {s.status}</span></Card>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </motion.div>
+            )}
+
             {view === 'portfolio' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="text-center space-y-4 max-w-2xl mx-auto">
@@ -7550,9 +7799,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'registry', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'registry', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -9529,13 +9778,255 @@ export default function App() {
                   </section>
                   )}
 
+                  {(adminTab === 'private_clients') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">{t('admin.private_clients') || 'Private Clients'}</h3>
+                    <p className="text-sm text-zinc-500">Sichere 1-zu-1-Kommunikation mit Kunden. Nur Admin und der jeweilige Kunde sehen die Konversation.</p>
+                    <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
+                      {(['list', 'conversations', 'projects', 'stone_requests'] as const).map(sub => (
+                        <button key={sub} type="button" onClick={() => setPrivateClientSubTab(sub)} className={`px-3 py-1.5 rounded-lg text-sm uppercase tracking-wider ${privateClientSubTab === sub ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
+                          {sub === 'list' ? (t('private_clients.client_list') || 'Kundenliste') : sub === 'conversations' ? (t('private_clients.conversations') || 'Konversationen') : sub === 'projects' ? (t('private_clients.projects') || 'Projekte') : (t('private_clients.stone_requests') || 'Steinanfragen')}
+                        </button>
+                      ))}
+                    </div>
+                    {privateClientSubTab === 'list' && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-zinc-500">Kunde auswählen und Konversation starten.</p>
+                        {(allUsers || []).filter((u: any) => u.role !== 'admin' && u.role !== 'super_admin').map((u: any) => (
+                          <div key={u.id} className="flex items-center justify-between py-2 px-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                            <span className="text-zinc-200">{u.name} — {u.email}</span>
+                            <Button variant="outline" size="sm" onClick={async () => {
+                              const r = await fetch('/api/private-clients/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: u.id }), credentials: 'include' });
+                              const data = await r.json().catch(() => ({}));
+                              if (r.ok && data.id) {
+                                setSelectedPrivateConversation({ id: data.id, client_id: u.id, client_name: u.name, client_email: u.email });
+                                const msgRes = await fetch(`/api/private-clients/conversations/${data.id}/messages`, { credentials: 'include' });
+                                setPrivateClientMessages(msgRes.ok ? await msgRes.json() : []);
+                                setPrivateClientSubTab('conversations');
+                              }
+                            }}>{t('private_clients.open_conversation') || 'Konversation öffnen'}</Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {privateClientSubTab === 'conversations' && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="space-y-2">
+                          <p className="text-xs text-zinc-500 uppercase tracking-wider">Konversationen</p>
+                          {privateClientConversations.map((c: any) => (
+                            <button key={c.id} type="button" onClick={async () => { setSelectedPrivateConversation(c); const r = await fetch(`/api/private-clients/conversations/${c.id}/messages`, { credentials: 'include' }); setPrivateClientMessages(r.ok ? await r.json() : []); }} className={`w-full text-left py-2 px-4 rounded-xl border transition-colors ${selectedPrivateConversation?.id === c.id ? 'bg-amber-500/10 border-amber-500/40' : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700'}`}>
+                              {c.client_name || c.client_email || `Kunde #${c.client_id}`}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="lg:col-span-2 flex flex-col rounded-xl border border-zinc-800 bg-zinc-900/30 min-h-[320px]">
+                          {selectedPrivateConversation ? (
+                            <>
+                              <div className="p-4 border-b border-zinc-800 font-serif italic text-amber-500/90">{t('private_clients.conversation') || 'Konversation'}: {selectedPrivateConversation.client_name || selectedPrivateConversation.client_email}</div>
+                              <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-64">
+                                {privateClientMessages.map((m: any) => (
+                                  <div key={m.id} className={`flex ${m.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-[80%] rounded-xl px-4 py-2 ${m.sender_id === user?.id ? 'bg-amber-500/20 border border-amber-500/30' : 'bg-zinc-800 border border-zinc-700'}`}>
+                                      <p className="text-xs text-zinc-500">{m.sender_name}</p>
+                                      {m.message_text && <p className="text-sm text-zinc-200">{m.message_text}</p>}
+                                      {m.product_share && <a href="#" onClick={(e) => { e.preventDefault(); setSelectedPiece(masterpieces.find((p: any) => p.id === m.product_share.id) || m.product_share); }} className="mt-2 flex items-center gap-2 rounded-lg bg-zinc-800/50 p-2"><img src={m.product_share.image_url} alt="" className="w-12 h-12 rounded object-cover" /><span className="text-amber-500/90 text-sm">{m.product_share.title}</span></a>}
+                                      <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="p-4 border-t border-zinc-800 flex gap-2">
+                                <input type="text" value={privateClientMessageText} onChange={e => setPrivateClientMessageText(e.target.value)} placeholder={t('private_clients.write_message') || 'Nachricht…'} className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-4 text-sm text-zinc-200" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('send-private-msg')?.click(); } }} />
+                                <Button id="send-private-msg" variant="primary" size="sm" onClick={async () => { if (!privateClientMessageText.trim() || !selectedPrivateConversation) return; const r = await fetch(`/api/private-clients/conversations/${selectedPrivateConversation.id}/messages`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_text: privateClientMessageText }), credentials: 'include' }); if (r.ok) { setPrivateClientMessageText(''); const msgRes = await fetch(`/api/private-clients/conversations/${selectedPrivateConversation.id}/messages`, { credentials: 'include' }); setPrivateClientMessages(msgRes.ok ? await msgRes.json() : []); } }}>{t('send') || 'Senden'}</Button>
+                              </div>
+                            </>
+                          ) : <div className="p-8 text-center text-zinc-500">{t('private_clients.select_conversation') || 'Konversation auswählen'}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {privateClientSubTab === 'projects' && (
+                      <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                        <table className="w-full text-sm">
+                          <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">Titel</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Kunde</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Typ</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Status</th></tr></thead>
+                          <tbody>
+                            {privateClientProjects.map((p: any) => (
+                              <tr key={p.id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{p.title}</td><td className="py-2 px-4">{p.client_name}</td><td className="py-2 px-4">{p.project_type}</td><td className="py-2 px-4">{p.status}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {privateClientProjects.length === 0 && <p className="p-4 text-zinc-500 text-sm italic">Keine Projekte.</p>}
+                      </div>
+                    )}
+                    {privateClientSubTab === 'stone_requests' && (
+                      <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                        <table className="w-full text-sm">
+                          <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">Kunde</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Stein</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Karat</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Herkunft</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Budget</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Status</th></tr></thead>
+                          <tbody>
+                            {privateClientStoneRequests.map((r: any) => (
+                              <tr key={r.id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{r.client_name} ({r.client_email})</td><td className="py-2 px-4">{r.gemstone_type || '—'}</td><td className="py-2 px-4">{r.carat_size || '—'}</td><td className="py-2 px-4">{r.origin_preference || '—'}</td><td className="py-2 px-4">{r.budget_range || '—'}</td><td className="py-2 px-4">{r.status}</td></tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {privateClientStoneRequests.length === 0 && <p className="p-4 text-zinc-500 text-sm italic">Keine Steinanfragen.</p>}
+                      </div>
+                    )}
+                  </section>
+                  )}
+
+                  {(adminTab === 'collector_rooms') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">Collector Rooms</h3>
+                    <p className="text-sm text-zinc-500">Private Projekt-Räume pro Kunde. Nur Admin und der ausgewählte Kunde haben Zugriff.</p>
+                    <div className="flex gap-4 mb-4">
+                      <input type="number" id="new-room-client-id" placeholder="Client ID" className="input w-32" />
+                      <input type="text" id="new-room-project-title" placeholder="Projekt (z. B. Sapphire High Jewelry Necklace)" className="input flex-1" />
+                      <Button variant="primary" size="sm" onClick={async () => {
+                        const clientId = Number((document.getElementById('new-room-client-id') as HTMLInputElement)?.value);
+                        const projectTitle = (document.getElementById('new-room-project-title') as HTMLInputElement)?.value?.trim();
+                        if (!clientId || !projectTitle) return;
+                        const r = await fetch('/api/collector-rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, project_title: projectTitle }), credentials: 'include' });
+                        if (r.ok) { (document.getElementById('new-room-client-id') as HTMLInputElement).value = ''; (document.getElementById('new-room-project-title') as HTMLInputElement).value = ''; fetch('/api/collector-rooms', { credentials: 'include' }).then(res => res.ok && res.json().then(setAdminCollectorRooms)); }
+                      }}>Raum anlegen</Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">ID</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Kunde</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Projekt</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Status</th></tr></thead>
+                        <tbody>
+                          {adminCollectorRooms.map((r: any) => (
+                            <tr key={r.id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{r.id}</td><td className="py-2 px-4">{r.client_name || r.client_email || r.client_id}</td><td className="py-2 px-4">{r.project_title}</td><td className="py-2 px-4">{r.status}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {adminCollectorRooms.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Collector Rooms.</p>}
+                  </section>
+                  )}
+
+                  {(adminTab === 'stone_library') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">Steinbibliothek</h3>
+                    <p className="text-sm text-zinc-500">Verwaltung von Edelsteinen. Status: available, reserved, used. Steine können Projekten/Kunden zugewiesen werden.</p>
+                    <div className="grid gap-4 max-w-2xl mb-4">
+                      <div className="flex flex-wrap gap-2">
+                        <input type="text" id="stone-type" placeholder="Steinart" className="input flex-1 min-w-[100px]" />
+                        <input type="number" step="0.01" id="stone-carat" placeholder="Karat" className="input w-24" />
+                        <input type="text" id="stone-cut" placeholder="Schliff" className="input w-24" />
+                        <input type="text" id="stone-origin" placeholder="Herkunft" className="input w-24" />
+                        <input type="text" id="stone-color" placeholder="Farbe" className="input w-24" />
+                        <input type="text" id="stone-clarity" placeholder="Reinheit" className="input w-24" />
+                        <input type="text" id="stone-supplier" placeholder="Lieferant" className="input w-28" />
+                        <input type="number" step="0.01" id="stone-price" placeholder="Preis (€)" className="input w-28" />
+                        <select id="stone-status" className="input w-28"><option value="available">available</option><option value="reserved">reserved</option><option value="used">used</option></select>
+                        <Button variant="primary" size="sm" onClick={async () => {
+                          const stone_type = (document.getElementById('stone-type') as HTMLInputElement)?.value?.trim();
+                          if (!stone_type) return;
+                          const body = { stone_type, carat: (document.getElementById('stone-carat') as HTMLInputElement)?.value || null, cut: (document.getElementById('stone-cut') as HTMLInputElement)?.value || null, origin: (document.getElementById('stone-origin') as HTMLInputElement)?.value || null, color: (document.getElementById('stone-color') as HTMLInputElement)?.value || null, clarity: (document.getElementById('stone-clarity') as HTMLInputElement)?.value || null, supplier: (document.getElementById('stone-supplier') as HTMLInputElement)?.value || null, price_estimate: (document.getElementById('stone-price') as HTMLInputElement)?.value || null, status: (document.getElementById('stone-status') as HTMLSelectElement)?.value || 'available' };
+                          const r = await fetch('/api/stone-library', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), credentials: 'include' });
+                          if (r.ok) { fetch('/api/stone-library', { credentials: 'include' }).then(res => res.ok && res.json().then(setAdminStoneLibrary)); (document.getElementById('stone-type') as HTMLInputElement).value = ''; }
+                        }}>Hinzufügen</Button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">ID</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Typ</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Karat</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Schliff</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Herkunft</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Preis</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Status</th></tr></thead>
+                        <tbody>
+                          {adminStoneLibrary.map((s: any) => (
+                            <tr key={s.stone_id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{s.stone_id}</td><td className="py-2 px-4">{s.stone_type}</td><td className="py-2 px-4">{s.carat ?? '—'}</td><td className="py-2 px-4">{s.cut ?? '—'}</td><td className="py-2 px-4">{s.origin ?? '—'}</td><td className="py-2 px-4">{s.price_estimate != null ? `${s.price_estimate} €` : '—'}</td><td className="py-2 px-4">{s.status}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {adminStoneLibrary.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Steine in der Bibliothek.</p>}
+                  </section>
+                  )}
+
+                  {(adminTab === 'deal_rooms') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">Deal Rooms</h3>
+                    <p className="text-sm text-zinc-500">High-Value-Transaktionen: Verträge, Rechnungen, Zertifikate, Zahlungsplan, Chat, Produktionsstatus.</p>
+                    <div className="flex gap-4 mb-4">
+                      <input type="number" id="deal-client-id" placeholder="Client ID" className="input w-32" />
+                      <input type="text" id="deal-project-title" placeholder="Projekt (z. B. Yellow Diamond Collier)" className="input flex-1" />
+                      <input type="number" step="0.01" id="deal-price" placeholder="Preis (€)" className="input w-36" />
+                      <Button variant="primary" size="sm" onClick={async () => {
+                        const client_id = Number((document.getElementById('deal-client-id') as HTMLInputElement)?.value);
+                        const project_title = (document.getElementById('deal-project-title') as HTMLInputElement)?.value?.trim();
+                        if (!client_id || !project_title) return;
+                        const price = (document.getElementById('deal-price') as HTMLInputElement)?.value ? parseFloat((document.getElementById('deal-price') as HTMLInputElement).value) : null;
+                        const r = await fetch('/api/deal-rooms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, project_title, price }), credentials: 'include' });
+                        if (r.ok) { (document.getElementById('deal-client-id') as HTMLInputElement).value = ''; (document.getElementById('deal-project-title') as HTMLInputElement).value = ''; (document.getElementById('deal-price') as HTMLInputElement).value = ''; fetch('/api/deal-rooms', { credentials: 'include' }).then(res => res.ok && res.json().then(setAdminDealRooms)); }
+                      }}>Deal Room anlegen</Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">ID</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Kunde</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Projekt</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Preis</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Status</th></tr></thead>
+                        <tbody>
+                          {adminDealRooms.map((d: any) => (
+                            <tr key={d.id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{d.id}</td><td className="py-2 px-4">{d.client_name || d.client_email || d.client_id}</td><td className="py-2 px-4">{d.project_title}</td><td className="py-2 px-4">{d.price != null ? `${Number(d.price).toLocaleString('de-DE')} €` : '—'}</td><td className="py-2 px-4">{d.status}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {adminDealRooms.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Deal Rooms.</p>}
+                  </section>
+                  )}
+
+                  {(adminTab === 'collector_reputation') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">Collector Reputation</h3>
+                    <p className="text-sm text-zinc-500">Aktivität pro Kunde: total_purchases, total_spent, projects_completed, trust_score. Admin kann Werte anpassen.</p>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">User</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Name</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Käufe</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Ausgaben</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Projekte</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Trust Score</th></tr></thead>
+                        <tbody>
+                          {adminCollectorReputation.map((r: any) => (
+                            <tr key={r.user_id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{r.user_id}</td><td className="py-2 px-4">{r.name || r.email || '—'}</td><td className="py-2 px-4">{r.total_purchases ?? 0}</td><td className="py-2 px-4">{r.total_spent != null ? `${Number(r.total_spent).toLocaleString('de-DE')} €` : '—'}</td><td className="py-2 px-4">{r.projects_completed ?? 0}</td><td className="py-2 px-4">{r.trust_score ?? 100}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {adminCollectorReputation.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Reputations-Einträge (API liefert Liste; bei Bedarf pro Kunde abrufbar).</p>}
+                  </section>
+                  )}
+
+                  {(adminTab === 'investor_dashboard') && (
+                  <section className="space-y-4">
+                    <h3 className="text-xl font-serif italic">Investor-Dashboard</h3>
+                    <p className="text-sm text-zinc-500">Dokumente: Pitch Deck, Business Plan, Investment Proposal. Zugriff wird vom Admin gesteuert.</p>
+                    <div className="flex gap-4 mb-4">
+                      <select id="inv-doc-type" className="input w-40"><option value="pitch_deck">Pitch Deck</option><option value="business_plan">Business Plan</option><option value="investment_proposal">Investment Proposal</option></select>
+                      <input type="text" id="inv-doc-title" placeholder="Titel" className="input flex-1" />
+                      <input type="text" id="inv-doc-path" placeholder="Dateipfad / URL" className="input flex-1" />
+                      <Button variant="primary" size="sm" onClick={async () => {
+                        const document_type = (document.getElementById('inv-doc-type') as HTMLSelectElement)?.value;
+                        const title = (document.getElementById('inv-doc-title') as HTMLInputElement)?.value?.trim();
+                        const file_path = (document.getElementById('inv-doc-path') as HTMLInputElement)?.value?.trim();
+                        if (!file_path) return;
+                        const r = await fetch('/api/investor-documents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document_type, title, file_path }), credentials: 'include' });
+                        if (r.ok) { (document.getElementById('inv-doc-title') as HTMLInputElement).value = ''; (document.getElementById('inv-doc-path') as HTMLInputElement).value = ''; fetch('/api/investor-documents', { credentials: 'include' }).then(res => res.ok && res.json().then(setAdminInvestorDocuments)); }
+                      }}>Dokument hinzufügen</Button>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">Typ</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Titel</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Pfad</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Zugriff</th></tr></thead>
+                        <tbody>
+                          {adminInvestorDocuments.map((doc: any) => (
+                            <tr key={doc.id} className="border-b border-zinc-800/50"><td className="py-2 px-4">{doc.document_type}</td><td className="py-2 px-4">{doc.title || '—'}</td><td className="py-2 px-4 font-mono text-xs truncate max-w-[200px]">{doc.file_path}</td><td className="py-2 px-4">{doc.access_control}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {adminInvestorDocuments.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Investor-Dokumente.</p>}
+                  </section>
+                  )}
+
                   {(adminTab === 'registry') && (
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.registry') || 'Bellanova Registry'}</h3>
-                    <p className="text-sm text-zinc-500">Master list of all pieces: serial number, vault ID, certificate reference, owner, creation date.</p>
+                    <p className="text-sm text-zinc-500">Master list of all pieces: serial number, vault ID, certificate reference, owner, creation date, estimated value.</p>
                     <div className="overflow-x-auto rounded-xl border border-zinc-800">
                       <table className="w-full text-sm">
-                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">Serial</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Vault ID</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Title</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Certificate</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Owner</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Created</th></tr></thead>
+                        <thead><tr className="border-b border-zinc-800 bg-zinc-900/80"><th className="text-left py-3 px-4 font-semibold text-zinc-400">Serial</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Vault ID</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Title</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Certificate</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Owner</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Created</th><th className="text-left py-3 px-4 font-semibold text-zinc-400">Est. Value</th></tr></thead>
                         <tbody>
                           {registryEntries.map((row: any) => (
                             <tr key={row.vault_id || row.serial_number} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
@@ -9545,6 +10036,7 @@ export default function App() {
                               <td className="py-2 px-4 font-mono text-xs">{row.certificate_reference || '—'}</td>
                               <td className="py-2 px-4">{row.owner_name || '—'}</td>
                               <td className="py-2 px-4 text-zinc-500">{row.creation_date ? new Date(row.creation_date).toLocaleDateString() : '—'}</td>
+                              <td className="py-2 px-4 text-zinc-400">{row.estimated_value != null ? `${Number(row.estimated_value).toLocaleString('de-DE')} €` : '—'}</td>
                             </tr>
                           ))}
                         </tbody>
