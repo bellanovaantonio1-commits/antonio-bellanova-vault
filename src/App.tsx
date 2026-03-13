@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Diamond, 
   ShieldCheck, 
@@ -658,6 +658,7 @@ const TRANSLATIONS: any = {
     "maintenance.message": "Wir sind in Kürze wieder für Sie da. Bitte versuchen Sie es später erneut.",
     "maintenance.on": "Wartungsmodus aktiviert",
     "maintenance.off": "Wartungsmodus deaktiviert",
+    "maintenance.try_again": "Erneut prüfen",
     "errors.invalid_credentials": "Ungültige Anmeldedaten.",
     "errors.cert_failed": "Zertifikat konnte nicht erstellt werden.",
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
@@ -1333,6 +1334,7 @@ const TRANSLATIONS: any = {
     "maintenance.message": "We will be back shortly. Please try again later.",
     "maintenance.on": "Maintenance mode enabled",
     "maintenance.off": "Maintenance mode disabled",
+    "maintenance.try_again": "Check again",
     "errors.invalid_credentials": "Invalid credentials.",
     "errors.cert_failed": "Failed to generate certificate.",
     "errors.piece_create_failed": "Failed to create masterpiece.",
@@ -2114,7 +2116,8 @@ const TRANSLATIONS: any = {
     "maintenance.title": "Piattaforma in manutenzione",
     "maintenance.message": "Torneremo presto. Riprova più tardi.",
     "maintenance.on": "Modalità manutenzione attivata",
-    "maintenance.off": "Modalità manutenzione disattivata"
+    "maintenance.off": "Modalità manutenzione disattivata",
+    "maintenance.try_again": "Riprova"
   },
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
@@ -3111,6 +3114,19 @@ export default function App() {
   useEffect(() => {
     if (!maintenanceMode) setShowMaintenanceAfterLoginAttempt(false);
   }, [maintenanceMode]);
+
+  const refetchMaintenance = useCallback(() => {
+    fetch('/api/maintenance').then(r => r.ok ? r.json() : { maintenance: false }).then((d: { maintenance?: boolean }) => {
+      setMaintenanceMode(!!d.maintenance);
+      if (!d.maintenance) setShowMaintenanceAfterLoginAttempt(false);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!maintenanceMode && !showMaintenanceAfterLoginAttempt) return;
+    const id = setInterval(refetchMaintenance, 12000);
+    return () => clearInterval(id);
+  }, [maintenanceMode, showMaintenanceAfterLoginAttempt, refetchMaintenance]);
 
   useEffect(() => {
     if (verifyCertId) {
@@ -4692,6 +4708,9 @@ export default function App() {
           </div>
           <h1 className="text-2xl font-serif italic text-zinc-100">{t('maintenance.title')}</h1>
           <p className="text-zinc-400">{t('maintenance.message')}</p>
+          <Button variant="outline" className="border-zinc-600 text-zinc-300 hover:bg-zinc-800" onClick={refetchMaintenance}>
+            {t('maintenance.try_again')}
+          </Button>
         </div>
       </div>
     );
