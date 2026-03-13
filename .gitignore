@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Server-Datenbank (nur lokal/Backup verwenden)
+vault.db
+vault.db-journal
+vault.db-wal
+backups/
+uploads/import/
