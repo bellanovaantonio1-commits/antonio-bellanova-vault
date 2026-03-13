@@ -1434,6 +1434,10 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       title: 'Anteilsvereinbarung',
       body: 'ANTEILSVEREINBARUNG\n\nDiese Vereinbarung gewährt {{user.name}} eine {{pct}}%-Beteiligung am Objekt „{{piece.title}}" (Seriennr.: {{piece.serial_id}}).\n\nDas physische Objekt verbleibt in der Obhut des Antonio Bellanova Vault. Keine physische Teilung. Der Handel mit Anteilen kann auf der Plattform erlaubt werden. Ausstieg und Rücknahme gemäß Plattformregeln. Anwendbares Recht: Deutschland; Gerichtsstand: Köln.',
     },
+    deposit_resale: {
+      title: 'Anzahlungsvertrag Wiederverkauf',
+      body: 'ANZAHLUNGSVERTRAG – WIEDERVERKAUF (GEBRAUCHTES SAMMLERSTÜCK)\n\nVerkäufer: Privatverkäufer, vermittelt über Juwelen & Schmuckatelier Antonio Bellanova (Plattform/Vermittler), Ahorstraße 8, 50765 Köln.\nKäufer: {{buyerName}}, {{buyerAddress}}.\n\nGegenstand: Meisterstück „{{piece.title}}" (Seriennr.: {{piece.serial_id}}). Es handelt sich um ein zuvor in Privatbesitz befindliches, über die Plattform zum Wiederverkauf angebotenes Objekt.\n\nKaufpreis gesamt: {{piece.valuation}} EUR.\nAnzahlung ({{depositPct}} %): {{depositAmount}} EUR – nicht erstattungsfähig bei Vertragsschluss.\n\nDer Käufer erkennt an, dass das Objekt als Gebrauchtware (Wiederverkauf) erworben wird. Die gesetzliche Gewährleistung (§§ 434 ff. BGB) kann bei Gebrauchtwaren wirksam eingeschränkt werden; der Verkäufer haftet für Sach- und Rechtsmängel nur in den gesetzlich zulässigen Grenzen. Das Atelier übernimmt vor Übergabe eine Echtheits- und Zustandsprüfung; die Freigabe zur Übergabe erfolgt nur bei positivem Befund.\n\nVermittlerrolle: Das Atelier handelt als Vermittler und Treuhänder. Der Kaufpreis wird über die Plattform abgewickelt; die Provision des Ateliers ist vom Verkäufer zu tragen. Eigentum und Risiko gehen erst mit verifizierter Übergabe auf den Käufer über.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln. Erfüllungsort: Köln. Salvatorische Klausel: Unwirksame Einzelbestimmungen berühren die übrigen nicht.',
+    },
   },
   en: {
     deposit: {
@@ -1456,6 +1460,10 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
       title: 'Fractional Ownership Agreement',
       body: 'FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants {{user.name}} a {{pct}}% participation in the asset "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.',
     },
+    deposit_resale: {
+      title: 'Deposit Agreement – Resale (Pre-owned)',
+      body: 'DEPOSIT AGREEMENT – RESALE (PRE-OWNED COLLECTOR PIECE)\n\nSeller: Private seller, brokered via Juwelen & Schmuckatelier Antonio Bellanova (platform/intermediary), Ahorstraße 8, 50765 Cologne.\nBuyer: {{buyerName}}, {{buyerAddress}}.\n\nAsset: Masterpiece "{{piece.title}}" (Serial: {{piece.serial_id}}). This is a pre-owned piece offered for resale via the platform.\n\nTotal purchase price: {{piece.valuation}} EUR. Deposit ({{depositPct}}%): {{depositAmount}} EUR – non-refundable upon execution.\n\nBuyer acknowledges that the asset is purchased as used goods (resale). Warranty may be limited as permitted for used goods under applicable law. The Atelier performs an authenticity and condition check before release; transfer occurs only upon positive verification. Governing law: Germany. Jurisdiction: Cologne.',
+    },
   },
   it: {
     deposit: {
@@ -1477,6 +1485,10 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     fractional: {
       title: 'Accordo di proprietà frazionata',
       body: 'ACCORDO DI PROPRIETÀ FRAZIONATA\n\nIl presente accordo concede a {{user.name}} una partecipazione del {{pct}}% nel bene "{{piece.title}}" (Seriale: {{piece.serial_id}}).\n\nIl bene fisico rimane in custodia presso il Vault Antonio Bellanova. Nessuna divisione fisica. Il trading secondario della partecipazione può essere consentito sulla piattaforma. Uscita e rimborso secondo le regole della piattaforma. Legge applicabile: Germania; Foro: Colonia.',
+    },
+    deposit_resale: {
+      title: 'Accordo di acconto – Rivendita (Usato)',
+      body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
     },
   },
 };
@@ -1618,6 +1630,15 @@ function regenerateContractContent(c: any, lang?: string): string | null {
       const depositVars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, user, depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
       const depositContent = applyContractVars(depositT.body, depositVars);
       return generateLuxuryDocument(depositT.title, depositContent, user, piece, { docRef, title: depositT.title, lang: L });
+
+    case 'deposit_resale':
+      if (!piece) return null;
+      const resaleDepositAmount = (piece.valuation * (piece.deposit_pct || 10)) / 100;
+      const resaleDepositT = (CONTRACT_BODIES[L] as any).deposit_resale;
+      if (!resaleDepositT) return null;
+      const resaleDepositVars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, buyerName: user.name || '—', buyerAddress: user.address || '—', depositAmount: resaleDepositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
+      const resaleDepositContent = applyContractVars(resaleDepositT.body, resaleDepositVars);
+      return generateLuxuryDocument(resaleDepositT.title, resaleDepositContent, user, piece, { docRef, title: resaleDepositT.title, lang: L });
 
     case 'invoice':
       if (!piece) return null;
@@ -1836,6 +1857,7 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "POST", path: "/api/reset-password" },
   { method: "GET", path: "/api/auth/link" },
   { method: "GET", path: "/api/maintenance" },
+  { method: "GET", path: "/api/resale/marketplace" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -2066,6 +2088,23 @@ function expirePrivateViewing() {
     }
   } catch (_) {}
 }
+
+// Resale marketplace: only pieces that are on resale (curated_marketplace) – so clients know they are pre-owned
+app.get("/api/resale/marketplace", (req, res) => {
+  expirePrivateViewing();
+  const rows = db.prepare(`
+    SELECT m.*, rl.id AS resale_listing_id, rl.asking_price, rl.commission_pct, rl.sale_method
+    FROM masterpieces m
+    JOIN resale_listings rl ON rl.masterpiece_id = m.id
+    WHERE m.status = 'available' AND rl.status = 'curated_marketplace'
+    ORDER BY rl.updated_at DESC
+  `).all();
+  const pieces = rows.map((r: any) => {
+    const { resale_listing_id, asking_price, commission_pct, sale_method, ...piece } = r;
+    return { ...piece, is_resale: true, resale_listing_id, resale_asking_price: asking_price };
+  });
+  res.json(pieces);
+});
 
 app.get("/api/masterpieces", (req, res) => {
   expirePrivateViewing();
@@ -2659,46 +2698,52 @@ app.get("/api/investor/view-logs", (req, res) => {
 });
 app.post("/api/marketplace/buy", (req, res) => {
   const { userId, masterpieceId, delivery_option } = req.body;
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+  if (piece.status !== 'available') return res.status(400).json({ error: "Stück ist nicht verfügbar." });
   db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
-  
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
-  const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
-  const meta = JSON.stringify({ delivery_option: delivery_option || null });
-  
-  const content = `
+
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const depositAmount = (piece.valuation * (piece.deposit_pct || 10)) / 100;
+  const meta = JSON.stringify({ delivery_option: delivery_option || null, is_resale: false });
+  const listing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status = 'curated_marketplace'").get(masterpieceId) as { id: number } | undefined;
+  const isResale = !!listing;
+
+  if (isResale) {
+    const docRef = nextContractRef('deposit');
+    const L: ContractLang = (user.language === 'de' || user.language === 'it') ? user.language : 'en';
+    const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
+    if (resaleT) {
+      const vars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, buyerName: user.name || '—', buyerAddress: user.address || '—', depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
+      const content = applyContractVars(resaleT.body, vars);
+      const html = generateLuxuryDocument(resaleT.title, content, user, piece, { docRef, title: resaleT.title, lang: L });
+      const metaResale = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
+      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResale);
+    } else {
+      const docRef = 'DEP-RSL-' + Date.now();
+      const content = `Anzahlungsvertrag Wiederverkauf – ${piece.title} (${piece.serial_id}). Kaufpreis: ${piece.valuation} EUR. Anzahlung: ${depositAmount} EUR. Privatverkäufer über Antonio Bellanova Vault. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
+      const html = generateLuxuryDocument("Anzahlungsvertrag Wiederverkauf", content, user, piece, { docRef, title: "Anzahlungsvertrag Wiederverkauf", lang: 'de' });
+      const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
+      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResaleFallback);
+    }
+  } else {
+    const content = `
     ANZAHLUNGSVERTRAG (DEPOSIT AGREEMENT)
-    
     VERKÄUFER: Juwelen & Schmuckatelier Antonio Bellanova, Ahorstraße 8, 50765 Köln
     KÄUFER: ${user.name}, ${user.address}
-    
     GEGENSTAND: ${piece.title} (Serial ID: ${piece.serial_id})
     GESAMTPREIS: ${piece.valuation} EUR
-    ANZAHLUNGSBETRAG (${piece.deposit_pct}%): ${depositAmount} EUR
-    
-    RECHTLICHE HINWEISE:
-    1. Mit Unterzeichnung dieses Vertrages reserviert der Verkäufer das oben genannte Stück für den Käufer.
-    2. Der Käufer verpflichtet sich zur Zahlung der Anzahlung innerhalb von 7 Werktagen.
-    3. Erst nach vollständiger Zahlung des Gesamtbetrages geht das Eigentum über.
-    4. Bei Nichtzahlung der Anzahlung erlischt die Reservierung.
-    
-    Bankverbindung für die Anzahlung:
-    IBAN: DE12 3456 7890 1234 5678 90
-    Empfänger: Juwelen & Schmuckatelier Antonio Bellanova
-    Verwendungszweck: DEP-${piece.serial_id}-${user.id}
-    
+    ANZAHLUNGSBETRAG (${piece.deposit_pct || 10}%): ${depositAmount} EUR
+    RECHTLICHE HINWEISE: Mit Unterzeichnung reserviert der Verkäufer das Stück. Anzahlung innerhalb 7 Werktage. Eigentum nach vollständiger Zahlung. Bei Nichtzahlung erlischt die Reservierung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.
     Datum: ${new Date().toLocaleDateString('de-DE')}
   `;
-  try {
-    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(
-      userId, masterpieceId, 'deposit', content, meta
-    );
-  } catch (_) {
-    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(
-      userId, masterpieceId, 'deposit', content
-    );
+    try {
+      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content, meta);
+    } catch (_) {
+      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content);
+    }
   }
-  
+
   broadcast({ type: 'MASTERPIECE_RESERVED', id: masterpieceId });
   res.json({ success: true });
 });
@@ -2707,7 +2752,7 @@ app.post("/api/admin/approve-purchase", (req, res) => {
   const { masterpieceId, approve, adminId } = req.body;
   
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
-  const contract = db.prepare("SELECT * FROM contracts WHERE masterpiece_id = ? AND type = 'deposit' ORDER BY id DESC").get(masterpieceId);
+  const contract = db.prepare("SELECT * FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC").get(masterpieceId);
   
   if (!contract) return res.status(404).json({ error: "Contract not found" });
 
@@ -2720,7 +2765,7 @@ app.post("/api/admin/approve-purchase", (req, res) => {
 
     let deliveryOption: string | null = null;
     try {
-      const depContract = db.prepare("SELECT metadata FROM contracts WHERE masterpiece_id = ? AND type = 'deposit' ORDER BY id DESC LIMIT 1").get(masterpieceId) as { metadata?: string } | undefined;
+      const depContract = db.prepare("SELECT metadata FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC LIMIT 1").get(masterpieceId) as { metadata?: string } | undefined;
       if (depContract?.metadata) {
         const parsed = JSON.parse(depContract.metadata);
         if (parsed.delivery_option) deliveryOption = parsed.delivery_option;
@@ -4986,6 +5031,7 @@ app.post("/api/admin/resale/decision", (req, res) => {
     db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?").run(listing.masterpiece_id);
     resaleAudit(resaleListingId, 'resale_rejected', adminId, 'Prestige review: rejected.');
   } else if (decision === 'curated_marketplace') {
+    db.prepare("UPDATE masterpieces SET status = 'available', valuation = ? WHERE id = ?").run(listing.asking_price ?? piece?.valuation, listing.masterpiece_id);
     resaleAudit(resaleListingId, 'decision_curated_marketplace', adminId);
   } else if (decision === 'private_auction') {
     db.prepare("UPDATE resale_listings SET sale_method = 'auction' WHERE id = ?").run(resaleListingId);

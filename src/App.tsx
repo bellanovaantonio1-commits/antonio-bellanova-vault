@@ -515,6 +515,12 @@ const TRANSLATIONS: any = {
     "appointments.no_appointments_user": "Keine Termine.",
     "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
+    "resale.menu_title": "Wiederverkauf",
+    "resale.badge_preowned": "Ehemaliges Sammlerstück",
+    "resale.subtitle": "Zuvor in Privatbesitz befindliche Stücke, die über die Plattform zum Verkauf angeboten werden. Beim Erwerb gelten besondere Vertragsbedingungen (Gebrauchtware, Gewährleistung).",
+    "resale.no_pieces": "Derzeit keine Stücke im Wiederverkauf verfügbar.",
+    "resale.contract_note": "Beim Kauf wird ein rechtssicherer Anzahlungsvertrag für Wiederverkauf erstellt.",
+    "resale.deposit_contract_title": "Anzahlungsvertrag Wiederverkauf",
     "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
     "marketplace.details_hint": "Weitere Details werden im persönlichen Gespräch besprochen.",
     "marketplace.pdf_modal_title": "Marktplatz als PDF",
@@ -1179,6 +1185,12 @@ const TRANSLATIONS: any = {
     "appointments.no_appointments_user": "No appointments.",
     "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
+    "resale.menu_title": "Resale",
+    "resale.badge_preowned": "Pre-owned",
+    "resale.subtitle": "Pieces previously in private ownership, offered for sale via the platform. Special contract terms apply (used goods, warranty).",
+    "resale.no_pieces": "No pieces currently available in resale.",
+    "resale.contract_note": "A legally sound resale deposit agreement will be created upon purchase.",
+    "resale.deposit_contract_title": "Resale Deposit Agreement",
     "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
     "marketplace.details_hint": "Further details are discussed during a personal conversation.",
     "marketplace.pdf_modal_title": "Marketplace as PDF",
@@ -1820,6 +1832,12 @@ const TRANSLATIONS: any = {
     "appointments.no_appointments_user": "Nessun appuntamento.",
     "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
+    "resale.menu_title": "Rivendita",
+    "resale.badge_preowned": "Usato",
+    "resale.subtitle": "Opere precedentemente in possesso privato, in vendita sulla piattaforma. Si applicano condizioni contrattuali specifiche (usato, garanzia).",
+    "resale.no_pieces": "Nessun pezzo attualmente disponibile in rivendita.",
+    "resale.contract_note": "All'acquisto verrà creato un contratto di acconto rivendita conforme alla legge.",
+    "resale.deposit_contract_title": "Accordo di acconto rivendita",
     "marketplace.subtitle": "Opere pregiate disponibili per acquisizione immediata.",
     "marketplace.details_hint": "Ulteriori dettagli vengono discussi durante il colloquio personale.",
     "marketplace.pdf_modal_title": "Mercato in PDF",
@@ -2525,7 +2543,7 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'auctions' | 'drops' | 'vault' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
@@ -2545,6 +2563,7 @@ export default function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [masterpieces, setMasterpieces] = useState<Masterpiece[]>([]);
+  const [resalePieces, setResalePieces] = useState<(Masterpiece & { is_resale?: boolean; resale_listing_id?: number })[]>([]);
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [myBids, setMyBids] = useState<any[]>([]);
   const [vaultData, setVaultData] = useState<{ pieces: Masterpiece[], certs: Certificate[], contracts: Contract[], vault_documents?: any[], portfolio_hidden_ids?: number[] }>({ pieces: [], certs: [], contracts: [] });
@@ -3279,16 +3298,18 @@ export default function App() {
     if (!user) return;
     setListLoading(true);
     try {
-      const [piecesRes, auctionsRes, vaultRes, payRes, notifRes, dropsRes] = await Promise.all([
+      const [piecesRes, auctionsRes, vaultRes, payRes, notifRes, dropsRes, resaleRes] = await Promise.all([
         fetch('/api/masterpieces'),
         fetch(`/api/auctions?userId=${user.id}`),
         fetch(`/api/vault/${user.id}`),
         fetch(`/api/payments/${user.id}`),
         fetch(`/api/notifications/${user.id}`),
-        fetch('/api/drops', { credentials: 'include' })
+        fetch('/api/drops', { credentials: 'include' }),
+        fetch('/api/resale/marketplace')
       ]);
 
       if (piecesRes.ok) setMasterpieces(await piecesRes.json());
+      if (resaleRes.ok) setResalePieces(await resaleRes.json());
       if (auctionsRes.ok) setAuctions(await auctionsRes.json());
       if (vaultRes.ok) setVaultData(await vaultRes.json());
       if (payRes.ok) setPayments(await payRes.json());
@@ -4909,6 +4930,7 @@ export default function App() {
   const navItems = [
     navItem('dashboard', TrendingUp, t('dashboard')),
     navItem('marketplace', ShoppingBag, t('marketplace')),
+    navItem('resale', History, t('resale.menu_title')),
     navItem('drops', Package, t('drops.title')),
     navItem('auctions', Gavel, t('auctions')),
     navItem('vault', ShieldCheck, t('vault')),
@@ -5522,6 +5544,51 @@ export default function App() {
               </motion.div>
             )}
 
+            {view === 'resale' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h3 className="text-3xl font-serif italic">{t('resale.menu_title')}</h3>
+                    <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20">{t('resale.badge_preowned')}</span>
+                  </div>
+                  <p className="text-zinc-500 max-w-2xl">{t('resale.subtitle')}</p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {listLoading && resalePieces.length === 0 ? (
+                    [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                  ) : resalePieces.length === 0 ? (
+                    <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
+                      <History className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                      <p className="text-zinc-500">{t('resale.no_pieces')}</p>
+                    </div>
+                  ) : (
+                    resalePieces.map(piece => {
+                      const isOwnPiece = user && piece.current_owner_id === user.id;
+                      return (
+                        <div key={piece.id} className="relative">
+                          <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">{t('resale.badge_preowned')}</span>
+                          <PieceCard
+                            piece={piece}
+                            t={t}
+                            priceLabel={getPiecePriceDisplay(piece, user).label}
+                            isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                            onToggleFavorite={user ? () => {
+                              const add = !favoriteIds.includes(piece.id);
+                              fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
+                                .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
+                            } : undefined}
+                            onBuy={(user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                            onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
+                            detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
+                          />
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {view === 'drops' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <h3 className="text-3xl font-serif italic">{t('drops.title')}</h3>
@@ -5929,7 +5996,7 @@ export default function App() {
                             <div className="flex items-center gap-4">
                               <div className="w-12 h-12 rounded-xl bg-zinc-800/50 flex items-center justify-center"><FileText className="w-6 h-6 text-amber-500/80" /></div>
                               <div>
-                                <p className="font-medium text-zinc-200">{contract.type === 'invoice' ? t('invoice') || 'Invoice' : (contract.type || 'Contract')} · {contract.doc_ref}</p>
+                                <p className="font-medium text-zinc-200">{contract.type === 'invoice' ? t('invoice') || 'Invoice' : contract.type === 'deposit_resale' ? t('resale.deposit_contract_title') : (contract.type || 'Contract')} · {contract.doc_ref}</p>
                                 <p className="text-xs text-zinc-500">{new Date(contract.created_at!).toLocaleDateString()}</p>
                               </div>
                             </div>
@@ -6000,7 +6067,7 @@ export default function App() {
                               </div>
                               <div>
                                 <div className="flex items-center gap-3 mb-1">
-                                  <h4 className="font-serif italic text-lg text-zinc-100 capitalize">{contract.type} Agreement</h4>
+                                  <h4 className="font-serif italic text-lg text-zinc-100 capitalize">{contract.type === 'deposit_resale' ? t('resale.deposit_contract_title') : contract.type === 'invoice' ? (t('invoice') || 'Invoice') : (contract.type || 'Contract') + ' Agreement'}</h4>
                                   <Badge variant="outline" className="text-[9px] uppercase tracking-widest border-zinc-700 text-zinc-500">v{contract.version}.0</Badge>
                                 </div>
                                 <p className="text-xs text-zinc-500 font-mono uppercase tracking-tighter">{contract.doc_ref}</p>
@@ -6016,7 +6083,7 @@ export default function App() {
                                 const piece = contract.masterpiece_id
                                   ? (vaultData.pieces.find((p: Masterpiece) => p.id === contract.masterpiece_id) || masterpieces.find(m => m.id === contract.masterpiece_id))
                                   : undefined;
-                                const title = (contract.type && typeof contract.type === 'string' ? contract.type : 'Contract') + ' Agreement';
+                                const title = contract.type === 'deposit_resale' ? t('resale.deposit_contract_title') : (contract.type && typeof contract.type === 'string' ? contract.type : 'Contract') + (contract.type === 'invoice' ? '' : ' Agreement');
                                 const docRef = contract.doc_ref != null ? String(contract.doc_ref) : undefined;
                                 const fileName = `Antonio-Bellanova-${docRef || `Vertrag-${contract.id}`}.pdf`;
                                 downloadPDF(title, contract.content || '', piece, { docRef, fileName, contractType: contract.type });
@@ -8957,7 +9024,7 @@ export default function App() {
                         <Card key={c.id} className="space-y-4">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="text-sm font-bold text-zinc-200 capitalize">{c.type === 'deposit' ? t('admin.deposit_contract_type') : c.type === 'purchase' ? t('admin.purchase_contract_type') : c.type}</p>
+                              <p className="text-sm font-bold text-zinc-200 capitalize">{c.type === 'deposit' ? t('admin.deposit_contract_type') : c.type === 'deposit_resale' ? t('resale.deposit_contract_title') : c.type === 'purchase' ? t('admin.purchase_contract_type') : c.type}</p>
                               <p className="text-xs text-zinc-500">{t('admin.customer')}: {c.user_name}</p>
                               {c.piece_title && <p className="text-xs text-zinc-500">{t('admin.piece_label')}: {c.piece_title}</p>}
                             </div>
