@@ -844,6 +844,15 @@ try {
   db.prepare("ALTER TABLE masterpieces ADD COLUMN prestige_category TEXT").run();
 } catch (e) {}
 try {
+  db.prepare("ALTER TABLE resale_listings ADD COLUMN contract_id INTEGER REFERENCES contracts(id)").run();
+} catch (e) {}
+try {
+  db.prepare("ALTER TABLE vault_documents ADD COLUMN contract_id INTEGER REFERENCES contracts(id)").run();
+} catch (e) {}
+try {
+  db.prepare("ALTER TABLE vault_documents ADD COLUMN certificate_id INTEGER REFERENCES certificates(id)").run();
+} catch (e) {}
+try {
   db.prepare("ALTER TABLE resale_listings ADD COLUMN original_valuation_at_listing REAL").run();
 } catch (e) {}
 try {
@@ -3160,7 +3169,7 @@ app.get("/api/vault/:userId", (req, res) => {
   const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId);
   const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(userId);
   const contracts = db.prepare("SELECT * FROM contracts WHERE user_id = ?").all(userId);
-  const vault_documents = db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(userId);
+  const vault_documents = db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(userId);
   const hiddenRows = db.prepare("SELECT masterpiece_id FROM user_portfolio_hidden WHERE user_id = ?").all(userId) as { masterpiece_id: number }[];
   const portfolio_hidden_ids = hiddenRows.map((r) => r.masterpiece_id);
   res.json({ pieces, certs, contracts, vault_documents, portfolio_hidden_ids });
@@ -3583,7 +3592,7 @@ app.get("/api/client/documents", (req, res) => {
   const contracts = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at, masterpiece_id FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(userId);
   const certs = db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?").all(userId);
   const vaultDocs = db.prepare(`
-    SELECT id, document_type, contract_type, doc_ref, vault_id, created_at
+    SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at
     FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC
   `).all(userId);
 
