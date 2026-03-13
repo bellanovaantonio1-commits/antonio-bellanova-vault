@@ -39,6 +39,7 @@ app.set("trust proxy", 1);
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = Number(process.env.PORT) || 3000;
+const BASE_URL = (process.env.APP_URL || process.env.BASE_URL || 'https://vault.antoniobellanova.com').replace(/\/$/, '');
 const db = new Database(process.env.DATABASE_PATH || "vault.db");
 
 app.use(express.json({ limit: '50mb' }));
@@ -799,6 +800,18 @@ db.exec(`
     FOREIGN KEY(client_id) REFERENCES users(id)
   );
 
+  -- VIP membership payment workflow (signed -> WAITING_FOR_PAYMENT -> admin confirm -> ACTIVE)
+  CREATE TABLE IF NOT EXISTS vip_memberships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    contract_id INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'WAITING_FOR_PAYMENT', -- WAITING_FOR_PAYMENT, ACTIVE, EXPIRED
+    signed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(contract_id) REFERENCES contracts(id)
+  );
+
   -- Admin Document Management: Documents (contracts, invoices, certificates)
   CREATE TABLE IF NOT EXISTS vault_documents (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1061,6 +1074,112 @@ try {
   // Column might already exist
 }
 
+// --- VIP membership system: user dates, cleaning, product early access, production priority ---
+try { db.prepare("ALTER TABLE users ADD COLUMN vip_start_date DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN vip_expiry_date DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN vip_membership_id INTEGER REFERENCES vip_memberships(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN cleaning_credits_remaining INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN last_cleaning_date DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN vip_early_access INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN product_release_date DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE drops ADD COLUMN vip_early_access INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN production_priority TEXT DEFAULT 'standard'").run(); } catch (e) {}
+
+// --- Collector Level System & Luxury Extensions ---
+const COLLECTOR_LEVELS = ['collector', 'vip', 'private_collector', 'grand_collector', 'legacy_collector'] as const;
+const COLLECTOR_LEVEL_PRIORITY: Record<string, number> = { collector: 1, vip: 2, private_collector: 3, grand_collector: 4, legacy_collector: 5 };
+function getCollectorLevelPriority(level: string | null | undefined): number {
+  return level && COLLECTOR_LEVEL_PRIORITY[level] != null ? COLLECTOR_LEVEL_PRIORITY[level] : 0;
+}
+function canAccessPrivateGallery(user: { collector_level?: string | null; role?: string } | null): boolean {
+  if (!user) return false;
+  const level = (user as any).collector_level || user.role;
+  return ['vip', 'private_collector', 'grand_collector', 'legacy_collector', 'admin', 'super_admin'].includes(level || '');
+}
+
+try { db.prepare("ALTER TABLE users ADD COLUMN collector_level TEXT DEFAULT 'collector'").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN private_portfolio_visibility INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE waitlist ADD COLUMN position INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE waitlist ADD COLUMN priority_level INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE ownership_history ADD COLUMN certificate_reference TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_gallery INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN purchase_price REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE masterpieces ADD COLUMN estimated_market_value REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN favorite_gemstones TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_metals TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN design_style TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN budget_range TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_type TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_focus TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN discreet_transaction_mode INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE auctions ADD COLUMN visibility TEXT DEFAULT 'public'").run(); } catch (e) {}
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS private_offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    masterpiece_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    offered_by INTEGER,
+    message TEXT,
+    expires_at DATETIME NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id),
+    FOREIGN KEY(client_id) REFERENCES users(id),
+    FOREIGN KEY(offered_by) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS asset_insurance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    masterpiece_id INTEGER NOT NULL,
+    insurance_provider TEXT,
+    insured_value REAL,
+    policy_number TEXT,
+    coverage_start DATETIME,
+    coverage_end DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS private_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    description TEXT,
+    event_at DATETIME NOT NULL,
+    location TEXT,
+    created_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(created_by) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS event_invitees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(event_id, user_id),
+    FOREIGN KEY(event_id) REFERENCES private_events(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS auction_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    auction_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(auction_id, user_id),
+    FOREIGN KEY(auction_id) REFERENCES auctions(id),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    beneficiary_name TEXT,
+    beneficiary_contact TEXT,
+    transfer_conditions TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
 // --- Imperial Core: Prestige Tiers, Drops, Private Viewing, Negotiation, Delivery ---
 try { db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT").run(); } catch (e) {}
@@ -1201,6 +1320,62 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+try { db.prepare("ALTER TABLE users ADD COLUMN locked_at DATETIME").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN notify_marketing INTEGER DEFAULT 0").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN username TEXT").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE payments ADD COLUMN reminder_sent_at DATETIME").run(); } catch (_) {}
+try { db.prepare("ALTER TABLE payments ADD COLUMN manual_note TEXT").run(); } catch (_) {}
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    tag TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, tag)
+  );
+  CREATE TABLE IF NOT EXISTS masterpiece_status_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    masterpiece_id INTEGER NOT NULL REFERENCES masterpieces(id),
+    from_status TEXT,
+    to_status TEXT NOT NULL,
+    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    changed_by_user_id INTEGER REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS user_addresses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    label TEXT NOT NULL,
+    street TEXT,
+    city TEXT,
+    postal_code TEXT,
+    country TEXT DEFAULT 'Deutschland',
+    is_default_shipping INTEGER DEFAULT 0,
+    is_default_billing INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS email_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT UNIQUE NOT NULL,
+    subject_de TEXT,
+    body_de TEXT,
+    subject_en TEXT,
+    body_en TEXT,
+    subject_it TEXT,
+    body_it TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+function logMasterpieceStatusChange(masterpieceId: number, toStatus: string, changedByUserId: number | null) {
+  try {
+    const row = db.prepare("SELECT status FROM masterpieces WHERE id = ?").get(masterpieceId) as { status: string } | undefined;
+    const fromStatus = row?.status ?? null;
+    db.prepare("INSERT INTO masterpiece_status_history (masterpiece_id, from_status, to_status, changed_by_user_id) VALUES (?, ?, ?, ?)").run(masterpieceId, fromStatus, toStatus, changedByUserId);
+  } catch (_) {}
+}
 
 // --- Automatic Number Systems (International Luxury Maison) ---
 db.exec(`
@@ -1429,7 +1604,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     vip: {
       title: 'VIP-Mitgliedschaftsvereinbarung',
-      body: 'VIP-MITGLIEDSCHAFTSVEREINBARUNG (15.000 € jährlich)\n\nDiese Vereinbarung gewährt {{user.name}} die VIP-Mitgliedschaft im Antonio Bellanova Atelier.\n\nVorteile: 48h Vorzugszugang zu neuen Kreationen; Privatauktionen; Concierge-Service; Reparatur-Priorität; Reduzierte Weiterverkaufsprovision (6 %); Einladungs-Events. Laufzeit und Kündigung gemäß Plattformbedingungen.',
+      body: 'VIP-MITGLIEDSCHAFTSVEREINBARUNG (15.000 € jährlich)\n\nDiese Vereinbarung gewährt {{user.name}} die VIP-Mitgliedschaft im Antonio Bellanova Atelier.\n\nVIP BENEFITS / VORTEILE:\n• 48 Stunden Vorzugszugang zu neuen Kreationen\n• Zugang zu Privatauktionen\n• Concierge-Service\n• Reduzierte Weiterverkaufsprovision (6 %)\n• Priorität in der Atelier-Produktion\n• Eine kostenlose jährliche Schmuckreinigung\n• Zugang zu exklusiven Drops\n\nLaufzeit und Kündigung gemäß Plattformbedingungen.',
     },
     fractional: {
       title: 'Anteilsvereinbarung',
@@ -1455,7 +1630,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     vip: {
       title: 'VIP Membership Agreement',
-      body: 'VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants {{user.name}} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.',
+      body: 'VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants {{user.name}} VIP membership to the Antonio Bellanova Atelier.\n\nVIP BENEFITS:\n• 48 hour early access to new creations\n• Access to private auctions\n• Concierge service\n• Reduced resale commission (6%)\n• Priority production in the atelier\n• One complimentary annual jewelry cleaning\n• Access to exclusive drops\n\nDuration and cancellation rules as per Platform Terms.',
     },
     fractional: {
       title: 'Fractional Ownership Agreement',
@@ -1481,7 +1656,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     vip: {
       title: 'Accordo di membership VIP',
-      body: 'ACCORDO DI MEMBERSHIP VIP (15.000 € annui)\n\nIl presente accordo concede a {{user.name}} la membership VIP dell\'Atelier Antonio Bellanova.\n\nVantaggi: accesso anticipato 48h alle nuove creazioni; accesso a aste private; servizio concierge; priorità riparazioni; commissione di rivendita ridotta (6%); eventi su invito. Durata e recesso secondo i Termini della piattaforma.',
+      body: 'ACCORDO DI MEMBERSHIP VIP (15.000 € annui)\n\nIl presente accordo concede a {{user.name}} la membership VIP dell\'Atelier Antonio Bellanova.\n\nVIP BENEFITS / VANTAGGI:\n• Accesso anticipato 48h alle nuove creazioni\n• Accesso a aste private\n• Servizio concierge\n• Commissione di rivendita ridotta (6%)\n• Priorità produzione in atelier\n• Una pulizia gioielli annuale gratuita\n• Accesso a drop esclusivi\n\nDurata e recesso secondo i Termini della piattaforma.',
     },
     fractional: {
       title: 'Accordo di proprietà frazionata',
@@ -1598,7 +1773,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
       <div style="margin-top: 36px; border-top: 1px solid ${LUXURY_GOLD_DIM}; padding-top: 18px;">
         <div style="display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;">
           <div style="width: 36px; height: 36px; border: 1px solid ${LUXURY_GOLD}; border-radius: 50%; line-height: 36px; text-align: center; font-size: 9px; color: ${LUXURY_GOLD}; letter-spacing: 1px; font-weight: 700;">AB</div>
-          ${options.registryId ? `<div style="text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(options.registryUrl || options.registryId)}" width="64" height="64" alt="Registry" style="border: 1px solid ${LUXURY_GOLD_DIM};" /><div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 2px;">Registry: ${options.registryId}</div></div>` : ''}
+          ${(options.certificateVerifyUrl ? options.certificateVerifyUrl : options.registryId) ? `<div style="text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(options.certificateVerifyUrl || options.registryUrl || options.registryId)}" width="64" height="64" alt="${options.certificateVerifyUrl ? 'Verify' : 'Registry'}" style="border: 1px solid ${LUXURY_GOLD_DIM};" /><div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 2px;">${options.certificateVerifyUrl ? 'Scan zur Verifizierung' : 'Registry: ' + options.registryId}</div></div>` : ''}
         </div>
         <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px;">Blockchain: ${blockchainHash}</div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px; line-height: 1.5; text-align: left; max-width: 640px; margin-left: auto; margin-right: auto;">
@@ -1657,7 +1832,7 @@ function regenerateContractContent(c: any, lang?: string): string | null {
       const certT = CONTRACT_BODIES[L].certificate;
       const certVars = { piece: { ...piece }, user, regId, blockchainHash: piece.blockchain_hash || 'AB-SECURE-HASH-772' };
       const certContent = applyContractVars(certT.body, certVars);
-      return generateLuxuryDocument(certT.title, certContent, user, piece, { docRef, title: certT.title, registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}`, lang: L });
+      return generateLuxuryDocument(certT.title, certContent, user, piece, { docRef, title: certT.title, registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}`, lang: L, certificateVerifyUrl: docRef ? `${BASE_URL}/verify/${docRef}` : undefined });
 
     case 'vip':
       const vipT = CONTRACT_BODIES[L].vip;
@@ -1898,6 +2073,10 @@ app.post("/api/login", (req, res) => {
       try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run(user.id, ip, userAgent); } catch (_) {}
       return res.status(403).json({ error: "Account pending approval" });
     }
+    if (user.locked_at) {
+      try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run(user.id, ip, userAgent); } catch (_) {}
+      return res.status(403).json({ error: "Account locked. Please contact the Atelier." });
+    }
     if (checkPassword(password, user.password || '')) try { upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
     try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 1)").run(user.id, ip, userAgent); } catch (_) {}
     const isSecure = (process.env.APP_URL || "").startsWith("https");
@@ -1920,6 +2099,86 @@ app.get("/api/me", (req, res) => {
   const { password: _p, ...rest } = user;
   rest.prestige_tier = rest.prestige_tier || getPrestigeTier(user);
   res.json(rest);
+});
+
+app.get("/api/me/addresses", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const rows = db.prepare("SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_default_billing DESC, is_default_shipping DESC, id").all(userId);
+  res.json(rows);
+});
+
+app.post("/api/me/addresses", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const { label, street, city, postal_code, country, is_default_shipping, is_default_billing } = req.body || {};
+  if (!label || typeof label !== "string" || !label.trim()) return res.status(400).json({ error: "label erforderlich." });
+  if (is_default_shipping) db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?").run(userId);
+  if (is_default_billing) db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?").run(userId);
+  const r = db.prepare(`
+    INSERT INTO user_addresses (user_id, label, street, city, postal_code, country, is_default_shipping, is_default_billing)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(userId, label.trim(), street ? String(street).trim() : null, city ? String(city).trim() : null, postal_code ? String(postal_code).trim() : null, country ? String(country).trim() : "Deutschland", is_default_shipping ? 1 : 0, is_default_billing ? 1 : 0);
+  const row = db.prepare("SELECT * FROM user_addresses WHERE id = ?").get(r.lastInsertRowid);
+  res.status(201).json(row);
+});
+
+app.patch("/api/me/addresses/:id", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?").get(id, userId);
+  if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
+  const { label, street, city, postal_code, country, is_default_shipping, is_default_billing } = req.body || {};
+  const updates: string[] = [];
+  const vals: any[] = [];
+  if (label !== undefined) { updates.push("label = ?"); vals.push(String(label).trim()); }
+  if (street !== undefined) { updates.push("street = ?"); vals.push(street ? String(street).trim() : null); }
+  if (city !== undefined) { updates.push("city = ?"); vals.push(city ? String(city).trim() : null); }
+  if (postal_code !== undefined) { updates.push("postal_code = ?"); vals.push(postal_code ? String(postal_code).trim() : null); }
+  if (country !== undefined) { updates.push("country = ?"); vals.push(String(country).trim()); }
+  if (is_default_shipping === true) { db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?").run(userId); updates.push("is_default_shipping = 1"); }
+  if (is_default_shipping === false) updates.push("is_default_shipping = 0");
+  if (is_default_billing === true) { db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?").run(userId); updates.push("is_default_billing = 1"); }
+  if (is_default_billing === false) updates.push("is_default_billing = 0");
+  if (updates.length === 0) return res.json(row);
+  vals.push(id);
+  db.prepare(`UPDATE user_addresses SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
+  const updated = db.prepare("SELECT * FROM user_addresses WHERE id = ?").get(id);
+  res.json(updated);
+});
+
+app.delete("/api/me/addresses/:id", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT id FROM user_addresses WHERE id = ? AND user_id = ?").get(id, userId);
+  if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
+  db.prepare("DELETE FROM user_addresses WHERE id = ?").run(id);
+  res.status(204).send();
+});
+
+app.get("/api/me/notification-settings", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const user = db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(401).json({ error: "Invalid session" });
+  res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
+});
+
+app.patch("/api/me/notification-settings", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const { notify_email, notify_marketing } = req.body || {};
+  const updates: string[] = [];
+  const vals: any[] = [];
+  if (typeof notify_email === "boolean") { updates.push("notify_email = ?"); vals.push(notify_email ? 1 : 0); }
+  if (typeof notify_marketing === "boolean") { updates.push("notify_marketing = ?"); vals.push(notify_marketing ? 1 : 0); }
+  if (updates.length === 0) return res.status(400).json({ error: "Keine gültigen Felder." });
+  vals.push(userId);
+  db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
+  const user = db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?").get(userId) as any;
+  res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
 });
 
 app.post("/api/logout", (req, res) => {
@@ -2111,6 +2370,9 @@ app.get("/api/resale/marketplace", (req, res) => {
 app.get("/api/masterpieces", (req, res) => {
   expirePrivateViewing();
   const search = (req.query.search as string)?.trim();
+  const userId = req.query.userId ? Number(req.query.userId) : null;
+  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
+  const isVip = user ? isVipActive(user) : false;
   let pieces: any[];
   if (search && search.length >= 2) {
     const term = "%" + search + "%";
@@ -2118,6 +2380,15 @@ app.get("/api/masterpieces", (req, res) => {
   } else {
     pieces = db.prepare("SELECT * FROM masterpieces").all();
   }
+  const now = Date.now();
+  pieces = pieces.filter((p: any) => {
+    if (p.private_gallery === 1 && !canAccessPrivateGallery(user)) return false;
+    if (!p.product_release_date) return true;
+    const release = new Date(p.product_release_date).getTime();
+    const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
+    if (isVip && p.vip_early_access) return now >= vipRelease;
+    return now >= release;
+  });
   res.json(pieces);
 });
 
@@ -2410,6 +2681,8 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   if (body.description_i18n !== undefined) { updates.push('description_i18n = ?'); values.push(typeof body.description_i18n === 'object' ? JSON.stringify(body.description_i18n) : str(body.description_i18n)); }
   if (body.materials_i18n !== undefined) { updates.push('materials_i18n = ?'); values.push(typeof body.materials_i18n === 'object' ? JSON.stringify(body.materials_i18n) : str(body.materials_i18n)); }
   if (body.gemstones_i18n !== undefined) { updates.push('gemstones_i18n = ?'); values.push(typeof body.gemstones_i18n === 'object' ? JSON.stringify(body.gemstones_i18n) : str(body.gemstones_i18n)); }
+  if (body.vip_early_access !== undefined) { updates.push('vip_early_access = ?'); values.push(body.vip_early_access ? 1 : 0); }
+  if (body.product_release_date !== undefined) { updates.push('product_release_date = ?'); values.push(body.product_release_date ? str(body.product_release_date) : null); }
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
@@ -2428,7 +2701,7 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, purchase_price: bodyPurchasePrice, estimated_market_value: bodyEstimatedMarketValue } = req.body;
   const updates: string[] = [];
   const values: any[] = [];
   if (title !== undefined) { updates.push("title = ?"); values.push(title); }
@@ -2443,6 +2716,8 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   if (cert_data !== undefined) { updates.push("cert_data = ?"); values.push(cert_data); }
   if (deposit_pct !== undefined) { updates.push("deposit_pct = ?"); values.push(Number(deposit_pct)); }
   if (bodyImageUrl !== undefined) { updates.push("image_url = ?"); values.push(bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls?.length > 0 ? bodyImageUrls[0] : piece.image_url)); }
+  if (bodyPurchasePrice !== undefined) { updates.push("purchase_price = ?"); values.push(bodyPurchasePrice === null || bodyPurchasePrice === '' ? null : Number(bodyPurchasePrice)); }
+  if (bodyEstimatedMarketValue !== undefined) { updates.push("estimated_market_value = ?"); values.push(bodyEstimatedMarketValue === null || bodyEstimatedMarketValue === '' ? null : Number(bodyEstimatedMarketValue)); }
   if (updates.length > 0) {
     db.prepare(`UPDATE masterpieces SET ${updates.join(", ")} WHERE id = ?`).run(...values, id);
   }
@@ -2703,6 +2978,7 @@ app.post("/api/marketplace/buy", (req, res) => {
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
   if (piece.status !== 'available') return res.status(400).json({ error: "Stück ist nicht verfügbar." });
+  logMasterpieceStatusChange(masterpieceId, 'reserved', null);
   db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
 
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
@@ -2774,11 +3050,13 @@ app.post("/api/admin/approve-purchase", (req, res) => {
       }
     } catch (_) {}
 
-    // 1. Update status & workflow (with delivery_option from buy intent)
+    // 1. Update status & workflow (with delivery_option from buy intent); collector level production priority
+    const cl = (user.collector_level || user.role || '') as string;
+    const productionPriority = (cl === 'grand_collector' || cl === 'legacy_collector') ? 'high' : (cl === 'private_collector' || isVipActive(user)) ? 'high' : 'standard';
     db.prepare(`
-      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option)
-      VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?)
-    `).run(masterpieceId, user.id, adminId, deliveryOption);
+      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option, production_priority)
+      VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?, ?)
+    `).run(masterpieceId, user.id, adminId, deliveryOption, productionPriority);
 
     // 2. Generate Documents
     const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
@@ -2811,6 +3089,7 @@ app.post("/api/admin/approve-purchase", (req, res) => {
     logAudit(adminId, 'APPROVE_PURCHASE', masterpieceId.toString(), `Approved purchase for user ${user.id} - Status: RESERVED`);
   }
  else {
+    logMasterpieceStatusChange(masterpieceId, 'available', adminId ?? null);
     db.prepare("UPDATE masterpieces SET status = 'available' WHERE id = ?").run(masterpieceId);
     notifyUser(user.id, "Your purchase request for " + piece.title + " was not approved.", "warning");
     logAudit(adminId, 'REJECT_PURCHASE', masterpieceId.toString(), `Rejected purchase for user ${user.id}`);
@@ -2859,6 +3138,7 @@ app.post("/api/admin/workflow/update", (req, res) => {
       newStatus = "PRODUCTION_STARTED";
       message = `Deposit for ${piece.title} received. Handcrafted production has officially commenced.`;
       db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'deposit'").run(masterpieceId);
+      logMasterpieceStatusChange(masterpieceId, 'reserved', adminId ?? null);
       db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
       break;
     case 'production_started':
@@ -2918,8 +3198,9 @@ app.post("/api/admin/workflow/update", (req, res) => {
       
       // Release Escrow
       db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?").run(masterpieceId);
-      db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold' WHERE id = ?").run(user.id, masterpieceId);
-      
+      logMasterpieceStatusChange(masterpieceId, 'sold', adminId ?? null);
+db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purchase_price = COALESCE(purchase_price, valuation), estimated_market_value = COALESCE(estimated_market_value, valuation) WHERE id = ?").run(user.id, masterpieceId);
+
       updateProvenance(masterpieceId, 'ownership_transfer', `Ownership officially transferred to ${user.name}.`);
 
       // Generate Certificate of Authenticity; assign Registry ID if first time
@@ -2927,7 +3208,7 @@ app.post("/api/admin/workflow/update", (req, res) => {
       if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, masterpieceId);
       const certRef = nextCertRef();
       const certContent = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
-      const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef: certRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${masterpieceId}` });
+      const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef: certRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${masterpieceId}`, certificateVerifyUrl: `${BASE_URL}/verify/${certRef}` });
       db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'certificate', ?, ?, 'signed')").run(
         user.id, masterpieceId, certRef, certHtml
       );
@@ -2971,6 +3252,32 @@ app.get("/api/workflow/:masterpieceId", (req, res) => {
   res.json(workflow || null);
 });
 
+// Admin: production queue (workflows sorted by VIP priority first)
+app.get("/api/admin/workflows", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT pw.*, m.title as piece_title, m.serial_id, u.name as user_name
+    FROM purchase_workflow pw
+    LEFT JOIN masterpieces m ON m.id = pw.masterpiece_id
+    LEFT JOIN users u ON u.id = pw.user_id
+    WHERE pw.status NOT IN ('COMPLETED', 'CANCELLED')
+    ORDER BY CASE WHEN pw.production_priority = 'high' THEN 0 ELSE 1 END, pw.approved_at ASC
+  `).all() as any[];
+  res.json(rows);
+});
+
+app.get("/api/admin/masterpieces/:id/status-history", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "masterpieceId erforderlich." });
+  const rows = db.prepare(`
+    SELECT h.*, u.name as changed_by_name
+    FROM masterpiece_status_history h
+    LEFT JOIN users u ON u.id = h.changed_by_user_id
+    WHERE h.masterpiece_id = ?
+    ORDER BY h.changed_at DESC
+  `).all(id);
+  res.json(rows);
+});
+
 app.get("/api/escrow/:masterpieceId", (req, res) => {
   const escrow = db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? ORDER BY created_at DESC LIMIT 1").get(req.params.masterpieceId);
   res.json(escrow || null);
@@ -3007,8 +3314,8 @@ function closeEndedAuctions(): void {
 app.get("/api/auctions", (req, res) => {
   closeEndedAuctions();
   const userId = req.query.userId;
-  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) : null;
-  const isVip = user && (user.role === 'vip' || user.role === 'admin');
+  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
+  const isVip = user && (user.role === 'admin' || user.role === 'super_admin' || isVipActive(user));
 
   let query = `
     SELECT a.*, m.title, m.image_url, m.description 
@@ -3016,12 +3323,20 @@ app.get("/api/auctions", (req, res) => {
     JOIN masterpieces m ON a.masterpiece_id = m.id 
     WHERE a.status = 'active'
   `;
-
-  if (!isVip) {
-    query += " AND a.vip_only = 0";
+  if (!isVip) query += " AND a.vip_only = 0";
+  let activeAuctions = db.prepare(query).all() as any[];
+  const visibility = (a: any) => a.visibility || 'public';
+  if (user && userId) {
+    const invitedAuctionIds = new Set((db.prepare("SELECT auction_id FROM auction_invitations WHERE user_id = ?").all(userId) as { auction_id: number }[]).map(r => r.auction_id));
+    activeAuctions = activeAuctions.filter(a => {
+      if (visibility(a) === 'public') return true;
+      if (visibility(a) === 'vip_only') return isVip;
+      if (visibility(a) === 'private_invitation') return invitedAuctionIds.has(a.id);
+      return true;
+    });
+  } else {
+    activeAuctions = activeAuctions.filter(a => visibility(a) === 'public');
   }
-
-  const activeAuctions = db.prepare(query).all();
   res.json(activeAuctions);
 });
 
@@ -3054,23 +3369,36 @@ app.get("/api/auctions/:auctionId/bids", (req, res) => {
 });
 
 app.post("/api/admin/auctions", (req, res) => {
-  const { masterpieceId, startPrice, endTime, vipOnly, terms } = req.body;
+  const { masterpieceId, startPrice, endTime, vipOnly, terms, visibility } = req.body;
+  const vis = visibility === 'vip_only' || visibility === 'private_invitation' ? visibility : 'public';
   const result = db.prepare(`
-    INSERT INTO auctions (masterpiece_id, start_price, current_bid, end_time, vip_only, terms)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(masterpieceId, startPrice, startPrice, endTime, vipOnly ? 1 : 0, terms || "Standard luxury auction terms apply. 10% buyer's premium. Secure transport included.");
-  
+    INSERT INTO auctions (masterpiece_id, start_price, current_bid, end_time, vip_only, terms, visibility)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(masterpieceId, startPrice, startPrice, endTime, vipOnly ? 1 : 0, terms || "Standard luxury auction terms apply. 10% buyer's premium. Secure transport included.", vis);
+
   db.prepare("UPDATE masterpieces SET status = 'auction' WHERE id = ?").run(masterpieceId);
   updateProvenance(masterpieceId, 'auction', `Masterpiece listed for auction with starting price of ${startPrice} EUR.`);
-  
+
   broadcast({ type: 'AUCTION_CREATED', id: result.lastInsertRowid });
   res.json({ id: result.lastInsertRowid });
+});
+
+app.post("/api/admin/auctions/:id/invite", requireAuth, requireAdmin, (req, res) => {
+  const { user_id } = req.body;
+  try {
+    db.prepare("INSERT OR IGNORE INTO auction_invitations (auction_id, user_id) VALUES (?, ?)").run(req.params.id, user_id);
+  } catch (_) {}
+  res.json({ success: true });
 });
 
 app.post("/api/auctions/bid", (req, res) => {
   const { auctionId, userId, amount } = req.body;
   const auction = db.prepare("SELECT * FROM auctions WHERE id = ?").get(auctionId) as any;
   if (!auction) return res.status(404).json({ error: "Auction not found" });
+  if (auction.vip_only === 1) {
+    const bidder = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+    if (!bidder || !isVipActive(bidder)) return res.status(403).json({ error: "This auction is for VIP members only." });
+  }
   if (amount <= auction.current_bid) return res.status(400).json({ error: "Bid too low" });
 
   const previousHighestBidderId = auction.highest_bidder_id;
@@ -3126,7 +3454,8 @@ app.post("/api/admin/generate-certificate", (req, res) => {
     docRef: certId, 
     title: "Certificate of Authenticity",
     registryId: regId,
-    registryUrl: `/registry/masterpiece/${masterpieceId}`
+    registryUrl: `/registry/masterpiece/${masterpieceId}`,
+    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`
   });
 
   try {
@@ -3172,32 +3501,20 @@ app.post("/api/admin/confirm-payment", (req, res) => {
     } catch (_) {}
   }
 
-  const certId = `CERT-${payment.masterpiece_id}-${Date.now()}`;
+  const certId = nextCertRef();
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payment.user_id);
   const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(payment.masterpiece_id);
+  const regId = piece.registry_id || nextRegRef();
+  if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, payment.masterpiece_id);
 
-  const certContent = `
-    ECHTHEITSZERTIFIKAT / CERTIFICATE OF AUTHENTICITY
-    
-    STÜCKINFORMATIONEN:
-    Titel: ${piece.title}
-    Serien-ID: ${piece.serial_id}
-    Materialien: ${piece.materials}
-    Edelsteine: ${piece.gemstones}
-    
-    KÄUFER:
-    Name: ${user.name}
-    Adresse: ${user.address}
-    
-    VERKÄUFER:
-    Juwelen & Schmuckatelier Antonio Bellanova
-    Ahorstraße 8, 50765 Köln, Deutschland. USt-IdNr.: DE457682154
-    
-    Dieses Zertifikat bestätigt die Echtheit und den rechtmäßigen Erwerb des oben genannten Meisterwerks.
-    
-    Ausstellungsdatum: ${new Date().toLocaleDateString('de-DE')}
-    Zertifikats-ID: ${certId}
-  `;
+  const certBody = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
+  const certContent = generateLuxuryDocument("Certificate of Authenticity", certBody, user, piece, {
+    docRef: certId,
+    title: "Certificate of Authenticity",
+    registryId: regId,
+    registryUrl: `/registry/masterpiece/${payment.masterpiece_id}`,
+    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`
+  });
 
   db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)").run(
     payment.masterpiece_id, payment.user_id, certId, certContent, 'DIGITAL_SIG_AB', '0x' + Math.random().toString(16).slice(2)
@@ -3210,9 +3527,17 @@ app.post("/api/admin/confirm-payment", (req, res) => {
   res.json({ success: true });
 });
 
-// Vault Data
+// Vault Data (discreet mode: only admin can see another user's portfolio when private_portfolio_visibility is on)
 app.get("/api/vault/:userId", (req, res) => {
   const userId = req.params.userId;
+  const requesterId = getSessionUserId(req);
+  const target = db.prepare("SELECT id, private_portfolio_visibility FROM users WHERE id = ?").get(userId) as any;
+  if (target?.private_portfolio_visibility === 1 && String(requesterId) !== String(userId)) {
+    const requester = requesterId ? db.prepare("SELECT role FROM users WHERE id = ?").get(requesterId) as any : null;
+    if (!requester || (requester.role !== 'admin' && requester.role !== 'super_admin'))
+      return res.status(403).json({ error: "Portfolio is private." });
+  }
+  enforceVipExpiry(Number(userId));
   const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId);
   const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(userId);
   const contracts = db.prepare("SELECT * FROM contracts WHERE user_id = ?").all(userId);
@@ -3281,8 +3606,62 @@ app.get("/api/admin/stats", (req, res) => {
 });
 
 app.get("/api/admin/users", requireAuth, requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted' ORDER BY status = 'pending' DESC, created_at DESC").all();
+  const tag = (req.query.tag as string)?.trim();
+  let users: any[];
+  if (tag) {
+    users = db.prepare(`
+      SELECT u.* FROM users u
+      INNER JOIN user_tags ut ON ut.user_id = u.id AND ut.tag = ?
+      WHERE COALESCE(u.status, '') != 'deleted'
+      ORDER BY u.status = 'pending' DESC, u.created_at DESC
+    `).all(tag) as any[];
+  } else {
+    users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted' ORDER BY status = 'pending' DESC, created_at DESC").all() as any[];
+  }
+  const tagRows = db.prepare("SELECT user_id, tag FROM user_tags").all() as { user_id: number; tag: string }[];
+  const tagsByUser: Record<number, string[]> = {};
+  for (const r of tagRows) {
+    if (!tagsByUser[r.user_id]) tagsByUser[r.user_id] = [];
+    tagsByUser[r.user_id].push(r.tag);
+  }
+  users.forEach((u: any) => { u.tags = tagsByUser[u.id] || []; });
   res.json(users);
+});
+
+app.patch("/api/admin/users/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Nutzer-ID erforderlich." });
+  const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(id) as any;
+  if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
+  if (target.role === "admin" || target.role === "super_admin") return res.status(403).json({ error: "Admins können nicht bearbeitet werden." });
+  const { tags, locked } = req.body || {};
+  if (Array.isArray(tags)) {
+    db.prepare("DELETE FROM user_tags WHERE user_id = ?").run(id);
+    const ins = db.prepare("INSERT INTO user_tags (user_id, tag) VALUES (?, ?)");
+    for (const t of tags) if (typeof t === "string" && t.trim()) ins.run(id, t.trim());
+  }
+  if (typeof locked === "boolean") {
+    db.prepare("UPDATE users SET locked_at = ? WHERE id = ?").run(locked ? new Date().toISOString() : null, id);
+    logAudit((req as any).userId, locked ? "USER_LOCKED" : "USER_UNLOCKED", String(id), "");
+  }
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
+  const userTags = db.prepare("SELECT tag FROM user_tags WHERE user_id = ?").all(id) as { tag: string }[];
+  (user as any).tags = userTags.map(r => r.tag);
+  const { password: _p, ...rest } = user;
+  res.json(rest);
+});
+
+// Admin: set collector level (collector | vip | private_collector | grand_collector | legacy_collector)
+app.patch("/api/admin/users/:id/collector-level", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const level = (req.body?.collector_level as string)?.trim();
+  if (!id) return res.status(400).json({ error: "User ID required." });
+  if (!level || !COLLECTOR_LEVELS.includes(level as any)) return res.status(400).json({ error: "collector_level must be one of: " + COLLECTOR_LEVELS.join(", ") });
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
+  if (!target) return res.status(404).json({ error: "User not found." });
+  db.prepare("UPDATE users SET collector_level = ? WHERE id = ?").run(level, id);
+  try { logAudit((req as any).user?.id, 'COLLECTOR_LEVEL_SET', String(id), level); } catch (_) {}
+  res.json({ success: true, collector_level: level });
 });
 
 // Admin: Nutzer entfernen (Soft-Delete: status = 'deleted')
@@ -3807,6 +4186,7 @@ app.post("/api/admin/newsletter", async (req, res) => {
     else if (type === 'investors') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'investor' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
     else if (type === 'clients') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'client' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
     else if (type === 'vip') users = db.prepare("SELECT id, email, name FROM users WHERE (role = 'vip' OR is_vip = 1) AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
+    else if (type === 'marketing') users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND COALESCE(notify_marketing, 0) = 1 AND role NOT IN ('admin','super_admin')").all() as any[];
     else users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND role NOT IN ('admin','super_admin')").all() as any[];
   }
   let sent = 0;
@@ -3820,6 +4200,72 @@ app.post("/api/admin/newsletter", async (req, res) => {
   }
   try { logAudit(adminId, 'NEWSLETTER_SENT', String(users.length), `sent=${sent} total=${users.length} subject="${(subject || '').slice(0, 50)}"`); } catch (_) {}
   res.json({ success: true, sent, total: users.length });
+});
+
+app.get("/api/admin/email-templates", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare("SELECT * FROM email_templates ORDER BY key").all();
+  res.json(rows);
+});
+
+app.post("/api/admin/email-templates", requireAuth, requireAdmin, (req, res) => {
+  const { key, subject_de, body_de, subject_en, body_en, subject_it, body_it } = req.body || {};
+  if (!key || typeof key !== "string" || !key.trim()) return res.status(400).json({ error: "key erforderlich." });
+  try {
+    db.prepare(`
+      INSERT INTO email_templates (key, subject_de, body_de, subject_en, body_en, subject_it, body_it)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(key.trim(), subject_de ?? null, body_de ?? null, subject_en ?? null, body_en ?? null, subject_it ?? null, body_it ?? null);
+    const row = db.prepare("SELECT * FROM email_templates WHERE key = ?").get(key.trim());
+    res.status(201).json(row);
+  } catch (e: any) {
+    if (e && e.message && e.message.includes("UNIQUE")) return res.status(409).json({ error: "Vorlage mit diesem Schlüssel existiert bereits." });
+    throw e;
+  }
+});
+
+app.patch("/api/admin/email-templates/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { key, subject_de, body_de, subject_en, body_en, subject_it, body_it } = req.body || {};
+  const row = db.prepare("SELECT * FROM email_templates WHERE id = ?").get(id);
+  if (!row) return res.status(404).json({ error: "Vorlage nicht gefunden." });
+  const updates: string[] = ["updated_at = CURRENT_TIMESTAMP"];
+  const vals: any[] = [];
+  if (key !== undefined) { updates.push("key = ?"); vals.push(String(key).trim()); }
+  if (subject_de !== undefined) { updates.push("subject_de = ?"); vals.push(subject_de); }
+  if (body_de !== undefined) { updates.push("body_de = ?"); vals.push(body_de); }
+  if (subject_en !== undefined) { updates.push("subject_en = ?"); vals.push(subject_en); }
+  if (body_en !== undefined) { updates.push("body_en = ?"); vals.push(body_en); }
+  if (subject_it !== undefined) { updates.push("subject_it = ?"); vals.push(subject_it); }
+  if (body_it !== undefined) { updates.push("body_it = ?"); vals.push(body_it); }
+  vals.push(id);
+  db.prepare(`UPDATE email_templates SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
+  const updated = db.prepare("SELECT * FROM email_templates WHERE id = ?").get(id);
+  res.json(updated);
+});
+
+app.delete("/api/admin/email-templates/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const row = db.prepare("SELECT id FROM email_templates WHERE id = ?").get(id);
+  if (!row) return res.status(404).json({ error: "Vorlage nicht gefunden." });
+  db.prepare("DELETE FROM email_templates WHERE id = ?").run(id);
+  res.status(204).send();
+});
+
+app.post("/api/admin/payments/:id/send-reminder", requireAuth, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as any;
+  if (!payment) return res.status(404).json({ error: "Zahlung nicht gefunden." });
+  if (payment.status === "paid") return res.status(400).json({ error: "Zahlung bereits beglichen." });
+  db.prepare("UPDATE payments SET reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payment.user_id) as any;
+  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(payment.masterpiece_id) as any;
+  if (user?.email && piece && shouldSendEmailToUser(user)) {
+    const subject = "Antonio Bellanova – Erinnerung: Offene Zahlung";
+    const text = `Guten Tag ${user.name || ''},\n\nhiermit erinnern wir an die ausstehende Zahlung für "${piece.title}" in Höhe von ${Number(payment.amount).toLocaleString('de-DE')} EUR.\n\nReferenz: ${payment.reference || payment.id}\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`;
+    await sendMail(user.email, subject, text).catch(() => {});
+  }
+  logAudit((req as any).userId, "PAYMENT_REMINDER_SENT", String(id), "");
+  res.json({ success: true });
 });
 
 app.patch("/api/admin/service-requests/:id", (req, res) => {
@@ -3855,7 +4301,7 @@ app.get("/api/certificates/download/:id", (req, res) => {
 // Admin: sales overview (name, email, country/address)
 app.get("/api/admin/sales", (req, res) => {
   const rows = db.prepare(`
-    SELECT p.id as payment_id, p.user_id, p.masterpiece_id, p.type as payment_type, p.amount, p.status as payment_status, p.created_at,
+    SELECT p.id as payment_id, p.user_id, p.masterpiece_id, p.type as payment_type, p.amount, p.status as payment_status, p.created_at, p.reminder_sent_at, p.reference,
            u.name, u.email, u.address,
            m.title as masterpiece_title, m.serial_id
     FROM payments p
@@ -4642,6 +5088,29 @@ app.post("/api/admin/approve-user", requireAuth, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// --- VIP membership: real system status (expiry, benefits) ---
+function isVipActive(user: { role?: string; is_vip?: number; vip_expiry_date?: string | null } | null): boolean {
+  if (!user) return false;
+  const isVipRole = user.role === 'vip' || user.is_vip === 1;
+  if (!isVipRole) return false;
+  if (!user.vip_expiry_date) return true;
+  try {
+    return new Date(user.vip_expiry_date) > new Date();
+  } catch {
+    return true;
+  }
+}
+
+function enforceVipExpiry(userId: number): void {
+  try {
+    const user = db.prepare("SELECT id, role, is_vip, vip_expiry_date FROM users WHERE id = ?").get(userId) as any;
+    if (!user || user.role !== 'vip') return;
+    if (user.vip_expiry_date && new Date(user.vip_expiry_date) <= new Date()) {
+      db.prepare("UPDATE users SET role = 'client', is_vip = 0 WHERE id = ?").run(userId);
+    }
+  } catch (_) {}
+}
+
 // --- Prestige Tier (Imperial Core) ---
 const PRESTIGE_TIERS = ['client', 'private_client', 'collector', 'elite_collector', 'royal_tier', 'black_tier'] as const;
 const RESALE_COMMISSION_BY_TIER: Record<string, number> = { client: 8, private_client: 7.5, collector: 7, elite_collector: 6, royal_tier: 5, black_tier: 5 };
@@ -4650,7 +5119,8 @@ function getPrestigeTier(user: { role: string; prestige_tier?: string | null }):
   const roleToTier: Record<string, string> = { client: 'client', vip: 'private_client', royal: 'royal_tier', black: 'black_tier', investor: 'client', reseller: 'client', viewer: 'client', admin: 'client', super_admin: 'client', strategic_private_advisor: 'client' };
   return roleToTier[user.role] || 'client';
 }
-function getResaleCommissionPct(user: { role: string; prestige_tier?: string | null }): number {
+function getResaleCommissionPct(user: { role: string; prestige_tier?: string | null; is_vip?: number; vip_expiry_date?: string | null }): number {
+  if (isVipActive(user)) return 6;
   const tier = getPrestigeTier(user);
   return RESALE_COMMISSION_BY_TIER[tier] ?? 8;
 }
@@ -4840,7 +5310,7 @@ app.post("/api/contracts/sign", (req, res) => {
     db.prepare("UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(contractId);
 
     if (contract.type === 'vip') {
-      db.prepare("UPDATE users SET role = 'vip' WHERE id = ?").run(contract.user_id);
+      db.prepare("INSERT INTO vip_memberships (user_id, contract_id, status, signed_at) VALUES (?, ?, 'WAITING_FOR_PAYMENT', CURRENT_TIMESTAMP)").run(contract.user_id, contractId);
     }
     if (contract.type === 'resale_commission' && contract.masterpiece_id) {
       const listing = db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?").get(contractId) as any;
@@ -4868,7 +5338,15 @@ app.post("/api/contracts/sign", (req, res) => {
         `Guten Tag ${signedUser.name || ''},\n\nIhr Vertrag wurde erfolgreich unterzeichnet.${pieceTitle ? ` (${pieceTitle})` : ''}\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`
       ).catch(() => {});
     }
-    res.json({ success: true, masterpieceId: contract.masterpiece_id ?? undefined });
+    const payload: { success: true; masterpieceId?: number; vipWaitingPayment?: boolean; membershipId?: number } = { success: true, masterpieceId: contract.masterpiece_id ?? undefined };
+    if (contract.type === 'vip') {
+      const vipRow = db.prepare("SELECT id FROM vip_memberships WHERE contract_id = ?").get(contractId) as { id: number } | undefined;
+      if (vipRow) {
+        payload.vipWaitingPayment = true;
+        payload.membershipId = vipRow.id;
+      }
+    }
+    res.json(payload);
   } catch (err: any) {
     console.error("[contracts/sign]", err);
     res.status(500).json({ error: err?.message || "Unterzeichnung fehlgeschlagen." });
@@ -5200,12 +5678,18 @@ app.get("/api/drops", (req, res) => {
   const userId = getSessionUserId(req);
   const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
   const tier = user ? getPrestigeTier(user) : 'client';
-  const now = new Date().toISOString();
+  const isVip = user ? isVipActive(user) : false;
+  const now = new Date();
+  const nowMs = now.getTime();
   const rows = db.prepare(`
     SELECT * FROM drops WHERE end_at > ? ORDER BY release_at ASC
-  `).all(now) as any[];
+  `).all(now.toISOString()) as any[];
   const allowed = rows.filter(d => {
     if (d.status === 'ended') return false;
+    const releaseMs = new Date(d.release_at).getTime();
+    const vipReleaseMs = (d.vip_early_access ? releaseMs - 48 * 60 * 60 * 1000 : releaseMs);
+    const visibleAt = (isVip && d.vip_early_access) ? vipReleaseMs : releaseMs;
+    if (nowMs < visibleAt) return false;
     let tiers: string[] = [];
     try { tiers = d.tier_access ? JSON.parse(d.tier_access) : []; } catch { tiers = []; }
     if (tiers.length === 0) return true;
@@ -5256,13 +5740,14 @@ app.post("/api/admin/drops", (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { title, description, image_url, release_at, end_at, tier_access } = req.body;
+  const { title, description, image_url, release_at, end_at, tier_access, vip_early_access } = req.body;
   const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : '[]';
   const status = new Date(end_at) < new Date() ? 'ended' : (new Date(release_at) > new Date() ? 'upcoming' : 'live');
+  const vipEarly = vip_early_access ? 1 : 0;
   const r = db.prepare(`
-    INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status);
+    INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, vip_early_access, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status, vipEarly);
   res.json({ id: r.lastInsertRowid, success: true });
 });
 
@@ -5270,14 +5755,14 @@ app.put("/api/admin/drops/:id", (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { title, description, image_url, release_at, end_at, tier_access, status } = req.body;
+  const { title, description, image_url, release_at, end_at, tier_access, status, vip_early_access } = req.body;
   const row = db.prepare("SELECT * FROM drops WHERE id = ?").get(req.params.id);
   if (!row) return res.status(404).json({ error: "Not found" });
   const tierAccess = tier_access != null ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : (row as any).tier_access;
   db.prepare(`
     UPDATE drops SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
-    release_at = COALESCE(?, release_at), end_at = COALESCE(?, end_at), tier_access = COALESCE(?, tier_access), status = COALESCE(?, status), updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).run(title, description, image_url, release_at, end_at, tierAccess, status, req.params.id);
+    release_at = COALESCE(?, release_at), end_at = COALESCE(?, end_at), tier_access = COALESCE(?, tier_access), status = COALESCE(?, status), vip_early_access = COALESCE(?, vip_early_access), updated_at = CURRENT_TIMESTAMP WHERE id = ?
+  `).run(title, description, image_url, release_at, end_at, tierAccess, status, vip_early_access != null ? (vip_early_access ? 1 : 0) : null, req.params.id);
   res.json({ success: true });
 });
 
@@ -5557,15 +6042,191 @@ app.post("/api/masterpieces/:id/mark-external", (req, res) => {
   res.json({ success: true });
 });
 
+// VIP Membership: current user's status and payment instructions (after signing agreement)
+app.get("/api/vip/membership-status", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const membership = db.prepare(`
+    SELECT vm.id, vm.status, vm.signed_at, vm.contract_id
+    FROM vip_memberships vm
+    WHERE vm.user_id = ?
+    ORDER BY vm.created_at DESC
+    LIMIT 1
+  `).get(userId) as { id: number; status: string; signed_at: string; contract_id: number } | undefined;
+  if (!membership) return res.json({ membership: null, paymentInstructions: null });
+  let paymentInstructions: { accountHolder: string; iban: string; bic: string; reference: string } | null = null;
+  if (membership.status === 'WAITING_FOR_PAYMENT') {
+    const bankRow = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+    const bank = bankRow?.value ? (() => { try { return JSON.parse(bankRow.value); } catch { return {}; } })() : {};
+    paymentInstructions = {
+      accountHolder: bank.account_holder || bank.accountHolder || 'Antonio Bellanova Atelier',
+      iban: bank.iban || '[ADMIN CONFIG VALUE]',
+      bic: bank.bic || '[ADMIN CONFIG VALUE]',
+      reference: `VIP-${membership.id}`,
+    };
+  }
+  res.json({ membership: { id: membership.id, status: membership.status, signed_at: membership.signed_at, contract_id: membership.contract_id }, paymentInstructions });
+});
+
 // VIP Concierge
 app.post("/api/vip/concierge", (req, res) => {
   const { userId, message } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  if (!user || user.role !== 'vip') return res.status(403).json({ error: "VIP access required" });
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user || !isVipActive(user)) return res.status(403).json({ error: "VIP access required" });
   
   // In a real app, this would send an email or notification to Antonio
   console.log(`VIP Concierge Request from ${user.name}: ${message}`);
   res.json({ success: true, response: "Your request has been received. Antonio will contact you shortly." });
+});
+
+// Admin: list VIP members (with start/expiry, cleaning credits)
+app.get("/api/admin/vip-members", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT vm.id, vm.user_id, vm.contract_id, vm.status, vm.signed_at, vm.created_at,
+           u.name as customer_name, u.email, u.address,
+           u.vip_start_date, u.vip_expiry_date, u.cleaning_credits_remaining, u.last_cleaning_date
+    FROM vip_memberships vm
+    JOIN users u ON u.id = vm.user_id
+    ORDER BY vm.created_at DESC
+  `).all() as any[];
+  res.json(rows);
+});
+
+// Admin: confirm VIP payment -> set ACTIVE, activate VIP access, generate invoice
+app.post("/api/admin/vip-members/:id/confirm-payment", requireAuth, requireAdmin, (req, res) => {
+  const membershipId = Number(req.params.id);
+  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  if (!membership) return res.status(404).json({ error: "VIP membership not found" });
+  if (membership.status !== 'WAITING_FOR_PAYMENT') return res.status(400).json({ error: "Membership is not waiting for payment" });
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(membership.user_id) as any;
+  if (!user) return res.status(400).json({ error: "User not found" });
+
+  const startDate = new Date();
+  const expiryDate = new Date(startDate);
+  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+  db.prepare("UPDATE vip_memberships SET status = 'ACTIVE' WHERE id = ?").run(membershipId);
+  db.prepare(`
+    UPDATE users SET role = 'vip', is_vip = 1, vip_start_date = ?, vip_expiry_date = ?, vip_membership_id = ?, cleaning_credits_remaining = 1
+    WHERE id = ?
+  `).run(startDate.toISOString(), expiryDate.toISOString(), membershipId, membership.user_id);
+
+  const year = new Date().getFullYear();
+  const invRef = `INV-VIP-${year}-${membershipId}`;
+  const bankRow = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+  const bank = bankRow?.value ? (() => { try { return JSON.parse(bankRow.value); } catch { return {}; } })() : {};
+  const vatId = bank.vat_id || bank.vatId || UST_IDNR;
+  const companyName = 'Antonio Bellanova Atelier';
+  const companyAddress = 'Ahornstrasse 8\n50765 Köln\nDeutschland';
+  const invContent = `
+    <div style="font-family: Georgia, serif; padding: 40px; color: #e4e4e7; background: #0d0d0d; max-width: 720px; margin: auto;">
+      <div style="text-align: center; margin-bottom: 24px; border-bottom: 1px solid rgba(201,162,39,0.3); padding-bottom: 16px;">
+        <div style="font-size: 9px; letter-spacing: 8px; color: #c9a227;">ANTONIO BELLANOVA</div>
+        <h1 style="font-size: 24px; font-weight: 300; margin: 8px 0 0; color: #e4e4e7;">Invoice / Rechnung</h1>
+        <div style="font-size: 10px; color: #71717a; margin-top: 8px;">${invRef} · ${new Date().toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+        <div>
+          <div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase; margin-bottom: 6px;">Seller / Verkäufer</div>
+          <div style="font-size: 12px; font-weight: 600; color: #e4e4e7;">${companyName}</div>
+          <div style="font-size: 11px; color: #a1a1aa; white-space: pre-line;">${companyAddress}</div>
+          <div style="font-size: 10px; color: #71717a; margin-top: 4px;">VAT ID: ${vatId}</div>
+        </div>
+        <div>
+          <div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase; margin-bottom: 6px;">Customer / Kunde</div>
+          <div style="font-size: 12px; color: #e4e4e7;">${user.name || '—'}</div>
+          <div style="font-size: 11px; color: #a1a1aa; white-space: pre-line;">${(user.address || '—').replace(/<[^>]+>/g, '')}</div>
+        </div>
+      </div>
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(201,162,39,0.3);">
+            <th style="text-align: left; padding: 10px 0; font-size: 9px; letter-spacing: 2px; color: #71717a; text-transform: uppercase;">Service</th>
+            <th style="text-align: right; padding: 10px 0; font-size: 9px; letter-spacing: 2px; color: #71717a; text-transform: uppercase;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.06);">
+            <td style="padding: 14px 0; font-size: 12px; color: #e4e4e7;">VIP Membership – Annual</td>
+            <td style="padding: 14px 0; font-size: 14px; font-weight: 600; color: #c9a227; text-align: right;">15,000 EUR</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="text-align: right; padding: 12px 0;">
+        <span style="font-size: 9px; letter-spacing: 2px; color: #71717a; text-transform: uppercase;">Status</span>
+        <span style="display: block; font-size: 12px; font-weight: 600; color: #22c55e;">Paid / Bezahlt</span>
+      </div>
+      <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid rgba(201,162,39,0.2); font-size: 9px; color: #71717a;">
+        Antonio Bellanova Atelier · Ahorstraße 8, 50765 Köln · USt-IdNr.: ${vatId}
+      </div>
+    </div>
+  `;
+  db.prepare(`
+    INSERT INTO vault_documents (document_type, contract_type, client_id, content, doc_ref, created_by)
+    VALUES ('invoice', 'vip', ?, ?, ?, ?)
+  `).run(membership.user_id, invContent, invRef, (req as any).user?.id ?? null);
+
+  const vipCertRef = `VIP-CERT-${membershipId}`;
+  const vipCertContent = `
+    <div style="font-family: Georgia, serif; padding: 40px; color: #e4e4e7; background: #0d0d0d; max-width: 720px; margin: auto;">
+      <div style="text-align: center; margin-bottom: 24px; border-bottom: 1px solid rgba(201,162,39,0.3); padding-bottom: 16px;">
+        <div style="font-size: 9px; letter-spacing: 8px; color: #c9a227;">ANTONIO BELLANOVA</div>
+        <h1 style="font-size: 24px; font-weight: 300; margin: 8px 0 0; color: #e4e4e7;">VIP Membership Certificate</h1>
+        <div style="font-size: 10px; color: #71717a; margin-top: 8px;">${vipCertRef}</div>
+      </div>
+      <div style="margin-bottom: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div><div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase;">VIP Membership ID</div><div style="font-size: 14px; font-weight: 600;">VIP-${membershipId}</div></div>
+          <div><div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase;">Client</div><div style="font-size: 14px;">${(user.name || '—').replace(/</g, '&lt;')}</div></div>
+          <div><div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase;">Start date</div><div style="font-size: 12px;">${startDate.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })}</div></div>
+          <div><div style="font-size: 8px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase;">Expiry date</div><div style="font-size: 12px;">${expiryDate.toLocaleDateString('de-DE', { year: 'numeric', month: 'long', day: 'numeric' })}</div></div>
+        </div>
+      </div>
+      <div style="padding: 16px; background: rgba(201,162,39,0.08); border: 1px solid rgba(201,162,39,0.3); margin-bottom: 24px;">
+        <div style="font-size: 9px; letter-spacing: 2px; color: #c9a227; text-transform: uppercase; margin-bottom: 10px;">VIP PRIVILEGES</div>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #a1a1aa; line-height: 1.8;">
+          <li>48 hour early access to new creations</li>
+          <li>Private auctions access</li>
+          <li>Concierge service</li>
+          <li>Priority atelier production</li>
+          <li>Reduced resale commission (6%)</li>
+          <li>Annual complimentary cleaning</li>
+        </ul>
+      </div>
+      <div style="font-size: 9px; color: #71717a; text-align: center;">Antonio Bellanova Atelier · Ahorstraße 8, 50765 Köln</div>
+    </div>
+  `;
+  db.prepare(`
+    INSERT INTO vault_documents (document_type, contract_type, client_id, content, doc_ref, created_by)
+    VALUES ('certificate', 'vip', ?, ?, ?, ?)
+  `).run(membership.user_id, vipCertContent, vipCertRef, (req as any).user?.id ?? null);
+
+  res.json({ success: true, membershipId, invoiceRef: invRef });
+});
+
+// Admin: deactivate VIP (set role to client, clear VIP dates)
+app.post("/api/admin/vip-members/:id/deactivate", requireAuth, requireAdmin, (req, res) => {
+  const membershipId = Number(req.params.id);
+  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  if (!membership) return res.status(404).json({ error: "VIP membership not found" });
+  db.prepare("UPDATE vip_memberships SET status = 'EXPIRED' WHERE id = ?").run(membershipId);
+  db.prepare(`
+    UPDATE users SET role = 'client', is_vip = 0, vip_start_date = NULL, vip_expiry_date = NULL, vip_membership_id = NULL
+    WHERE id = ?
+  `).run(membership.user_id);
+  res.json({ success: true });
+});
+
+// Admin: extend VIP by 1 year from current expiry
+app.post("/api/admin/vip-members/:id/extend", requireAuth, requireAdmin, (req, res) => {
+  const membershipId = Number(req.params.id);
+  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  if (!membership) return res.status(404).json({ error: "VIP membership not found" });
+  const user = db.prepare("SELECT vip_expiry_date FROM users WHERE id = ?").get(membership.user_id) as any;
+  const base = user?.vip_expiry_date ? new Date(user.vip_expiry_date) : new Date();
+  if (base < new Date()) base.setTime(Date.now());
+  base.setFullYear(base.getFullYear() + 1);
+  db.prepare("UPDATE users SET role = 'vip', is_vip = 1, vip_expiry_date = ? WHERE id = ?").run(base.toISOString(), membership.user_id);
+  res.json({ success: true, newExpiry: base.toISOString() });
 });
 
 // --- New Expansion Modules API ---
@@ -5660,7 +6321,7 @@ app.post("/api/resale/complete", (req, res) => {
   const regId = piece.registry_id || nextRegRef();
   if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, piece.id);
   const certContent = `CERTIFICATE OF AUTHENTICITY & PRIVATE TRANSFER\n\nThis document confirms the private resale and ownership transfer of "${piece.title}".\n\nNew Owner: ${buyer.name}\nTransfer Price: ${salePrice.toLocaleString()} EUR\nRegistry ID: ${regId}\n\nProvenance has been updated in the Antonio Bellanova Vault.`;
-  const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, buyer, piece, { docRef: certId, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}` });
+  const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, buyer, piece, { docRef: certId, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}`, certificateVerifyUrl: `${BASE_URL}/verify/${certId}` });
   db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)").run(
     piece.id, buyer.id, certId, certHtml, 'DIGITAL_SIG_AB', '0x' + Math.random().toString(16).slice(2)
   );
@@ -5688,29 +6349,55 @@ app.post("/api/admin/service/add", (req, res) => {
   res.json({ success: true });
 });
 
-// 4. Waitlist System (Extended)
+// 4. Waitlist System (Extended) — position/priority by collector level; admin accept/decline/prioritize
 app.post("/api/waitlist/join", (req, res) => {
   const { userId, masterpieceId, requestType, preferredBudget, preferredMaterials } = req.body;
-  db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials) VALUES (?, ?, ?, ?, ?)").run(
-    masterpieceId || null, userId, requestType, preferredBudget, preferredMaterials
+  const user = db.prepare("SELECT collector_level FROM users WHERE id = ?").get(userId) as any;
+  const priorityLevel = getCollectorLevelPriority(user?.collector_level);
+  const count = (db.prepare("SELECT COUNT(*) as c FROM waitlist WHERE masterpiece_id = ?").get(masterpieceId || 0) as any)?.c ?? 0;
+  db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1
   );
   res.json({ success: true });
 });
 
 app.get("/api/admin/waitlist", (req, res) => {
   const list = db.prepare(`
-    SELECT w.*, u.name as user_name, m.title as piece_title 
+    SELECT w.*, u.name as user_name, u.email as user_email, u.collector_level, m.title as piece_title, m.serial_id
     FROM waitlist w 
     JOIN users u ON w.user_id = u.id 
     LEFT JOIN masterpieces m ON w.masterpiece_id = m.id
+    WHERE COALESCE(w.status, 'waiting') = 'waiting'
+    ORDER BY COALESCE(w.priority_level, 0) DESC, w.created_at ASC
   `).all();
   res.json(list);
 });
 
-// 5. Soft Reserve System
+app.patch("/api/admin/waitlist/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { action, position } = req.body || {};
+  const row = db.prepare("SELECT * FROM waitlist WHERE id = ?").get(id) as any;
+  if (!row) return res.status(404).json({ error: "Waitlist entry not found." });
+  if (action === 'accept') {
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)").run(row.masterpiece_id, row.user_id, expiresAt, 'client');
+    db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?").run('reserved_client', row.masterpiece_id);
+    db.prepare("UPDATE waitlist SET status = ? WHERE id = ?").run('converted', id);
+    res.json({ success: true, reserved: true, expiresAt });
+  } else if (action === 'decline') {
+    db.prepare("UPDATE waitlist SET status = ? WHERE id = ?").run('expired', id);
+    res.json({ success: true });
+  } else if (action === 'prioritize' && typeof position === 'number') {
+    db.prepare("UPDATE waitlist SET position = ? WHERE id = ?").run(position, id);
+    res.json({ success: true });
+  } else return res.status(400).json({ error: "Use action: accept, decline, or prioritize with position." });
+});
+
+// 5. Soft Reserve System (VIP 48h default; block others while reserved)
 app.post("/api/admin/reserve", (req, res) => {
   const { masterpieceId, userId, durationHours, type, adminId } = req.body;
-  const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+  const hours = durationHours != null ? Number(durationHours) : (type === 'vip' ? 48 : 24);
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
   
   db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)").run(
     masterpieceId, userId, expiresAt, type
@@ -5719,10 +6406,171 @@ app.post("/api/admin/reserve", (req, res) => {
   const status = type === 'vip' ? 'reserved_vip' : 'reserved_client';
   db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?").run(status, masterpieceId);
   
-  updateProvenance(masterpieceId, 'vip_event', `Piece reserved for ${type} (User ID: ${userId}) for ${durationHours}h.`);
+  updateProvenance(masterpieceId, 'vip_event', `Piece reserved for ${type} (User ID: ${userId}) for ${hours}h.`);
   logAudit(adminId, 'SOFT_RESERVE', masterpieceId.toString(), `Reserved piece for ${type} until ${expiresAt}`);
   
   res.json({ success: true, expiresAt });
+});
+
+// Private Gallery — only for VIP and above
+app.get("/api/private-gallery", (req, res) => {
+  const userId = req.query.userId ? Number(req.query.userId) : getSessionUserId(req);
+  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
+  if (!canAccessPrivateGallery(user)) return res.json([]);
+  const pieces = db.prepare("SELECT * FROM masterpieces WHERE private_gallery = 1 AND (status = 'available' OR status = 'reserved_vip' OR status = 'reserved_client')").all();
+  res.json(pieces);
+});
+
+// Private Offers — admin create; client list (only their offers)
+app.post("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
+  const { masterpieceId, clientId, message, expiresInDays } = req.body;
+  const expiresAt = new Date(Date.now() + (expiresInDays || 14) * 24 * 60 * 60 * 1000).toISOString();
+  db.prepare("INSERT INTO private_offers (masterpiece_id, client_id, offered_by, message, expires_at) VALUES (?, ?, ?, ?, ?)").run(
+    masterpieceId, clientId, (req as any).user?.id, message || null, expiresAt
+  );
+  res.json({ success: true, id: db.prepare("SELECT last_insert_rowid()").get() });
+});
+
+app.get("/api/private-offers", (req, res) => {
+  const userId = Number(req.query.userId) || getSessionUserId(req);
+  if (!userId) return res.json([]);
+  const now = new Date().toISOString();
+  const rows = db.prepare(`
+    SELECT po.*, m.title, m.serial_id, m.image_url, m.valuation
+    FROM private_offers po JOIN masterpieces m ON m.id = po.masterpiece_id
+    WHERE po.client_id = ? AND po.expires_at > ? AND po.status = 'pending'
+  `).all(userId, now);
+  res.json(rows);
+});
+
+app.get("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
+  const rows = db.prepare(`
+    SELECT po.*, m.title, m.serial_id, u.name as client_name
+    FROM private_offers po JOIN masterpieces m ON m.id = po.masterpiece_id JOIN users u ON u.id = po.client_id
+    ORDER BY po.created_at DESC
+  `).all();
+  res.json(rows);
+});
+
+// Bellanova Registry — master list
+app.get("/api/registry", (req, res) => {
+  const rows = db.prepare(`
+    SELECT m.id, m.serial_id as serial_number, m.id as vault_id, m.title, m.created_at as creation_date,
+           (SELECT cert_id FROM certificates WHERE masterpiece_id = m.id ORDER BY id DESC LIMIT 1) as certificate_reference,
+           u.name as owner_name, u.id as owner_id
+    FROM masterpieces m
+    LEFT JOIN users u ON u.id = m.current_owner_id
+    ORDER BY m.serial_id
+  `).all();
+  res.json(rows);
+});
+
+// Ownership history with certificate reference (for registry display)
+app.get("/api/masterpieces/:id/ownership-chain", (req, res) => {
+  const chain = db.prepare(`
+    SELECT oh.*, u.name as owner_name, (SELECT cert_id FROM certificates WHERE masterpiece_id = oh.masterpiece_id AND owner_id = oh.owner_id LIMIT 1) as certificate_reference
+    FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC
+  `).all(req.params.id);
+  res.json(chain);
+});
+
+// Collector profile preferences
+app.get("/api/collector/preferences", (req, res) => {
+  const userId = Number(req.query.userId) || getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const row = db.prepare("SELECT user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus FROM collector_profiles WHERE user_id = ?").get(userId);
+  res.json(row || { user_id: userId, favorite_gemstones: null, preferred_metals: null, design_style: null, budget_range: null, collection_type: null, collection_focus: null });
+});
+app.patch("/api/collector/preferences", (req, res) => {
+  const { userId, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus } = req.body;
+  const existing = db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?").get(userId);
+  const cf = collection_focus ?? collection_type;
+  if (existing) {
+    db.prepare("UPDATE collector_profiles SET favorite_gemstones = ?, preferred_metals = ?, design_style = ?, budget_range = ?, collection_type = ?, collection_focus = ? WHERE user_id = ?").run(
+      favorite_gemstones ?? null, preferred_metals ?? null, design_style ?? null, budget_range ?? null, collection_type ?? null, cf ?? null, userId
+    );
+  } else {
+    db.prepare("INSERT INTO collector_profiles (user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      userId, favorite_gemstones ?? null, preferred_metals ?? null, design_style ?? null, budget_range ?? null, collection_type ?? null, cf ?? null
+    );
+  }
+  res.json({ success: true });
+});
+
+// Asset insurance
+app.get("/api/masterpieces/:id/insurance", (req, res) => {
+  const rows = db.prepare("SELECT * FROM asset_insurance WHERE masterpiece_id = ? ORDER BY id DESC").all(req.params.id);
+  res.json(rows);
+});
+app.post("/api/masterpieces/:id/insurance", (req, res) => {
+  const { userId, adminId, insurance_provider, insured_value, policy_number, coverage_start, coverage_end } = req.body;
+  const admin = adminId ? db.prepare("SELECT role FROM users WHERE id = ?").get(adminId) as any : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  db.prepare("INSERT INTO asset_insurance (masterpiece_id, insurance_provider, insured_value, policy_number, coverage_start, coverage_end) VALUES (?, ?, ?, ?, ?, ?)").run(
+    req.params.id, insurance_provider, insured_value, policy_number, coverage_start, coverage_end
+  );
+  res.json({ success: true });
+});
+
+// Discreet mode — private portfolio visibility (only admin sees when enabled)
+app.patch("/api/me/private-portfolio", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const enabled = !!req.body?.enabled;
+  db.prepare("UPDATE users SET private_portfolio_visibility = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+  res.json({ success: true, private_portfolio_visibility: enabled });
+});
+
+// Section 20: Discreet transaction mode (ultra-luxury)
+app.patch("/api/me/discreet-transaction", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const enabled = !!req.body?.enabled;
+  db.prepare("UPDATE users SET discreet_transaction_mode = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+  res.json({ success: true, discreet_transaction_mode: enabled });
+});
+
+// Private events (invited users see their events; admin sees all)
+app.get("/api/events", (req, res) => {
+  const userId = getSessionUserId(req);
+  const user = userId ? db.prepare("SELECT role FROM users WHERE id = ?").get(userId) as any : null;
+  const isAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
+  const rows = db.prepare("SELECT * FROM private_events WHERE event_at > datetime('now') ORDER BY event_at ASC").all() as any[];
+  if (isAdmin) return res.json(rows);
+  if (!userId) return res.json([]);
+  const invitedIds = new Set((db.prepare("SELECT event_id FROM event_invitees WHERE user_id = ?").all(userId) as { event_id: number }[]).map(i => i.event_id));
+  res.json(rows.filter(e => invitedIds.has(e.id)));
+});
+app.post("/api/admin/events", requireAuth, requireAdmin, (req, res) => {
+  const { title, event_type, description, event_at, location } = req.body;
+  const r = db.prepare("INSERT INTO private_events (title, event_type, description, event_at, location, created_by) VALUES (?, ?, ?, ?, ?, ?)").run(
+    title, event_type || 'private_showing', description, event_at, location, (req as any).user?.id
+  );
+  res.json({ id: r.lastInsertRowid, success: true });
+});
+app.post("/api/admin/events/:id/invite", requireAuth, requireAdmin, (req, res) => {
+  const { user_id } = req.body;
+  try {
+    db.prepare("INSERT OR IGNORE INTO event_invitees (event_id, user_id) VALUES (?, ?)").run(req.params.id, user_id);
+  } catch (_) {}
+  res.json({ success: true });
+});
+
+// Legacy beneficiaries
+app.get("/api/legacy/beneficiaries", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.json([]);
+  const rows = db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ?").all(userId);
+  res.json(rows);
+});
+app.post("/api/legacy/beneficiaries", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const { beneficiary_name, beneficiary_contact, transfer_conditions } = req.body;
+  db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_contact, transfer_conditions) VALUES (?, ?, ?, ?)").run(
+    userId, beneficiary_name, beneficiary_contact, transfer_conditions
+  );
+  res.json({ success: true });
 });
 
 // 6. Collector Profile
@@ -5771,15 +6619,60 @@ app.get("/api/admin/analytics", (req, res) => {
   });
 });
 
-// 9. Concierge Request Layer (Super System)
+// 9. Concierge Request Layer (VIP + Private/Grand/Legacy Collector)
+const CONCIERGE_REQUEST_TYPES = ['stone_sourcing', 'custom_design', 'repairs', 'private_viewing', 'consultation', 'cleaning', 'restoration', 'resizing', 'valuation_update', 'secure_transport', 'insurance_assistance', 'private_showing'];
+function canAccessConcierge(user: { collector_level?: string; role?: string } | null): boolean {
+  return canAccessPrivateGallery(user);
+}
+app.get("/api/admin/concierge/requests", requireAuth, requireAdmin, (req, res) => {
+  const requestType = (req.query.requestType as string)?.trim();
+  let sql = `
+    SELECT cr.id, cr.user_id, cr.masterpiece_id, cr.request_type, cr.message, cr.status, cr.priority, cr.created_at,
+           u.name as user_name, u.email as user_email, u.collector_level,
+           m.title as piece_title, m.serial_id
+    FROM concierge_requests cr
+    JOIN users u ON cr.user_id = u.id
+    LEFT JOIN masterpieces m ON cr.masterpiece_id = m.id
+    WHERE cr.status IN ('requested', 'scheduled', 'in_service')
+  `;
+  const params: any[] = [];
+  if (requestType && CONCIERGE_REQUEST_TYPES.includes(requestType)) {
+    sql += " AND cr.request_type = ?";
+    params.push(requestType);
+  }
+  sql += " ORDER BY CASE WHEN cr.priority = 'vip' THEN 0 ELSE 1 END, cr.created_at ASC";
+  const rows = db.prepare(sql).all(...params);
+  res.json(rows);
+});
+
 app.post("/api/concierge/request", (req, res) => {
   const { userId, masterpieceId, requestType, message, priority } = req.body;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!user) return res.status(401).json({ error: "Unauthorized" });
+  if (!canAccessConcierge(user)) return res.status(403).json({ error: "Concierge-Zugang nur für VIP und höhere Sammlerstufen." });
+  const reqType = (requestType || '').toString().toLowerCase().replace(/\s/g, '_');
+  const finalType = reqType === 'repair' ? 'repairs' : (reqType || 'consultation');
+  if (!CONCIERGE_REQUEST_TYPES.includes(finalType)) return res.status(400).json({ error: "Ungültiger requestType. Erlaubt: stone_sourcing, custom_design, repairs, private_viewing, consultation, cleaning, restoration, resizing, valuation_update, secure_transport, insurance_assistance, private_showing." });
+  if (finalType === 'cleaning') {
+    enforceVipExpiry(userId);
+    const u = db.prepare("SELECT cleaning_credits_remaining, last_cleaning_date, vip_start_date FROM users WHERE id = ?").get(userId) as any;
+    let credits = Number(u?.cleaning_credits_remaining ?? 0);
+    const lastCleaning = u?.last_cleaning_date ? new Date(u.last_cleaning_date) : null;
+    const now = new Date();
+    const oneYearMs = 365 * 24 * 60 * 60 * 1000;
+    if (credits < 1 && lastCleaning && (now.getTime() - lastCleaning.getTime() >= oneYearMs)) {
+      credits = 1;
+      db.prepare("UPDATE users SET cleaning_credits_remaining = 1 WHERE id = ?").run(userId);
+    }
+    if (credits < 1) return res.status(400).json({ error: "No cleaning credits remaining. One complimentary cleaning per year." });
+    db.prepare("UPDATE users SET cleaning_credits_remaining = ?, last_cleaning_date = CURRENT_TIMESTAMP WHERE id = ?").run(credits - 1, userId);
+  }
   const result = db.prepare("INSERT INTO concierge_requests (user_id, masterpiece_id, request_type, message, priority) VALUES (?, ?, ?, ?, ?)").run(
-    userId, masterpieceId, requestType, message, priority || 'standard'
+    userId, masterpieceId || null, finalType, message, (priority === 'vip' || canAccessConcierge(user)) ? 'vip' : (priority || 'standard')
   );
   
   if (masterpieceId) {
-    updateProvenance(masterpieceId, 'service', `Concierge request initiated: ${requestType}. Status: requested.`);
+    updateProvenance(masterpieceId, 'service', `Concierge-Anfrage: ${finalType}. Status: requested.`);
   }
   
   res.json({ id: result.lastInsertRowid });
