@@ -1323,6 +1323,7 @@ const LUXURY_BLACK = '#0a0a0a';
 const LUXURY_BG = '#0d0d0d';
 const LUXURY_TEXT = '#e8e6e3';
 const LUXURY_MUTED = '#8a8784';
+const UST_IDNR = 'DE457682154';
 
 type ContractLang = 'de' | 'en' | 'it';
 const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
@@ -1436,7 +1437,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     deposit_resale: {
       title: 'Anzahlungsvertrag Wiederverkauf',
-      body: 'ANZAHLUNGSVERTRAG – WIEDERVERKAUF (GEBRAUCHTES SAMMLERSTÜCK)\n\nVerkäufer: Privatverkäufer, vermittelt über Juwelen & Schmuckatelier Antonio Bellanova (Plattform/Vermittler), Ahorstraße 8, 50765 Köln.\nKäufer: {{buyerName}}, {{buyerAddress}}.\n\nGegenstand: Meisterstück „{{piece.title}}" (Seriennr.: {{piece.serial_id}}). Es handelt sich um ein zuvor in Privatbesitz befindliches, über die Plattform zum Wiederverkauf angebotenes Objekt.\n\nKaufpreis gesamt: {{piece.valuation}} EUR.\nAnzahlung ({{depositPct}} %): {{depositAmount}} EUR – nicht erstattungsfähig bei Vertragsschluss.\n\nDer Käufer erkennt an, dass das Objekt als Gebrauchtware (Wiederverkauf) erworben wird. Die gesetzliche Gewährleistung (§§ 434 ff. BGB) kann bei Gebrauchtwaren wirksam eingeschränkt werden; der Verkäufer haftet für Sach- und Rechtsmängel nur in den gesetzlich zulässigen Grenzen. Das Atelier übernimmt vor Übergabe eine Echtheits- und Zustandsprüfung; die Freigabe zur Übergabe erfolgt nur bei positivem Befund.\n\nVermittlerrolle: Das Atelier handelt als Vermittler und Treuhänder. Der Kaufpreis wird über die Plattform abgewickelt; die Provision des Ateliers ist vom Verkäufer zu tragen. Eigentum und Risiko gehen erst mit verifizierter Übergabe auf den Käufer über.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln. Erfüllungsort: Köln. Salvatorische Klausel: Unwirksame Einzelbestimmungen berühren die übrigen nicht.',
+      body: 'ANZAHLUNGSVERTRAG – WIEDERVERKAUF (GEBRAUCHTES SAMMLERSTÜCK)\n\nVerkäufer: Privatverkäufer, vermittelt über Juwelen & Schmuckatelier Antonio Bellanova (Plattform/Vermittler), Ahorstraße 8, 50765 Köln. USt-IdNr.: DE457682154.\nKäufer: {{buyerName}}, {{buyerAddress}}.\n\nGegenstand: Meisterstück „{{piece.title}}" (Seriennr.: {{piece.serial_id}}). Es handelt sich um ein zuvor in Privatbesitz befindliches, über die Plattform zum Wiederverkauf angebotenes Objekt.\n\nKaufpreis gesamt: {{piece.valuation}} EUR.\nAnzahlung ({{depositPct}} %): {{depositAmount}} EUR – nicht erstattungsfähig bei Vertragsschluss.\n\nDer Käufer erkennt an, dass das Objekt als Gebrauchtware (Wiederverkauf) erworben wird. Die gesetzliche Gewährleistung (§§ 434 ff. BGB) kann bei Gebrauchtwaren wirksam eingeschränkt werden; der Verkäufer haftet für Sach- und Rechtsmängel nur in den gesetzlich zulässigen Grenzen. Das Atelier übernimmt vor Übergabe eine Echtheits- und Zustandsprüfung; die Freigabe zur Übergabe erfolgt nur bei positivem Befund.\n\nVermittlerrolle: Das Atelier handelt als Vermittler und Treuhänder. Der Kaufpreis wird über die Plattform abgewickelt; die Provision des Ateliers ist vom Verkäufer zu tragen. Eigentum und Risiko gehen erst mit verifizierter Übergabe auf den Käufer über.\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln. Erfüllungsort: Köln. Salvatorische Klausel: Unwirksame Einzelbestimmungen berühren die übrigen nicht.',
     },
   },
   en: {
@@ -1462,7 +1463,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     deposit_resale: {
       title: 'Deposit Agreement – Resale (Pre-owned)',
-      body: 'DEPOSIT AGREEMENT – RESALE (PRE-OWNED COLLECTOR PIECE)\n\nSeller: Private seller, brokered via Juwelen & Schmuckatelier Antonio Bellanova (platform/intermediary), Ahorstraße 8, 50765 Cologne.\nBuyer: {{buyerName}}, {{buyerAddress}}.\n\nAsset: Masterpiece "{{piece.title}}" (Serial: {{piece.serial_id}}). This is a pre-owned piece offered for resale via the platform.\n\nTotal purchase price: {{piece.valuation}} EUR. Deposit ({{depositPct}}%): {{depositAmount}} EUR – non-refundable upon execution.\n\nBuyer acknowledges that the asset is purchased as used goods (resale). Warranty may be limited as permitted for used goods under applicable law. The Atelier performs an authenticity and condition check before release; transfer occurs only upon positive verification. Governing law: Germany. Jurisdiction: Cologne.',
+      body: 'DEPOSIT AGREEMENT – RESALE (PRE-OWNED COLLECTOR PIECE)\n\nSeller: Private seller, brokered via Juwelen & Schmuckatelier Antonio Bellanova (platform/intermediary), Ahorstraße 8, 50765 Cologne. VAT ID: DE457682154.\nBuyer: {{buyerName}}, {{buyerAddress}}.\n\nAsset: Masterpiece "{{piece.title}}" (Serial: {{piece.serial_id}}). This is a pre-owned piece offered for resale via the platform.\n\nTotal purchase price: {{piece.valuation}} EUR. Deposit ({{depositPct}}%): {{depositAmount}} EUR – non-refundable upon execution.\n\nBuyer acknowledges that the asset is purchased as used goods (resale). Warranty may be limited as permitted for used goods under applicable law. The Atelier performs an authenticity and condition check before release; transfer occurs only upon positive verification. Governing law: Germany. Jurisdiction: Cologne.',
     },
   },
   it: {
@@ -1488,7 +1489,7 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
     },
     deposit_resale: {
       title: 'Accordo di acconto – Rivendita (Usato)',
-      body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
+      body: 'ACCORDO DI ACCONTO – RIVENDITA (BENE USATO)\n\nVenditore: venditore privato, mediato da Antonio Bellanova (piattaforma), Colonia. P.IVA: DE457682154. Acquirente: {{buyerName}}, {{buyerAddress}}.\n\nBene: "{{piece.title}}" (Seriale: {{piece.serial_id}}). Prezzo: {{piece.valuation}} EUR. Acconto ({{depositPct}}%): {{depositAmount}} EUR. Legge applicabile: Germania. Foro: Colonia.',
     },
   },
 };
@@ -1607,6 +1608,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
           <strong style="color: ${LUXURY_GOLD};">${L.arbitration}</strong> ICC/DIS Cologne. &bull;
           <strong style="color: ${LUXURY_GOLD};">${L.export}</strong> Client warrants compliance.
         </div>
+        <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">Antonio Bellanova Atelier · Ahorstraße 8, 50765 Köln · USt-IdNr.: ${UST_IDNR}</div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">${L.footerGdpr}</div>
       </div>
     </div>
@@ -2729,7 +2731,7 @@ app.post("/api/marketplace/buy", (req, res) => {
   } else {
     const content = `
     ANZAHLUNGSVERTRAG (DEPOSIT AGREEMENT)
-    VERKÄUFER: Juwelen & Schmuckatelier Antonio Bellanova, Ahorstraße 8, 50765 Köln
+    VERKÄUFER: Juwelen & Schmuckatelier Antonio Bellanova, Ahorstraße 8, 50765 Köln, USt-IdNr.: DE457682154
     KÄUFER: ${user.name}, ${user.address}
     GEGENSTAND: ${piece.title} (Serial ID: ${piece.serial_id})
     GESAMTPREIS: ${piece.valuation} EUR
@@ -3189,7 +3191,7 @@ app.post("/api/admin/confirm-payment", (req, res) => {
     
     VERKÄUFER:
     Juwelen & Schmuckatelier Antonio Bellanova
-    Ahorstraße 8, 50765 Köln, Deutschland
+    Ahorstraße 8, 50765 Köln, Deutschland. USt-IdNr.: DE457682154
     
     Dieses Zertifikat bestätigt die Echtheit und den rechtmäßigen Erwerb des oben genannten Meisterwerks.
     
@@ -3466,7 +3468,7 @@ function generateAdminContractContent(contractType: string, client: any, project
   const gemstones = project?.gemstones || masterpiece?.gemstones || '—';
   const weight = project?.weight || '—';
   const valuation = masterpiece?.valuation ? `${Number(masterpiece.valuation).toLocaleString('de-DE')} EUR` : '—';
-  const companyBlock = `Antonio Bellanova Atelier\nKöln, Germany\nUSt-IdNr.: DE123456789\n`;
+  const companyBlock = `Antonio Bellanova Atelier\nKöln, Germany\nUSt-IdNr.: ${UST_IDNR}\n`;
   const typeLabels: Record<string, string> = {
     purchase_agreement: 'Kaufvertrag',
     deposit_agreement: 'Anzahlungsvertrag',
@@ -3564,7 +3566,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
 <p><strong>Objekt:</strong> ${piece?.title || project?.project_name || '—'}</p>
 <p><strong>Zertifikat-ID:</strong> ${certId}</p>
 <p>Dieses Zertifikat bestätigt die Authentizität und Eigentümerschaft des genannten Objekts.</p>
-<p style="font-size:12px;color:#666;">Juwelen & Schmuckatelier Antonio Bellanova · Köln</p>
+<p style="font-size:12px;color:#666;">Juwelen & Schmuckatelier Antonio Bellanova · Köln · USt-IdNr.: ${UST_IDNR}</p>
 </div>`;
     const certIns = db.prepare(`
       INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash)
@@ -4011,11 +4013,11 @@ app.get("/api/advisor/commissions", requireAuth, requireAdvisor, (req, res) => {
   res.json(rows);
 });
 
-const ADVISOR_CONTRACT_COMPANY = { name: "Juwelen & Schmuckatelier Antonio Bellanova", address: "Ahorstraße 8, 50765 Köln, Deutschland" };
+const ADVISOR_CONTRACT_COMPANY = { name: "Juwelen & Schmuckatelier Antonio Bellanova", address: "Ahorstraße 8, 50765 Köln, Deutschland", ustIdNr: UST_IDNR };
 
 function getAdvisorContractContent(type: string, advisorName: string, commissionPct: number, signed: boolean): { title: string; content: string } {
   const dateStr = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const footer = `\n\n${ADVISOR_CONTRACT_COMPANY.name}\n${ADVISOR_CONTRACT_COMPANY.address}\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln, sofern nicht anders vereinbart.`;
+  const footer = `\n\n${ADVISOR_CONTRACT_COMPANY.name}\n${ADVISOR_CONTRACT_COMPANY.address}\nUSt-IdNr.: ${ADVISOR_CONTRACT_COMPANY.ustIdNr}\n\nAnwendbares Recht: Deutschland. Gerichtsstand: Köln, sofern nicht anders vereinbart.`;
   const signedLine = signed ? `\n\nUnterzeichnet: ${advisorName} am ${new Date().toISOString().slice(0, 10)}` : "";
   if (type === "nda") {
     const title = "Vertraulichkeits- und Geheimhaltungsvereinbarung (NDA)";
