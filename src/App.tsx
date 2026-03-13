@@ -2758,6 +2758,7 @@ export default function App() {
   const [pdfImportDragOver, setPdfImportDragOver] = useState(false);
   const pdfImportInputRef = useRef<HTMLInputElement>(null);
   const [adminDocFormType, setAdminDocFormType] = useState<'contract' | 'invoice' | 'certificate'>('contract');
+  const [adminDocSubType, setAdminDocSubType] = useState<string>('purchase_agreement');
   const [adminDocuments, setAdminDocuments] = useState<{ vault_documents: any[]; contracts: any[]; certificates: any[] }>({ vault_documents: [], contracts: [], certificates: [] });
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
@@ -8707,34 +8708,47 @@ export default function App() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-xs text-zinc-500 mb-1">Dokumentart</label>
-                          <select id="admin-doc-type" value={adminDocFormType} onChange={e => setAdminDocFormType(e.target.value as 'contract' | 'invoice' | 'certificate')} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                          <select id="admin-doc-type" value={adminDocFormType} onChange={e => {
+                            const v = e.target.value as 'contract' | 'invoice' | 'certificate';
+                            setAdminDocFormType(v);
+                            if (v === 'contract') setAdminDocSubType('purchase_agreement');
+                            else if (v === 'certificate') setAdminDocSubType('ownership');
+                          }} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
                             <option value="contract">Vertrag</option>
                             <option value="invoice">Rechnung</option>
                             <option value="certificate">Zertifikat</option>
                           </select>
                         </div>
-                        {adminDocFormType === 'contract' && (
+                        {(adminDocFormType === 'contract' || adminDocFormType === 'certificate') && (
                         <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Vertragsart</label>
-                          <select id="admin-contract-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="purchase_agreement">Kaufvertrag</option>
-                            <option value="deposit_agreement">Anzahlungsvereinbarung</option>
-                            <option value="production_agreement">Produktionsvertrag</option>
-                            <option value="delivery_agreement">Liefervertrag</option>
-                            <option value="supplier_agreement">Lieferantenvertrag</option>
-                            <option value="commission_agreement">Provisionsvertrag</option>
-                            <option value="nda">Vertraulichkeitsvereinbarung (NDA)</option>
-                          </select>
-                        </div>
-                        )}
-                        {adminDocFormType === 'certificate' && (
-                        <div>
-                          <label className="block text-xs text-zinc-500 mb-1">Zertifikatsart</label>
-                          <select id="admin-certificate-type" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                            <option value="ownership">Eigentumszertifikat</option>
-                            <option value="provenance">Provenienz-Zertifikat</option>
-                            <option value="collector">Sammler-Zertifikat</option>
-                            <option value="quality">Qualitätszertifikat</option>
+                          <label className="block text-xs text-zinc-500 mb-1">
+                            {adminDocFormType === 'contract' ? 'Vertragsart' : 'Zertifikatsart'}
+                          </label>
+                          <select
+                            id={adminDocFormType === 'contract' ? 'admin-contract-type' : 'admin-certificate-type'}
+                            value={adminDocSubType}
+                            onChange={e => setAdminDocSubType(e.target.value)}
+                            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm"
+                          >
+                            {adminDocFormType === 'contract' && (
+                              <>
+                                <option value="purchase_agreement">Kaufvertrag</option>
+                                <option value="deposit_agreement">Anzahlungsvereinbarung</option>
+                                <option value="production_agreement">Produktionsvertrag</option>
+                                <option value="delivery_agreement">Liefervertrag</option>
+                                <option value="supplier_agreement">Lieferantenvertrag</option>
+                                <option value="commission_agreement">Provisionsvertrag</option>
+                                <option value="nda">Vertraulichkeitsvereinbarung (NDA)</option>
+                              </>
+                            )}
+                            {adminDocFormType === 'certificate' && (
+                              <>
+                                <option value="ownership">Eigentumszertifikat</option>
+                                <option value="provenance">Provenienz-Zertifikat</option>
+                                <option value="collector">Sammler-Zertifikat</option>
+                                <option value="quality">Qualitätszertifikat</option>
+                              </>
+                            )}
                           </select>
                         </div>
                         )}
@@ -8759,8 +8773,8 @@ export default function App() {
                       </div>
                       <Button variant="primary" onClick={async () => {
                         const docType = adminDocFormType;
-                        const contractType = (document.getElementById('admin-contract-type') as HTMLSelectElement)?.value || 'purchase_agreement';
-                        const certificateType = (document.getElementById('admin-certificate-type') as HTMLSelectElement)?.value || 'ownership';
+                        const contractType = docType === 'contract' ? adminDocSubType : undefined;
+                        const certificateType = docType === 'certificate' ? adminDocSubType : undefined;
                         const clientId = (document.getElementById('admin-doc-client') as HTMLSelectElement)?.value;
                         const projectId = (document.getElementById('admin-doc-project') as HTMLSelectElement)?.value;
                         if (!clientId) { notifyUser('Kunde erforderlich', 'error'); return; }

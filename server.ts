@@ -3191,7 +3191,9 @@ app.post("/api/portfolio/unhide", (req, res) => {
 
 // Admin Dashboard Stats (incl. piece views, popular pieces, contact requests)
 app.get("/api/admin/stats", (req, res) => {
-  const totalRevenue = db.prepare("SELECT SUM(amount) as total FROM payments WHERE status = 'paid'").get().total || 0;
+  const ownershipTotal = (db.prepare("SELECT COALESCE(SUM(price), 0) as total FROM ownership_history").get() as { total: number | null })?.total || 0;
+  const paymentsTotal = (db.prepare("SELECT SUM(amount) as total FROM payments WHERE status = 'paid'").get() as { total: number | null })?.total || 0;
+  const totalRevenue = Number(ownershipTotal) || Number(paymentsTotal);
   const activeUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'approved'").get().count;
   const pendingApprovals = db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'pending'").get().count;
   const pendingPayments = db.prepare("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'").get().count;
