@@ -30,6 +30,23 @@ pm2 restart vault
 
 ---
 
+### Wenn auf dem Server `git pull` mit „vault.db would be overwritten“ abbricht
+
+Die Datenbank `vault.db` liegt nur auf dem Server und soll erhalten bleiben. **Einmalig auf dem Server** ausführen:
+
+```bash
+git stash push vault.db
+git pull
+git stash pop
+npm ci
+npm run build
+pm2 restart vault
+```
+
+Danach funktioniert `git pull` wieder normal (vault.db wird nicht mehr vom Repository überschrieben).
+
+---
+
 ## Schritt für Schritt
 
 ### Auf deinem Windows-PC
@@ -96,6 +113,7 @@ pm2 restart vault
 | **Alte Version wird angezeigt** | Hard Reload im Browser (Strg+Shift+R) oder Inkognito-Fenster. Auf dem Server prüfen: `ls -la /opt/antonio-bellanova-vault/dist` und ob `npm run build` wirklich durchgelaufen ist. |
 | **Build schlägt fehl** | Fehlermeldung lesen. Oft: doppelte Funktionen → `node scripts/remove-duplicate-loadImageAsDataUrl.js` ausführen, dann erneut `npm run build`. |
 | **Git pull schlägt fehl** | Lokal: `git status` und ggf. Änderungen committen/pushen. Auf dem Server: `git status` prüfen, bei Konflikten mit jemandem absprechen oder Konflikt lösen. |
+| **„vault.db would be overwritten by merge“** | Die Datenbank liegt nur auf dem Server und soll nicht überschrieben werden. **Auf dem Server** nacheinander ausführen: `git stash push vault.db` → `git pull` → `git stash pop`. Danach wieder `npm ci`, `npm run build`, `pm2 restart vault`. |
 
 ---
 
