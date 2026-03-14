@@ -6007,31 +6007,48 @@ app.get("/api/masterpieces/:id/resale-history", (req, res) => {
 
 // Resale: start (create agreement + listing; resale only active after signature)
 app.post("/api/resale/start", (req, res) => {
-  const { userId, masterpieceId, askingPrice, saleMethod } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
-  if (!user || !piece || piece.current_owner_id !== userId) return res.status(403).json({ error: "Unauthorized or not owner" });
-  const existing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status IN ('pending_signature','signed','resale_pending','resale_review')").get(masterpieceId);
-  if (existing) return res.status(400).json({ error: "Resale already in progress for this asset" });
+  try {
+    const uid = Number(req.body?.userId);
+    const mid = Number(req.body?.masterpieceId);
+    const askingPrice = req.body?.askingPrice;
+    const saleMethod = req.body?.saleMethod;
+    if (!uid || !mid || isNaN(uid) || isNaN(mid)) return res.status(400).json({ error: "userId und masterpieceId erforderlich." });
+    if (askingPrice == null || (typeof askingPrice !== 'number' && isNaN(parseFloat(askingPrice)))) return res.status(400).json({ error: "Bitte einen gültigen Verkaufspreis angeben." });
+    const priceNum = Number(askingPrice);
+    if (priceNum <= 0) return res.status(400).json({ error: "Der Verkaufspreis muss größer als 0 sein." });
 
-  const commissionPct = getResaleCommissionPct(user);
-  const docRef = nextContractRef('resale_commission');
-  const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
+    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(uid) as any;
+    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(mid) as any;
+    if (!user) return res.status(401).json({ error: "Bitte erneut anmelden." });
+    if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+    const ownerId = piece.current_owner_id == null ? null : Number(piece.current_owner_id);
+    if (ownerId !== uid) return res.status(403).json({ error: "Nur der Eigentümer kann dieses Stück zum Wiederverkauf anbieten." });
 
-  const contractResult = db.prepare(`
-    INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
-    VALUES (?, ?, 'resale_commission', ?, ?, 'draft')
-  `).run(userId, masterpieceId, docRef, agreementHtml);
-  const contractId = contractResult.lastInsertRowid as number;
+    const existing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status IN ('pending_signature','signed','resale_pending','resale_review')").get(mid);
+    if (existing) return res.status(400).json({ error: "Für dieses Stück läuft bereits ein Wiederverkauf." });
 
-  const listingResult = db.prepare(`
-    INSERT INTO resale_listings (masterpiece_id, seller_id, asking_price, commission_pct, sale_method, contract_id, status, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'pending_signature', CURRENT_TIMESTAMP)
-  `).run(masterpieceId, userId, Number(askingPrice), commissionPct, saleMethod || 'marketplace', contractId);
-  const resaleListingId = listingResult.lastInsertRowid as number;
+    const commissionPct = getResaleCommissionPct(user);
+    const docRef = nextContractRef('resale_commission');
+    const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
 
-  resaleAudit(resaleListingId, 'resale_started', undefined, `Asking ${askingPrice} ${saleMethod || 'marketplace'}; commission ${commissionPct}%.`);
-  res.json({ success: true, contractId, resaleListingId, contract: { id: contractId, doc_ref: docRef, content: agreementHtml, type: 'resale_commission' } });
+    const contractResult = db.prepare(`
+      INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
+      VALUES (?, ?, 'resale_commission', ?, ?, 'draft')
+    `).run(uid, mid, docRef, agreementHtml);
+    const contractId = contractResult.lastInsertRowid as number;
+
+    const listingResult = db.prepare(`
+      INSERT INTO resale_listings (masterpiece_id, seller_id, asking_price, commission_pct, sale_method, contract_id, status, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'pending_signature', CURRENT_TIMESTAMP)
+    `).run(mid, uid, priceNum, commissionPct, saleMethod || 'marketplace', contractId);
+    const resaleListingId = listingResult.lastInsertRowid as number;
+
+    resaleAudit(resaleListingId, 'resale_started', undefined, `Asking ${priceNum} ${saleMethod || 'marketplace'}; commission ${commissionPct}%.`);
+    res.json({ success: true, contractId, resaleListingId, contract: { id: contractId, doc_ref: docRef, content: agreementHtml, type: 'resale_commission' } });
+  } catch (e: any) {
+    console.error('/api/resale/start error:', e);
+    res.status(500).json({ error: e?.message || "Wiederverkauf konnte nicht gestartet werden." });
+  }
 });
 
 app.get("/api/resale/listings", (req, res) => {
