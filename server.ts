@@ -6913,8 +6913,8 @@ app.get("/api/collector/prestige-score", (req, res) => {
   res.json({ prestige_score: Math.max(0, prestige_score), user_id: userId });
 });
 
-// Section 17: Collector leaderboard
-app.get("/api/collector/leaderboard", (req, res) => {
+// Section 17: Collector leaderboard — admin only (privacy: never visible to clients)
+app.get("/api/collector/leaderboard", requireAuth, requireAdmin, (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 100);
   const clients = db.prepare("SELECT id, name, email, collector_level FROM users WHERE role != 'admin' AND role != 'super_admin'").all() as any[];
   const rows = clients.map((u: any) => {

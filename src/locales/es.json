@@ -26,5 +26,21 @@
   "view.vault": "Bóveda",
   "view.admin": "Gestión",
   "view.portfolio": "Cartera",
-  "sign_out": "Cerrar sesión"
+  "sign_out": "Cerrar sesión",
+  "marketplace.subtitle": "Piezas exquisitas disponibles para adquisición inmediata.",
+  "marketplace.filter_placeholder": "Buscar (título, serie, categoría)",
+  "marketplace.no_pieces": "No hay obras maestras disponibles actualmente en el mercado.",
+  "marketplace.pdf_modal_title": "Mercado en PDF",
+  "search.placeholder": "Buscar piezas…",
+  "filter.rarity_all": "Toda rareza",
+  "filter.rarity_unique": "Único",
+  "filter.rarity_limited": "Limitado",
+  "filter.rarity_rare": "Raro",
+  "filter.all_pieces": "Todas las piezas",
+  "filter.sort_newest": "Más recientes",
+  "filter.favorites_only": "Solo favoritos",
+  "filter.recent_only": "Solo vistos recientemente",
+  "trust.secured_by": "Protegido por Antonio Bellanova",
+  "trust.ssl_encrypted": "Cifrado SSL",
+  "trust.dsgvo_compliant": "Conforme RGPD"
 }

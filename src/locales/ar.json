@@ -26,5 +26,21 @@
   "view.vault": "الخزينة",
   "view.admin": "الإدارة",
   "view.portfolio": "المحفظة",
-  "sign_out": "تسجيل الخروج"
+  "sign_out": "تسجيل الخروج",
+  "marketplace.subtitle": "قطع فاخرة متاحة للاقتناء الفوري.",
+  "marketplace.filter_placeholder": "بحث (عنوان، مسلسل، فئة)",
+  "marketplace.no_pieces": "لا توجد تحف متاحة حالياً في السوق.",
+  "marketplace.pdf_modal_title": "السوق كـ PDF",
+  "search.placeholder": "البحث عن قطع…",
+  "filter.rarity_all": "كل الندرة",
+  "filter.rarity_unique": "فريد",
+  "filter.rarity_limited": "محدود",
+  "filter.rarity_rare": "نادر",
+  "filter.all_pieces": "كل القطع",
+  "filter.sort_newest": "الأحدث",
+  "filter.favorites_only": "المفضلة فقط",
+  "filter.recent_only": "المشاهدة مؤخراً فقط",
+  "trust.secured_by": "مؤمن من أنطونيو بيلانوفا",
+  "trust.ssl_encrypted": "تشفير SSL",
+  "trust.dsgvo_compliant": "متوافق مع اللائحة العامة"
 }

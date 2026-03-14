@@ -26,5 +26,21 @@
   "view.vault": "Cofre",
   "view.admin": "Gestão",
   "view.portfolio": "Portfólio",
-  "sign_out": "Sair"
+  "sign_out": "Sair",
+  "marketplace.subtitle": "Peças requintadas disponíveis para aquisição imediata.",
+  "marketplace.filter_placeholder": "Pesquisar (título, série, categoria)",
+  "marketplace.no_pieces": "Nenhuma obra disponível atualmente no mercado.",
+  "marketplace.pdf_modal_title": "Mercado em PDF",
+  "search.placeholder": "Pesquisar peças…",
+  "filter.rarity_all": "Toda raridade",
+  "filter.rarity_unique": "Único",
+  "filter.rarity_limited": "Limitado",
+  "filter.rarity_rare": "Raro",
+  "filter.all_pieces": "Todas as peças",
+  "filter.sort_newest": "Mais recentes",
+  "filter.favorites_only": "Só favoritos",
+  "filter.recent_only": "Só vistos recentemente",
+  "trust.secured_by": "Protegido por Antonio Bellanova",
+  "trust.ssl_encrypted": "Encriptação SSL",
+  "trust.dsgvo_compliant": "Conformidade RGPD"
 }

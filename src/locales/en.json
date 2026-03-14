@@ -26,5 +26,21 @@
   "view.vault": "Vault",
   "view.admin": "Management",
   "view.portfolio": "Portfolio",
-  "sign_out": "Sign out"
+  "sign_out": "Sign out",
+  "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
+  "marketplace.filter_placeholder": "Search (title, serial, category)",
+  "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
+  "marketplace.pdf_modal_title": "Marketplace as PDF",
+  "search.placeholder": "Search pieces…",
+  "filter.rarity_all": "All rarity",
+  "filter.rarity_unique": "Unique",
+  "filter.rarity_limited": "Limited",
+  "filter.rarity_rare": "Rare",
+  "filter.all_pieces": "All pieces",
+  "filter.sort_newest": "Newest",
+  "filter.favorites_only": "Favorites only",
+  "filter.recent_only": "Recently viewed only",
+  "trust.secured_by": "Secured by Antonio Bellanova",
+  "trust.ssl_encrypted": "SSL Encrypted",
+  "trust.dsgvo_compliant": "GDPR Compliant"
 }

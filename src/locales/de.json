@@ -26,5 +26,21 @@
   "view.vault": "Tresor",
   "view.admin": "Verwaltung",
   "view.portfolio": "Portfolio",
-  "sign_out": "Abmelden"
+  "sign_out": "Abmelden",
+  "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
+  "marketplace.filter_placeholder": "Suche (Titel, Serial, Kategorie)",
+  "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
+  "marketplace.pdf_modal_title": "Marktplatz als PDF",
+  "search.placeholder": "Stück suchen…",
+  "filter.rarity_all": "Alle Seltenheit",
+  "filter.rarity_unique": "Unikat",
+  "filter.rarity_limited": "Limitiert",
+  "filter.rarity_rare": "Selten",
+  "filter.all_pieces": "Alle Stücke",
+  "filter.sort_newest": "Neueste",
+  "filter.favorites_only": "Nur Favoriten",
+  "filter.recent_only": "Nur zuletzt angesehen",
+  "trust.secured_by": "Gesichert durch Antonio Bellanova",
+  "trust.ssl_encrypted": "SSL verschlüsselt",
+  "trust.dsgvo_compliant": "DSGVO-konform"
 }

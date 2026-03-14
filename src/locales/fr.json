@@ -26,5 +26,21 @@
   "view.vault": "Coffre",
   "view.admin": "Gestion",
   "view.portfolio": "Portefeuille",
-  "sign_out": "Déconnexion"
+  "sign_out": "Déconnexion",
+  "marketplace.subtitle": "Pièces exquises disponibles pour acquisition immédiate.",
+  "marketplace.filter_placeholder": "Rechercher (titre, n° série, catégorie)",
+  "marketplace.no_pieces": "Aucun chef-d'œuvre actuellement disponible sur le marché.",
+  "marketplace.pdf_modal_title": "Marché en PDF",
+  "search.placeholder": "Rechercher des pièces…",
+  "filter.rarity_all": "Toutes raretés",
+  "filter.rarity_unique": "Unique",
+  "filter.rarity_limited": "Limité",
+  "filter.rarity_rare": "Rare",
+  "filter.all_pieces": "Toutes les pièces",
+  "filter.sort_newest": "Plus récents",
+  "filter.favorites_only": "Favoris uniquement",
+  "filter.recent_only": "Vus récemment uniquement",
+  "trust.secured_by": "Sécurisé par Antonio Bellanova",
+  "trust.ssl_encrypted": "Chiffrement SSL",
+  "trust.dsgvo_compliant": "Conforme RGPD"
 }

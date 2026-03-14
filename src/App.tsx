@@ -889,6 +889,10 @@ const TRANSLATIONS: any = {
     "notifications.email_auctions": "Auktionen & Gebote",
     "notifications.close": "Schließen",
     "notifications.change_password": "Passwort ändern",
+    "filter.rarity_all": "Alle Seltenheit",
+    "filter.rarity_unique": "Unikat",
+    "filter.rarity_limited": "Limitiert",
+    "filter.rarity_rare": "Selten",
     "filter.favorites_only": "Nur Favoriten",
     "filter.recent_only": "Nur zuletzt angesehen",
     "filter.all_pieces": "Alle Stücke",
@@ -1601,6 +1605,10 @@ const TRANSLATIONS: any = {
     "notifications.email_auctions": "Auctions & Bids",
     "notifications.close": "Close",
     "notifications.change_password": "Change password",
+    "filter.rarity_all": "All rarity",
+    "filter.rarity_unique": "Unique",
+    "filter.rarity_limited": "Limited",
+    "filter.rarity_rare": "Rare",
     "filter.favorites_only": "Favorites only",
     "filter.recent_only": "Recently viewed only",
     "filter.all_pieces": "All pieces",
@@ -2240,6 +2248,10 @@ const TRANSLATIONS: any = {
     "notifications.email_auctions": "Aste e offerte",
     "notifications.close": "Chiudi",
     "notifications.change_password": "Cambia password",
+    "filter.rarity_all": "Tutta la rarità",
+    "filter.rarity_unique": "Unico",
+    "filter.rarity_limited": "Limitato",
+    "filter.rarity_rare": "Raro",
     "filter.favorites_only": "Solo preferiti",
     "filter.recent_only": "Solo visti di recente",
     "filter.all_pieces": "Tutti i pezzi",
@@ -2283,11 +2295,11 @@ const TRANSLATIONS: any = {
   const fill = (lang: 'fr' | 'ar' | 'zh' | 'es' | 'pt', overrides: Record<string, string>) => {
     TRANSLATIONS[lang] = { ...en, ...overrides };
   };
-  fill('fr', { dashboard: "Tableau de bord", marketplace: "Marché", auctions: "Enchères", vault: "Coffre", management: "Gestion", welcome: "Bienvenue à l'Atelier", login: "Connexion", register: "S'inscrire", "auth.sign_in": "Connexion", "auth.create_account": "Créer un compte", "view.portfolio": "Portefeuille", "view.admin": "Gestion", "investor.title": "Investisseur", "cert.title": "Certificat d'authenticité", "ceremony.enter_vault": "Entrer dans le coffre", "ceremony.view_certificate": "Voir le certificat", sign_out: "Déconnexion", "auth.processing": "Traitement…", "admin.approve": "Approuver", "admin.reject": "Refuser" });
-  fill('ar', { dashboard: "لوحة التحكم", marketplace: "السوق", auctions: "المزادات", vault: "الخزينة", login: "تسجيل الدخول", register: "التسجيل", "auth.sign_in": "تسجيل الدخول", "auth.create_account": "إنشاء حساب", "cert.title": "شهادة الأصالة", "view.portfolio": "المحفظة", "view.admin": "الإدارة", "investor.title": "مستثمر", "ceremony.enter_vault": "الدخول إلى الخزينة", "ceremony.view_certificate": "عرض شهادة الأصالة", sign_out: "تسجيل الخروج", "auth.processing": "جاري المعالجة…", "admin.approve": "موافقة", "admin.reject": "رفض" });
+  fill('fr', { dashboard: "Tableau de bord", marketplace: "Marché", auctions: "Enchères", vault: "Coffre", management: "Gestion", welcome: "Bienvenue à l'Atelier", login: "Connexion", register: "S'inscrire", "auth.sign_in": "Connexion", "auth.create_account": "Créer un compte", "view.portfolio": "Portefeuille", "view.admin": "Gestion", "view.marketplace": "Marché", "investor.title": "Investisseur", "cert.title": "Certificat d'authenticité", "ceremony.enter_vault": "Entrer dans le coffre", "ceremony.view_certificate": "Voir le certificat", sign_out: "Déconnexion", "auth.processing": "Traitement…", "admin.approve": "Approuver", "admin.reject": "Refuser", "marketplace.subtitle": "Pièces exquises disponibles pour acquisition immédiate.", "marketplace.filter_placeholder": "Rechercher (titre, n° série, catégorie)", "marketplace.no_pieces": "Aucun chef-d'œuvre actuellement disponible sur le marché.", "marketplace.pdf_modal_title": "Marché en PDF", "marketplace.pdf_choose_lang": "Choisir la langue du téléchargement", "marketplace.pdf_download_btn": "Télécharger le PDF", "search.placeholder": "Rechercher des pièces…", "filter.rarity_all": "Toutes raretés", "filter.rarity_unique": "Unique", "filter.rarity_limited": "Limité", "filter.rarity_rare": "Rare", "filter.all_pieces": "Toutes les pièces", "filter.sort_newest": "Plus récents", "filter.sort_price_asc": "Prix croissant", "filter.sort_price_desc": "Prix décroissant", "filter.sort_title": "Titre A–Z", "filter.favorites_only": "Favoris uniquement", "filter.recent_only": "Vus récemment uniquement", "trust.secured_by": "Sécurisé par Antonio Bellanova", "trust.ssl_encrypted": "Chiffrement SSL", "trust.dsgvo_compliant": "Conforme RGPD", "compliance.footer": "Droit applicable : Allemagne. Juridiction : Cologne. Conforme RGPD.", "legal.imprint": "Mentions légales", "legal.privacy": "Confidentialité", "legal.terms": "CGV", "legal.contact": "Contact", "legal.directions": "Itinéraire" });
+  fill('ar', { dashboard: "لوحة التحكم", marketplace: "السوق", auctions: "المزادات", vault: "الخزينة", login: "تسجيل الدخول", register: "التسجيل", "auth.sign_in": "تسجيل الدخول", "auth.create_account": "إنشاء حساب", "cert.title": "شهادة الأصالة", "view.portfolio": "المحفظة", "view.admin": "الإدارة", "view.marketplace": "السوق", "investor.title": "مستثمر", "ceremony.enter_vault": "الدخول إلى الخزينة", "ceremony.view_certificate": "عرض شهادة الأصالة", sign_out: "تسجيل الخروج", "auth.processing": "جاري المعالجة…", "admin.approve": "موافقة", "admin.reject": "رفض", "marketplace.subtitle": "قطع فاخرة متاحة للاقتناء الفوري.", "marketplace.filter_placeholder": "بحث (عنوان، مسلسل، فئة)", "marketplace.no_pieces": "لا توجد تحف متاحة حالياً في السوق.", "marketplace.pdf_modal_title": "السوق كـ PDF", "marketplace.pdf_choose_lang": "اختر لغة التحميل", "marketplace.pdf_download_btn": "تحميل PDF", "search.placeholder": "البحث عن قطع…", "filter.rarity_all": "كل الندرة", "filter.rarity_unique": "فريد", "filter.rarity_limited": "محدود", "filter.rarity_rare": "نادر", "filter.all_pieces": "كل القطع", "filter.sort_newest": "الأحدث", "filter.sort_price_asc": "السعر تصاعدياً", "filter.sort_price_desc": "السعر تنازلياً", "filter.sort_title": "العنوان أ–ي", "filter.favorites_only": "المفضلة فقط", "filter.recent_only": "المشاهدة مؤخراً فقط", "trust.secured_by": "مؤمن من أنطونيو بيلانوفا", "trust.ssl_encrypted": "تشفير SSL", "trust.dsgvo_compliant": "متوافق مع اللائحة العامة", "compliance.footer": "القانون الحاكم: ألمانيا. الاختصاص: كولونيا. متوافق مع اللائحة.", "legal.imprint": "الطبعة", "legal.privacy": "الخصوصية", "legal.terms": "الشروط", "legal.contact": "اتصل", "legal.directions": "الاتجاهات" });
   fill('zh', { dashboard: "仪表板", marketplace: "市场", auctions: "拍卖", vault: "金库", login: "登录", register: "注册", "auth.sign_in": "登录", "auth.create_account": "创建账户", "cert.title": "真品证书", "view.portfolio": "投资组合", "view.admin": "管理", "investor.title": "投资者", "ceremony.enter_vault": "进入金库", "ceremony.view_certificate": "查看真品证书", sign_out: "退出", "auth.processing": "处理中…", "admin.approve": "批准", "admin.reject": "拒绝" });
-  fill('es', { dashboard: "Panel", marketplace: "Mercado", auctions: "Subastas", vault: "Bóveda", login: "Iniciar sesión", register: "Registrarse", "auth.sign_in": "Iniciar sesión", "auth.create_account": "Crear cuenta", "cert.title": "Certificado de autenticidad", "view.portfolio": "Cartera", "view.admin": "Gestión", "investor.title": "Inversor", "ceremony.enter_vault": "Entrar en la bóveda", "ceremony.view_certificate": "Ver certificado", sign_out: "Cerrar sesión", "auth.processing": "Procesando…", "admin.approve": "Aprobar", "admin.reject": "Rechazar" });
-  fill('pt', { dashboard: "Painel", marketplace: "Mercado", auctions: "Leilões", vault: "Cofre", management: "Gestão", welcome: "Bem-vindo ao Atelier", login: "Entrar", register: "Registar", "auth.sign_in": "Entrar", "auth.create_account": "Criar conta", "view.portfolio": "Portfólio", "view.admin": "Gestão", "investor.title": "Investidor", "cert.title": "Certificado de autenticidade", "ceremony.enter_vault": "Entrar no cofre", "ceremony.view_certificate": "Ver certificado", sign_out: "Sair", "auth.processing": "A processar…", "admin.approve": "Aprovar", "admin.reject": "Rejeitar", "private_clients.my_rooms": "Os meus quartos", "private_clients.messages": "Mensagens", "private_clients.my_documents": "Os meus documentos", "private_clients.my_projects": "Os meus projetos", "private_clients.production": "Produção", "private_clients.shared_stones": "Pedras atribuídas", "private_clients.no_rooms": "Nenhuma sala.", "private_clients.no_stones": "Nenhuma pedra atribuída.", settings: "Definições", documents: "Documentos", projects: "Projetos", contracts: "Contratos", certificates: "Certificados", messages: "Mensagens", logout: "Sair" });
+  fill('es', { dashboard: "Panel", marketplace: "Mercado", auctions: "Subastas", vault: "Bóveda", login: "Iniciar sesión", register: "Registrarse", "auth.sign_in": "Iniciar sesión", "auth.create_account": "Crear cuenta", "cert.title": "Certificado de autenticidad", "view.portfolio": "Cartera", "view.admin": "Gestión", "view.marketplace": "Mercado", "investor.title": "Inversor", "ceremony.enter_vault": "Entrar en la bóveda", "ceremony.view_certificate": "Ver certificado", sign_out: "Cerrar sesión", "auth.processing": "Procesando…", "admin.approve": "Aprobar", "admin.reject": "Rechazar", "marketplace.subtitle": "Piezas exquisitas disponibles para adquisición inmediata.", "marketplace.filter_placeholder": "Buscar (título, serie, categoría)", "marketplace.no_pieces": "No hay obras maestras disponibles actualmente en el mercado.", "marketplace.pdf_modal_title": "Mercado en PDF", "marketplace.pdf_choose_lang": "Elegir idioma de descarga", "marketplace.pdf_download_btn": "Descargar PDF", "search.placeholder": "Buscar piezas…", "filter.rarity_all": "Toda rareza", "filter.rarity_unique": "Único", "filter.rarity_limited": "Limitado", "filter.rarity_rare": "Raro", "filter.all_pieces": "Todas las piezas", "filter.sort_newest": "Más recientes", "filter.sort_price_asc": "Precio ascendente", "filter.sort_price_desc": "Precio descendente", "filter.sort_title": "Título A–Z", "filter.favorites_only": "Solo favoritos", "filter.recent_only": "Solo vistos recientemente", "trust.secured_by": "Protegido por Antonio Bellanova", "trust.ssl_encrypted": "Cifrado SSL", "trust.dsgvo_compliant": "Conforme RGPD", "compliance.footer": "Ley aplicable: Alemania. Jurisdicción: Colonia. Conforme RGPD.", "legal.imprint": "Aviso legal", "legal.privacy": "Privacidad", "legal.terms": "Términos y condiciones", "legal.contact": "Contacto", "legal.directions": "Cómo llegar" });
+  fill('pt', { dashboard: "Painel", marketplace: "Mercado", auctions: "Leilões", vault: "Cofre", management: "Gestão", welcome: "Bem-vindo ao Atelier", login: "Entrar", register: "Registar", "auth.sign_in": "Entrar", "auth.create_account": "Criar conta", "view.portfolio": "Portfólio", "view.admin": "Gestão", "view.marketplace": "Mercado", "investor.title": "Investidor", "cert.title": "Certificado de autenticidade", "ceremony.enter_vault": "Entrar no cofre", "ceremony.view_certificate": "Ver certificado", sign_out: "Sair", "auth.processing": "A processar…", "admin.approve": "Aprovar", "admin.reject": "Rejeitar", "private_clients.my_rooms": "Os meus quartos", "private_clients.messages": "Mensagens", "private_clients.my_documents": "Os meus documentos", "private_clients.my_projects": "Os meus projetos", "private_clients.production": "Produção", "private_clients.shared_stones": "Pedras atribuídas", "private_clients.no_rooms": "Nenhuma sala.", "private_clients.no_stones": "Nenhuma pedra atribuída.", settings: "Definições", documents: "Documentos", projects: "Projetos", contracts: "Contratos", certificates: "Certificados", messages: "Mensagens", logout: "Sair", "marketplace.subtitle": "Peças requintadas disponíveis para aquisição imediata.", "marketplace.filter_placeholder": "Pesquisar (título, série, categoria)", "marketplace.no_pieces": "Nenhuma obra disponível atualmente no mercado.", "marketplace.pdf_modal_title": "Mercado em PDF", "marketplace.pdf_choose_lang": "Escolher idioma do download", "marketplace.pdf_download_btn": "Transferir PDF", "search.placeholder": "Pesquisar peças…", "filter.rarity_all": "Toda raridade", "filter.rarity_unique": "Único", "filter.rarity_limited": "Limitado", "filter.rarity_rare": "Raro", "filter.all_pieces": "Todas as peças", "filter.sort_newest": "Mais recentes", "filter.sort_price_asc": "Preço ascendente", "filter.sort_price_desc": "Preço descendente", "filter.sort_title": "Título A–Z", "filter.favorites_only": "Só favoritos", "filter.recent_only": "Só vistos recentemente", "trust.secured_by": "Protegido por Antonio Bellanova", "trust.ssl_encrypted": "Encriptação SSL", "trust.dsgvo_compliant": "Conformidade RGPD", "compliance.footer": "Lei aplicável: Alemanha. Jurisdição: Colónia. Conformidade RGPD.", "legal.imprint": "Impresso", "legal.privacy": "Privacidade", "legal.terms": "Termos e condições", "legal.contact": "Contacto", "legal.directions": "Como chegar" });
   const localeFiles: Record<string, Record<string, string>> = { de: deLocale as Record<string, string>, en: enLocale as Record<string, string>, it: itLocale as Record<string, string>, fr: frLocale as Record<string, string>, es: esLocale as Record<string, string>, pt: ptLocale as Record<string, string>, ar: arLocale as Record<string, string> };
   Object.keys(localeFiles).forEach(lang => {
     if (TRANSLATIONS[lang]) TRANSLATIONS[lang] = { ...TRANSLATIONS[lang], ...localeFiles[lang] };
@@ -3836,8 +3848,12 @@ export default function App() {
     }
     if (view === 'dashboard' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
       fetch('/api/collector/prestige-score', { credentials: 'include' }).then(r => r.ok ? r.json() : {}).then((d: any) => setPrestigeScore(d.prestige_score ?? null));
-      fetch('/api/collector/leaderboard?limit=10', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
       fetch(`/api/notifications/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setDashboardActivity);
+    }
+    if (view === 'dashboard' && user?.id && (user.role === 'admin' || user.role === 'super_admin')) {
+      fetch('/api/collector/leaderboard?limit=50', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
+    } else if (user?.role !== 'admin' && user?.role !== 'super_admin') {
+      setCollectorLeaderboard([]);
     }
   }, [view, user?.id, user?.role]);
 
@@ -5928,21 +5944,47 @@ export default function App() {
                   </Card>
                 )}
 
-                {/* Section 17: Collector Ranking — Top collectors by prestige & collection value */}
-                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && collectorLeaderboard.length > 0 && (
+                {/* Section 17: Collector Ranking — Admin only: top by collection value, prestige, purchases */}
+                {(user.role === UserRole.ADMIN || user.role === 'super_admin') && (
                   <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
                     <h4 className="text-lg font-serif italic">{t('dashboard.collector_ranking') || 'Collector Ranking'}</h4>
                     <p className="text-xs text-zinc-500">{t('dashboard.collector_ranking_hint') || 'Top collectors by collection value and prestige.'}</p>
-                    <ul className="space-y-2">
-                      {collectorLeaderboard.slice(0, 5).map((row: any, i: number) => (
-                        <li key={row.user_id} className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0">
-                          <span className="text-zinc-400 font-mono w-6">#{i + 1}</span>
-                          <span className="text-zinc-200 truncate flex-1 mx-2">{row.name || '—'}</span>
-                          <span className="text-amber-500/90 text-xs">{Number(row.collection_value || 0).toLocaleString('de-DE')} €</span>
-                          <span className="text-[10px] text-zinc-500 ml-2">Prestige {row.prestige_score}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    {collectorLeaderboard.length === 0 ? (
+                      <p className="text-zinc-500 text-sm italic">{t('dashboard.collector_ranking_empty') || 'No collector data yet.'}</p>
+                    ) : (
+                      <>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('dashboard.collector_ranking_by_value') || 'By collection value'}</p>
+                        <ul className="space-y-2">
+                          {[...collectorLeaderboard].sort((a: any, b: any) => (b.collection_value || 0) - (a.collection_value || 0)).slice(0, 10).map((row: any, i: number) => (
+                            <li key={`value-${row.user_id}`} className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0">
+                              <span className="text-zinc-400 font-mono w-6">#{i + 1}</span>
+                              <span className="text-zinc-200 truncate flex-1 mx-2">{row.name || '—'}</span>
+                              <span className="text-amber-500/90 text-xs">{Number(row.collection_value || 0).toLocaleString('de-DE')} €</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 pt-2">{t('dashboard.collector_ranking_by_prestige') || 'By prestige score'}</p>
+                        <ul className="space-y-2">
+                          {[...collectorLeaderboard].sort((a: any, b: any) => (b.prestige_score || 0) - (a.prestige_score || 0)).slice(0, 10).map((row: any, i: number) => (
+                            <li key={`prestige-${row.user_id}`} className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0">
+                              <span className="text-zinc-400 font-mono w-6">#{i + 1}</span>
+                              <span className="text-zinc-200 truncate flex-1 mx-2">{row.name || '—'}</span>
+                              <span className="text-[10px] text-zinc-500 ml-2">Prestige {row.prestige_score ?? '—'}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 pt-2">{t('dashboard.collector_ranking_by_purchases') || 'By total purchases'}</p>
+                        <ul className="space-y-2">
+                          {[...collectorLeaderboard].sort((a: any, b: any) => (b.purchase_count || 0) - (a.purchase_count || 0)).slice(0, 10).map((row: any, i: number) => (
+                            <li key={`purchases-${row.user_id}`} className="flex items-center justify-between py-2 border-b border-zinc-800/50 last:border-0">
+                              <span className="text-zinc-400 font-mono w-6">#{i + 1}</span>
+                              <span className="text-zinc-200 truncate flex-1 mx-2">{row.name || '—'}</span>
+                              <span className="text-zinc-500 text-xs">{row.purchase_count ?? 0}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
                   </Card>
                 )}
 

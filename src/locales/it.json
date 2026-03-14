@@ -26,5 +26,21 @@
   "view.vault": "Caveau",
   "view.admin": "Gestione",
   "view.portfolio": "Portafoglio",
-  "sign_out": "Esci"
+  "sign_out": "Esci",
+  "marketplace.subtitle": "Opere pregiate disponibili per acquisizione immediata.",
+  "marketplace.filter_placeholder": "Cerca (titolo, seriale, categoria)",
+  "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
+  "marketplace.pdf_modal_title": "Mercato in PDF",
+  "search.placeholder": "Cerca opere…",
+  "filter.rarity_all": "Tutta la rarità",
+  "filter.rarity_unique": "Unico",
+  "filter.rarity_limited": "Limitato",
+  "filter.rarity_rare": "Raro",
+  "filter.all_pieces": "Tutti i pezzi",
+  "filter.sort_newest": "Più recenti",
+  "filter.favorites_only": "Solo preferiti",
+  "filter.recent_only": "Solo visti di recente",
+  "trust.secured_by": "Sicuro con Antonio Bellanova",
+  "trust.ssl_encrypted": "Crittografia SSL",
+  "trust.dsgvo_compliant": "Conforme GDPR"
 }
