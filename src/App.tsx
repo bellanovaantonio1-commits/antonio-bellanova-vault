@@ -5543,13 +5543,17 @@ export default function App() {
                   <button type="button" onClick={() => setView('forgot-password')} className="text-sm text-amber-500 hover:text-amber-400">{t('auth.forgot_password_link')}</button>
                 </p>
               )}
-              <p className="text-center text-xs text-zinc-500 uppercase tracking-widest mt-4 mb-2">{t('auth.or')}</p>
-              <Button type="button" variant="outline" disabled={loading} className="w-full border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500" onClick={handleGuestLogin}>
-                {t('auth.continue_as_guest')}
-              </Button>
             </form>
             )}
           </Card>
+          {view !== 'forgot-password' && view !== 'reset-password' && (
+            <div className="mt-6 w-full max-w-md mx-auto">
+              <p className="text-center text-xs text-zinc-500 uppercase tracking-widest mb-3">{t('auth.or')}</p>
+              <Button type="button" variant="outline" disabled={loading} className="w-full border-2 border-amber-500/50 text-amber-200 hover:bg-amber-500/15 hover:border-amber-500/70 py-3.5 text-sm font-medium" onClick={handleGuestLogin}>
+                {t('auth.continue_as_guest')}
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
             <span className="flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5 text-amber-500/70" /> {t('legal.ssl')}</span>
             <span>{t('trust.dsgvo_compliant')}</span>
