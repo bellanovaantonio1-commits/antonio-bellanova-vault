@@ -281,6 +281,15 @@ const TRANSLATIONS: any = {
     "asset.storage_location": "Lagerort",
     "asset.ownership_structure": "Eigentümerstruktur",
     "asset.total_value": "Gesamtwert",
+    "asset.fractional_portfolio": "Anteilsbesitz",
+    "asset.fractional_portfolio_desc": "Ihre Beteiligungen und geschätzter Wert.",
+    "asset.ownership": "Anteil",
+    "asset.total_estimated_value": "Gesamtwert (geschätzt)",
+    "asset.requires_investor_approval": "Investoren-Freigabe erforderlich",
+    "asset.approve_investors": "Investoren freigeben",
+    "asset.record_sale": "Verkauf erfassen",
+    "asset.request_approval": "Zugang anfragen",
+    "asset.approval_requested": "Anfrage gesendet.",
     "asset.share_price": "Preis pro Anteil",
     "asset.shares_sold": "Verkaufte Anteile",
     "asset.shares_remaining": "Verfügbare Anteile",
@@ -425,6 +434,44 @@ const TRANSLATIONS: any = {
     "admin.piece_label": "Stück",
     "admin.signed_at": "Unterzeichnet am",
     "admin.no_signed_contracts": "Noch keine unterzeichneten Verträge.",
+    "admin.collector_intelligence": "Collector Intelligence",
+    "admin.collector_intelligence_hint": "Kunden-Insights, High-Value-Indikatoren.",
+    "admin.client": "Kunde",
+    "admin.collection_value": "Sammlungswert",
+    "admin.purchases": "Käufe",
+    "admin.status": "Status",
+    "admin.actions": "Aktionen",
+    "admin.high_value": "High Value",
+    "admin.suggest_offers": "Angebote vorschlagen",
+    "admin.suggested_offers": "Vorgeschlagene Angebote",
+    "admin.loading_or_none": "Laden…",
+    "admin.send_offer": "Angebot senden",
+    "admin.payments_overview": "Zahlungsübersicht",
+    "admin.payments_overdue": "Überfällig",
+    "admin.prospects": "Prospects",
+    "admin.prospects_overview": "Private Client Discovery",
+    "admin.total_prospects": "Prospects gesamt",
+    "admin.converted_clients": "Umgewandelte Kunden",
+    "admin.top_lead_sources": "Top Quellen",
+    "admin.high_value_prospects": "High-Value-Prospects",
+    "admin.add_prospect": "Prospect anlegen",
+    "admin.prospect_name": "Name",
+    "admin.prospect_email": "E-Mail",
+    "admin.prospect_city": "Stadt",
+    "admin.prospect_country": "Land",
+    "admin.prospect_phone": "Telefon",
+    "admin.prospect_source": "Quelle",
+    "admin.prospect_net_worth": "Vermögen",
+    "admin.prospect_interest": "Interesse",
+    "admin.prospect_notes": "Notizen",
+    "admin.prospect_added": "Prospect angelegt.",
+    "admin.convert_to_client": "Zum Kunden machen",
+    "admin.converted": "Umgewandelt",
+    "admin.converted_vault": "Kunde angelegt. Vault-ID: ",
+    "admin.no_prospects": "Noch keine Prospects.",
+    "admin.total_purchases": "Käufe",
+    "admin.favorite_gemstone": "Lieblingsedelstein",
+    "admin.vip_level": "VIP-Stufe",
     "admin.tab_overview": "Übersicht",
     "admin.tab_inventory": "Inventar",
     "admin.tab_users": "Nutzer",
@@ -804,6 +851,17 @@ const TRANSLATIONS: any = {
     "activity.new_deal_room": "Neuer Deal-Raum verfügbar",
     "activity.new_collector_room": "Neuer Collector Room zugewiesen",
     "activity.new_message": "Neue Nachricht erhalten",
+    "deal.payment_progress": "Zahlungsfortschritt",
+    "deal.total": "Gesamt",
+    "deal.paid": "Bezahlt",
+    "deal.remaining": "Rest",
+    "deal.status": "Status",
+    "deal.contract": "Vertrag",
+    "deal.contracts": "Vertrag/Verträge",
+    "deal.documents": "Dokumente",
+    "deal.document_s": "Dokument(e)",
+    "deal.chat": "Chat",
+    "deal.production_updates": "Produktionsupdates",
     "activity.view_message": "Nachricht ansehen",
     "activity.new_offer": "Neues Angebot verfügbar",
     "activity.review_offer": "Angebot prüfen",
@@ -1030,6 +1088,15 @@ const TRANSLATIONS: any = {
     "asset.status_production": "Production",
     "asset.status_vault": "Vault",
     "asset.total_value": "Total value",
+    "asset.fractional_portfolio": "Fractional ownership",
+    "asset.fractional_portfolio_desc": "Your shareholdings and current estimated value.",
+    "asset.ownership": "Ownership",
+    "asset.total_estimated_value": "Total estimated value",
+    "asset.requires_investor_approval": "Investor approval required",
+    "asset.approve_investors": "Approve investors",
+    "asset.record_sale": "Record sale",
+    "asset.request_approval": "Request investor access",
+    "asset.approval_requested": "Approval requested.",
     "asset.share_price": "Price per share",
     "asset.shares_sold": "Shares sold",
     "asset.shares_remaining": "Shares remaining",
@@ -1177,6 +1244,44 @@ const TRANSLATIONS: any = {
     "admin.piece_label": "Piece",
     "admin.signed_at": "Signed on",
     "admin.no_signed_contracts": "No signed contracts yet.",
+    "admin.collector_intelligence": "Collector Intelligence",
+    "admin.collector_intelligence_hint": "Client insights, high value indicators.",
+    "admin.client": "Client",
+    "admin.collection_value": "Collection value",
+    "admin.purchases": "Purchases",
+    "admin.status": "Status",
+    "admin.actions": "Actions",
+    "admin.high_value": "High value",
+    "admin.suggest_offers": "Suggest offers",
+    "admin.suggested_offers": "Suggested offers",
+    "admin.loading_or_none": "Loading…",
+    "admin.send_offer": "Send offer",
+    "admin.payments_overview": "Payment tracking",
+    "admin.payments_overdue": "Overdue",
+    "admin.prospects": "Prospects",
+    "admin.prospects_overview": "Private Client Discovery",
+    "admin.total_prospects": "Total prospects",
+    "admin.converted_clients": "Converted clients",
+    "admin.top_lead_sources": "Top lead sources",
+    "admin.high_value_prospects": "High value prospects",
+    "admin.add_prospect": "Add prospect",
+    "admin.prospect_name": "Name",
+    "admin.prospect_email": "Contact email",
+    "admin.prospect_city": "City",
+    "admin.prospect_country": "Country",
+    "admin.prospect_phone": "Phone",
+    "admin.prospect_source": "Source",
+    "admin.prospect_net_worth": "Net worth category",
+    "admin.prospect_interest": "Interest type",
+    "admin.prospect_notes": "Notes",
+    "admin.prospect_added": "Prospect added.",
+    "admin.convert_to_client": "Convert to client",
+    "admin.converted": "Converted",
+    "admin.converted_vault": "Client created. Vault ID: ",
+    "admin.no_prospects": "No prospects yet.",
+    "admin.total_purchases": "Purchases",
+    "admin.favorite_gemstone": "Favorite gemstone",
+    "admin.vip_level": "VIP level",
     "admin.tab_overview": "Overview",
     "admin.tab_inventory": "Inventory",
     "admin.tab_users": "Users",
@@ -1523,6 +1628,17 @@ const TRANSLATIONS: any = {
     "activity.new_deal_room": "New Deal Room available",
     "activity.new_collector_room": "New Collector Room assigned",
     "activity.new_message": "New message received",
+    "deal.payment_progress": "Payment progress",
+    "deal.total": "Total",
+    "deal.paid": "Paid",
+    "deal.remaining": "Remaining",
+    "deal.status": "Status",
+    "deal.contract": "Contract",
+    "deal.contracts": "contract(s)",
+    "deal.documents": "Documents",
+    "deal.document_s": "document(s)",
+    "deal.chat": "Chat",
+    "deal.production_updates": "Production updates",
     "activity.view_message": "View Message",
     "activity.new_offer": "New offer available",
     "activity.review_offer": "Review Offer",
@@ -1870,6 +1986,31 @@ const TRANSLATIONS: any = {
     "admin.piece_label": "Opera",
     "admin.signed_at": "Firmato il",
     "admin.no_signed_contracts": "Nessun contratto firmato.",
+    "admin.collector_intelligence": "Collector Intelligence",
+    "admin.collector_intelligence_hint": "Insight clienti, indicatori alto valore.",
+    "admin.client": "Cliente",
+    "admin.collection_value": "Valore collezione",
+    "admin.purchases": "Acquisti",
+    "admin.status": "Stato",
+    "admin.actions": "Azioni",
+    "admin.high_value": "Alto valore",
+    "admin.suggest_offers": "Suggerisci offerte",
+    "admin.suggested_offers": "Offerte suggerite",
+    "admin.loading_or_none": "Caricamento…",
+    "admin.send_offer": "Invia offerta",
+    "admin.payments_overview": "Stato pagamenti",
+    "admin.payments_overdue": "Scaduti",
+    "deal.payment_progress": "Stato pagamenti",
+    "deal.total": "Totale",
+    "deal.paid": "Pagato",
+    "deal.remaining": "Residuo",
+    "deal.status": "Stato",
+    "deal.contract": "Contratto",
+    "deal.contracts": "contratto/i",
+    "deal.documents": "Documenti",
+    "deal.document_s": "documento/i",
+    "deal.chat": "Chat",
+    "deal.production_updates": "Aggiornamenti produzione",
     "admin.tab_overview": "Panoramica",
     "admin.tab_inventory": "Inventario",
     "admin.tab_users": "Utenti",
@@ -2851,7 +2992,10 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry'>('overview');
+  const [prospectsList, setProspectsList] = useState<any[]>([]);
+  const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
+  const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
   const [adminCollectorRooms, setAdminCollectorRooms] = useState<any[]>([]);
   const [adminStoneLibrary, setAdminStoneLibrary] = useState<any[]>([]);
   const [adminDealRooms, setAdminDealRooms] = useState<any[]>([]);
@@ -2871,6 +3015,15 @@ export default function App() {
   const [dashboardActivity, setDashboardActivity] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
+  const [clientTimeline, setClientTimeline] = useState<any[]>([]);
+  const [adminIntelligence, setAdminIntelligence] = useState<{ topByPurchases?: any[]; topByValue?: any[]; pendingDeals?: number; vipActivity?: number } | null>(null);
+  const [paymentsOverview, setPaymentsOverview] = useState<{ pending?: any[]; overdue?: any[]; recent?: any[] } | null>(null);
+  const [uhnwStatus, setUhnwStatus] = useState<{ collection_value?: number; is_uhnw?: boolean; threshold?: number } | null>(null);
+  const [dealPaymentProgress, setDealPaymentProgress] = useState<{ summary?: any; schedule?: any[] } | null>(null);
+  const [collectorIntelligenceList, setCollectorIntelligenceList] = useState<any[]>([]);
+  const [clientIdForSuggestions, setClientIdForSuggestions] = useState<number | null>(null);
+  const [suggestedOffersList, setSuggestedOffersList] = useState<any[]>([]);
+  const [sendingOfferMasterpieceId, setSendingOfferMasterpieceId] = useState<number | null>(null);
   const [privateClientSubTab, setPrivateClientSubTab] = useState<'list' | 'conversations' | 'projects' | 'stone_requests'>('list');
   const [privateClientConversations, setPrivateClientConversations] = useState<any[]>([]);
   const [privateClientProjects, setPrivateClientProjects] = useState<any[]>([]);
@@ -2899,7 +3052,12 @@ export default function App() {
   const [adminDropsList, setAdminDropsList] = useState<any[]>([]);
   const [adminDropForm, setAdminDropForm] = useState({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
   const [adminFractionalAssets, setAdminFractionalAssets] = useState<any[]>([]);
-  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production_asset' as string, asset_status: 'design' as string, total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '' as number | '', estimated_production_weeks: '' as number | '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '' as number | '', atelier_info: '', available_for_resale: false });
+  const [adminFractionalAssetForm, setAdminFractionalAssetForm] = useState({ title: '', description: '', image_url: '', asset_type: 'production_asset' as string, asset_status: 'design' as string, total_shares: 100, share_price: '', total_value: '' as number | '', production_threshold_pct: 60, masterpiece_id: '' as number | '', estimated_production_weeks: '' as number | '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '' as number | '', atelier_info: '', available_for_resale: false, requires_investor_approval: false });
+  const [fractionalSaleAssetId, setFractionalSaleAssetId] = useState<number | null>(null);
+  const [fractionalSalePrice, setFractionalSalePrice] = useState<string>('');
+  const [fractionalApprovalsAssetId, setFractionalApprovalsAssetId] = useState<number | null>(null);
+  const [fractionalApprovalsList, setFractionalApprovalsList] = useState<any[]>([]);
+  const [fractionalApproveUserId, setFractionalApproveUserId] = useState<string>('');
   const [dropImageUploading, setDropImageUploading] = useState(false);
   const [dropImageDragOver, setDropImageDragOver] = useState(false);
   const dropImageInputRef = useRef<HTMLInputElement>(null);
@@ -3672,6 +3830,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (user?.role === UserRole.ADMIN || user?.role === 'super_admin') {
+      if (adminTab === 'overview' || adminTab === 'intelligence' || adminTab === 'kunden') {
+        fetch('/api/admin/intelligence', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setAdminIntelligence);
+        fetch('/api/admin/payments-overview', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setPaymentsOverview);
+        fetch('/api/admin/collector-intelligence', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorIntelligenceList);
+      }
+      if (adminTab === 'overview' || adminTab === 'prospects') {
+        fetch('/api/admin/prospects-dashboard', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setProspectsDashboard);
+        fetch('/api/admin/prospects', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setProspectsList);
+      }
+    }
+  }, [user?.role, adminTab]);
+  useEffect(() => {
     if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy' || adminTab === 'projects' || adminTab === 'documents' || adminTab === 'contract-generator')) {
       if (adminTab === 'intelligence') {
         Promise.all([
@@ -3849,6 +4020,8 @@ export default function App() {
     if (view === 'dashboard' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
       fetch('/api/collector/prestige-score', { credentials: 'include' }).then(r => r.ok ? r.json() : {}).then((d: any) => setPrestigeScore(d.prestige_score ?? null));
       fetch(`/api/notifications/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setDashboardActivity);
+      fetch(`/api/client-timeline/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setClientTimeline);
+      fetch('/api/me/uhnw-status', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUhnwStatus);
     }
     if (view === 'dashboard' && user?.id && (user.role === 'admin' || user.role === 'super_admin')) {
       fetch('/api/collector/leaderboard?limit=50', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
@@ -3878,6 +4051,16 @@ export default function App() {
       .then(setRoomDetailData)
       .catch((e: Error) => setRoomDetailError(e.message || 'Fehler'))
       .finally(() => setRoomDetailLoading(false));
+  }, [selectedRoomType, selectedRoomId, user?.id]);
+
+  useEffect(() => {
+    if (selectedRoomType === 'deal' && selectedRoomId != null && user?.id) {
+      fetch(`/api/payment-schedule/deal/${selectedRoomId}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then((data: any) => setDealPaymentProgress(data && (data.schedule != null || data.summary) ? data : null));
+    } else {
+      setDealPaymentProgress(null);
+    }
   }, [selectedRoomType, selectedRoomId, user?.id]);
 
   useEffect(() => {
@@ -5813,6 +5996,15 @@ export default function App() {
                     </Card>
                   </div>
                 )}
+                {/* Collector visual status badge (Section 6): PRIVATE COLLECTOR, GRAND COLLECTOR, etc. */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
+                  <div className="flex justify-center sm:justify-start">
+                    <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-widest border ${getCollectorBadgeClasses((user as any).collector_level || 'collector')}`}>
+                      {({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <Card className="lg:col-span-2 space-y-6" hoverGlow>
                     <h3 className="text-3xl font-serif italic">{t('welcome')}, {user.name.split(' ')[0]}</h3>
@@ -5902,6 +6094,30 @@ export default function App() {
                   </Card>
                 )}
 
+                {/* Section 4: Fractional ownership — assets, ownership %, current estimated value */}
+                {myFractionalShares.length > 0 && user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('asset.fractional_portfolio') || 'Fractional ownership'}</h4>
+                    <p className="text-sm text-zinc-500">{t('asset.fractional_portfolio_desc') || 'Your shareholdings and current estimated value.'}</p>
+                    <div className="space-y-2">
+                      {myFractionalShares.map((s: any) => (
+                        <div key={s.asset_id} className="flex justify-between items-center p-3 bg-zinc-900/50 rounded-xl border border-zinc-800">
+                          <div>
+                            <p className="text-sm font-medium text-zinc-200">{s.title}</p>
+                            <p className="text-xs text-zinc-500">{t('asset.ownership') || 'Ownership'}: {Number(s.ownership_pct ?? 0).toFixed(1)}%</p>
+                          </div>
+                          <p className="text-amber-500 font-bold">{Number(s.current_estimated_value ?? s.value ?? 0).toLocaleString('de-DE')} €</p>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t border-zinc-800 flex justify-between text-sm">
+                        <span className="text-zinc-500">{t('asset.total_estimated_value') || 'Total estimated value'}</span>
+                        <span className="text-amber-500 font-bold">{myFractionalShares.reduce((sum: number, s: any) => sum + Number(s.current_estimated_value ?? s.value ?? 0), 0).toLocaleString('de-DE')} €</span>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200" onClick={() => setView('fractional')}>{t('view.fractional')}</Button>
+                  </Card>
+                )}
+
                 {/* Private offers for you — client only; admin must not see client features */}
                 {privateOffers.length > 0 && user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
                   <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
@@ -5985,6 +6201,40 @@ export default function App() {
                         </ul>
                       </>
                     )}
+                  </Card>
+                )}
+
+                {/* Ultra High Net Worth / Private Client Mode (Section 5): €5M+ benefits */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && uhnwStatus?.is_uhnw && (
+                  <Card className="border-cyan-500/30 bg-cyan-500/10 space-y-3" hoverGlow>
+                    <h4 className="text-lg font-serif italic flex items-center gap-2">
+                      <Diamond className="w-5 h-5 text-cyan-400" />
+                      {t('dashboard.private_client_mode') || 'Private Client Mode'}
+                    </h4>
+                    <p className="text-sm text-zinc-400">{t('dashboard.private_client_mode_desc') || 'Your collection value qualifies you for priority deal rooms, exclusive drops, priority production, and personal concierge.'}</p>
+                    <ul className="text-xs text-zinc-500 space-y-1">
+                      <li>• {t('dashboard.uhnw_priority_rooms') || 'Priority deal rooms'}</li>
+                      <li>• {t('dashboard.uhnw_exclusive_drops') || 'Exclusive drops'}</li>
+                      <li>• {t('dashboard.uhnw_priority_production') || 'Priority production'}</li>
+                      <li>• {t('dashboard.uhnw_personal_concierge') || 'Personal concierge'}</li>
+                    </ul>
+                  </Card>
+                )}
+
+                {/* Client Timeline (Section 1): client sees only their own */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && clientTimeline.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic">{t('dashboard.client_timeline') || 'My activity timeline'}</h4>
+                    <p className="text-xs text-zinc-500">{t('dashboard.client_timeline_hint') || 'Your key milestones and activity history.'}</p>
+                    <ul className="space-y-2">
+                      {clientTimeline.slice(0, 15).map((entry: any) => (
+                        <li key={entry.id} className="flex items-center gap-3 py-2 border-b border-zinc-800/50 last:border-0">
+                          <span className="text-[10px] text-zinc-500 shrink-0">{new Date(entry.created_at).toLocaleDateString()}</span>
+                          <span className="text-amber-500/80 text-xs font-medium uppercase tracking-wider">{entry.event_type.replace(/_/g, ' ')}</span>
+                          <span className="text-zinc-400 text-sm truncate">{entry.description || '—'}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </Card>
                 )}
 
@@ -7285,9 +7535,46 @@ export default function App() {
                                 {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
                               </div>
                             )}
-                            {selectedRoomType === 'deal' && ((roomDetailData.contracts?.length > 0) || (roomDetailData.certificates?.length > 0)) && (
-                              <div className="grid gap-2 mt-4 text-sm text-zinc-500 relative z-10">
-                                {roomDetailData.contracts?.length > 0 && <span>Verträge: {roomDetailData.contracts.length}</span>}
+                            {selectedRoomType === 'deal' && (
+                              <div className="mt-4 space-y-4 relative z-10">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                  <div><h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">{t('deal.contract') || 'Contract'}</h5><p className="text-zinc-400">{(roomDetailData.contracts?.length ?? 0) > 0 ? `${roomDetailData.contracts.length} ${t('deal.contracts') || 'contract(s)'}` : '—'}</p></div>
+                                  <div><h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">{t('deal.documents') || 'Documents'}</h5><p className="text-zinc-400">{(roomDetailData.documents?.length ?? roomDetailData.certificates?.length ?? 0) > 0 ? `${(roomDetailData.documents || roomDetailData.certificates).length} ${t('deal.document_s') || 'document(s)'}` : '—'}</p></div>
+                                </div>
+                                {(roomDetailData.chat?.length > 0) && (
+                                  <div><h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">{t('deal.chat') || 'Chat'}</h5><ul className="space-y-1 text-xs text-zinc-400">{roomDetailData.chat.slice(0, 5).map((o: any) => <li key={o.id}>€{Number(o.amount).toLocaleString('de-DE')} · {o.status} {o.responded_at ? new Date(o.responded_at).toLocaleDateString() : ''}</li>)}</ul></div>
+                                )}
+                                {(roomDetailData.production_updates?.length > 0) && (
+                                  <div><h5 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">{t('deal.production_updates') || 'Production updates'}</h5><ul className="space-y-1 text-xs text-zinc-400">{roomDetailData.production_updates.slice(0, 8).map((u: any) => <li key={u.id}>{u.description} · {u.created_at ? new Date(u.created_at).toLocaleDateString() : ''}</li>)}</ul></div>
+                                )}
+                              </div>
+                            )}
+                            {/* Payment plan progress (Section 2): total, deposit, remaining, status */}
+                            {selectedRoomType === 'deal' && dealPaymentProgress?.summary && (
+                              <div className="mt-4 pt-4 border-t border-zinc-800/50 relative z-10">
+                                <h5 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('deal.payment_progress') || 'Payment progress'}</h5>
+                                <div className="flex items-center gap-4 mb-2">
+                                  <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                    <div className="h-full bg-amber-500/80 rounded-full transition-all" style={{ width: `${dealPaymentProgress.summary.progress_pct ?? 0}%` }} />
+                                  </div>
+                                  <span className="text-xs font-medium text-amber-500/90">{dealPaymentProgress.summary.progress_pct ?? 0}%</span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                  <div><span className="text-zinc-500">{t('deal.total') || 'Total'}</span><p className="text-zinc-200 font-medium">{Number(dealPaymentProgress.summary.total_price || 0).toLocaleString('de-DE')} €</p></div>
+                                  <div><span className="text-zinc-500">{t('deal.paid') || 'Paid'}</span><p className="text-emerald-400 font-medium">{Number(dealPaymentProgress.summary.paid_total || 0).toLocaleString('de-DE')} €</p></div>
+                                  <div><span className="text-zinc-500">{t('deal.remaining') || 'Remaining'}</span><p className="text-zinc-200">{Number(dealPaymentProgress.summary.remaining_balance ?? 0).toLocaleString('de-DE')} €</p></div>
+                                  <div><span className="text-zinc-500">{t('deal.status') || 'Status'}</span><p className="capitalize">{dealPaymentProgress.summary.status?.replace('_', ' ') || '—'}</p></div>
+                                </div>
+                                {dealPaymentProgress.schedule?.length > 0 && (
+                                  <ul className="mt-2 space-y-1 text-xs text-zinc-500">
+                                    {dealPaymentProgress.schedule.map((row: any) => (
+                                      <li key={row.id} className="flex justify-between">
+                                        <span>{Number(row.amount).toLocaleString('de-DE')} € · {row.due_date ? new Date(row.due_date).toLocaleDateString() : '—'}</span>
+                                        <span className={row.paid_date ? 'text-emerald-400' : ''}>{row.status}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
                               </div>
                             )}
                           </Card>
@@ -7510,16 +7797,17 @@ export default function App() {
                     <div className="space-y-3">
                       {myFractionalShares.map((s: any) => {
                         const totalSh = s.total_shares ?? 100;
-                        const pct = totalSh ? ((s.num_shares / totalSh) * 100).toFixed(1) : '0';
+                        const owned = s.shares_owned ?? s.num_shares ?? 0;
+                        const pct = (s.ownership_pct != null ? s.ownership_pct : (totalSh ? (owned / totalSh) * 100 : 0)).toFixed(1);
                         const statusKey = 'asset.status_' + (s.asset_status || 'design');
                         return (
-                          <div key={s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                          <div key={s.asset_id || s.id} className="flex justify-between items-center p-3 bg-zinc-950 rounded-xl border border-zinc-800">
                             <div>
                               <p className="text-sm font-medium text-zinc-200">{s.title}</p>
-                              <p className="text-xs text-zinc-500">Ownership: {pct}% · {s.num_shares} × {(s.share_price ?? 0).toLocaleString('de-DE')} €</p>
+                              <p className="text-xs text-zinc-500">{t('asset.ownership') || 'Ownership'}: {pct}% · {owned} × {(s.share_price ?? 0).toLocaleString('de-DE')} € {s.purchase_date ? `· ${new Date(s.purchase_date).toLocaleDateString()}` : ''}</p>
                               <Badge variant="zinc" className="text-[10px] mt-1">{t(statusKey) || s.asset_status}</Badge>
                             </div>
-                            <p className="text-amber-500 font-bold">{(Number(s.value ?? 0)).toLocaleString('de-DE')} €</p>
+                            <p className="text-amber-500 font-bold">{Number(s.current_estimated_value ?? s.value ?? 0).toLocaleString('de-DE')} €</p>
                           </div>
                         );
                       })}
@@ -7585,20 +7873,29 @@ export default function App() {
                               </div>
                             </div>
                             {remaining > 0 && user && (
-                              <div className="flex items-center gap-2 pt-2 border-t border-zinc-800" onClick={e => e.stopPropagation()}>
-                                <input type="number" min={1} max={remaining} defaultValue={1} id={`asset-${asset.id}-shares`} className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-2 text-zinc-200 text-sm" />
-                                <Button variant="primary" className="flex-1 py-2 text-sm" disabled={loading} onClick={async (e) => {
-                                  e.stopPropagation();
-                                  const input = document.getElementById(`asset-${asset.id}-shares`) as HTMLInputElement;
-                                  const num = Math.min(remaining, Math.max(1, parseInt(input?.value || '1', 10) || 1));
-                                  setLoading(true);
-                                  try {
-                                    const res = await fetch(`/api/fractional-assets/${asset.id}/buy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ num_shares: num }), credentials: 'include' });
-                                    const data = await res.json().catch(() => ({}));
-                                    if (res.ok) { notifyUser(t('asset.shares_purchased') || 'Anteile erworben.', 'success'); fetchData(); }
-                                    else notifyUser(data.error || t('errors.generic'), 'error');
-                                  } finally { setLoading(false); }
-                                }}>{t('asset.buy_shares')}</Button>
+                              <div className="flex flex-col gap-2 pt-2 border-t border-zinc-800" onClick={e => e.stopPropagation()}>
+                                {asset.requires_investor_approval && (
+                                  <Button variant="outline" size="sm" className="text-xs border-amber-500/50" onClick={async () => {
+                                    const r = await fetch(`/api/fractional-assets/${asset.id}/request-approval`, { method: 'POST', credentials: 'include' });
+                                    const d = await r.json().catch(() => ({}));
+                                    if (r.ok) notifyUser(d.message || (t('asset.approval_requested') || 'Approval requested.'), 'success');
+                                  }}>{t('asset.request_approval') || 'Request investor access'}</Button>
+                                )}
+                                <div className="flex items-center gap-2">
+                                  <input type="number" min={1} max={remaining} defaultValue={1} id={`asset-${asset.id}-shares`} className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg py-2 px-2 text-zinc-200 text-sm" />
+                                  <Button variant="primary" className="flex-1 py-2 text-sm" disabled={loading} onClick={async (e) => {
+                                    e.stopPropagation();
+                                    const input = document.getElementById(`asset-${asset.id}-shares`) as HTMLInputElement;
+                                    const num = Math.min(remaining, Math.max(1, parseInt(input?.value || '1', 10) || 1));
+                                    setLoading(true);
+                                    try {
+                                      const res = await fetch(`/api/fractional-assets/${asset.id}/buy`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ num_shares: num }), credentials: 'include' });
+                                      const data = await res.json().catch(() => ({}));
+                                      if (res.ok) { notifyUser(t('asset.shares_purchased') || 'Anteile erworben.', 'success'); fetchData(); }
+                                      else notifyUser(data.error || t('errors.generic'), 'error');
+                                    } finally { setLoading(false); }
+                                  }}>{t('asset.buy_shares')}</Button>
+                                </div>
                               </div>
                             )}
                           </Card>
@@ -8167,9 +8464,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'registry', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -8195,6 +8492,22 @@ export default function App() {
                         </li>
                       ))}
                     </ul>
+                  </Card>
+                )}
+
+                {/* Private Client Discovery (Section 5) */}
+                {prospectsDashboard != null && (
+                  <Card className="p-4 border-amber-500/20 bg-amber-500/5">
+                    <h3 className="text-sm font-serif italic text-amber-500/90 mb-3">{t('admin.prospects_overview') || 'Private Client Discovery'}</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-3">
+                      <div><p className="text-[10px] uppercase text-zinc-500">{t('admin.total_prospects') || 'Total prospects'}</p><p className="text-xl font-bold text-zinc-200">{prospectsDashboard.total_prospects ?? 0}</p></div>
+                      <div><p className="text-[10px] uppercase text-zinc-500">{t('admin.converted_clients') || 'Converted clients'}</p><p className="text-xl font-bold text-amber-500/90">{prospectsDashboard.converted_clients ?? 0}</p></div>
+                      <div className="col-span-2"><p className="text-[10px] uppercase text-zinc-500">{t('admin.top_lead_sources') || 'Top lead sources'}</p><div className="flex flex-wrap gap-2 mt-1">{(prospectsDashboard.top_lead_sources || []).slice(0, 5).map((s: any) => <span key={s.source} className="text-xs px-2 py-0.5 rounded bg-zinc-800 text-zinc-300">{s.source.replace(/_/g, ' ')}: {s.count}</span>)}</div></div>
+                    </div>
+                    {(prospectsDashboard.high_value_prospects?.length ?? 0) > 0 && (
+                      <p className="text-xs text-amber-500/80">{t('admin.high_value_prospects') || 'High value prospects'}: {prospectsDashboard.high_value_prospects.length}</p>
+                    )}
+                    <Button variant="outline" size="sm" className="mt-2 border-amber-500/50 text-amber-200 text-xs" onClick={() => setAdminTab('prospects')}>{t('admin.prospects') || 'Prospects'}</Button>
                   </Card>
                 )}
 
@@ -8573,6 +8886,123 @@ export default function App() {
                   </div>
                 </div>
                 </>
+                )}
+
+                {/* Admin Intelligence & Payments (Sections 2, 15) */}
+                {(adminTab === 'overview') && (user.role === UserRole.ADMIN || user.role === 'super_admin') && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                    {adminIntelligence && (
+                      <>
+                        <Card className="border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.intelligence.top_purchases') || 'Top by purchases'}</p>
+                          <ul className="mt-2 space-y-1 text-sm">
+                            {(adminIntelligence.topByPurchases || []).slice(0, 3).map((r: any, i: number) => (
+                              <li key={r.id} className="flex justify-between"><span className="text-zinc-400 truncate">{r.name}</span><span className="text-amber-500/90 text-xs">{Number(r.total_spent || 0).toLocaleString('de-DE')} €</span></li>
+                            ))}
+                          </ul>
+                        </Card>
+                        <Card className="border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.intelligence.top_value') || 'Top by collection value'}</p>
+                          <ul className="mt-2 space-y-1 text-sm">
+                            {(adminIntelligence.topByValue || []).slice(0, 3).map((r: any, i: number) => (
+                              <li key={r.id} className="flex justify-between"><span className="text-zinc-400 truncate">{r.name}</span><span className="text-amber-500/90 text-xs">{Number(r.collection_value || 0).toLocaleString('de-DE')} €</span></li>
+                            ))}
+                          </ul>
+                        </Card>
+                        <Card className="border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.intelligence.pending_deals') || 'Pending negotiations'}</p>
+                          <p className="mt-2 text-2xl font-bold text-amber-500/90">{adminIntelligence.pendingDeals ?? 0}</p>
+                        </Card>
+                        <Card className="border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.intelligence.vip_activity') || 'VIP activity (30d)'}</p>
+                          <p className="mt-2 text-2xl font-bold text-amber-500/90">{adminIntelligence.vipActivity ?? 0}</p>
+                        </Card>
+                      </>
+                    )}
+                  </div>
+                )}
+                {(adminTab === 'overview') && collectorIntelligenceList.length > 0 && (
+                  <Card className="mb-8 border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic mb-3">{t('admin.collector_intelligence') || 'Collector Intelligence'}</h4>
+                    <p className="text-xs text-zinc-500 mb-3">{t('admin.collector_intelligence_hint') || 'Client insights, high value indicators.'}</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-4">{t('admin.client') || 'Client'}</th><th className="py-2 pr-4">{t('admin.collection_value') || 'Collection value'}</th><th className="py-2 pr-4">{t('admin.purchases') || 'Purchases'}</th><th className="py-2 pr-4">{t('admin.status') || 'Status'}</th><th className="py-2">{t('admin.actions') || 'Actions'}</th></tr></thead>
+                        <tbody>
+                          {collectorIntelligenceList.slice(0, 8).map((c: any) => (
+                            <tr key={c.id} className="border-b border-zinc-800/50">
+                              <td className="py-2 pr-4 text-zinc-200">{c.name}</td>
+                              <td className="py-2 pr-4 text-amber-500/90">{Number(c.collection_value || 0).toLocaleString('de-DE')} €</td>
+                              <td className="py-2 pr-4">{c.total_purchases ?? 0}</td>
+                              <td className="py-2 pr-4">{c.is_high_value ? <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400">{t('admin.high_value') || 'High value'}</span> : <span className="text-zinc-500">—</span>}</td>
+                              <td className="py-2">
+                                <Button variant="outline" className="py-1 px-2 text-xs" onClick={() => { setClientIdForSuggestions(c.id); setSuggestedOffersList([]); fetch(`/api/admin/suggested-offers/${c.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setSuggestedOffersList); }}>{t('admin.suggest_offers') || 'Suggest offers'}</Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Smart Offer Suggestions modal */}
+                    {clientIdForSuggestions != null && (
+                      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70" onClick={() => setClientIdForSuggestions(null)}>
+                        <div className="bg-zinc-900 border border-zinc-700 rounded-lg max-w-lg w-full max-h-[80vh] overflow-hidden flex flex-col shadow-xl" onClick={e => e.stopPropagation()}>
+                          <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
+                            <h5 className="font-semibold">{t('admin.suggested_offers') || 'Suggested offers'}</h5>
+                            <button type="button" className="text-zinc-400 hover:text-white" onClick={() => setClientIdForSuggestions(null)}>×</button>
+                          </div>
+                          <div className="p-4 overflow-y-auto flex-1">
+                            {suggestedOffersList.length === 0 ? <p className="text-zinc-500 text-sm">{t('admin.loading_or_none') || 'Loading…'}</p> : (
+                              <ul className="space-y-3">
+                                {suggestedOffersList.map((piece: any) => (
+                                  <li key={piece.id} className="flex items-center justify-between gap-4 p-2 rounded bg-zinc-800/50">
+                                    <div className="min-w-0">
+                                      <p className="text-zinc-200 font-medium truncate">{piece.title || piece.serial_id}</p>
+                                      <p className="text-xs text-zinc-500">{Number(piece.valuation || 0).toLocaleString('de-DE')} €</p>
+                                    </div>
+                                    <Button variant="outline" size="sm" disabled={sendingOfferMasterpieceId === piece.id} onClick={async () => {
+                                      setSendingOfferMasterpieceId(piece.id);
+                                      try {
+                                        const r = await fetch('/api/admin/private-offers', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ masterpieceId: piece.id, clientId: clientIdForSuggestions }) });
+                                        if (r.ok) { setSuggestedOffersList(prev => prev.filter((p: any) => p.id !== piece.id)); }
+                                      } finally { setSendingOfferMasterpieceId(null); }
+                                    }}>{sendingOfferMasterpieceId === piece.id ? '…' : (t('admin.send_offer') || 'Send offer')}</Button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                )}
+                {(adminTab === 'overview') && paymentsOverview && (paymentsOverview.overdue?.length > 0 || paymentsOverview.pending?.length > 0) && (
+                  <Card className="mb-8 border-amber-500/20 bg-amber-500/5 p-4" hoverGlow>
+                    <h4 className="text-lg font-serif italic mb-3">{t('admin.payments_overview') || 'Payment tracking'}</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {paymentsOverview.overdue && paymentsOverview.overdue.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-red-400/90 mb-2">{t('admin.payments_overdue') || 'Overdue'}</p>
+                          <ul className="space-y-1 text-sm text-zinc-300">
+                            {paymentsOverview.overdue.slice(0, 5).map((p: any) => (
+                              <li key={p.id}>{p.project_title} — {Number(p.amount).toLocaleString('de-DE')} € · {p.due_date ? new Date(p.due_date).toLocaleDateString() : '—'}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {paymentsOverview.pending && paymentsOverview.pending.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-amber-500/90 mb-2">{t('admin.payments_pending') || 'Pending'}</p>
+                          <ul className="space-y-1 text-sm text-zinc-300">
+                            {paymentsOverview.pending.slice(0, 5).map((p: any) => (
+                              <li key={p.id}>{p.project_title} — {Number(p.amount).toLocaleString('de-DE')} €</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
                 )}
 
                 {/* Approval Queues */}
@@ -8969,6 +9399,14 @@ export default function App() {
                             <input type="number" min={0} step={100} value={adminFractionalAssetForm.share_price} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, share_price: e.target.value }))} placeholder="12000" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
                           </div>
                           <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('asset.total_value')} (€, optional)</label>
+                            <input type="number" min={0} step={1000} value={adminFractionalAssetForm.total_value === '' ? '' : adminFractionalAssetForm.total_value} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, total_value: e.target.value === '' ? '' : Number(e.target.value) }))} placeholder="z. B. 1800000" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input type="checkbox" id="admin-asset-requires-approval" checked={adminFractionalAssetForm.requires_investor_approval} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, requires_investor_approval: e.target.checked }))} className="rounded border-zinc-600 bg-zinc-800 text-amber-500" />
+                            <label htmlFor="admin-asset-requires-approval" className="text-xs text-zinc-400">{t('asset.requires_investor_approval') || 'Investor approval required'}</label>
+                          </div>
+                          <div>
                             <label className="block text-xs text-zinc-500 mb-1">{t('asset.production_threshold') || 'Produktions-Schwelle (%)'}</label>
                             <input type="number" min={0} max={100} value={adminFractionalAssetForm.production_threshold_pct} onChange={e => setAdminFractionalAssetForm(f => ({ ...f, production_threshold_pct: Number(e.target.value) || 60 }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
                           </div>
@@ -9030,6 +9468,7 @@ export default function App() {
                                 asset_status: adminFractionalAssetForm.asset_status,
                                 total_shares: adminFractionalAssetForm.total_shares,
                                 share_price: Number(adminFractionalAssetForm.share_price) || 0,
+                                total_value: adminFractionalAssetForm.total_value === '' ? null : adminFractionalAssetForm.total_value,
                                 production_threshold_pct: adminFractionalAssetForm.production_threshold_pct,
                                 masterpiece_id: adminFractionalAssetForm.masterpiece_id || null,
                                 estimated_production_weeks: adminFractionalAssetForm.estimated_production_weeks === '' ? null : adminFractionalAssetForm.estimated_production_weeks,
@@ -9038,13 +9477,14 @@ export default function App() {
                                 gemstone_documentation: adminFractionalAssetForm.gemstone_documentation || null,
                                 estimated_carat_weight: adminFractionalAssetForm.estimated_carat_weight === '' ? null : adminFractionalAssetForm.estimated_carat_weight,
                                 atelier_info: adminFractionalAssetForm.atelier_info || null,
-                                available_for_resale: adminFractionalAssetForm.available_for_resale
+                                available_for_resale: adminFractionalAssetForm.available_for_resale,
+                                requires_investor_approval: adminFractionalAssetForm.requires_investor_approval
                               }),
                               credentials: 'include'
                             });
                             const data = await res.json().catch(() => ({}));
                             if (res.ok) {
-                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production_asset', asset_status: 'design', total_shares: 100, share_price: '', production_threshold_pct: 60, masterpiece_id: '', estimated_production_weeks: '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '', atelier_info: '', available_for_resale: false });
+                              setAdminFractionalAssetForm({ title: '', description: '', image_url: '', asset_type: 'production_asset', asset_status: 'design', total_shares: 100, share_price: '', total_value: '', production_threshold_pct: 60, masterpiece_id: '', estimated_production_weeks: '', storage_location: '', certification_status: '', gemstone_documentation: '', estimated_carat_weight: '', atelier_info: '', available_for_resale: false, requires_investor_approval: false });
                               const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
                               setAdminFractionalAssets(list);
                               fetchData();
@@ -9067,21 +9507,92 @@ export default function App() {
                                   <Badge variant="zinc" className="text-[10px]">{t('asset.status_' + (a.asset_status || 'design')) || a.asset_status}</Badge>
                                 </div>
                               </div>
-                              <select value={a.asset_status} onChange={async (e) => {
-                                const status = e.target.value;
-                                const r = await fetch(`/api/admin/fractional-assets/${a.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_status: status }), credentials: 'include' });
-                                if (r.ok) { fetchData(); const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(res => res.ok ? res.json() : []); setAdminFractionalAssets(list); }
-                              }} className="bg-zinc-800 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs">
-                                <option value="design">{t('asset.status_design')}</option>
-                                <option value="financing">{t('asset.status_financing')}</option>
-                                <option value="production">{t('asset.status_production')}</option>
-                                <option value="vault">{t('asset.status_vault')}</option>
-                                <option value="market">{t('asset.status_market')}</option>
-                                <option value="sold">{t('asset.status_sold')}</option>
-                              </select>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => { setFractionalApprovalsAssetId(a.id); setFractionalApprovalsList([]); fetch(`/api/admin/fractional-assets/${a.id}/approvals`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setFractionalApprovalsList); }}>{t('asset.approve_investors') || 'Approve investors'}</Button>
+                                {(a.asset_status || '').toLowerCase() !== 'sold' && (
+                                  <Button variant="outline" size="sm" className="text-xs border-amber-500/50" onClick={() => { setFractionalSaleAssetId(a.id); setFractionalSalePrice(''); }}>{t('asset.record_sale') || 'Record sale'}</Button>
+                                )}
+                                <select value={a.asset_status} onChange={async (e) => {
+                                  const status = e.target.value;
+                                  const r = await fetch(`/api/admin/fractional-assets/${a.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ asset_status: status }), credentials: 'include' });
+                                  if (r.ok) { fetchData(); const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(res => res.ok ? res.json() : []); setAdminFractionalAssets(list); }
+                                }} className="bg-zinc-800 border border-zinc-700 rounded-lg py-1.5 px-2 text-zinc-200 text-xs">
+                                  <option value="design">{t('asset.status_design')}</option>
+                                  <option value="financing">{t('asset.status_financing')}</option>
+                                  <option value="production">{t('asset.status_production')}</option>
+                                  <option value="vault">{t('asset.status_vault')}</option>
+                                  <option value="market">{t('asset.status_market')}</option>
+                                  <option value="sold">{t('asset.status_sold')}</option>
+                                </select>
+                              </div>
                             </li>
                           ))}
                         </ul>
+                      )}
+
+                      {/* Record sale modal */}
+                      {fractionalSaleAssetId != null && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70" onClick={() => setFractionalSaleAssetId(null)}>
+                          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
+                            <h4 className="text-lg font-semibold mb-3">{t('asset.record_sale') || 'Record sale'}</h4>
+                            <p className="text-xs text-zinc-500 mb-3">{t('asset.record_sale_hint') || 'Payouts will be calculated by ownership %.'}</p>
+                            <input type="number" min={0} step={1000} value={fractionalSalePrice} onChange={e => setFractionalSalePrice(e.target.value)} placeholder={t('asset.sale_price_placeholder') || 'Sale price (€)'} className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 px-3 text-zinc-200 mb-4" />
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setFractionalSaleAssetId(null)}>{t('common.cancel') || 'Cancel'}</Button>
+                              <Button variant="primary" size="sm" disabled={!fractionalSalePrice || loading} onClick={async () => {
+                                const price = Number(fractionalSalePrice);
+                                if (!Number.isFinite(price) || price < 0) return;
+                                setLoading(true);
+                                try {
+                                  const r = await fetch(`/api/admin/fractional-assets/${fractionalSaleAssetId}/sale`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sale_price: price }), credentials: 'include' });
+                                  if (r.ok) { setFractionalSaleAssetId(null); setFractionalSalePrice(''); const list = await fetch('/api/admin/fractional-assets', { credentials: 'include' }).then(res => res.ok ? res.json() : []); setAdminFractionalAssets(list); notifyUser(t('asset.sale_recorded') || 'Sale recorded. Payouts created.', 'success'); }
+                                  else { const d = await r.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
+                                } finally { setLoading(false); }
+                              }}>{t('asset.confirm_sale') || 'Confirm sale'}</Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Approve investors modal */}
+                      {fractionalApprovalsAssetId != null && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70" onClick={() => setFractionalApprovalsAssetId(null)}>
+                          <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-hidden flex flex-col shadow-xl" onClick={e => e.stopPropagation()}>
+                            <h4 className="text-lg font-semibold mb-3">{t('asset.approve_investors') || 'Approve investors'}</h4>
+                            <div className="flex gap-2 mb-3">
+                              <input type="number" min={1} value={fractionalApproveUserId} onChange={e => setFractionalApproveUserId(e.target.value)} placeholder="User ID" className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg py-2 px-3 text-zinc-200 text-sm" />
+                              <Button variant="outline" size="sm" disabled={!fractionalApproveUserId || loading} onClick={async () => {
+                                const uid = Number(fractionalApproveUserId);
+                                if (!uid) return;
+                                setLoading(true);
+                                try {
+                                  const r = await fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approve-investor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, status: 'approved' }), credentials: 'include' });
+                                  if (r.ok) { setFractionalApproveUserId(''); fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approvals`, { credentials: 'include' }).then(res => res.ok ? res.json() : []).then(setFractionalApprovalsList); }
+                                } finally { setLoading(false); }
+                              }}>{t('asset.approve') || 'Approve'}</Button>
+                            </div>
+                            <ul className="space-y-2 overflow-y-auto flex-1 text-sm">
+                              {fractionalApprovalsList.map((row: any) => (
+                                <li key={row.id} className="flex justify-between items-center gap-2 p-2 bg-zinc-800/50 rounded">
+                                  <span className="text-zinc-300 truncate">{row.name || row.email || `User ${row.user_id}`}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {row.status === 'pending' && <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                                      const r = await fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approve-investor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: row.user_id, status: 'approved' }), credentials: 'include' });
+                                      if (r.ok) fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approvals`, { credentials: 'include' }).then(res => res.ok ? res.json() : []).then(setFractionalApprovalsList);
+                                    }}>{t('asset.approve') || 'Approve'}</Button>}
+                                    {row.status !== 'rejected' && <Button variant="outline" size="sm" className="text-xs text-red-400" onClick={async () => {
+                                      const r = await fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approve-investor`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: row.user_id, status: 'rejected' }), credentials: 'include' });
+                                      if (r.ok) fetch(`/api/admin/fractional-assets/${fractionalApprovalsAssetId}/approvals`, { credentials: 'include' }).then(res => res.ok ? res.json() : []).then(setFractionalApprovalsList);
+                                    }}>Reject</Button>}
+                                    <Badge variant="zinc" className="text-[10px]">{row.status}</Badge>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                            {fractionalApprovalsList.length === 0 && <p className="text-zinc-500 text-sm italic">No approval records yet.</p>}
+                            <Button variant="outline" size="sm" className="mt-3" onClick={() => setFractionalApprovalsAssetId(null)}>{t('common.close') || 'Close'}</Button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </section>
@@ -9320,7 +9831,7 @@ export default function App() {
                   {(adminTab === 'kunden') && (
                   <section className="space-y-6 lg:col-span-2">
                     <h3 className="text-xl font-serif italic">Kunden</h3>
-                    <p className="text-sm text-zinc-500">Alle Kunden des Ateliers. Kunden können nur ihre eigenen Schmuckstücke, Dokumente, Zertifikate und Rechnungen einsehen.</p>
+                    <p className="text-sm text-zinc-500">Alle Kunden des Ateliers. Client value: total purchases, collection value, favorite gemstone, VIP level.</p>
                     <Card className="p-6">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -9330,19 +9841,30 @@ export default function App() {
                               <th className="py-2 pr-2">E-Mail</th>
                               <th className="py-2 pr-2">Status</th>
                               <th className="py-2 pr-2">Rolle</th>
+                              <th className="py-2 pr-2">{t('admin.total_purchases') || 'Purchases'}</th>
+                              <th className="py-2 pr-2">{t('admin.collection_value') || 'Collection value'}</th>
+                              <th className="py-2 pr-2">{t('admin.favorite_gemstone') || 'Favorite gemstone'}</th>
+                              <th className="py-2 pr-2">{t('admin.vip_level') || 'VIP level'}</th>
                               <th className="py-2 pr-2">Registriert</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {allUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'super_admin').map((u: any) => (
-                              <tr key={u.id} className="border-b border-zinc-800/50">
-                                <td className="py-2 pr-2 text-zinc-200">{u.name || '—'}</td>
-                                <td className="py-2 pr-2 text-zinc-400">{u.email || '—'}</td>
-                                <td className="py-2 pr-2"><Badge variant={u.status === 'approved' ? 'emerald' : u.status === 'rejected' ? 'red' : 'amber'}>{u.status || 'pending'}</Badge></td>
-                                <td className="py-2 pr-2 text-zinc-400">{u.role || 'client'}</td>
-                                <td className="py-2 pr-2 text-zinc-500">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
-                              </tr>
-                            ))}
+                            {allUsers.filter((u: any) => u.role !== 'admin' && u.role !== 'super_admin').map((u: any) => {
+                              const ci = collectorIntelligenceList.find((c: any) => c.id === u.id);
+                              return (
+                                <tr key={u.id} className="border-b border-zinc-800/50">
+                                  <td className="py-2 pr-2 text-zinc-200">{u.name || '—'}</td>
+                                  <td className="py-2 pr-2 text-zinc-400">{u.email || '—'}</td>
+                                  <td className="py-2 pr-2"><Badge variant={u.status === 'approved' ? 'emerald' : u.status === 'rejected' ? 'red' : 'amber'}>{u.status || 'pending'}</Badge></td>
+                                  <td className="py-2 pr-2 text-zinc-400">{u.role || 'client'}</td>
+                                  <td className="py-2 pr-2">{ci?.total_purchases ?? '—'}</td>
+                                  <td className="py-2 pr-2 text-amber-500/90">{(ci?.collection_value != null) ? `${Number(ci.collection_value).toLocaleString('de-DE')} €` : '—'}</td>
+                                  <td className="py-2 pr-2 text-zinc-400 truncate max-w-[120px]">{ci?.favorite_gemstone || '—'}</td>
+                                  <td className="py-2 pr-2 text-zinc-400">{ci?.vip_level || u.collector_level || '—'}</td>
+                                  <td className="py-2 pr-2 text-zinc-500">{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -10385,6 +10907,74 @@ export default function App() {
                       </table>
                     </div>
                     {adminInvestorDocuments.length === 0 && <p className="text-zinc-500 text-sm italic">Keine Investor-Dokumente.</p>}
+                  </section>
+                  )}
+
+                  {(adminTab === 'prospects') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic">{t('admin.prospects') || 'Prospects'}</h3>
+                    <Card className="p-4">
+                      <h4 className="text-sm font-semibold text-zinc-400 mb-3">{t('admin.add_prospect') || 'Add prospect'}</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <input type="text" placeholder={t('admin.prospect_name') || 'Name *'} value={prospectForm.name} onChange={e => setProspectForm(f => ({ ...f, name: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <input type="email" placeholder={t('admin.prospect_email') || 'Contact email *'} value={prospectForm.contact_email} onChange={e => setProspectForm(f => ({ ...f, contact_email: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <input type="text" placeholder={t('admin.prospect_city') || 'City'} value={prospectForm.city} onChange={e => setProspectForm(f => ({ ...f, city: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <input type="text" placeholder={t('admin.prospect_country') || 'Country'} value={prospectForm.country} onChange={e => setProspectForm(f => ({ ...f, country: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <input type="text" placeholder={t('admin.prospect_phone') || 'Phone'} value={prospectForm.phone} onChange={e => setProspectForm(f => ({ ...f, phone: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <select value={prospectForm.source} onChange={e => setProspectForm(f => ({ ...f, source: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200">
+                          <option value="website">Website</option>
+                          <option value="real_estate_broker">Real estate broker</option>
+                          <option value="private_bank">Private bank</option>
+                          <option value="concierge">Concierge</option>
+                          <option value="art_advisor">Art advisor</option>
+                          <option value="referral">Referral</option>
+                        </select>
+                        <input type="text" placeholder={t('admin.prospect_net_worth') || 'Net worth category'} value={prospectForm.net_worth_category} onChange={e => setProspectForm(f => ({ ...f, net_worth_category: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <input type="text" placeholder={t('admin.prospect_interest') || 'Interest type'} value={prospectForm.interest_type} onChange={e => setProspectForm(f => ({ ...f, interest_type: e.target.value }))} className="bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        <div className="md:col-span-2">
+                          <textarea placeholder={t('admin.prospect_notes') || 'Notes'} value={prospectForm.notes} onChange={e => setProspectForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-zinc-200" />
+                        </div>
+                      </div>
+                      <Button variant="primary" size="sm" className="mt-3" disabled={loading || !prospectForm.name.trim() || !prospectForm.contact_email.trim()} onClick={async () => {
+                        setLoading(true);
+                        try {
+                          const r = await fetch('/api/admin/prospects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(prospectForm), credentials: 'include' });
+                          if (r.ok) { setProspectForm({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' }); const list = await fetch('/api/admin/prospects', { credentials: 'include' }).then(res => res.ok ? res.json() : []); setProspectsList(list); fetch('/api/admin/prospects-dashboard', { credentials: 'include' }).then(res => res.ok ? res.json() : null).then(setProspectsDashboard); notifyUser(t('admin.prospect_added') || 'Prospect added.', 'success'); }
+                          else { const d = await r.json().catch(() => ({})); notifyUser(d.error || t('errors.generic'), 'error'); }
+                        } finally { setLoading(false); }
+                      }}>{t('admin.add_prospect') || 'Add prospect'}</Button>
+                    </Card>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="text-left text-zinc-500 border-b border-zinc-800"><th className="py-2 pr-4">{t('admin.prospect_name') || 'Name'}</th><th className="py-2 pr-4">{t('admin.prospect_email') || 'Email'}</th><th className="py-2 pr-4">{t('admin.prospect_source') || 'Source'}</th><th className="py-2 pr-4">{t('admin.status') || 'Status'}</th><th className="py-2">{t('admin.actions') || 'Actions'}</th></tr></thead>
+                        <tbody>
+                          {prospectsList.map((p: any) => (
+                            <tr key={p.id} className="border-b border-zinc-800/50">
+                              <td className="py-2 pr-4 text-zinc-200">{p.name}</td>
+                              <td className="py-2 pr-4">{p.contact_email}</td>
+                              <td className="py-2 pr-4 text-zinc-400">{p.source?.replace(/_/g, ' ')}</td>
+                              <td className="py-2 pr-4"><span className="capitalize">{p.status?.replace(/_/g, ' ')}</span></td>
+                              <td className="py-2">
+                                {p.status !== 'converted_to_client' ? (
+                                  <Button variant="outline" size="sm" className="mr-1 text-xs" disabled={loading} onClick={async () => {
+                                    setLoading(true);
+                                    try {
+                                      const r = await fetch(`/api/admin/prospects/${p.id}/convert`, { method: 'POST', credentials: 'include' });
+                                      const data = await r.json().catch(() => ({}));
+                                      if (r.ok) { notifyUser(data.vault_id ? (t('admin.converted_vault') || 'Client created. Vault ID: ') + data.vault_id : (t('admin.converted') || 'Converted.'), 'success'); fetch('/api/admin/prospects', { credentials: 'include' }).then(res => res.ok ? res.json() : []).then(setProspectsList); fetch('/api/admin/prospects-dashboard', { credentials: 'include' }).then(res => res.ok ? res.json() : null).then(setProspectsDashboard); }
+                                      else notifyUser(data.error || t('errors.generic'), 'error');
+                                    } finally { setLoading(false); }
+                                  }}>{t('admin.convert_to_client') || 'Convert to client'}</Button>
+                                ) : (
+                                  <span className="text-xs text-emerald-500">{t('admin.converted') || 'Converted'}</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {prospectsList.length === 0 && <p className="text-zinc-500 text-sm italic">{t('admin.no_prospects') || 'No prospects yet.'}</p>}
                   </section>
                   )}
 

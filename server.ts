@@ -1204,6 +1204,78 @@ try { db.prepare("ALTER TABLE users ADD COLUMN preferred_language TEXT").run(); 
 try { db.prepare("ALTER TABLE notifications ADD COLUMN reference_id TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'unread'").run(); } catch (e) {}
 
+// --- Luxury collector & admin extensions (Sections 1–20) ---
+db.exec(`
+  CREATE TABLE IF NOT EXISTS client_timeline (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    description TEXT,
+    reference_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS payment_schedule (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deal_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    due_date DATETIME,
+    paid_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(deal_id) REFERENCES deal_rooms(id)
+  );
+  CREATE TABLE IF NOT EXISTS admin_client_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    admin_id INTEGER NOT NULL,
+    note TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id),
+    FOREIGN KEY(admin_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS deal_room_offers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    deal_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    counter_amount REAL,
+    counter_message TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at DATETIME,
+    responded_by INTEGER,
+    FOREIGN KEY(deal_id) REFERENCES deal_rooms(id),
+    FOREIGN KEY(client_id) REFERENCES users(id),
+    FOREIGN KEY(responded_by) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS event_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    client_id INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    responded_at DATETIME,
+    FOREIGN KEY(event_id) REFERENCES private_events(id),
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+`);
+try { db.prepare("ALTER TABLE stone_library ADD COLUMN image TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE stone_library ADD COLUMN color_grade TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_jewelry_types TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN interests TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE delivery_details ADD COLUMN production_complete INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE delivery_details ADD COLUMN shipment_prepared INTEGER DEFAULT 0").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE ownership_history ADD COLUMN previous_owner_id INTEGER REFERENCES users(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN masterpiece_id INTEGER REFERENCES masterpieces(id)").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN total_price REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN deposit_amount REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN remaining_balance REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE users ADD COLUMN private_client_mode INTEGER DEFAULT 0").run(); } catch (e) {}
+
+// UHNW threshold (€5M): above this collection value activates Private Client Mode benefits
+const UHNW_COLLECTION_THRESHOLD_EUR = 5_000_000;
+
 // Imperial Intelligence: Legacy / succession
 db.exec(`
   CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
@@ -1337,7 +1409,25 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS prospects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    city TEXT,
+    country TEXT,
+    contact_email TEXT NOT NULL,
+    phone TEXT,
+    net_worth_category TEXT,
+    interest_type TEXT,
+    source TEXT NOT NULL DEFAULT 'website',
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'new',
+    converted_user_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(converted_user_id) REFERENCES users(id)
+  );
 `);
+try { db.prepare("ALTER TABLE users ADD COLUMN vault_id TEXT").run(); } catch (e) {}
 
 // --- Imperial Core: Prestige Tiers, Drops, Private Viewing, Negotiation, Delivery ---
 try { db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'").run(); } catch (e) {}
@@ -1397,6 +1487,10 @@ try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weigh
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN total_value REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_price REAL").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_date DATETIME").run(); } catch (e) {}
+try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN requires_investor_approval INTEGER DEFAULT 0").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_reply TEXT").run(); } catch (e) {}
 try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_replied_at DATETIME").run(); } catch (e) {}
 try {
@@ -1412,6 +1506,34 @@ try {
       FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
       FOREIGN KEY(user_id) REFERENCES users(id)
     )
+  `);
+} catch (e) {}
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fractional_asset_sale_payouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      shares_owned INTEGER NOT NULL,
+      ownership_pct REAL NOT NULL,
+      sale_price_total REAL NOT NULL,
+      payout_amount REAL NOT NULL,
+      paid_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS fractional_investor_approvals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      asset_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(asset_id) REFERENCES fractional_assets(id),
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      UNIQUE(asset_id, user_id)
+    );
   `);
 } catch (e) {}
 
@@ -2213,6 +2335,12 @@ function createActivityNotification(userId: number, type: 'new_room' | 'new_cont
   try {
     db.prepare("INSERT INTO notifications (user_id, type, reference_id, message, status) VALUES (?, ?, ?, ?, 'unread')").run(userId, type, referenceId, message);
     broadcast({ type: 'NOTIFICATION', userId, message, notificationType: type });
+  } catch (_) {}
+}
+
+function addClientTimeline(clientId: number, eventType: string, description: string, referenceId?: string) {
+  try {
+    db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)").run(clientId, eventType, description, referenceId ?? null);
   } catch (_) {}
 }
 
@@ -3454,7 +3582,24 @@ app.post("/api/admin/approve-purchase", (req, res) => {
       VALUES (?, ?, 'deposit', ?, 'awaiting_deposit', 'DE35 2022 0800 0056 5751 78', ?)
     `).run(user.id, masterpieceId, depositAmount, docRef);
 
-    logAudit(adminId, 'APPROVE_PURCHASE', masterpieceId.toString(), `Approved purchase for user ${user.id} - Status: RESERVED`);
+    // 5. Private Deal Automation: create Deal Room + Payment Schedule + link to production
+    const totalPrice = piece.valuation;
+    const remainingBalance = totalPrice - depositAmount;
+    const dealRun = db.prepare(`
+      INSERT INTO deal_rooms (client_id, project_title, price, masterpiece_id, total_price, deposit_amount, remaining_balance, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+    `).run(user.id, piece.title || `Deal – ${piece.serial_id}`, totalPrice, masterpieceId, totalPrice, depositAmount, remainingBalance);
+    const dealId = Number(dealRun.lastInsertRowid);
+    const dueDeposit = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    const dueBalance = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(dealId, depositAmount, dueDeposit);
+    if (remainingBalance > 0) db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(dealId, remainingBalance, dueBalance);
+    try { db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)").run(dealId, user.id); } catch (_) {}
+    addClientTimeline(user.id, 'deal_room_created', `Deal Room opened for ${piece.title}`, `deal:${dealId}`);
+    addClientTimeline(user.id, 'payment_schedule_created', `Payment schedule: deposit €${depositAmount.toLocaleString()}, balance €${remainingBalance.toLocaleString()}`, `deal:${dealId}`);
+    addClientTimeline(user.id, 'production_started', 'Production status: RESERVED', String(masterpieceId));
+
+    logAudit(adminId, 'APPROVE_PURCHASE', masterpieceId.toString(), `Approved purchase for user ${user.id} - Status: RESERVED; Deal Room ${dealId} created`);
   }
  else {
     logMasterpieceStatusChange(masterpieceId, 'available', adminId ?? null);
@@ -5697,6 +5842,7 @@ app.post("/api/contracts/sign", (req, res) => {
     }
 
     db.prepare("UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(contractId);
+    addClientTimeline(contract.user_id, 'contract_signed', `Contract signed (${contract.type})`, String(contractId));
 
     if (contract.type === 'vip') {
       db.prepare("INSERT INTO vip_memberships (user_id, contract_id, status, signed_at) VALUES (?, ?, 'WAITING_FOR_PAYMENT', CURRENT_TIMESTAMP)").run(contract.user_id, contractId);
@@ -7515,6 +7661,7 @@ app.post("/api/admin/collector-rooms/:id/assign", requireAuth, requireAdmin, (re
   try {
     db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('collector', ?, ?)").run(id, client_id);
     createActivityNotification(Number(client_id), 'new_room', `collector:${id}`, 'New Collector Room assigned');
+    addClientTimeline(Number(client_id), 'collector_room_assigned', 'Collector Room opened', `collector:${id}`);
     res.status(201).json({ success: true });
   } catch (e: any) {
     if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Client bereits zugewiesen." });
@@ -7531,6 +7678,7 @@ app.post("/api/admin/deal-rooms/:id/assign", requireAuth, requireAdmin, (req, re
   try {
     db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)").run(id, client_id);
     createActivityNotification(Number(client_id), 'new_room', `deal:${id}`, 'New Deal Room available');
+    addClientTimeline(Number(client_id), 'deal_room_opened', 'Deal Room opened', `deal:${id}`);
     res.status(201).json({ success: true });
   } catch (e: any) {
     if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Client bereits zugewiesen." });
@@ -7564,7 +7712,7 @@ app.post("/api/stone-library", requireAuth, requireAdmin, (req, res) => {
 app.patch("/api/stone-library/:stoneId", requireAuth, requireAdmin, (req, res) => {
   const stoneId = Number(req.params.stoneId);
   const body = req.body || {};
-  const cols = ['stone_type', 'carat', 'cut', 'origin', 'color', 'clarity', 'supplier', 'price_estimate', 'status'];
+  const cols = ['stone_type', 'carat', 'cut', 'origin', 'color', 'clarity', 'supplier', 'price_estimate', 'status', 'image', 'color_grade'];
   const updates: string[] = []; const values: any[] = [];
   cols.forEach(c => { if (body[c] !== undefined) { updates.push(`${c} = ?`); values.push(body[c]); } });
   if (updates.length) { values.push(stoneId); db.prepare(`UPDATE stone_library SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE stone_id = ?`).run(...values); }
@@ -7576,6 +7724,441 @@ app.post("/api/stone-library/assign", requireAuth, requireAdmin, (req, res) => {
   db.prepare("INSERT INTO stone_assignments (stone_id, collector_room_id, client_id) VALUES (?, ?, ?)").run(stone_id, collector_room_id ?? null, client_id);
   db.prepare("UPDATE stone_library SET status = 'reserved' WHERE stone_id = ?").run(stone_id);
   res.status(201).json({ success: true });
+});
+
+// --- Client timeline (Section 1): admin sees all, client sees own ---
+app.get("/api/client-timeline/:clientId", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const clientId = Number(req.params.clientId);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  if (!isAdminUser(user) && userId !== clientId) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare("SELECT * FROM client_timeline WHERE client_id = ? ORDER BY created_at DESC LIMIT 100").all(clientId);
+  res.json(rows);
+});
+app.post("/api/client-timeline", requireAuth, requireAdmin, (req, res) => {
+  const { client_id, event_type, description, reference_id } = req.body || {};
+  if (!client_id || !event_type) return res.status(400).json({ error: "client_id and event_type required." });
+  db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)").run(client_id, event_type, description || null, reference_id ?? null);
+  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+});
+
+// --- Payment schedule (Section 2): deal room payment tracking ---
+app.get("/api/payment-schedule/deal/:dealId", requireAuth, (req, res) => {
+  const dealId = Number(req.params.dealId);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  if (!room) return res.status(404).json({ error: "Deal room not found." });
+  const isAdmin = isAdminUser(user);
+  const isOwner = room.client_id === userId;
+  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  if (!isAdmin && !isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare("SELECT * FROM payment_schedule WHERE deal_id = ? ORDER BY due_date ASC").all(dealId) as any[];
+  const totalPrice = room.total_price ?? room.price ?? rows.reduce((s: number, r: any) => s + (r.amount || 0), 0);
+  const depositAmount = room.deposit_amount ?? 0;
+  const paidTotal = rows.filter((r: any) => r.paid_date != null).reduce((s: number, r: any) => s + (r.amount || 0), 0);
+  const paidCount = rows.filter((r: any) => r.paid_date != null).length;
+  const totalItems = rows.length;
+  const progressPct = totalPrice > 0 ? Math.round((paidTotal / totalPrice) * 100) : 0;
+  const statusLabel = paidTotal >= totalPrice ? 'fully_paid' : paidCount > 0 ? 'partially_paid' : rows.some((r: any) => r.due_date && r.due_date < new Date().toISOString() && !r.paid_date) ? 'overdue' : 'pending';
+  res.json({
+    schedule: rows,
+    summary: { total_price: totalPrice, deposit_amount: depositAmount, remaining_balance: totalPrice - paidTotal, paid_total: paidTotal, progress_pct: progressPct, status: statusLabel }
+  });
+});
+app.post("/api/payment-schedule", requireAuth, requireAdmin, (req, res) => {
+  const { deal_id, amount, due_date } = req.body || {};
+  if (!deal_id || amount == null) return res.status(400).json({ error: "deal_id and amount required." });
+  db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(deal_id, amount, due_date || null);
+  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+});
+app.patch("/api/payment-schedule/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const { status, paid_date } = req.body || {};
+  const updates: string[] = []; const values: any[] = [];
+  if (status !== undefined) { updates.push("status = ?"); values.push(status); }
+  if (paid_date !== undefined) { updates.push("paid_date = ?"); values.push(paid_date); }
+  if (updates.length === 0) return res.status(400).json({ error: "No updates." });
+  values.push(id);
+  db.prepare(`UPDATE payment_schedule SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  res.json({ success: true });
+});
+app.get("/api/admin/payments-overview", requireAuth, requireAdmin, (req, res) => {
+  const pending = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' ORDER BY ps.due_date ASC").all() as any[];
+  const overdue = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' AND ps.due_date IS NOT NULL AND ps.due_date < datetime('now') ORDER BY ps.due_date ASC").all() as any[];
+  const recent = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.paid_date IS NOT NULL ORDER BY ps.paid_date DESC LIMIT 20").all() as any[];
+  res.json({ pending, overdue, recent });
+});
+
+// --- Admin client notes (Section 11): admin only ---
+app.get("/api/admin/client-notes/:clientId", requireAuth, requireAdmin, (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const rows = db.prepare("SELECT n.*, u.name as admin_name FROM admin_client_notes n JOIN users u ON u.id = n.admin_id WHERE n.client_id = ? ORDER BY n.created_at DESC").all(clientId);
+  res.json(rows);
+});
+app.post("/api/admin/client-notes", requireAuth, requireAdmin, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const { client_id, note } = req.body || {};
+  if (!client_id || !note) return res.status(400).json({ error: "client_id and note required." });
+  db.prepare("INSERT INTO admin_client_notes (client_id, admin_id, note) VALUES (?, ?, ?)").run(client_id, userId, note);
+  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+});
+
+// --- Client preferences (Section 5): favorite_stones, budget_range, preferred_jewelry_types, interests ---
+app.get("/api/client-preferences", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const clientId = isAdminUser(user) && req.query.client_id ? Number(req.query.client_id) : userId;
+  if (isAdminUser(user) && clientId !== userId && !clientId) return res.status(400).json({ error: "client_id required for admin." });
+  if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Forbidden" });
+  let row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
+  if (!row) { db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)").run(clientId); row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId) as any; }
+  res.json({ favorite_stones: row?.favorite_gemstones, budget_range: row?.budget_range, preferred_jewelry_types: row?.preferred_jewelry_types, interests: row?.interests });
+});
+app.patch("/api/client-preferences", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const { favorite_stones, budget_range, preferred_jewelry_types, interests } = req.body || {};
+  let row = db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?").get(userId);
+  if (!row) db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)").run(userId);
+  const updates: string[] = []; const values: any[] = [];
+  if (favorite_stones !== undefined) { updates.push("favorite_gemstones = ?"); values.push(favorite_stones); }
+  if (budget_range !== undefined) { updates.push("budget_range = ?"); values.push(budget_range); }
+  if (preferred_jewelry_types !== undefined) { updates.push("preferred_jewelry_types = ?"); values.push(preferred_jewelry_types); }
+  if (interests !== undefined) { updates.push("interests = ?"); values.push(interests); }
+  if (updates.length) { values.push(userId); db.prepare(`UPDATE collector_profiles SET ${updates.join(", ")} WHERE user_id = ?`).run(...values); }
+  res.json({ success: true });
+});
+
+// --- Deal room negotiation (Section 12): client submit offer, admin accept/reject/counter ---
+app.get("/api/deal-rooms/:id/offers", requireAuth, (req, res) => {
+  const dealId = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  if (!room) return res.status(404).json({ error: "Deal room not found." });
+  const isAdmin = isAdminUser(user);
+  const isOwner = room.client_id === userId;
+  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  if (!isAdmin && !isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
+  const rows = db.prepare("SELECT * FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC").all(dealId);
+  res.json(rows);
+});
+app.post("/api/deal-rooms/:id/offers", requireAuth, (req, res) => {
+  const dealId = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  if (!room) return res.status(404).json({ error: "Deal room not found." });
+  if (isAdminUser(user)) return res.status(400).json({ error: "Use PATCH to respond as admin." });
+  const isOwner = room.client_id === userId;
+  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  if (!isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
+  const { amount } = req.body || {};
+  if (amount == null) return res.status(400).json({ error: "amount required." });
+  const r = db.prepare("INSERT INTO deal_room_offers (deal_id, client_id, amount, status) VALUES (?, ?, ?, 'pending')").run(dealId, userId, amount);
+  addClientTimeline(room.client_id, "deal_offer_submitted", `Offer submitted: €${Number(amount).toLocaleString()}`, String(r.lastInsertRowid));
+  res.status(201).json({ id: r.lastInsertRowid, success: true });
+});
+app.patch("/api/deal-rooms/offers/:offerId", requireAuth, requireAdmin, (req, res) => {
+  const offerId = Number(req.params.offerId);
+  const { action, counter_amount, counter_message } = req.body || {};
+  const offer = db.prepare("SELECT * FROM deal_room_offers WHERE id = ?").get(offerId) as any;
+  if (!offer) return res.status(404).json({ error: "Offer not found." });
+  if (action === "accept") {
+    db.prepare("UPDATE deal_room_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(getSessionUserId(req), offerId);
+    addClientTimeline(offer.client_id, "deal_offer_accepted", `Offer accepted: €${Number(offer.amount).toLocaleString()}`, String(offerId));
+  } else if (action === "reject") {
+    db.prepare("UPDATE deal_room_offers SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(getSessionUserId(req), offerId);
+    addClientTimeline(offer.client_id, "deal_offer_rejected", `Offer rejected: €${Number(offer.amount).toLocaleString()}`, String(offerId));
+  } else if (action === "counter") {
+    db.prepare("UPDATE deal_room_offers SET status = 'countered', counter_amount = ?, counter_message = ?, responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(counter_amount ?? null, counter_message ?? null, getSessionUserId(req), offerId);
+    addClientTimeline(offer.client_id, "deal_offer_countered", `Counter offer: €${Number(counter_amount).toLocaleString()}`, String(offerId));
+  } else return res.status(400).json({ error: "action must be accept, reject, or counter." });
+  res.json({ success: true });
+});
+
+// --- Event invitations (Section 4): invite clients, accept/decline ---
+app.get("/api/events", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const events = db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' AND event_date > datetime('now') ORDER BY event_date ASC").all() as any[];
+  const withInvite = events.map((e: any) => {
+    const inv = db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?").get(e.id, userId) as any;
+    return { ...e, invitation_status: inv?.status ?? null };
+  });
+  if (isAdminUser(user)) return res.json(withInvite);
+  const allowed = withInvite.filter((e: any) => e.invitation_status != null || e.min_vip_tier === 0);
+  res.json(allowed);
+});
+app.get("/api/events/:id/invitations", requireAuth, requireAdmin, (req, res) => {
+  const eventId = Number(req.params.id);
+  const rows = db.prepare("SELECT ei.*, u.name as client_name, u.email FROM event_invitations ei JOIN users u ON u.id = ei.client_id WHERE ei.event_id = ?").all(eventId);
+  res.json(rows);
+});
+app.post("/api/events/:id/invite", requireAuth, requireAdmin, (req, res) => {
+  const eventId = Number(req.params.id);
+  const { client_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: "client_id required." });
+  try {
+    db.prepare("INSERT INTO event_invitations (event_id, client_id, status) VALUES (?, ?, 'pending')").run(eventId, client_id);
+    createActivityNotification(Number(client_id), 'new_message', `event:${eventId}`, 'Event invitation');
+    res.status(201).json({ success: true });
+  } catch (e: any) { if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Already invited." }); throw e; }
+});
+app.post("/api/events/:id/respond", requireAuth, (req, res) => {
+  const eventId = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const { status } = req.body || {};
+  if (!['accepted', 'declined'].includes(status)) return res.status(400).json({ error: "status must be accepted or declined." });
+  const inv = db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?").get(eventId, userId) as any;
+  if (!inv) return res.status(404).json({ error: "Invitation not found." });
+  db.prepare("UPDATE event_invitations SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, inv.id);
+  res.json({ success: true });
+});
+
+// --- Smart offer accept/decline (Section 6) ---
+app.patch("/api/private-offers/:id/respond", requireAuth, (req, res) => {
+  const offerId = Number(req.params.id);
+  const userId = getSessionUserId(req)!;
+  const { action } = req.body || {};
+  if (!['accept', 'decline'].includes(action)) return res.status(400).json({ error: "action must be accept or decline." });
+  const offer = db.prepare("SELECT * FROM private_offers WHERE id = ?").get(offerId) as any;
+  if (!offer || offer.client_id !== userId) return res.status(404).json({ error: "Offer not found." });
+  if (offer.status !== 'pending') return res.status(400).json({ error: "Offer already responded." });
+  const newStatus = action === 'accept' ? 'accepted' : 'declined';
+  db.prepare("UPDATE private_offers SET status = ? WHERE id = ?").run(newStatus, offerId);
+  addClientTimeline(userId, action === 'accept' ? "offer_accepted" : "offer_declined", `Offer ${newStatus}`, String(offerId));
+  res.json({ success: true });
+});
+
+// --- Admin intelligence dashboard (Section 15) ---
+app.get("/api/admin/intelligence", requireAuth, requireAdmin, (req, res) => {
+  const topByPurchases = db.prepare(`
+    SELECT u.id, u.name, u.email, COUNT(p.id) as purchase_count, COALESCE(SUM(p.amount), 0) as total_spent
+    FROM users u LEFT JOIN payments p ON p.user_id = u.id AND p.status IN ('paid', 'completed')
+    WHERE u.role NOT IN ('admin', 'super_admin') GROUP BY u.id ORDER BY total_spent DESC LIMIT 10
+  `).all() as any[];
+  const topByValue = db.prepare(`
+    SELECT u.id, u.name, COALESCE(SUM(m.valuation), 0) as collection_value FROM users u
+    LEFT JOIN masterpieces m ON m.current_owner_id = u.id WHERE u.role NOT IN ('admin', 'super_admin')
+    GROUP BY u.id ORDER BY collection_value DESC LIMIT 10
+  `).all() as any[];
+  const pendingDeals = db.prepare("SELECT COUNT(*) as c FROM deal_room_offers WHERE status = 'pending'").get() as { c: number };
+  const vipActivity = db.prepare("SELECT COUNT(*) as c FROM client_timeline ct JOIN users u ON u.id = ct.client_id WHERE u.collector_level = 'vip' AND ct.created_at > datetime('now', '-30 days')").get() as { c: number };
+  res.json({ topByPurchases, topByValue, pendingDeals: pendingDeals.c, vipActivity: vipActivity.c });
+});
+
+// --- Collector Intelligence (Section 3): per-client analytics for admin ---
+app.get("/api/admin/collector-intelligence/:clientId", requireAuth, requireAdmin, (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(clientId) as any;
+  if (!user) return res.status(404).json({ error: "Client not found." });
+  const purchases = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(clientId) as { c: number; total: number };
+  const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(clientId) as { v: number };
+  const profile = db.prepare("SELECT favorite_gemstones, budget_range, preferred_jewelry_types, interests FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
+  const dealSizes = db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").all(clientId) as { amount: number }[];
+  const avgDealSize = dealSizes.length > 0 ? dealSizes.reduce((s, d) => s + d.amount, 0) / dealSizes.length : 0;
+  const isHighValue = (collectionValue?.v ?? 0) >= UHNW_COLLECTION_THRESHOLD_EUR;
+  res.json({
+    client_id: clientId,
+    name: user.name,
+    total_purchases: purchases?.c ?? 0,
+    total_spent: purchases?.total ?? 0,
+    collection_value: collectionValue?.v ?? 0,
+    favorite_gemstones: profile?.favorite_gemstones ?? null,
+    budget_range: profile?.budget_range ?? null,
+    average_deal_size: Math.round(avgDealSize),
+    is_high_value: isHighValue,
+    collector_level: user.collector_level ?? 'collector'
+  });
+});
+
+app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, (req, res) => {
+  const clients = db.prepare("SELECT id, name, email, collector_level FROM users WHERE role NOT IN ('admin', 'super_admin')").all() as any[];
+  const list = clients.map((u: any) => {
+    const purchases = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(u.id) as { c: number; total: number };
+    const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(u.id) as { v: number };
+    const profile = db.prepare("SELECT favorite_gemstones FROM collector_profiles WHERE user_id = ?").get(u.id) as { favorite_gemstones: string | null } | undefined;
+    const v = collectionValue?.v ?? 0;
+    return {
+      ...u,
+      total_purchases: purchases?.c ?? 0,
+      total_spent: purchases?.total ?? 0,
+      collection_value: v,
+      is_high_value: v >= UHNW_COLLECTION_THRESHOLD_EUR,
+      favorite_gemstone: profile?.favorite_gemstones || null,
+      vip_level: u.collector_level || 'collector'
+    };
+  });
+  list.sort((a: any, b: any) => (b.collection_value || 0) - (a.collection_value || 0));
+  res.json(list);
+});
+
+// --- Private Client Discovery: Prospects (Section 1–3, 5) ---
+const PROSPECT_STATUSES = ['new', 'contacted', 'interested', 'meeting_scheduled', 'converted_to_client', 'not_interested'] as const;
+const PROSPECT_SOURCES = ['real_estate_broker', 'private_bank', 'concierge', 'art_advisor', 'referral', 'website'] as const;
+
+app.get("/api/admin/prospects", requireAuth, requireAdmin, (req, res) => {
+  const status = req.query.status as string | undefined;
+  let rows = db.prepare("SELECT * FROM prospects ORDER BY updated_at DESC, created_at DESC").all() as any[];
+  if (status && PROSPECT_STATUSES.includes(status as any)) rows = rows.filter((r: any) => r.status === status);
+  res.json(rows);
+});
+
+app.get("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
+  const row = db.prepare("SELECT * FROM prospects WHERE id = ?").get(req.params.id) as any;
+  if (!row) return res.status(404).json({ error: "Prospect not found" });
+  res.json(row);
+});
+
+app.post("/api/admin/prospects", requireAuth, requireAdmin, (req, res) => {
+  const b = req.body || {};
+  const name = String(b.name || '').trim();
+  const contact_email = String(b.contact_email || '').trim();
+  if (!name || !contact_email) return res.status(400).json({ error: "name and contact_email required" });
+  const source = PROSPECT_SOURCES.includes((b.source || 'website') as any) ? b.source : 'website';
+  const status = PROSPECT_STATUSES.includes((b.status || 'new') as any) ? b.status : 'new';
+  const r = db.prepare(`
+    INSERT INTO prospects (name, city, country, contact_email, phone, net_worth_category, interest_type, source, notes, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    name,
+    (b.city && String(b.city).trim()) || null,
+    (b.country && String(b.country).trim()) || null,
+    contact_email,
+    (b.phone && String(b.phone).trim()) || null,
+    (b.net_worth_category && String(b.net_worth_category).trim()) || null,
+    (b.interest_type && String(b.interest_type).trim()) || null,
+    source,
+    (b.notes && String(b.notes).trim()) || null,
+    status
+  );
+  res.status(201).json({ id: r.lastInsertRowid, success: true });
+});
+
+app.put("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare("SELECT * FROM prospects WHERE id = ?").get(id) as any;
+  if (!existing) return res.status(404).json({ error: "Prospect not found" });
+  const b = req.body || {};
+  const updates: string[] = [];
+  const values: any[] = [];
+  ['name', 'city', 'country', 'contact_email', 'phone', 'net_worth_category', 'interest_type', 'source', 'notes', 'status'].forEach(k => {
+    if (b[k] !== undefined) {
+      if (k === 'source' && !PROSPECT_SOURCES.includes((b[k] || 'website') as any)) return;
+      if (k === 'status' && !PROSPECT_STATUSES.includes((b[k] || 'new') as any)) return;
+      updates.push(`${k} = ?`);
+      values.push(typeof b[k] === 'string' ? b[k].trim() : b[k]);
+    }
+  });
+  if (updates.length) {
+    values.push(id);
+    db.prepare(`UPDATE prospects SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+  }
+  res.json({ success: true });
+});
+
+app.delete("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const r = db.prepare("DELETE FROM prospects WHERE id = ?").run(id);
+  if (r.changes === 0) return res.status(404).json({ error: "Prospect not found" });
+  res.json({ success: true });
+});
+
+// Convert prospect to client (Section 2): create vault account, vault ID, client role
+function generateVaultId(userId: number): string {
+  const year = new Date().getFullYear();
+  const seq = String(userId).padStart(4, '0');
+  return `AB-VAULT-${year}-${seq}`;
+}
+
+app.post("/api/admin/prospects/:id/convert", requireAuth, requireAdmin, (req, res) => {
+  const prospectId = Number(req.params.id);
+  const prospect = db.prepare("SELECT * FROM prospects WHERE id = ?").get(prospectId) as any;
+  if (!prospect) return res.status(404).json({ error: "Prospect not found" });
+  if (prospect.status === 'converted_to_client' && prospect.converted_user_id) {
+    return res.json({ success: true, user_id: prospect.converted_user_id, vault_id: (db.prepare("SELECT vault_id FROM users WHERE id = ?").get(prospect.converted_user_id) as any)?.vault_id, message: "Already converted" });
+  }
+  const email = (prospect.contact_email || '').trim();
+  if (!email) return res.status(400).json({ error: "Prospect has no contact_email" });
+  const existingUser = db.prepare("SELECT id, vault_id FROM users WHERE email = ?").get(email) as any;
+  if (existingUser) {
+    db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(existingUser.id, prospectId);
+    const vaultId = existingUser.vault_id || generateVaultId(existingUser.id);
+    if (!existingUser.vault_id) try { db.prepare("UPDATE users SET vault_id = ? WHERE id = ?").run(vaultId, existingUser.id); } catch (_) {}
+    return res.json({ success: true, user_id: existingUser.id, vault_id: vaultId, message: "Linked to existing account" });
+  }
+  const username = (email.split('@')[0] || 'client').replace(/\W/g, '_').slice(0, 40) + '_' + Date.now().toString(36);
+  const tempPassword = crypto.randomBytes(16).toString("hex");
+  const hashed = hashPassword(tempPassword);
+  const name = (prospect.name || email).trim();
+  const r = db.prepare(
+    "INSERT INTO users (email, username, password, name, address, is_vip, language, role, status) VALUES (?, ?, ?, ?, ?, 0, 'de', 'client', 'approved')"
+  ).run(email, username, hashed, name, [prospect.city, prospect.country].filter(Boolean).join(', ') || '');
+  const userId = Number(r.lastInsertRowid);
+  const vaultId = generateVaultId(userId);
+  try { db.prepare("UPDATE users SET vault_id = ? WHERE id = ?").run(vaultId, userId); } catch (_) {}
+  try { db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?").run(userId); } catch (_) {}
+  db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, prospectId);
+  res.status(201).json({ success: true, user_id: userId, vault_id: vaultId, temp_password: tempPassword });
+});
+
+// Prospect discovery dashboard (Section 3 & 5): source stats, totals, high value
+app.get("/api/admin/prospects-dashboard", requireAuth, requireAdmin, (req, res) => {
+  const all = db.prepare("SELECT * FROM prospects").all() as any[];
+  const total_prospects = all.length;
+  const converted = all.filter((p: any) => p.status === 'converted_to_client');
+  const converted_clients = converted.length;
+  const bySource: Record<string, number> = {};
+  PROSPECT_SOURCES.forEach(s => { bySource[s] = 0; });
+  all.forEach((p: any) => { if (p.source && bySource[p.source] !== undefined) bySource[p.source]++; });
+  const top_lead_sources = Object.entries(bySource)
+    .filter(([, c]) => c > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([source, count]) => ({ source, count }));
+  const high_value_prospects = all.filter((p: any) =>
+    p.status !== 'converted_to_client' && p.status !== 'not_interested' && (p.net_worth_category || '').toLowerCase().match(/high|uhnw|million|multi/)
+  );
+  res.json({
+    total_prospects,
+    converted_clients,
+    top_lead_sources,
+    source_stats: bySource,
+    high_value_prospects: high_value_prospects.slice(0, 20)
+  });
+});
+
+// --- Smart offer suggestions (Section 4): suggest assets for a client ---
+app.get("/api/admin/suggested-offers/:clientId", requireAuth, requireAdmin, (req, res) => {
+  const clientId = Number(req.params.clientId);
+  const profile = db.prepare("SELECT favorite_gemstones, budget_range FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
+  const ownedIds = db.prepare("SELECT id FROM masterpieces WHERE current_owner_id = ?").all(clientId).map((r: any) => r.id);
+  let pieces = db.prepare("SELECT * FROM masterpieces WHERE status = 'available' AND id NOT IN (SELECT masterpiece_id FROM private_offers WHERE client_id = ? AND status = 'pending')").all(clientId) as any[];
+  if (ownedIds.length) pieces = pieces.filter((p: any) => !ownedIds.includes(p.id));
+  const budgetStr = profile?.budget_range || '';
+  const budgetMatch = budgetStr.match(/(\d[\d\s.]*)\s*[-–]\s*(\d[\d\s.]*)/);
+  let minB = 0, maxB = Infinity;
+  if (budgetMatch) { minB = parseInt(budgetMatch[1].replace(/\s/g, ''), 10) * 1000; maxB = parseInt(budgetMatch[2].replace(/\s/g, ''), 10) * 1000; }
+  pieces = pieces.filter((p: any) => { const v = p.valuation || 0; return v >= minB && v <= maxB; }).slice(0, 20);
+  if (!budgetMatch && profile?.favorite_gemstones) {
+    const stones = (profile.favorite_gemstones || '').toLowerCase().split(/[,;]/).map((s: string) => s.trim()).filter(Boolean);
+    pieces.sort((a: any, b: any) => {
+      const aMatch = stones.some(st => (a.title || '').toLowerCase().includes(st) || (a.materials || '').toLowerCase().includes(st));
+      const bMatch = stones.some(st => (b.title || '').toLowerCase().includes(st) || (b.materials || '').toLowerCase().includes(st));
+      if (aMatch && !bMatch) return -1; if (!aMatch && bMatch) return 1; return 0;
+    });
+  }
+  res.json(pieces.slice(0, 10));
+});
+
+// --- UHNW / Private Client Mode (Section 5): threshold €5M ---
+app.get("/api/me/uhnw-status", requireAuth, (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(userId) as { v: number };
+  const value = collectionValue?.v ?? 0;
+  const isUhnw = value >= UHNW_COLLECTION_THRESHOLD_EUR;
+  if (isUhnw) try { db.prepare("UPDATE users SET private_client_mode = 1 WHERE id = ?").run(userId); } catch (_) {}
+  res.json({ collection_value: value, is_uhnw: isUhnw, threshold: UHNW_COLLECTION_THRESHOLD_EUR });
 });
 
 app.get("/api/deal-rooms", requireAuth, (req, res) => {
@@ -7620,7 +8203,10 @@ app.get("/api/deal-rooms/:id", requireAuth, (req, res) => {
   const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
   const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
   const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
-  res.json({ room, client, contracts, certificates: certs });
+  const dealRef = `deal:${id}`;
+  const productionUpdates = db.prepare("SELECT id, event_type, description, reference_id, created_at FROM client_timeline WHERE client_id = ? AND (reference_id = ? OR reference_id = ?) ORDER BY created_at DESC LIMIT 50").all(room.client_id, dealRef, String(room.masterpiece_id || ''));
+  const offers = db.prepare("SELECT id, amount, status, counter_amount, counter_message, created_at, responded_at FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC").all(id);
+  res.json({ room, client, contracts, certificates: certs, documents: certs, production_updates: productionUpdates, chat: offers });
 });
 
 app.get("/api/collector-reputation", requireAuth, requireAdmin, (req, res) => {
@@ -7896,9 +8482,20 @@ app.get("/api/fractional-assets", (req, res) => {
     const sold = getAssetSharesSold(a.id);
     const total = a.total_shares || 100;
     const remaining = Math.max(0, total - sold);
-    const totalValue = total * (a.share_price || 0);
+    const totalValue = (a.total_value != null && a.total_value > 0) ? a.total_value : (total * (a.share_price || 0));
     const financingPct = total ? (sold / total) * 100 : 0;
-    return { ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct };
+    return {
+      ...a,
+      asset_id: a.id,
+      total_value: totalValue,
+      total_shares: total,
+      share_price: a.share_price || 0,
+      available_shares: remaining,
+      shares_sold: sold,
+      shares_remaining: remaining,
+      total_asset_value: totalValue,
+      financing_pct: financingPct
+    };
   });
   res.json(out);
 });
@@ -7909,21 +8506,37 @@ app.get("/api/fractional-assets/:id", (req, res) => {
   const sold = getAssetSharesSold(a.id);
   const total = a.total_shares || 100;
   const remaining = Math.max(0, total - sold);
-  const totalValue = total * (a.share_price || 0);
+  const totalValue = (a.total_value != null && a.total_value > 0) ? a.total_value : (total * (a.share_price || 0));
   const financingPct = total ? (sold / total) * 100 : 0;
   const ownershipRows = db.prepare(`
-    SELECT ash.user_id, ash.num_shares, u.name as user_name
+    SELECT ash.user_id, ash.num_shares, ash.purchase_price, ash.purchase_date, u.name as user_name
     FROM asset_shares ash
     LEFT JOIN users u ON u.id = ash.user_id
     WHERE ash.asset_id = ?
   `).all(a.id) as any[];
   const ownership_distribution = ownershipRows.map((r: any) => ({
+    client_id: r.user_id,
     user_id: r.user_id,
     user_name: r.user_name || 'Investor',
+    shares_owned: r.num_shares,
     num_shares: r.num_shares,
+    purchase_price: r.purchase_price,
+    purchase_date: r.purchase_date,
     percentage: total ? (r.num_shares / total) * 100 : 0
   }));
-  res.json({ ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct, ownership_distribution });
+  res.json({
+    ...a,
+    asset_id: a.id,
+    total_value: totalValue,
+    total_shares: total,
+    share_price: a.share_price || 0,
+    available_shares: remaining,
+    shares_sold: sold,
+    shares_remaining: remaining,
+    total_asset_value: totalValue,
+    financing_pct: financingPct,
+    ownership_distribution
+  });
 });
 
 app.post("/api/admin/fractional-assets", (req, res) => {
@@ -7939,6 +8552,7 @@ app.post("/api/admin/fractional-assets", (req, res) => {
   if (!['design', 'financing', 'production', 'vault', 'market', 'sold'].includes(asset_status)) asset_status = 'design';
   const total_shares = body.total_shares ?? 100;
   const share_price = body.share_price ?? 0;
+  const total_value = body.total_value != null ? Number(body.total_value) : null;
   const production_threshold_pct = body.production_threshold_pct ?? 60;
   const masterpiece_id = body.masterpiece_id || null;
   const estimated_production_weeks = body.estimated_production_weeks ?? null;
@@ -7948,11 +8562,12 @@ app.post("/api/admin/fractional-assets", (req, res) => {
   const estimated_carat_weight = body.estimated_carat_weight ?? null;
   const atelier_info = body.atelier_info ?? null;
   const available_for_resale = body.available_for_resale ? 1 : 0;
+  const requires_investor_approval = body.requires_investor_approval ? 1 : 0;
   const images = typeof body.images === 'string' ? body.images : (Array.isArray(body.images) ? JSON.stringify(body.images) : null);
   const r = db.prepare(`
-    INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, images, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, images);
+    INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, total_value, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, requires_investor_approval, images, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, total_value, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, requires_investor_approval, images);
   const id = Number(r.lastInsertRowid);
   const asset_code = generateAssetCode(id);
   try { db.prepare("UPDATE fractional_assets SET asset_code = ? WHERE id = ?").run(asset_code, id); } catch (_) {}
@@ -7968,15 +8583,84 @@ app.put("/api/admin/fractional-assets/:id", (req, res) => {
   if (!existing) return res.status(404).json({ error: "Not found" });
   const updates: string[] = [];
   const values: any[] = [];
-  ['title', 'description', 'image_url', 'asset_type', 'asset_status', 'total_shares', 'share_price', 'production_threshold_pct', 'masterpiece_id', 'estimated_production_weeks', 'storage_location', 'certification_status', 'gemstone_documentation', 'estimated_carat_weight', 'atelier_info', 'images'].forEach(k => {
+  ['title', 'description', 'image_url', 'asset_type', 'asset_status', 'total_shares', 'share_price', 'total_value', 'production_threshold_pct', 'masterpiece_id', 'estimated_production_weeks', 'storage_location', 'certification_status', 'gemstone_documentation', 'estimated_carat_weight', 'atelier_info', 'images'].forEach(k => {
     if (b[k] !== undefined) { updates.push(`${k} = ?`); values.push(k === 'available_for_resale' ? (b[k] ? 1 : 0) : (k === 'images' && Array.isArray(b[k]) ? JSON.stringify(b[k]) : b[k])); }
   });
   if (b.available_for_resale !== undefined) { updates.push('available_for_resale = ?'); values.push(b.available_for_resale ? 1 : 0); }
+  if (b.requires_investor_approval !== undefined) { updates.push('requires_investor_approval = ?'); values.push(b.requires_investor_approval ? 1 : 0); }
   if (updates.length) {
     values.push(req.params.id);
     db.prepare(`UPDATE fractional_assets SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
   }
   res.json({ success: true });
+});
+
+// Approve or reject investor for a fractional asset (admin)
+app.post("/api/admin/fractional-assets/:id/approve-investor", requireAuth, requireAdmin, (req, res) => {
+  const assetId = Number(req.params.id);
+  const { user_id, status } = req.body || {};
+  const userId = Number(user_id);
+  if (!userId) return res.status(400).json({ error: "user_id required" });
+  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  if (!asset) return res.status(404).json({ error: "Asset not found" });
+  const newStatus = status === 'rejected' ? 'rejected' : 'approved';
+  const existing = db.prepare("SELECT id FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId);
+  if (existing) {
+    db.prepare("UPDATE fractional_investor_approvals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?").run(newStatus, assetId, userId);
+  } else {
+    db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, ?)").run(assetId, userId, newStatus);
+  }
+  res.json({ success: true, status: newStatus });
+});
+
+// List investor approvals for an asset (admin)
+app.get("/api/admin/fractional-assets/:id/approvals", requireAuth, requireAdmin, (req, res) => {
+  const assetId = Number(req.params.id);
+  const rows = db.prepare(`
+    SELECT a.id, a.asset_id, a.user_id, a.status, a.created_at, a.updated_at, u.name, u.email
+    FROM fractional_investor_approvals a
+    LEFT JOIN users u ON u.id = a.user_id
+    WHERE a.asset_id = ?
+    ORDER BY a.updated_at DESC
+  `).all(assetId) as any[];
+  res.json(rows);
+});
+
+// Client request investor approval (creates pending record for admin to approve)
+app.post("/api/fractional-assets/:id/request-approval", (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+  const assetId = Number(req.params.id);
+  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  if (!asset) return res.status(404).json({ error: "Asset not found" });
+  if (!asset.requires_investor_approval) return res.json({ success: true, message: "No approval required" });
+  const existing = db.prepare("SELECT id, status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as any;
+  if (existing) {
+    if (existing.status === 'approved') return res.json({ success: true, message: "Already approved" });
+    if (existing.status === 'pending') return res.json({ success: true, message: "Request pending" });
+    db.prepare("UPDATE fractional_investor_approvals SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?").run(assetId, userId);
+  } else {
+    db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, 'pending')").run(assetId, userId);
+  }
+  res.json({ success: true, message: "Approval requested" });
+});
+
+// Asset sale event: record sale price and create payouts per owner (admin)
+app.post("/api/admin/fractional-assets/:id/sale", requireAuth, requireAdmin, (req, res) => {
+  const assetId = Number(req.params.id);
+  const salePrice = Number(req.body?.sale_price);
+  if (!Number.isFinite(salePrice) || salePrice < 0) return res.status(400).json({ error: "Valid sale_price required" });
+  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  if (!asset) return res.status(404).json({ error: "Asset not found" });
+  const total = asset.total_shares || 100;
+  const owners = db.prepare("SELECT user_id, num_shares FROM asset_shares WHERE asset_id = ?").all(assetId) as any[];
+  for (const o of owners) {
+    const pct = total ? (o.num_shares / total) * 100 : 0;
+    const payoutAmount = (pct / 100) * salePrice;
+    db.prepare("INSERT INTO fractional_asset_sale_payouts (asset_id, user_id, shares_owned, ownership_pct, sale_price_total, payout_amount) VALUES (?, ?, ?, ?, ?, ?)").run(assetId, o.user_id, o.num_shares, pct, salePrice, payoutAmount);
+  }
+  db.prepare("UPDATE fractional_assets SET asset_status = 'sold', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(assetId);
+  res.json({ success: true, sale_price: salePrice, payouts_count: owners.length });
 });
 
 app.post("/api/fractional-assets/:id/buy", (req, res) => {
@@ -7988,14 +8672,22 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
   const assetId = Number(req.params.id);
   const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
   if (!asset) return res.status(404).json({ error: "Asset not found" });
+  if ((asset.asset_status || '').toLowerCase() === 'sold') return res.status(400).json({ error: "Asset has been sold" });
+  if (asset.requires_investor_approval) {
+    const approval = db.prepare("SELECT status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as { status: string } | undefined;
+    if (!approval || approval.status !== 'approved') return res.status(403).json({ error: "Investor approval required. Please request access." });
+  }
   const sold = getAssetSharesSold(assetId);
   const remaining = (asset.total_shares || 100) - sold;
   if (numShares > remaining) return res.status(400).json({ error: "Not enough shares available" });
+  const sharePrice = asset.share_price || 0;
+  const purchasePrice = numShares * sharePrice;
+  const purchaseDate = new Date().toISOString();
   const existing = db.prepare("SELECT * FROM asset_shares WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as any;
   if (existing) {
-    db.prepare("UPDATE asset_shares SET num_shares = num_shares + ? WHERE asset_id = ? AND user_id = ?").run(numShares, assetId, userId);
+    db.prepare("UPDATE asset_shares SET num_shares = num_shares + ?, purchase_price = COALESCE(purchase_price, 0) + ?, purchase_date = COALESCE(purchase_date, ?) WHERE asset_id = ? AND user_id = ?").run(numShares, purchasePrice, purchaseDate, assetId, userId);
   } else {
-    db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares) VALUES (?, ?, ?)").run(assetId, userId, numShares);
+    db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares, purchase_price, purchase_date) VALUES (?, ?, ?, ?, ?)").run(assetId, userId, numShares, purchasePrice, purchaseDate);
   }
   updateAssetStatusFromProgress(assetId);
 
@@ -8058,12 +8750,30 @@ app.get("/api/fractional-assets/my-shares", (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.json([]);
   const rows = db.prepare(`
-    SELECT fa.*, ash.num_shares, (fa.share_price * ash.num_shares) as value
+    SELECT fa.id, fa.title, fa.asset_code, fa.image_url, fa.asset_status, fa.total_shares, fa.share_price, fa.total_value,
+           ash.num_shares, ash.purchase_price, ash.purchase_date
     FROM asset_shares ash
     JOIN fractional_assets fa ON fa.id = ash.asset_id
     WHERE ash.user_id = ?
   `).all(userId) as any[];
-  res.json(rows);
+  const out = rows.map((r: any) => {
+    const total = r.total_shares || 100;
+    const totalVal = (r.total_value != null && r.total_value > 0) ? r.total_value : (total * (r.share_price || 0));
+    const pct = total ? (r.num_shares / total) * 100 : 0;
+    const currentValue = total ? (r.num_shares / total) * totalVal : 0;
+    return {
+      ...r,
+      client_id: userId,
+      asset_id: r.id,
+      shares_owned: r.num_shares,
+      ownership_pct: pct,
+      purchase_price: r.purchase_price,
+      purchase_date: r.purchase_date,
+      current_estimated_value: currentValue,
+      value: currentValue
+    };
+  });
+  res.json(out);
 });
 
 app.get("/api/investor/fractional-documents", (req, res) => {
