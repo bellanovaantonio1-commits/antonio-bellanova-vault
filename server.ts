@@ -8693,8 +8693,6 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
 
   const assetCode = (asset.asset_code || generateAssetCode(assetId)) as string;
   const totalShares = asset.total_shares || 100;
-  const sharePrice = asset.share_price || 0;
-  const purchaseDate = new Date().toISOString().slice(0, 10);
   const userName = user.name || user.email || 'Investor';
   const contractIdBase = `FAC-${assetId}-${userId}-${Date.now()}`;
   const assetStatus = (asset.asset_status || '').toLowerCase();
@@ -8719,7 +8717,7 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
       numShares,
       totalShares,
       sharePrice,
-      purchaseDate,
+      purchaseDate: purchaseDate.slice(0, 10),
       contractId: docRef
     });
     try {
