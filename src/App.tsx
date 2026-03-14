@@ -3087,7 +3087,7 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   const filterMasterpieces = (list: Masterpiece[], statusFilter?: string) => {
-    let out = list;
+    let out = Array.isArray(list) ? list : [];
     if (statusFilter) out = out.filter(p => p.status === statusFilter);
     if (filterSearch.trim()) {
       const q = filterSearch.trim().toLowerCase();
@@ -5001,8 +5001,9 @@ export default function App() {
     }
   };
 
-  const visiblePortfolioPieces = vaultData.pieces.filter((p: Masterpiece) => !(vaultData.portfolio_hidden_ids || []).includes(p.id));
-  const hiddenPortfolioPieces = vaultData.pieces.filter((p: Masterpiece) => (vaultData.portfolio_hidden_ids || []).includes(p.id));
+  const vaultPieces = vaultData?.pieces ?? [];
+  const visiblePortfolioPieces = vaultPieces.filter((p: Masterpiece) => !(vaultData?.portfolio_hidden_ids || []).includes(p.id));
+  const hiddenPortfolioPieces = vaultPieces.filter((p: Masterpiece) => (vaultData?.portfolio_hidden_ids || []).includes(p.id));
 
   const handleRemoveFromPortfolio = async (masterpieceId: number) => {
     try {
