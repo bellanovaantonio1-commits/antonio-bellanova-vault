@@ -1784,6 +1784,22 @@ const LUXURY_TEXT = '#e8e6e3';
 const LUXURY_MUTED = '#8a8784';
 const UST_IDNR = 'DE457682154';
 
+/** Liest die in Admin hinterlegte Bank-Konfiguration (IBAN, BIC, Kontoinhaber) für Verträge und Zahlungen. */
+function getBankConfig(): { iban: string; bic: string; account_holder: string; accountHolder?: string } {
+  try {
+    const row = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+    const bank = row?.value ? (() => { try { return JSON.parse(row.value); } catch { return {}; } })() : {};
+    return {
+      iban: bank.iban || '',
+      bic: bank.bic || '',
+      account_holder: bank.account_holder || bank.accountHolder || 'Antonio Bellanova Atelier',
+      accountHolder: bank.account_holder || bank.accountHolder || 'Antonio Bellanova Atelier',
+    };
+  } catch {
+    return { iban: '', bic: '', account_holder: 'Antonio Bellanova Atelier', accountHolder: 'Antonio Bellanova Atelier' };
+  }
+}
+
 type ContractLang = 'de' | 'en' | 'it' | 'fr' | 'es' | 'pt' | 'ar';
 const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
   de: {
@@ -1813,6 +1829,11 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Kunde:',
     atelierDirector: 'Atelier-Direktor — Digitale Signatur',
     footerGdpr: 'DSGVO/GDPR: gemäß Plattformbedingungen. Als PDF speichern.',
+    paymentDetails: 'Zahlungsinformationen',
+    paymentAccountHolder: 'Kontoinhaber',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Verwendungszweck',
   },
   en: {
     documentRef: 'Document Ref',
@@ -1841,6 +1862,11 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Client:',
     atelierDirector: 'Atelier Director — Digital Signature',
     footerGdpr: 'DSGVO/GDPR: per Platform Terms. Save as PDF.',
+    paymentDetails: 'Payment details',
+    paymentAccountHolder: 'Account holder',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Reference',
   },
   it: {
     documentRef: 'Rif. documento',
@@ -1869,6 +1895,11 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Cliente:',
     atelierDirector: 'Direttore Atelier — Firma digitale',
     footerGdpr: 'GDPR: secondo i Termini della piattaforma. Salva come PDF.',
+    paymentDetails: 'Dati di pagamento',
+    paymentAccountHolder: 'Intestatario',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Causale',
   },
   fr: {
     documentRef: 'Réf. document',
@@ -2223,6 +2254,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
         ${content.split('\n\n').map(p => `<p style="margin-bottom: 12px;">${String(p).replace(/\n/g, '<br>')}</p>`).join('')}
         ${options.escrowEnabled ? `<div style="margin-top: 18px; padding: 12px; border: 1px dashed ${LUXURY_GOLD}; background: rgba(201, 162, 39, 0.08);"><div style="font-size: 9px; font-weight: 700; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 4px;">${L.escrowProtection}</div><div style="font-size: 10px; color: ${LUXURY_MUTED};">${L.escrowText}</div></div>` : ''}
       </div>
+      ${(isInvoice || options.escrowEnabled) ? (() => { const bank = getBankConfig(); if (!bank.iban) return ''; return `<div style="margin-bottom: 28px; padding: 18px 20px; border: 1px solid ${LUXURY_GOLD_DIM}; background: rgba(201, 162, 39, 0.06);"><div style="font-size: 9px; font-weight: 700; color: ${LUXURY_GOLD}; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">${(L as any).paymentDetails || 'Zahlungsinformationen'}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; line-height: 1.8;"><div><span style="color: ${LUXURY_MUTED};">${(L as any).paymentAccountHolder || 'Kontoinhaber'}:</span> <span style="font-weight: 600;">${bank.account_holder}</span></div><div><span style="color: ${LUXURY_MUTED};">${(L as any).paymentIban || 'IBAN'}:</span> <span style="font-family: monospace; letter-spacing: 0.5px;">${bank.iban}</span></div>${bank.bic ? `<div><span style="color: ${LUXURY_MUTED};">${(L as any).paymentBic || 'BIC'}:</span> <span style="font-family: monospace;">${bank.bic}</span></div>` : ''}<div><span style="color: ${LUXURY_MUTED};">${(L as any).paymentReference || 'Verwendungszweck'}:</span> <span style="color: ${LUXURY_GOLD}; font-weight: 600;">${docRef}</span></div></div></div>`; })() : ''}
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 36px; align-items: end;">
         <div>
@@ -3642,11 +3674,12 @@ app.post("/api/admin/approve-purchase", (req, res) => {
     }
     updateProvenance(masterpieceId, 'vip_event', `Acquisition request approved for client ${user.name}.`);
 
-    // 4. Start Payment Workflow
+    // 4. Start Payment Workflow (IBAN aus Admin Bank-Konfiguration)
+    const bankDeposit = getBankConfig();
     db.prepare(`
       INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
-      VALUES (?, ?, 'deposit', ?, 'awaiting_deposit', 'DE35 2022 0800 0056 5751 78', ?)
-    `).run(user.id, masterpieceId, depositAmount, docRef);
+      VALUES (?, ?, 'deposit', ?, 'awaiting_deposit', ?, ?)
+    `).run(user.id, masterpieceId, depositAmount, bankDeposit.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', docRef);
 
     // 5. Private Deal Automation: create Deal Room + Payment Schedule + link to production
     const totalPrice = piece.valuation;
@@ -3744,10 +3777,11 @@ app.post("/api/admin/workflow/update", (req, res) => {
         user.id, masterpieceId, invRef, invHtml
       );
       
+      const bankFull = getBankConfig();
       db.prepare(`
         INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
-        VALUES (?, ?, 'full', ?, 'awaiting_payment', 'DE35 2022 0800 0056 5751 78', ?)
-      `).run(user.id, masterpieceId, balanceDue, invRef);
+        VALUES (?, ?, 'full', ?, 'awaiting_payment', ?, ?)
+      `).run(user.id, masterpieceId, balanceDue, bankFull.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', invRef);
       break;
     case 'final_payment_paid':
     case 'final_payment_pending':

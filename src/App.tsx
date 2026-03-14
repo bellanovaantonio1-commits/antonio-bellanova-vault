@@ -2865,6 +2865,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'world' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
+    const pathname = window.location.pathname || '';
+    const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
+    if (verifyMatch) return 'verify';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
     if (v === 'reset-password' && params.get('token')) return 'reset-password';
@@ -2970,7 +2973,12 @@ export default function App() {
   const [performanceData, setPerformanceData] = useState<Record<number, any>>({});
   const [showRegistryInModal, setShowRegistryInModal] = useState(false);
   const [pieceModalImageIndex, setPieceModalImageIndex] = useState(0);
-  const [verifyCertId, setVerifyCertId] = useState<string | null>(null);
+  const [verifyCertId, setVerifyCertId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const pathname = window.location.pathname || '';
+    const m = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
+    return m ? decodeURIComponent(m[1].replace(/\/$/, '')) : null;
+  });
   const [verifyData, setVerifyData] = useState<{ cert: any; piece: any; owner_name: string | null } | null>(null);
   const [showSuccessOverlay, setShowSuccessOverlay] = useState<{ message: string } | null>(null);
   const [notificationPrefs, setNotificationPrefs] = useState<{ email_messages: boolean; email_contracts: boolean; email_auctions: boolean }>({ email_messages: true, email_contracts: true, email_auctions: true });
@@ -11149,6 +11157,8 @@ export default function App() {
                       </Card>
                       <Card className="p-4 space-y-3">
                         <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.bank_config_title')}</h4>
+                        <p className="text-xs text-zinc-500">Diese Angaben erscheinen in Anzahlungs- und Rechnungsverträgen sowie bei Zahlungsaufforderungen.</p>
+                        <input type="text" placeholder="Kontoinhaber (z. B. Antonio Bellanova Atelier)" value={adminBankConfig.account_holder ?? adminBankConfig.accountHolder ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, account_holder: e.target.value, accountHolder: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <input type="text" placeholder="IBAN" value={adminBankConfig.iban ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, iban: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <input type="text" placeholder="BIC" value={adminBankConfig.bic ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, bic: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <Button variant="outline" className="text-xs" onClick={async () => { await fetch('/api/admin/bank-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminBankConfig) }); notifyUser(t('admin.bank_config_saved'), 'success'); }}>{t('admin.save_button')}</Button>
@@ -11925,7 +11935,7 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
                     <div className="space-y-6">
                       <div className="aspect-square bg-zinc-900 rounded-2xl border border-zinc-800 flex flex-col items-center justify-center p-8">
                         <div className="w-32 h-32 bg-white p-2 rounded-xl mb-4">
-                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('https://vault.bellanova.com/certificate/' + (selectedCert?.cert_id ?? ''))}`} alt="Verification QR" className="w-full h-full" />
+                          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent((typeof window !== 'undefined' ? window.location.origin : '') + '/verify/' + (selectedCert?.cert_id ?? selectedCert?.doc_ref ?? ''))}`} alt="Verification QR" className="w-full h-full" />
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-zinc-600 text-center">{t('scan_verify')}</p>
                       </div>
