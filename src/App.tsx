@@ -963,6 +963,8 @@ const TRANSLATIONS: any = {
     "concierge.secure_logged": "Sicherer Kanal · Kommunikation protokolliert",
     "auth.forgot_password": "Passwort vergessen",
     "auth.forgot_password_link": "Passwort vergessen?",
+    "auth.continue_as_guest": "Als Gast fortfahren",
+    "auth.or": "oder",
     "auth.preferred_language": "Bevorzugte Sprache",
     "auth.reset_invalid_token": "Kein gültiger Token. Nutzen Sie „Passwort vergessen“, um einen neuen Link zu erhalten.",
     "auth.back_to_login": "Zurück zum Login",
@@ -1737,6 +1739,8 @@ const TRANSLATIONS: any = {
     "concierge.secure_logged": "Secure channel · Communication logged",
     "auth.forgot_password": "Forgot password",
     "auth.forgot_password_link": "Forgot password?",
+    "auth.continue_as_guest": "Continue as Guest",
+    "auth.or": "or",
     "auth.preferred_language": "Preferred language",
     "auth.reset_invalid_token": "Invalid token. Use \"Forgot password\" to get a new link.",
     "auth.back_to_login": "Back to login",
@@ -2405,6 +2409,8 @@ const TRANSLATIONS: any = {
     "concierge.secure_logged": "Canale sicuro · Comunicazione registrata",
     "auth.forgot_password": "Password dimenticata",
     "auth.forgot_password_link": "Password dimenticata?",
+    "auth.continue_as_guest": "Continua come ospite",
+    "auth.or": "oppure",
     "auth.preferred_language": "Lingua preferita",
     "auth.reset_invalid_token": "Token non valido. Usate \"Password dimenticata\" per ottenere un nuovo link.",
     "auth.back_to_login": "Torna al login",
@@ -5537,11 +5543,10 @@ export default function App() {
                   <button type="button" onClick={() => setView('forgot-password')} className="text-sm text-amber-500 hover:text-amber-400">{t('auth.forgot_password_link')}</button>
                 </p>
               )}
-              {view === 'login' && (
-                <Button type="button" variant="outline" disabled={loading} className="w-full mt-3" onClick={handleGuestLogin}>
-                  Continue as Guest
-                </Button>
-              )}
+              <p className="text-center text-xs text-zinc-500 uppercase tracking-widest mt-4 mb-2">{t('auth.or')}</p>
+              <Button type="button" variant="outline" disabled={loading} className="w-full border-zinc-600 text-zinc-200 hover:bg-zinc-800 hover:border-zinc-500" onClick={handleGuestLogin}>
+                {t('auth.continue_as_guest')}
+              </Button>
             </form>
             )}
           </Card>
