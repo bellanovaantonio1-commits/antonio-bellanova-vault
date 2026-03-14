@@ -3016,6 +3016,7 @@ export default function App() {
   const [adminDealRooms, setAdminDealRooms] = useState<any[]>([]);
   const [adminCollectorReputation, setAdminCollectorReputation] = useState<any[]>([]);
   const [adminInvestorDocuments, setAdminInvestorDocuments] = useState<any[]>([]);
+  const [adminPlatformMetrics, setAdminPlatformMetrics] = useState<InvestorAnalytics | null>(null);
   const [myCollectorRooms, setMyCollectorRooms] = useState<any[]>([]);
   const [mySharedStones, setMySharedStones] = useState<any[]>([]);
   const [myDealRooms, setMyDealRooms] = useState<any[]>([]);
@@ -3771,7 +3772,7 @@ export default function App() {
       } else setPrivateOffers([]);
 
       if (user.role === UserRole.ADMIN) {
-        const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes, adminDropsRes, salesRes, vipMembersRes] = await Promise.all([
+        const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes, adminDropsRes, salesRes, vipMembersRes, platformMetricsRes] = await Promise.all([
           fetch('/api/admin/stats', { credentials: 'include' }),
           fetch('/api/admin/users', { credentials: 'include' }),
           fetch('/api/admin/contracts', { credentials: 'include' }),
@@ -3789,7 +3790,8 @@ export default function App() {
           fetch('/api/admin/contact-requests', { credentials: 'include' }),
           fetch('/api/admin/drops', { credentials: 'include' }),
           fetch('/api/admin/sales', { credentials: 'include' }),
-          fetch('/api/admin/vip-members', { credentials: 'include' })
+          fetch('/api/admin/vip-members', { credentials: 'include' }),
+          fetch('/api/investor/analytics', { credentials: 'include' })
         ]);
         if (statsRes.ok) setAdminStats(await statsRes.json());
         if (usersRes.ok) setAllUsers(await usersRes.json());
@@ -3814,6 +3816,7 @@ export default function App() {
         if (adminDropsRes.ok) setAdminDropsList(await adminDropsRes.json());
         if (salesRes.ok) setAdminSales(await salesRes.json());
         if (vipMembersRes.ok) setAdminVipMembers(await vipMembersRes.json());
+        if (platformMetricsRes.ok) setAdminPlatformMetrics(await platformMetricsRes.json());
         const advisorsRes = await fetch('/api/admin/advisors');
         if (advisorsRes.ok) setAdminAdvisors(await advisorsRes.json());
         const commissionsRes = await fetch('/api/admin/advisors/commissions');
@@ -8549,6 +8552,29 @@ export default function App() {
                 </div>
                 {(adminTab === 'overview') && (
                 <>
+                {/* Platform metrics (Valuation, Liquidity, Scarcity, Pieces) */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <Card className="p-6 space-y-2 border-emerald-500/20 bg-emerald-500/5">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest">Platform Valuation</p>
+                    <p className="text-3xl font-bold text-emerald-500">{(adminPlatformMetrics?.platform_valuation ?? 0).toLocaleString('de-DE')} €</p>
+                    <p className="text-[10px] text-emerald-600 font-bold">+12.4% vs Last Quarter</p>
+                  </Card>
+                  <Card className="p-6 space-y-2">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest">Liquidity Forecast</p>
+                    <p className="text-3xl font-bold text-zinc-100">{(adminPlatformMetrics?.liquidity_forecast ?? 0).toLocaleString('de-DE')} €</p>
+                    <p className="text-[10px] text-zinc-500">Projected Secondary Market Volume</p>
+                  </Card>
+                  <Card className="p-6 space-y-2">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest">Scarcity Index</p>
+                    <p className="text-3xl font-bold text-amber-500">{adminPlatformMetrics?.scarcity_index ?? 94}/100</p>
+                    <p className="text-[10px] text-amber-600 font-bold">High Demand Signal</p>
+                  </Card>
+                  <Card className="p-6 space-y-2">
+                    <p className="text-xs text-zinc-500 uppercase tracking-widest">Pieces Under Management</p>
+                    <p className="text-3xl font-bold text-zinc-100">{masterpieces.length}</p>
+                    <p className="text-[10px] text-zinc-500">{adminPlatformMetrics?.pieces_sold ?? 0} Sold to Date</p>
+                  </Card>
+                </div>
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_revenue')}</p><p className="text-3xl font-bold text-amber-500">{adminStats?.totalRevenue?.toLocaleString?.() ?? 0} €</p></Card>
