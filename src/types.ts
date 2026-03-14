@@ -7,7 +7,9 @@ export enum UserRole {
   RESELLER = 'reseller',
   INVESTOR = 'investor',
   VIEWER = 'viewer',
-  STRATEGIC_PRIVATE_ADVISOR = 'strategic_private_advisor'
+  STRATEGIC_PRIVATE_ADVISOR = 'strategic_private_advisor',
+  /** Read-only visitor; no DB row; session-only. */
+  GUEST = 'guest'
 }
 
 /** Prestige tier for client loyalty (display + commission + access). */
@@ -43,6 +45,8 @@ export interface User {
   language: string;
   is_vip: number;
   created_at: string;
+  /** True when session is guest (read-only; not in DB). */
+  is_guest?: boolean;
 }
 
 export interface Masterpiece {

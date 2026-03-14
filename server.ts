@@ -2478,6 +2478,9 @@ app.post("/api/register", (req, res) => {
   }
 });
 
+/** Guest sessions use session=0; no user row in DB. */
+const GUEST_USER_ID = 0;
+
 function getSessionUserId(req: express.Request): number | null {
   const cookie = req.headers.cookie;
   if (!cookie) return null;
@@ -2485,10 +2488,32 @@ function getSessionUserId(req: express.Request): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Minimal user object for guest session (read-only; not in DB). */
+function getGuestUserPayload(): Record<string, any> {
+  return {
+    id: GUEST_USER_ID,
+    role: "guest",
+    name: "Guest",
+    email: "",
+    address: "",
+    status: "approved",
+    language: "de",
+    is_vip: 0,
+    created_at: new Date().toISOString(),
+    is_guest: true,
+  };
+}
+
 function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const userId = getSessionUserId(req);
-  if (!userId) {
+  if (userId === null) {
     res.status(401).json({ error: "Not signed in" });
+    return;
+  }
+  if (userId === GUEST_USER_ID) {
+    (req as any).userId = GUEST_USER_ID;
+    (req as any).user = getGuestUserPayload();
+    next();
     return;
   }
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
@@ -2498,6 +2523,16 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
   }
   (req as any).userId = userId;
   (req as any).user = user;
+  next();
+}
+
+/** Reject guest; use on write/paid/restricted routes. */
+function requireNotGuest(req: express.Request, res: express.Response, next: express.NextFunction): void {
+  const u = (req as any).user;
+  if (u && u.role === "guest") {
+    res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    return;
+  }
   next();
 }
 
@@ -2513,6 +2548,7 @@ function requireAdmin(req: express.Request, res: express.Response, next: express
 const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "POST", path: "/api/register" },
   { method: "POST", path: "/api/login" },
+  { method: "POST", path: "/api/guest-login" },
   { method: "POST", path: "/api/logout" },
   { method: "GET", path: "/api/logout" },
   { method: "GET", path: "/api/masterpieces" },
@@ -2534,10 +2570,33 @@ function isPublicApi(req: express.Request): boolean {
   );
 }
 
+/** Paths that require a real account; guests get 403 with GUEST_RESTRICTED. */
+function isGuestRestrictedPath(path: string, method: string): boolean {
+  if (path.startsWith("/api/admin")) return true;
+  if (path === "/api/me/addresses" && (method === "POST" || method === "PATCH" || method === "DELETE")) return true;
+  if (path.match(/^\/api\/me\/addresses\/\d+$/) && (method === "PATCH" || method === "DELETE")) return true;
+  if (path === "/api/me/notification-settings" && method === "PATCH") return true;
+  if (path === "/api/marketplace/buy" && method === "POST") return true;
+  if (path === "/api/auctions/bid" && method === "POST") return true;
+  if (path.startsWith("/api/investor/")) return true;
+  if (path.startsWith("/api/portfolio/") && method === "POST") return true;
+  if (path === "/api/contracts/sign" && method === "POST") return true;
+  if ((path === "/api/resale/start" || path === "/api/resale/list") && method === "POST") return true;
+  if (path === "/api/users/me" && (method === "PATCH" || method === "PUT")) return true;
+  if (path === "/api/users/me/change-password" && method === "POST") return true;
+  if (path.startsWith("/api/gdpr/")) return true;
+  if (path.startsWith("/api/legacy/")) return true;
+  if (path.match(/^\/api\/notifications\/\d+\/read-all$/) && method === "POST") return true;
+  if (path.match(/^\/api\/appointments\/\d+\/respond$/) && method === "PATCH") return true;
+  return false;
+}
+
 app.use("/api", (req, res, next) => {
   if (isPublicApi(req)) return next();
   requireAuth(req, res, () => {
     const path = (req.originalUrl || req.url || req.path || "").split("?")[0];
+    const u = (req as any).user;
+    if (u && u.role === "guest" && isGuestRestrictedPath(path, req.method)) return requireNotGuest(req, res, next);
     if (path.startsWith("/api/admin")) return requireAdmin(req, res, next);
     next();
   });
@@ -2579,9 +2638,16 @@ app.post("/api/login", (req, res) => {
   }
 });
 
+app.post("/api/guest-login", (req, res) => {
+  const isSecure = (process.env.APP_URL || "").startsWith("https");
+  res.setHeader("Set-Cookie", `session=${GUEST_USER_ID}; Path=/; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
+  res.json(getGuestUserPayload());
+});
+
 app.get("/api/me", (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (userId === null) return res.status(401).json({ error: "Not signed in" });
+  if (userId === GUEST_USER_ID) return res.json(getGuestUserPayload());
   let user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
   if (!user || user.status !== 'approved') return res.status(401).json({ error: "Invalid session" });
   if (typeof recalcPrestigeTier === 'function' && user.role !== 'admin' && user.role !== 'super_admin') try { recalcPrestigeTier(userId); user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any; } catch (_) {}

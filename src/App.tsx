@@ -2857,7 +2857,7 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'world' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt'>(() => {
     if (typeof window === 'undefined') return 'login';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
@@ -2972,6 +2972,7 @@ export default function App() {
   const [showNotificationPrefsModal, setShowNotificationPrefsModal] = useState(false);
   const [showAddressesModal, setShowAddressesModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [showAccountRequiredModal, setShowAccountRequiredModal] = useState(false);
   const [forcePasswordChangeMode, setForcePasswordChangeMode] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMarketplacePdfModal, setShowMarketplacePdfModal] = useState(false);
@@ -3446,6 +3447,11 @@ export default function App() {
       if (!data) return;
       setUser(data);
       setLanguage(data.preferred_language || data.language || 'de');
+      if (data.is_guest || data.role === 'guest') {
+        setView('world');
+        if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
+        return;
+      }
       setView('dashboard');
       if (data.notification_prefs) {
         try {
@@ -3552,6 +3558,7 @@ export default function App() {
         else if (showNotifications) setShowNotifications(false);
         else if (showNotificationPrefsModal) setShowNotificationPrefsModal(false);
         else if (showPasswordChangeModal) setShowPasswordChangeModal(false);
+        else if (showAccountRequiredModal) setShowAccountRequiredModal(false);
         else if (showShortcutsModal) setShowShortcutsModal(false);
         else if (selectedCert) setSelectedCert(null);
       }
@@ -3563,7 +3570,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedPiece, contractToSign, showNotifications, showNotificationPrefsModal, showPasswordChangeModal, showShortcutsModal, selectedCert]);
+  }, [selectedPiece, contractToSign, showNotifications, showNotificationPrefsModal, showPasswordChangeModal, showAccountRequiredModal, showShortcutsModal, selectedCert]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(typeof window !== 'undefined' && window.scrollY > 400);
@@ -4309,6 +4316,27 @@ export default function App() {
     }
   };
 
+  const handleGuestLogin = async () => {
+    setLoginError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/guest-login', { method: 'POST', credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setUser(data);
+        setLanguage(data.language || 'de');
+        setView('world');
+        if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
+      } else {
+        setLoginError((data && data.error) || 'Could not start guest session');
+      }
+    } catch {
+      setLoginError('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegisterError(null);
@@ -4478,7 +4506,8 @@ export default function App() {
         notifyUser(t('marketplace.request_sent'), 'success');
         fetchData();
       } else {
-        notifyUser(data.error || t('errors.generic'), 'error');
+        if (res.status === 403 && (data as any).code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else notifyUser(data.error || t('errors.generic'), 'error');
       }
     } finally {
       setLoading(false);
@@ -4798,7 +4827,8 @@ export default function App() {
       fetchData();
         notifyUser("Gebot abgegeben.", "success");
       } else {
-        notifyUser(data.error || t('errors.generic'), 'error');
+        if (res.status === 403 && (data as any).code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else notifyUser(data.error || t('errors.generic'), 'error');
       }
     } finally {
       setLoading(false);
@@ -5507,6 +5537,11 @@ export default function App() {
                   <button type="button" onClick={() => setView('forgot-password')} className="text-sm text-amber-500 hover:text-amber-400">{t('auth.forgot_password_link')}</button>
                 </p>
               )}
+              {view === 'login' && (
+                <Button type="button" variant="outline" disabled={loading} className="w-full mt-3" onClick={handleGuestLogin}>
+                  Continue as Guest
+                </Button>
+              )}
             </form>
             )}
           </Card>
@@ -5535,7 +5570,15 @@ export default function App() {
 
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
-  const navItems = [
+  const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
+  const navItems = isGuest ? [
+    navItem('world', Globe, 'World'),
+    navItem('marketplace', ShoppingBag, t('marketplace')),
+    navItem('resale', History, t('resale.menu_title')),
+    navItem('auctions', Gavel, t('auctions')),
+    navItem('vault', ShieldCheck, t('vault')),
+    navItem('concierge', MessageCircle, t('chat.concierge')),
+  ] : [
     navItem('dashboard', TrendingUp, t('dashboard')),
     navItem('marketplace', ShoppingBag, t('marketplace')),
     navItem('resale', History, t('resale.menu_title')),
@@ -5943,6 +5986,22 @@ export default function App() {
           )}
         </AnimatePresence>
 
+        {/* Account required (guest restricted action) */}
+        <AnimatePresence>
+          {showAccountRequiredModal && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowAccountRequiredModal(false)}>
+              <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+                <h4 className="text-lg font-serif italic">Account required</h4>
+                <p className="text-zinc-400">Create an account to access exclusive Vault features.</p>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => { setShowAccountRequiredModal(false); setView('register'); }}>Create Account</Button>
+                  <Button className="flex-1" onClick={() => { setShowAccountRequiredModal(false); setView('login'); }}>Sign In</Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Shortcuts modal */}
         <AnimatePresence>
           {showShortcutsModal && (
@@ -5963,7 +6022,7 @@ export default function App() {
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
           <div className="px-4 sm:px-6 md:px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
-            <button type="button" onClick={() => setView('dashboard')} className="hover:text-amber-500/80">{t('dashboard')}</button>
+            <button type="button" onClick={() => setView(isGuest ? 'world' : 'dashboard')} className="hover:text-amber-500/80">{isGuest ? 'World' : t('dashboard')}</button>
             <span>/</span>
             {view === 'vault' ? (
               <>
@@ -6375,7 +6434,7 @@ export default function App() {
                           fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                         } : undefined}
-                        onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
+                        onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
                           if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 2);
@@ -6418,12 +6477,12 @@ export default function App() {
               </motion.div>
             )}
 
-            {view === 'marketplace' && (
+            {(view === 'marketplace' || view === 'world') && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <div className="flex justify-between items-end flex-wrap gap-4">
                   <div className="space-y-2">
-                    <h3 className="text-3xl font-serif italic">{t('marketplace')}</h3>
-                    <p className="text-zinc-500">{t('marketplace.subtitle')}</p>
+                    <h3 className="text-3xl font-serif italic">{view === 'world' ? 'World' : t('marketplace')}</h3>
+                    <p className="text-zinc-500">{view === 'world' ? 'Explore the collection.' : t('marketplace.subtitle')}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                     <input type="text" placeholder={t('marketplace.filter_placeholder')} value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
@@ -6487,11 +6546,11 @@ export default function App() {
                               fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
-                            onBuy={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)} 
+                            onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
                             onViewDetails={(p) => {
                               setSelectedPiece(p);
                               if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                            }} 
+                            }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
                           />
                         );
@@ -6541,7 +6600,7 @@ export default function App() {
                               fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
-                            onBuy={(user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                            onBuy={user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
                           />
@@ -6813,7 +6872,7 @@ export default function App() {
                     <AuctionCard 
                       key={auction.id} 
                       auction={auction} 
-                      onBid={(user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : (amt) => handleBid(auction.id, amt)} 
+                      onBid={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : (amt) => handleBid(auction.id, amt)} 
                       userId={user.id} 
                       isFavorite={user ? favoriteIds.includes(auction.masterpiece_id) : false}
                       onToggleFavorite={user ? () => {
@@ -11621,7 +11680,7 @@ export default function App() {
                                   <option value="vault_storage">{t('delivery.vault_storage')}</option>
                                 </select>
                               </div>
-                              <Button className="w-full py-4 text-base" onClick={() => { handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                              <Button className="w-full py-4 text-base" onClick={() => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
                                 <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
                               </Button>
                             </>
