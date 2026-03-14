@@ -6031,20 +6031,31 @@ app.post("/api/resale/start", (req, res) => {
     const docRef = nextContractRef('resale_commission');
     const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
 
-    const contractResult = db.prepare(`
+    const insertContract = db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, 'resale_commission', ?, ?, 'draft')
-    `).run(uid, mid, docRef, agreementHtml);
-    const contractId = contractResult.lastInsertRowid as number;
-
-    const listingResult = db.prepare(`
+    `);
+    const insertListing = db.prepare(`
       INSERT INTO resale_listings (masterpiece_id, seller_id, asking_price, commission_pct, sale_method, contract_id, status, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 'pending_signature', CURRENT_TIMESTAMP)
-    `).run(mid, uid, priceNum, commissionPct, saleMethod || 'marketplace', contractId);
-    const resaleListingId = listingResult.lastInsertRowid as number;
+    `);
+    const runInTransaction = db.transaction(() => {
+      const contractResult = insertContract.run(uid, mid, docRef, agreementHtml);
+      const contractId = Number(contractResult.lastInsertRowid);
+      const listingResult = insertListing.run(mid, uid, priceNum, commissionPct, saleMethod || 'marketplace', contractId);
+      const resaleListingId = Number(listingResult.lastInsertRowid);
+      return { contractId, resaleListingId };
+    });
+    const { contractId, resaleListingId } = runInTransaction();
 
     resaleAudit(resaleListingId, 'resale_started', undefined, `Asking ${priceNum} ${saleMethod || 'marketplace'}; commission ${commissionPct}%.`);
-    res.json({ success: true, contractId, resaleListingId, contract: { id: contractId, doc_ref: docRef, content: agreementHtml, type: 'resale_commission' } });
+    const payload = { success: true, contractId, resaleListingId, contract: { id: contractId, doc_ref: docRef, content: String(agreementHtml), type: 'resale_commission' as const } };
+    try {
+      res.json(payload);
+    } catch (sendErr: any) {
+      console.error('/api/resale/start send error:', sendErr);
+      res.status(500).json({ error: "Wiederverkauf wurde angelegt, aber die Antwort konnte nicht gesendet werden. Bitte prüfen Sie Ihre Verträge im Tresor." });
+    }
   } catch (e: any) {
     console.error('/api/resale/start error:', e);
     res.status(500).json({ error: e?.message || "Wiederverkauf konnte nicht gestartet werden." });
