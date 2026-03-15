@@ -3,13 +3,14 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
+import { initDb, type DbInterface } from "./lib/db.js";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import multer from "multer";
+import Stripe from "stripe";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -25,10 +26,10 @@ function checkPassword(plain: string, stored: string): boolean {
   if (plain === stored) return true; // legacy plaintext
   return false;
 }
-function upgradePasswordIfNeeded(userId: number, plain: string): void {
-  const user = db.prepare("SELECT password FROM users WHERE id = ?").get(userId) as { password: string };
+async function upgradePasswordIfNeeded(userId: number, plain: string): Promise<void> {
+  const user = (await (await db.prepare("SELECT password FROM users WHERE id = ?")).get(userId)) as { password: string };
   if (!user?.password || user.password.startsWith("$2")) return;
-  db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashPassword(plain), userId);
+  await (await db.prepare("UPDATE users SET password = ? WHERE id = ?")).run(hashPassword(plain), userId);
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -40,7 +41,97 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const PORT = Number(process.env.PORT) || 3000;
 const BASE_URL = (process.env.APP_URL || process.env.BASE_URL || 'https://vault.antoniobellanova.com').replace(/\/$/, '');
-const db = new Database(process.env.DATABASE_PATH || "vault.db");
+let db: DbInterface;
+
+/** Stripe client (uses STRIPE_SECRET_KEY). Test mode when key starts with sk_test_. */
+function getStripe(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!key) throw new Error("STRIPE_SECRET_KEY not set");
+  return new Stripe(key);
+}
+
+// Stripe webhook must receive raw body for signature verification (register before express.json)
+app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: express.Request, res: express.Response) => {
+  const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!stripeSecret || !webhookSecret) {
+    console.warn("[Stripe] Webhook: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not set");
+    return res.status(500).send("Webhook not configured");
+  }
+  const sig = req.headers["stripe-signature"] as string | undefined;
+  const rawBody = req.body as Buffer | undefined;
+  if (!sig || !rawBody) return res.status(400).send("Missing signature or body");
+  let event: Stripe.Event;
+  try {
+    const stripe = getStripe();
+    event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
+  } catch (err: any) {
+    console.error("[Stripe] Webhook signature verification failed:", err?.message);
+    return res.status(400).send(`Webhook Error: ${err?.message || "Invalid signature"}`);
+  }
+  if (event.type === "payment_intent.succeeded") {
+    const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    const amountCents = paymentIntent.amount ?? 0;
+    const metadata = paymentIntent.metadata || {};
+    const paymentType = metadata.payment_type;
+    const invoiceId = metadata.invoice_id ? Number(metadata.invoice_id) : null;
+    const userId = metadata.user_id ? Number(metadata.user_id) : null;
+    const masterpieceId = metadata.masterpiece_id ? Number(metadata.masterpiece_id) : null;
+    if (paymentType === "invoice" && invoiceId && db) {
+      try {
+        const inv = await (await db.prepare("SELECT id, user_id, amount, status FROM invoices WHERE id = ?")).get(invoiceId) as { id: number; user_id: number; amount: number; status: string } | undefined;
+        if (!inv || (inv.status !== 'pending' && inv.status !== 'awaiting_payment')) {
+          console.log("[Invoice] Payment ignored: invoice_id=" + invoiceId + " status=" + inv?.status);
+        } else if (amountCents > 0 && Number(inv.amount) === amountCents) {
+          await db.transaction(async (tx) => {
+            await (await tx.prepare("UPDATE invoices SET status = 'paid' WHERE id = ?")).run(invoiceId);
+            await (await tx.prepare("INSERT INTO transactions (user_id, invoice_id, amount, status, stripe_payment_intent_id) VALUES (?, ?, ?, 'PAID', ?)")).run(inv.user_id, invoiceId, amountCents, paymentIntent.id);
+          });
+          console.log("[Invoice] Payment success: invoice_id=" + invoiceId + " amount_cents=" + amountCents + " (status=paid, transaction recorded)");
+          const userRow = await (await db.prepare("SELECT email, name FROM users WHERE id = ?")).get(inv.user_id) as { email?: string; name?: string } | undefined;
+          if (userRow?.email) {
+            const subject = "Payment received – Antonio Bellanova";
+            const text = `Dear ${userRow.name || 'Customer'},\n\nWe have received your payment.\n\nInvoice: #${invoiceId}\nAmount: ${(amountCents / 100).toFixed(2)} EUR\nDate: ${new Date().toLocaleDateString('de-DE')}\n\nThank you for your trust.\n\nAntonio Bellanova`;
+            await sendMail(userRow.email.trim(), subject, text).catch((e) => console.error("[Invoice] Payment confirmation email failed:", e?.message));
+          }
+        } else {
+          console.warn("[Invoice] Amount mismatch: invoice_id=" + invoiceId + " expected=" + inv.amount + " received=" + amountCents);
+        }
+      } catch (e) {
+        console.error("[Stripe] Webhook: failed to update invoice:", e);
+        return res.status(500).send("Failed to update invoice");
+      }
+    } else if (paymentType === "purchase" && userId && masterpieceId && amountCents > 0 && db) {
+      try {
+        const existing = await (await db.prepare("SELECT id FROM orders WHERE stripe_payment_intent_id = ?")).get(paymentIntent.id) as { id: number } | undefined;
+        if (existing) {
+          console.log("[Purchase] Order already recorded: order_id=" + existing.id);
+        } else {
+          await db.transaction(async (tx) => {
+            await (await tx.prepare("INSERT INTO orders (user_id, masterpiece_id, amount, status, stripe_payment_intent_id) VALUES (?, ?, ?, 'paid', ?)")).run(userId, masterpieceId, amountCents, paymentIntent.id);
+            await (await tx.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold' WHERE id = ?")).run(userId, masterpieceId);
+            await (await tx.prepare("INSERT INTO payments (user_id, masterpiece_id, type, amount, status) VALUES (?, ?, 'full', ?, 'paid')")).run(userId, masterpieceId, amountCents / 100);
+          });
+          console.log("[Purchase] Order created: user_id=" + userId + " masterpiece_id=" + masterpieceId + " amount_cents=" + amountCents);
+        }
+      } catch (e) {
+        console.error("[Stripe] Webhook: failed to create order:", e);
+        return res.status(500).send("Failed to create order");
+      }
+    } else if (!paymentType || paymentType === "wallet") {
+      if (userId && amountCents > 0 && db) {
+        try {
+          await (await db.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")).run(amountCents, userId);
+          console.log("[Wallet] Payment success: user_id=" + userId + " amount_cents=" + amountCents + " (wallet_balance credited)");
+        } catch (e) {
+          console.error("[Stripe] Webhook: failed to update wallet_balance:", e);
+          return res.status(500).send("Failed to credit wallet");
+        }
+      }
+    }
+  }
+  res.json({ received: true });
+});
 
 app.use(express.json({ limit: '50mb' }));
 
@@ -98,15 +189,16 @@ const pdfUpload = multer({
   }
 });
 
-// --- Database Initialization ---
-db.exec(`
+// --- Database Initialization (run in startServer via runSchema) ---
+async function runSchema(db: DbInterface) {
+  await db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT UNIQUE,
     password TEXT,
     name TEXT,
     address TEXT,
-    role TEXT DEFAULT 'client', -- admin, client, vip, reseller, investor, seller, gallery, partner, institution
+    role TEXT DEFAULT 'collector', -- guest, collector, private_collector, grand_collector, legacy_collector, vip, admin (super_admin for full admin)
     status TEXT DEFAULT 'pending', -- pending, approved, rejected
     language TEXT DEFAULT 'de',
     is_vip INTEGER DEFAULT 0,
@@ -851,74 +943,83 @@ db.exec(`
 `);
 
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN nft_token_id TEXT").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN nft_token_id TEXT")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN prestige_score REAL").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN prestige_score REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN prestige_category TEXT").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN prestige_category TEXT")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN contract_id INTEGER REFERENCES contracts(id)").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN contract_id INTEGER REFERENCES contracts(id)")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE vault_documents ADD COLUMN contract_id INTEGER REFERENCES contracts(id)").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE vault_documents ADD COLUMN certificate_id INTEGER REFERENCES certificates(id)").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN commission_pct REAL DEFAULT 0")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN original_valuation_at_listing REAL").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN sale_method TEXT DEFAULT 'marketplace'")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN prestige_score_at_listing REAL").run();
+  await (await db.prepare("ALTER TABLE vault_documents ADD COLUMN contract_id INTEGER REFERENCES contracts(id)")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN market_stability_score REAL").run();
+  await (await db.prepare("ALTER TABLE vault_documents ADD COLUMN certificate_id INTEGER REFERENCES certificates(id)")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN price_recommendation REAL").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN original_valuation_at_listing REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN value_floor_pct REAL").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN prestige_score_at_listing REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN admin_decision TEXT").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN market_stability_score REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN decided_at DATETIME").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN price_recommendation REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE resale_listings ADD COLUMN decided_by INTEGER REFERENCES users(id)").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN value_floor_pct REAL")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN transfer_type TEXT DEFAULT 'platform'").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN admin_decision TEXT")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN warranty_void INTEGER DEFAULT 0").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN decided_at DATETIME")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE masterpieces ADD COLUMN registry_id TEXT").run();
+  await (await db.prepare("ALTER TABLE resale_listings ADD COLUMN decided_by INTEGER REFERENCES users(id)")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE investor_requests ADD COLUMN masterpiece_id INTEGER").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN transfer_type TEXT DEFAULT 'platform'")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE investor_requests ADD COLUMN request_metadata TEXT").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN warranty_void INTEGER DEFAULT 0")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE users ADD COLUMN notification_prefs TEXT").run();
+  await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN registry_id TEXT")).run();
 } catch (e) {}
 try {
-  db.prepare("ALTER TABLE users ADD COLUMN username TEXT").run();
+  await (await db.prepare("ALTER TABLE investor_requests ADD COLUMN masterpiece_id INTEGER")).run();
 } catch (e) {}
-try { db.prepare("ALTER TABLE vault_projects ADD COLUMN vault_id TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE vault_projects ADD COLUMN serial_id TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE vault_projects ADD COLUMN production_start TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE vault_projects ADD COLUMN production_duration TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE vault_projects ADD COLUMN completion_date TEXT").run(); } catch (e) {}
-db.exec(`
+try {
+  await (await db.prepare("ALTER TABLE investor_requests ADD COLUMN request_metadata TEXT")).run();
+} catch (e) {}
+try {
+  await (await db.prepare("ALTER TABLE users ADD COLUMN notification_prefs TEXT")).run();
+} catch (e) {}
+try {
+  await (await db.prepare("ALTER TABLE users ADD COLUMN username TEXT")).run();
+} catch (e) {}
+try { await (await db.prepare("ALTER TABLE vault_projects ADD COLUMN vault_id TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE vault_projects ADD COLUMN serial_id TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE vault_projects ADD COLUMN production_start TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE vault_projects ADD COLUMN production_duration TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE vault_projects ADD COLUMN completion_date TEXT")).run(); } catch (e) {}
+await db.exec(`
   CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -927,7 +1028,7 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS login_links (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -944,10 +1045,10 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-try { db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT").run(); } catch (_) {}
-db.exec(`
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE session_handoff ADD COLUMN temp_password TEXT")).run(); } catch (_) {}
+await db.exec(`
   CREATE TABLE IF NOT EXISTS user_portfolio_hidden (
     user_id INTEGER NOT NULL,
     masterpiece_id INTEGER NOT NULL,
@@ -957,7 +1058,7 @@ db.exec(`
     FOREIGN KEY (masterpiece_id) REFERENCES masterpieces(id)
   );
 `);
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS contact_requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -969,7 +1070,7 @@ db.exec(`
 `);
 
 // --- Private Client Communication System (Sections 1–12) ---
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS private_client_conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     admin_id INTEGER NOT NULL,
@@ -1034,10 +1135,10 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
-try { db.prepare("ALTER TABLE private_client_conversations ADD COLUMN project_id INTEGER").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE private_client_conversations ADD COLUMN project_id INTEGER")).run(); } catch (e) {}
 
 // --- Strategic Private Advisor ---
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS advisor_profiles (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL UNIQUE REFERENCES users(id),
@@ -1080,10 +1181,10 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-try { db.prepare("ALTER TABLE payments ADD COLUMN advisor_id INTEGER REFERENCES advisor_profiles(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE payments ADD COLUMN advisor_commission_pct REAL").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE payments ADD COLUMN advisor_id INTEGER REFERENCES advisor_profiles(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE payments ADD COLUMN advisor_commission_pct REAL")).run(); } catch (e) {}
 
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS maison_buyback_offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     resale_listing_id INTEGER NOT NULL,
@@ -1096,7 +1197,7 @@ db.exec(`
     FOREIGN KEY(offered_by) REFERENCES users(id)
   );
 `);
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS consent_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1119,7 +1220,7 @@ db.exec(`
 `);
 
 // --- High Jewelry Client Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS collector_rooms (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
@@ -1185,9 +1286,9 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-try { db.prepare("ALTER TABLE private_client_conversations ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE client_projects ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)").run(); } catch (e) {}
-db.exec(`
+try { await (await db.prepare("ALTER TABLE private_client_conversations ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE client_projects ADD COLUMN room_id INTEGER REFERENCES collector_rooms(id)")).run(); } catch (e) {}
+await db.exec(`
   CREATE TABLE IF NOT EXISTS room_assigned_clients (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     room_type TEXT NOT NULL CHECK(room_type IN ('collector','deal')),
@@ -1198,14 +1299,14 @@ db.exec(`
     FOREIGN KEY(client_id) REFERENCES users(id)
   );
 `);
-try { db.prepare("ALTER TABLE certificates ADD COLUMN status TEXT DEFAULT 'verified_authentic'").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN collector_directory_visible INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN preferred_language TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE notifications ADD COLUMN reference_id TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'unread'").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE certificates ADD COLUMN status TEXT DEFAULT 'verified_authentic'")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN collector_directory_visible INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN preferred_language TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE notifications ADD COLUMN reference_id TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE notifications ADD COLUMN status TEXT DEFAULT 'unread'")).run(); } catch (e) {}
 
 // --- Luxury collector & admin extensions (Sections 1–20) ---
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS client_timeline (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     client_id INTEGER NOT NULL,
@@ -1224,6 +1325,38 @@ db.exec(`
     paid_date DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(deal_id) REFERENCES deal_rooms(id)
+  );
+  CREATE TABLE IF NOT EXISTS invoices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    project_id INTEGER,
+    amount INTEGER NOT NULL,
+    status TEXT DEFAULT 'pending',
+    type TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    masterpiece_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    status TEXT DEFAULT 'paid',
+    stripe_payment_intent_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    invoice_id INTEGER,
+    amount INTEGER NOT NULL,
+    status TEXT DEFAULT 'PAID',
+    stripe_payment_intent_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(invoice_id) REFERENCES invoices(id)
   );
   CREATE TABLE IF NOT EXISTS admin_client_notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1260,24 +1393,24 @@ db.exec(`
     FOREIGN KEY(client_id) REFERENCES users(id)
   );
 `);
-try { db.prepare("ALTER TABLE stone_library ADD COLUMN image TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE stone_library ADD COLUMN color_grade TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_jewelry_types TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN interests TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE delivery_details ADD COLUMN production_complete INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE delivery_details ADD COLUMN shipment_prepared INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE ownership_history ADD COLUMN previous_owner_id INTEGER REFERENCES users(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN masterpiece_id INTEGER REFERENCES masterpieces(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN total_price REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN deposit_amount REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE deal_rooms ADD COLUMN remaining_balance REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN private_client_mode INTEGER DEFAULT 0").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE stone_library ADD COLUMN image TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE stone_library ADD COLUMN color_grade TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_jewelry_types TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN interests TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE delivery_details ADD COLUMN production_complete INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE delivery_details ADD COLUMN shipment_prepared INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE ownership_history ADD COLUMN previous_owner_id INTEGER REFERENCES users(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN masterpiece_id INTEGER REFERENCES masterpieces(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN total_price REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN deposit_amount REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN remaining_balance REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN private_client_mode INTEGER DEFAULT 0")).run(); } catch (e) {}
 
 // UHNW threshold (€5M): above this collection value activates Private Client Mode benefits
 const UHNW_COLLECTION_THRESHOLD_EUR = 5_000_000;
 
 // Imperial Intelligence: Legacy / succession
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS legacy_beneficiaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -1295,25 +1428,25 @@ db.exec(`
   );
 `);
 try {
-  db.prepare("ALTER TABLE auctions ADD COLUMN terms TEXT").run();
+  await (await db.prepare("ALTER TABLE auctions ADD COLUMN terms TEXT")).run();
 } catch (e) {}
 
 try {
-  db.prepare("ALTER TABLE auctions ADD COLUMN vip_only INTEGER DEFAULT 0").run();
+  await (await db.prepare("ALTER TABLE auctions ADD COLUMN vip_only INTEGER DEFAULT 0")).run();
 } catch (e) {
   // Column might already exist
 }
 
 // --- VIP membership system: user dates, cleaning, product early access, production priority ---
-try { db.prepare("ALTER TABLE users ADD COLUMN vip_start_date DATETIME").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN vip_expiry_date DATETIME").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN vip_membership_id INTEGER REFERENCES vip_memberships(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN cleaning_credits_remaining INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN last_cleaning_date DATETIME").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN vip_early_access INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN product_release_date DATETIME").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE drops ADD COLUMN vip_early_access INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN production_priority TEXT DEFAULT 'standard'").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN vip_start_date DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN vip_expiry_date DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN vip_membership_id INTEGER REFERENCES vip_memberships(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN cleaning_credits_remaining INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN last_cleaning_date DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN vip_early_access INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN product_release_date DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE drops ADD COLUMN vip_early_access INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN production_priority TEXT DEFAULT 'standard'")).run(); } catch (e) {}
 
 // --- Collector Level System & Luxury Extensions ---
 const COLLECTOR_LEVELS = ['collector', 'vip', 'private_collector', 'grand_collector', 'legacy_collector'] as const;
@@ -1327,25 +1460,25 @@ function canAccessPrivateGallery(user: { collector_level?: string | null; role?:
   return ['vip', 'private_collector', 'grand_collector', 'legacy_collector', 'admin', 'super_admin'].includes(level || '');
 }
 
-try { db.prepare("ALTER TABLE users ADD COLUMN collector_level TEXT DEFAULT 'collector'").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN private_portfolio_visibility INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE waitlist ADD COLUMN position INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE waitlist ADD COLUMN priority_level INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE waitlist ADD COLUMN collector_level TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE ownership_history ADD COLUMN certificate_reference TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_gallery INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN purchase_price REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN estimated_market_value REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN favorite_gemstones TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_metals TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN design_style TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN budget_range TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_type TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_focus TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN discreet_transaction_mode INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE auctions ADD COLUMN visibility TEXT DEFAULT 'public'").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN collector_level TEXT DEFAULT 'collector'")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN private_portfolio_visibility INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE waitlist ADD COLUMN position INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE waitlist ADD COLUMN priority_level INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE waitlist ADD COLUMN collector_level TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE ownership_history ADD COLUMN certificate_reference TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN private_gallery INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN purchase_price REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN estimated_market_value REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN favorite_gemstones TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN preferred_metals TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN design_style TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN budget_range TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_type TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE collector_profiles ADD COLUMN collection_focus TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN discreet_transaction_mode INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE auctions ADD COLUMN visibility TEXT DEFAULT 'public'")).run(); } catch (e) {}
 
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS private_offers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     masterpiece_id INTEGER NOT NULL,
@@ -1427,31 +1560,31 @@ db.exec(`
     FOREIGN KEY(converted_user_id) REFERENCES users(id)
   );
 `);
-try { db.prepare("ALTER TABLE users ADD COLUMN vault_id TEXT").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN vault_id TEXT")).run(); } catch (e) {}
 
 // --- Imperial Core: Prestige Tiers, Drops, Private Viewing, Negotiation, Delivery ---
-try { db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN pricing_mode TEXT DEFAULT 'fixed'").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN price_visibility_rules TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN image_urls TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN prestige_tier TEXT DEFAULT 'client'")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_option TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN hide_price INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN pricing_mode TEXT DEFAULT 'fixed'")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN price_visibility_rules TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN image_urls TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME")).run(); } catch (e) {}
 for (const code of ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar']) {
-  try { db.prepare(`ALTER TABLE masterpieces ADD COLUMN description_${code} TEXT`).run(); } catch (e) {}
+  try { await (await db.prepare(`ALTER TABLE masterpieces ADD COLUMN description_${code} TEXT`)).run(); } catch (e) {}
 }
-try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN responded_by INTEGER REFERENCES users(id)").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_availability ADD COLUMN min_investment_pct REAL").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN valuation_pct_below REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN client_response TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE maison_buyback_offers ADD COLUMN responded_by INTEGER REFERENCES users(id)")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_availability ADD COLUMN min_investment_pct REAL")).run(); } catch (e) {}
 try {
-  db.exec(`
+  await db.exec(`
   CREATE TABLE IF NOT EXISTS fractional_assets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -1478,23 +1611,23 @@ try {
   );
   `);
 } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN asset_code TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_production_weeks INTEGER").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN storage_location TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN certification_status TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN gemstone_documentation TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weight REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN total_value REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_price REAL").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_date DATETIME").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE fractional_assets ADD COLUMN requires_investor_approval INTEGER DEFAULT 0").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_reply TEXT").run(); } catch (e) {}
-try { db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_replied_at DATETIME").run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN asset_code TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_production_weeks INTEGER")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN storage_location TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN certification_status TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN gemstone_documentation TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN estimated_carat_weight REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN atelier_info TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN available_for_resale INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN images TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN total_value REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_price REAL")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE asset_shares ADD COLUMN purchase_date DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE fractional_assets ADD COLUMN requires_investor_approval INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_reply TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE contact_requests ADD COLUMN admin_replied_at DATETIME")).run(); } catch (e) {}
 try {
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS fractional_asset_contracts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL,
@@ -1509,7 +1642,7 @@ try {
   `);
 } catch (e) {}
 try {
-  db.exec(`
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS fractional_asset_sale_payouts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       asset_id INTEGER NOT NULL,
@@ -1537,7 +1670,7 @@ try {
   `);
 } catch (e) {}
 
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS prestige_tier_metrics (
     user_id INTEGER PRIMARY KEY REFERENCES users(id),
     total_spent REAL DEFAULT 0,
@@ -1605,13 +1738,15 @@ db.exec(`
   );
 `);
 
-try { db.prepare("ALTER TABLE users ADD COLUMN locked_at DATETIME").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN notify_marketing INTEGER DEFAULT 0").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE users ADD COLUMN username TEXT").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE payments ADD COLUMN reminder_sent_at DATETIME").run(); } catch (_) {}
-try { db.prepare("ALTER TABLE payments ADD COLUMN manual_note TEXT").run(); } catch (_) {}
-db.exec(`
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN locked_at DATETIME")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN notify_email INTEGER DEFAULT 1")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN notify_marketing INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN username TEXT")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_balance INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_locked INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE payments ADD COLUMN reminder_sent_at DATETIME")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE payments ADD COLUMN manual_note TEXT")).run(); } catch (_) {}
+await db.exec(`
   CREATE TABLE IF NOT EXISTS user_tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id),
@@ -1653,16 +1788,16 @@ db.exec(`
   );
 `);
 
-function logMasterpieceStatusChange(masterpieceId: number, toStatus: string, changedByUserId: number | null) {
+async function logMasterpieceStatusChange(masterpieceId: number, toStatus: string, changedByUserId: number | null) {
   try {
-    const row = db.prepare("SELECT status FROM masterpieces WHERE id = ?").get(masterpieceId) as { status: string } | undefined;
+    const row = await (await db.prepare("SELECT status FROM masterpieces WHERE id = ?")).get(masterpieceId) as { status: string } | undefined;
     const fromStatus = row?.status ?? null;
-    db.prepare("INSERT INTO masterpiece_status_history (masterpiece_id, from_status, to_status, changed_by_user_id) VALUES (?, ?, ?, ?)").run(masterpieceId, fromStatus, toStatus, changedByUserId);
+    await (await db.prepare("INSERT INTO masterpiece_status_history (masterpiece_id, from_status, to_status, changed_by_user_id) VALUES (?, ?, ?, ?)")).run(masterpieceId, fromStatus, toStatus, changedByUserId);
   } catch (_) {}
 }
 
 // --- Automatic Number Systems (International Luxury Maison) ---
-db.exec(`
+await db.exec(`
   CREATE TABLE IF NOT EXISTS number_sequences (
     seq_key TEXT NOT NULL,
     seq_year INTEGER NOT NULL,
@@ -1671,19 +1806,21 @@ db.exec(`
     PRIMARY KEY (seq_key, seq_year, seq_type)
   );
 `);
-function nextProductSerial(category: string): string {
+}
+
+async function nextProductSerial(category: string): Promise<string> {
   const year = new Date().getFullYear();
   const catCode = (category || 'GEN').replace(/\s+/g, '').substring(0, 3).toUpperCase() || 'GEN';
   const key = `product_${catCode}_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')")).get(key, year) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, nextVal);
+  `)).run(key, year, nextVal);
   return `AB-${year}-${catCode}-${String(nextVal).padStart(4, '0')}`;
 }
-function nextContractRef(contractType: string): string {
+async function nextContractRef(contractType: string): Promise<string> {
   const year = new Date().getFullYear();
   const typeMap: Record<string, string> = {
     deposit: 'DEP', purchase: 'SALE', sale: 'SALE', invoice: 'INV', final_payment: 'FPT',
@@ -1693,71 +1830,72 @@ function nextContractRef(contractType: string): string {
   };
   const code = typeMap[contractType] || 'CTR';
   const key = `contract_${code}_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND seq_type = ?").get(key, year, code) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND seq_type = ?")).get(key, year, code) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, ?, ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, code, nextVal);
+  `)).run(key, year, code, nextVal);
   return `CTR-${code}-${year}-${String(nextVal).padStart(4, '0')}`;
 }
-function nextCertRef(): string {
+async function nextCertRef(): Promise<string> {
   const year = new Date().getFullYear();
   const key = `cert_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')")).get(key, year) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, nextVal);
+  `)).run(key, year, nextVal);
   return `CERT-${year}-${String(nextVal).padStart(4, '0')}`;
 }
-function nextRegRef(): string {
+async function nextRegRef(): Promise<string> {
   const year = new Date().getFullYear();
   const key = `reg_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')")).get(key, year) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, nextVal);
+  `)).run(key, year, nextVal);
   return `REG-${year}-${String(nextVal).padStart(4, '0')}`;
 }
-function nextVaultId(): string {
+async function nextVaultId(): Promise<string> {
   const year = new Date().getFullYear();
   const key = `vault_bv_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')")).get(key, year) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, nextVal);
+  `)).run(key, year, nextVal);
   return `BV-${year}-${String(nextVal).padStart(4, '0')}`;
 }
-function nextProjectSerialId(): string {
+async function nextProjectSerialId(): Promise<string> {
   const year = new Date().getFullYear();
   const key = `project_ab_${year}`;
-  const row = db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')").get(key, year) as { last_value: number } | undefined;
+  const row = await (await db.prepare("SELECT last_value FROM number_sequences WHERE seq_key = ? AND seq_year = ? AND (seq_type IS NULL OR seq_type = '')")).get(key, year) as { last_value: number } | undefined;
   const nextVal = (row ? row.last_value + 1 : 1);
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO number_sequences (seq_key, seq_year, seq_type, last_value) VALUES (?, ?, '', ?)
     ON CONFLICT(seq_key, seq_year, seq_type) DO UPDATE SET last_value = excluded.last_value
-  `).run(key, year, nextVal);
+  `)).run(key, year, nextVal);
   return `AB-${year}-${String(nextVal).padStart(4, '0')}`;
 }
 
-// Seed Admin: immer admin@bellanova.com / admin123 und Anmeldename "admin" verfügbar
-const adminEmail = "admin@bellanova.com";
-const adminUsername = "admin";
-const adminExists = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(adminEmail.toLowerCase()) as { id: number } | undefined;
+async function seedAdmin() {
+  const adminEmail = "admin@bellanova.com";
+  const adminUsername = "admin";
+  const adminExists = (await (await db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?")).get(adminEmail.toLowerCase())) as { id: number } | undefined;
 if (!adminExists) {
-  db.prepare("INSERT INTO users (email, username, password, name, role, status) VALUES (?, ?, ?, ?, ?, ?)").run(
-    adminEmail, adminUsername, hashPassword("admin123"), "Antonio Bellanova", "admin", "approved"
+    await (await db.prepare("INSERT INTO users (email, username, password, name, role, status) VALUES (?, ?, ?, ?, ?, ?)")).run(
+      adminEmail, adminUsername, hashPassword("admin123"), "Antonio Bellanova", "admin", "approved"
   );
-} else {
-  db.prepare("UPDATE users SET password = ?, status = 'approved', username = ? WHERE id = ?").run(hashPassword("admin123"), adminUsername, adminExists.id);
+  } else {
+    await (await db.prepare("UPDATE users SET password = ?, status = 'approved', username = ? WHERE id = ?")).run(hashPassword("admin123"), adminUsername, adminExists.id);
+  }
+  try { await (await db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0")).run(); } catch (_) {}
 }
-try { db.prepare("ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0").run(); } catch (_) {}
 
 // --- WebSocket Logic ---
 const clients = new Set<WebSocket>();
@@ -1785,9 +1923,9 @@ const LUXURY_MUTED = '#8a8784';
 const UST_IDNR = 'DE457682154';
 
 /** Liest die in Admin hinterlegte Bank-Konfiguration (IBAN, BIC, Kontoinhaber) für Verträge und Zahlungen. */
-function getBankConfig(): { iban: string; bic: string; account_holder: string; accountHolder?: string } {
+async function getBankConfig(): Promise<{ iban: string; bic: string; account_holder: string; accountHolder?: string }> {
   try {
-    const row = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+    const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get() as { value?: string } | undefined;
     const bank = row?.value ? (() => { try { return JSON.parse(row.value); } catch { return {}; } })() : {};
     return {
       iban: bank.iban || '',
@@ -2145,14 +2283,14 @@ function applyContractVars(template: string, vars: Record<string, string | numbe
 }
 
 /** Fills description_de, description_en, ... for a masterpiece. Called once on create. When OPENAI_API_KEY is set, can be extended to call AI translation. */
-function fillDescriptionTranslations(masterpieceId: number, description: string, sourceLang: string): void {
+async function fillDescriptionTranslations(masterpieceId: number, description: string, sourceLang: string): Promise<void> {
   if (!description || typeof description !== 'string') return;
   const langs = ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'];
   const translations: Record<string, string> = {};
   for (const lang of langs) translations[lang] = description;
   // TODO: when OPENAI_API_KEY or TRANSLATE_API is set, call AI to translate description into each target lang and fill translations[lang]
   try {
-    db.prepare(`UPDATE masterpieces SET description_de=?, description_en=?, description_it=?, description_fr=?, description_es=?, description_pt=?, description_ar=? WHERE id=?`).run(
+    await (await db.prepare(`UPDATE masterpieces SET description_de=?, description_en=?, description_it=?, description_fr=?, description_es=?, description_pt=?, description_ar=? WHERE id=?`)).run(
       translations.de, translations.en, translations.it, translations.fr, translations.es, translations.pt, translations.ar, masterpieceId
     );
   } catch (e) {}
@@ -2192,7 +2330,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
             <div style="font-size: 8px; letter-spacing: 4px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 10px;">${L.productImage}</div>
             <div style="width: 100%; height: 200px; border: 1px dashed ${LUXURY_GOLD_DIM}; background: rgba(201, 162, 39, 0.04); display: flex; align-items: center; justify-content: center;">
               <span style="font-size: 10px; color: ${LUXURY_MUTED}; letter-spacing: 2px;">${L.noImage} ${serialNumber}</span>
-            </div>
+          </div>
           </div>`)
     : '';
 
@@ -2203,8 +2341,8 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
             <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
             <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.membershipFee || 'Membership Fee'}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${L.membershipFeePerYear || '15,000 EUR / year'}</div></div>
             <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">Active</div></div>
-          </div>
-        </div>
+            </div>
+            </div>
       </div>`
     : `<div style="background: rgba(201, 162, 39, 0.06); padding: 18px 20px; margin-bottom: 24px; border: 1px solid ${LUXURY_GOLD_DIM};">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -2212,13 +2350,13 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
             <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.assetSpecs}</div>
             <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.materials}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceMaterials}</div></div>
             <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.gemstones}</div><div style="font-size: 11px; color: ${LUXURY_TEXT};">${pieceGemstones}</div></div>
-          </div>
-          <div>
+            </div>
+              <div>
             <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
             <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.totalValuation}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
             ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
-          </div>
-        </div>
+              </div>
+              </div>
       </div>`;
 
   const pieceBlock = isVipAgreement ? '' : `
@@ -2228,7 +2366,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
           <h2 style="font-size: 18px; font-weight: 400; margin-bottom: 4px; color: ${LUXURY_TEXT};">${pieceTitle}</h2>
           <div style="font-size: 8px; letter-spacing: 3px; color: ${LUXURY_GOLD}; text-transform: uppercase;">Serial: ${serialNumber}</div>
           ${pieceDescription ? `<p style="font-size: 11px; color: ${LUXURY_MUTED}; font-style: italic; margin-top: 8px; line-height: 1.5;">${pieceDescription}${pieceDescription.length >= 220 ? '…' : ''}</p>` : ''}
-        </div>
+          </div>
       </div>`;
 
   return `
@@ -2245,7 +2383,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
           <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.clientRef}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${clientRef}</div></div>
           <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.version}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">v${version}.0</div></div>
           <div><div style="font-size: 7px; color: ${LUXURY_MUTED}; text-transform: uppercase; letter-spacing: 1px;">${L.date}</div><div style="font-size: 10px; color: ${LUXURY_TEXT};">${date}</div></div>
-        </div>
+          </div>
       </div>
       ${pieceBlock}
       ${assetAndFinanceBlock}
@@ -2289,11 +2427,11 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
 }
 
 /** Regenerates contract HTML content from current user/piece data. Returns new content or null if not supported. lang: de | en | it (default from user.language or 'en'). */
-function regenerateContractContent(c: any, lang?: string): string | null {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(c.user_id) as any;
+async function regenerateContractContent(c: any, lang?: string): Promise<string | null> {
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(c.user_id) as any;
   if (!user) return null;
-  const piece = c.masterpiece_id ? (db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(c.masterpiece_id) as any) : null;
-  const docRef = c.doc_ref || nextContractRef(c.type);
+  const piece = c.masterpiece_id ? (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(c.masterpiece_id) as any) : null;
+  const docRef = c.doc_ref || await nextContractRef(c.type);
   const dummyPiece = { id: 0, title: '—', serial_id: '—', materials: '—', gemstones: '—', valuation: 0, status: '—', description: '', image_url: '', blockchain_hash: '—' };
   const L = getContractLang(lang || user?.preferred_language || user?.language);
 
@@ -2339,14 +2477,14 @@ function regenerateContractContent(c: any, lang?: string): string | null {
 
     case 'resale_commission':
       if (!piece) return null;
-      const listing = db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?").get(c.id) as any;
+      const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?")).get(c.id) as any;
       const commissionPct = listing?.commission_pct ?? 10;
       const saleMethod = listing?.sale_method || 'marketplace';
       return generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod, docRef }, L);
 
     case 'fractional':
       if (!piece) return null;
-      const shareRow = db.prepare("SELECT percentage FROM fractional_shares WHERE masterpiece_id = ? AND owner_id = ?").get(c.masterpiece_id, c.user_id) as { percentage: number } | undefined;
+      const shareRow = await (await db.prepare("SELECT percentage FROM fractional_shares WHERE masterpiece_id = ? AND owner_id = ?")).get(c.masterpiece_id, c.user_id) as { percentage: number } | undefined;
       const pct = shareRow?.percentage ?? 0;
       const fracT = CONTRACT_BODIES[L].fractional;
       const fracVars = { piece: { ...piece }, user, pct };
@@ -2358,21 +2496,21 @@ function regenerateContractContent(c: any, lang?: string): string | null {
   }
 }
 
-function notifyUser(userId: number, message: string, type: string = 'info') {
-  db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(userId, message, type);
+async function notifyUser(userId: number, message: string, type: string = 'info') {
+  await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(userId, message, type);
   broadcast({ type: 'NOTIFICATION', userId, message, notificationType: type });
 }
 
-function createActivityNotification(userId: number, type: 'new_room' | 'new_contract' | 'new_message' | 'new_offer', referenceId: string, message: string) {
+async function createActivityNotification(userId: number, type: 'new_room' | 'new_contract' | 'new_message' | 'new_offer', referenceId: string, message: string) {
   try {
-    db.prepare("INSERT INTO notifications (user_id, type, reference_id, message, status) VALUES (?, ?, ?, ?, 'unread')").run(userId, type, referenceId, message);
+    await (await db.prepare("INSERT INTO notifications (user_id, type, reference_id, message, status) VALUES (?, ?, ?, ?, 'unread')")).run(userId, type, referenceId, message);
     broadcast({ type: 'NOTIFICATION', userId, message, notificationType: type });
   } catch (_) {}
 }
 
-function addClientTimeline(clientId: number, eventType: string, description: string, referenceId?: string) {
+async function addClientTimeline(clientId: number, eventType: string, description: string, referenceId?: string) {
   try {
-    db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)").run(clientId, eventType, description, referenceId ?? null);
+    await (await db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)")).run(clientId, eventType, description, referenceId ?? null);
   } catch (_) {}
 }
 
@@ -2414,18 +2552,18 @@ async function sendMail(to: string, subject: string, text: string, html?: string
   }
 }
 
-function logAudit(adminId: number, action: string, targetId: string, details: string) {
-  db.prepare("INSERT INTO audit_logs (admin_id, action, target_id, details) VALUES (?, ?, ?, ?)").run(adminId, action, targetId, details);
+async function logAudit(adminId: number, action: string, targetId: string, details: string) {
+  await (await db.prepare("INSERT INTO audit_logs (admin_id, action, target_id, details) VALUES (?, ?, ?, ?)")).run(adminId, action, targetId, details);
 }
 
-function updateProvenance(masterpieceId: number, eventType: string, description: string, metadata: any = {}) {
-  db.prepare("INSERT INTO provenance_timeline (masterpiece_id, event_type, description, metadata) VALUES (?, ?, ?, ?)").run(
+async function updateProvenance(masterpieceId: number, eventType: string, description: string, metadata: any = {}) {
+  await (await db.prepare("INSERT INTO provenance_timeline (masterpiece_id, event_type, description, metadata) VALUES (?, ?, ?, ?)")).run(
     masterpieceId, eventType, description, JSON.stringify(metadata)
   );
 }
 
-function calculateRarityScore(masterpieceId: number) {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
+async function calculateRarityScore(masterpieceId: number) {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
   if (!piece) return 0;
 
   let score = 0;
@@ -2439,29 +2577,29 @@ function calculateRarityScore(masterpieceId: number) {
   if (piece.gemstones.split(',').length > 3) score += 10;
 
   // 3. Provenance Depth (0-20)
-  const provenanceCount = db.prepare("SELECT COUNT(*) as count FROM provenance_timeline WHERE masterpiece_id = ?").get(masterpieceId).count;
+  const provenanceCount = await (await db.prepare("SELECT COUNT(*) as count FROM provenance_timeline WHERE masterpiece_id = ?")).get(masterpieceId).count;
   score += Math.min(provenanceCount * 2, 20);
 
   // 4. Service History (0-10)
-  const serviceCount = db.prepare("SELECT COUNT(*) as count FROM service_history WHERE masterpiece_id = ?").get(masterpieceId).count;
+  const serviceCount = await (await db.prepare("SELECT COUNT(*) as count FROM service_history WHERE masterpiece_id = ?")).get(masterpieceId).count;
   score += Math.min(serviceCount * 2, 10);
 
   // 5. Auction Demand (0-10)
-  const bidCount = db.prepare("SELECT COUNT(*) as count FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(masterpieceId).count;
+  const bidCount = await (await db.prepare("SELECT COUNT(*) as count FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(masterpieceId).count;
   score += Math.min(bidCount, 10);
 
-  db.prepare("UPDATE masterpieces SET rarity_score = ? WHERE id = ?").run(score, masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET rarity_score = ? WHERE id = ?")).run(score, masterpieceId);
   return score;
 }
 
 // --- API Routes ---
 
 // Health-Check (für Nginx/502-Diagnose: wenn dieser Endpunkt antwortet, läuft die Node-App)
-app.get("/api/health", (_req, res) => {
+app.get("/api/health", async (_req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
 });
-app.get("/health", (_req, res) => {
+app.get("/health", async (_req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
 });
@@ -2473,16 +2611,16 @@ function deriveUsernameFromEmail(email: string): string {
   const base = local.length >= 3 ? local : local + "_u";
   return base.slice(0, 50);
 }
-function ensureUniqueUsername(base: string): string {
+async function ensureUniqueUsername(base: string): Promise<string> {
   let username = base.slice(0, 50);
   let n = 1;
-  while (db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?").get(username.toLowerCase())) {
+  while (await (await db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?")).get(username.toLowerCase())) {
     const suffix = "_" + (n++);
     username = (base.slice(0, 50 - suffix.length) + suffix).slice(0, 50);
   }
   return username;
 }
-app.post("/api/register", (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { email, password, name, username: rawUsername, address, wantsVip, language, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
   const requestedRole = (role || "client").toString().toLowerCase();
@@ -2491,17 +2629,17 @@ app.post("/api/register", (req, res) => {
   }
   let username = typeof rawUsername === "string" ? rawUsername.trim() : "";
   if (!username) {
-    username = ensureUniqueUsername(deriveUsernameFromEmail(String(email)));
+    username = await ensureUniqueUsername(deriveUsernameFromEmail(String(email)));
   } else {
     if (!USERNAME_REGEX.test(username)) return res.status(400).json({ error: "Anmeldename: 3–50 Zeichen, nur Buchstaben, Zahlen und Unterstrich." });
     const usernameNorm = username.toLowerCase();
-    if (db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?").get(usernameNorm)) {
+    if (await (await db.prepare("SELECT id FROM users WHERE username IS NOT NULL AND LOWER(TRIM(username)) = ?")).get(usernameNorm)) {
       return res.status(400).json({ error: "Anmeldename bereits vergeben." });
     }
   }
   try {
     const hashed = hashPassword(String(password));
-    const result = db.prepare("INSERT INTO users (email, username, password, name, address, is_vip, language, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+    const result = await (await db.prepare("INSERT INTO users (email, username, password, name, address, is_vip, language, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")).run(
       email, username, hashed, name, address, wantsVip ? 1 : 0, language || 'de', role || 'client'
     );
     res.json({ id: result.lastInsertRowid });
@@ -2509,6 +2647,57 @@ app.post("/api/register", (req, res) => {
     res.status(400).json({ error: "E-Mail bereits vergeben." });
   }
 });
+
+/** Collector role system: allowed values for users.role. */
+const COLLECTOR_ROLES = [
+  "guest",
+  "collector",
+  "private_collector",
+  "grand_collector",
+  "legacy_collector",
+  "vip",
+  "admin",
+] as const;
+type CollectorRole = (typeof COLLECTOR_ROLES)[number];
+
+/** True if user can access VIP-only content (drops, VIP auctions). */
+function canAccessVipContent(user: { role?: string } | null): boolean {
+  if (!user || !user.role) return false;
+  return user.role === "vip" || user.role === "legacy_collector";
+}
+
+/** Middleware: require user to have this exact role. Use after requireAuth. */
+function requireRole(role: string) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const u = (req as any).user;
+    if (!u) {
+      res.status(401).json({ error: "Not signed in" });
+      return;
+    }
+    if (u.role !== role) {
+      res.status(403).json({ error: "Forbidden", requiredRole: role });
+      return;
+    }
+    next();
+  };
+}
+
+/** Middleware: require user to have one of the allowed roles. Use after requireAuth. */
+function requireRoleOneOf(allowedRoles: string[]) {
+  const set = new Set(allowedRoles);
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const u = (req as any).user;
+    if (!u) {
+      res.status(401).json({ error: "Not signed in" });
+      return;
+    }
+    if (!set.has(u.role)) {
+      res.status(403).json({ error: "Forbidden", allowedRoles: [...allowedRoles] });
+      return;
+    }
+    next();
+  };
+}
 
 /** Guest sessions use session=0; no user row in DB. */
 const GUEST_USER_ID = 0;
@@ -2536,7 +2725,7 @@ function getGuestUserPayload(): Record<string, any> {
   };
 }
 
-function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction): void {
+async function requireAuth(req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> {
   const userId = getSessionUserId(req);
   if (userId === null) {
     res.status(401).json({ error: "Not signed in" });
@@ -2548,7 +2737,7 @@ function requireAuth(req: express.Request, res: express.Response, next: express.
     next();
     return;
   }
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || user.status !== "approved") {
     res.status(401).json({ error: "Invalid session" });
     return;
@@ -2620,10 +2809,12 @@ function isGuestRestrictedPath(path: string, method: string): boolean {
   if (path.startsWith("/api/legacy/")) return true;
   if (path.match(/^\/api\/notifications\/\d+\/read-all$/) && method === "POST") return true;
   if (path.match(/^\/api\/appointments\/\d+\/respond$/) && method === "PATCH") return true;
+  if (path.startsWith("/api/invoices")) return true;
+  if (path === "/api/purchase" && method === "POST") return true;
   return false;
 }
 
-app.use("/api", (req, res, next) => {
+app.use("/api", async (req, res, next) => {
   if (isPublicApi(req)) return next();
   requireAuth(req, res, () => {
     const path = (req.originalUrl || req.url || req.path || "").split("?")[0];
@@ -2634,87 +2825,87 @@ app.use("/api", (req, res, next) => {
   });
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const loginInput = (req.body?.email ?? req.body?.login ?? "").toString().trim().toLowerCase();
   const password = String(req.body?.password ?? "");
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
   const userAgent = (req.headers['user-agent'] as string) || '';
-  let user = db.prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)").get(loginInput, loginInput) as any;
+  let user = await (await db.prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)")).get(loginInput, loginInput) as any;
   let loginOk = user && checkPassword(password, user.password || '');
   if (!loginOk && user) {
-    const handoff = db.prepare("SELECT token FROM session_handoff WHERE user_id = ? AND temp_password = ? AND expires_at > datetime('now')").get(user.id, password) as { token: string } | undefined;
+    const handoff = await (await db.prepare("SELECT token FROM session_handoff WHERE user_id = ? AND temp_password = ? AND expires_at > datetime('now')")).get(user.id, password) as { token: string } | undefined;
     if (handoff) {
-      db.prepare("DELETE FROM session_handoff WHERE token = ?").run(handoff.token);
+      await (await db.prepare("DELETE FROM session_handoff WHERE token = ?")).run(handoff.token);
       loginOk = true;
     }
   }
   if (user && loginOk) {
     if (user.status !== 'approved') {
-      try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run(user.id, ip, userAgent); } catch (_) {}
+      try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run(user.id, ip, userAgent); } catch (_) {}
       return res.status(403).json({ error: "Account pending approval" });
     }
     if (user.locked_at) {
-      try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run(user.id, ip, userAgent); } catch (_) {}
+      try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run(user.id, ip, userAgent); } catch (_) {}
       return res.status(403).json({ error: "Account locked. Please contact the Atelier." });
     }
-    if (checkPassword(password, user.password || '')) try { upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
-    try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 1)").run(user.id, ip, userAgent); } catch (_) {}
+    if (checkPassword(password, user.password || '')) try { await upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
+    try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 1)")).run(user.id, ip, userAgent); } catch (_) {}
     const isSecure = (process.env.APP_URL || "").startsWith("https");
     res.setHeader("Set-Cookie", `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
     const { password: _p, ...rest } = user;
     res.json(rest);
   } else {
-    const u = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)").get(loginInput, loginInput);
-    try { db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)").run((u as any)?.id ?? null, ip, userAgent); } catch (_) {}
+    const u = await (await db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)")).get(loginInput, loginInput);
+    try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run((u as any)?.id ?? null, ip, userAgent); } catch (_) {}
     res.status(401).json({ error: "Invalid credentials" });
   }
 });
 
-app.post("/api/guest-login", (req, res) => {
+app.post("/api/guest-login", async (req, res) => {
   const isSecure = (process.env.APP_URL || "").startsWith("https");
   res.setHeader("Set-Cookie", `session=${GUEST_USER_ID}; Path=/; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
   res.json(getGuestUserPayload());
 });
 
-app.get("/api/me", (req, res) => {
+app.get("/api/me", async (req, res) => {
   const userId = getSessionUserId(req);
   if (userId === null) return res.status(401).json({ error: "Not signed in" });
   if (userId === GUEST_USER_ID) return res.json(getGuestUserPayload());
-  let user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  let user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || user.status !== 'approved') return res.status(401).json({ error: "Invalid session" });
-  if (typeof recalcPrestigeTier === 'function' && user.role !== 'admin' && user.role !== 'super_admin') try { recalcPrestigeTier(userId); user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any; } catch (_) {}
+  if (typeof recalcPrestigeTier === 'function' && user.role !== 'admin' && user.role !== 'super_admin') try { recalcPrestigeTier(userId); user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any; } catch (_) {}
   const { password: _p, ...rest } = user;
   rest.prestige_tier = rest.prestige_tier || getPrestigeTier(user);
   res.json(rest);
 });
 
-app.get("/api/me/addresses", (req, res) => {
+app.get("/api/me/addresses", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const rows = db.prepare("SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_default_billing DESC, is_default_shipping DESC, id").all(userId);
+  const rows = await (await db.prepare("SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_default_billing DESC, is_default_shipping DESC, id")).all(userId);
   res.json(rows);
 });
 
-app.post("/api/me/addresses", (req, res) => {
+app.post("/api/me/addresses", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const { label, street, city, postal_code, country, is_default_shipping, is_default_billing } = req.body || {};
   if (!label || typeof label !== "string" || !label.trim()) return res.status(400).json({ error: "label erforderlich." });
-  if (is_default_shipping) db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?").run(userId);
-  if (is_default_billing) db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?").run(userId);
-  const r = db.prepare(`
+  if (is_default_shipping) await (await db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?")).run(userId);
+  if (is_default_billing) await (await db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?")).run(userId);
+  const r = await (await db.prepare(`
     INSERT INTO user_addresses (user_id, label, street, city, postal_code, country, is_default_shipping, is_default_billing)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(userId, label.trim(), street ? String(street).trim() : null, city ? String(city).trim() : null, postal_code ? String(postal_code).trim() : null, country ? String(country).trim() : "Deutschland", is_default_shipping ? 1 : 0, is_default_billing ? 1 : 0);
-  const row = db.prepare("SELECT * FROM user_addresses WHERE id = ?").get(r.lastInsertRowid);
+  `)).run(userId, label.trim(), street ? String(street).trim() : null, city ? String(city).trim() : null, postal_code ? String(postal_code).trim() : null, country ? String(country).trim() : "Deutschland", is_default_shipping ? 1 : 0, is_default_billing ? 1 : 0);
+  const row = await (await db.prepare("SELECT * FROM user_addresses WHERE id = ?")).get(r.lastInsertRowid);
   res.status(201).json(row);
 });
 
-app.patch("/api/me/addresses/:id", (req, res) => {
+app.patch("/api/me/addresses/:id", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const id = Number(req.params.id);
-  const row = db.prepare("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?").get(id, userId);
+  const row = await (await db.prepare("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?")).get(id, userId);
   if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
   const { label, street, city, postal_code, country, is_default_shipping, is_default_billing } = req.body || {};
   const updates: string[] = [];
@@ -2724,36 +2915,36 @@ app.patch("/api/me/addresses/:id", (req, res) => {
   if (city !== undefined) { updates.push("city = ?"); vals.push(city ? String(city).trim() : null); }
   if (postal_code !== undefined) { updates.push("postal_code = ?"); vals.push(postal_code ? String(postal_code).trim() : null); }
   if (country !== undefined) { updates.push("country = ?"); vals.push(String(country).trim()); }
-  if (is_default_shipping === true) { db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?").run(userId); updates.push("is_default_shipping = 1"); }
+  if (is_default_shipping === true) { await (await db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?")).run(userId); updates.push("is_default_shipping = 1"); }
   if (is_default_shipping === false) updates.push("is_default_shipping = 0");
-  if (is_default_billing === true) { db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?").run(userId); updates.push("is_default_billing = 1"); }
+  if (is_default_billing === true) { await (await db.prepare("UPDATE user_addresses SET is_default_billing = 0 WHERE user_id = ?")).run(userId); updates.push("is_default_billing = 1"); }
   if (is_default_billing === false) updates.push("is_default_billing = 0");
   if (updates.length === 0) return res.json(row);
   vals.push(id);
-  db.prepare(`UPDATE user_addresses SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
-  const updated = db.prepare("SELECT * FROM user_addresses WHERE id = ?").get(id);
+  await (await db.prepare(`UPDATE user_addresses SET ${updates.join(", ")} WHERE id = ?`)).run(...vals);
+  const updated = await (await db.prepare("SELECT * FROM user_addresses WHERE id = ?")).get(id);
   res.json(updated);
 });
 
-app.delete("/api/me/addresses/:id", (req, res) => {
+app.delete("/api/me/addresses/:id", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const id = Number(req.params.id);
-  const row = db.prepare("SELECT id FROM user_addresses WHERE id = ? AND user_id = ?").get(id, userId);
+  const row = await (await db.prepare("SELECT id FROM user_addresses WHERE id = ? AND user_id = ?")).get(id, userId);
   if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
-  db.prepare("DELETE FROM user_addresses WHERE id = ?").run(id);
+  await (await db.prepare("DELETE FROM user_addresses WHERE id = ?")).run(id);
   res.status(204).send();
 });
 
-app.get("/api/me/notification-settings", (req, res) => {
+app.get("/api/me/notification-settings", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const user = db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Invalid session" });
   res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
 });
 
-app.patch("/api/me/notification-settings", (req, res) => {
+app.patch("/api/me/notification-settings", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const { notify_email, notify_marketing } = req.body || {};
@@ -2763,28 +2954,28 @@ app.patch("/api/me/notification-settings", (req, res) => {
   if (typeof notify_marketing === "boolean") { updates.push("notify_marketing = ?"); vals.push(notify_marketing ? 1 : 0); }
   if (updates.length === 0) return res.status(400).json({ error: "Keine gültigen Felder." });
   vals.push(userId);
-  db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
-  const user = db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?").get(userId) as any;
+  await (await db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`)).run(...vals);
+  const user = await (await db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?")).get(userId) as any;
   res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
 });
 
-app.post("/api/logout", (req, res) => {
+app.post("/api/logout", async (req, res) => {
   res.setHeader("Set-Cookie", "session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
   res.json({ success: true });
 });
 
-app.post("/api/forgot-password", (req, res) => {
+app.post("/api/forgot-password", async (req, res) => {
   const { email } = req.body || {};
   if (!email || typeof email !== "string") return res.status(400).json({ error: "E-Mail erforderlich." });
-  const user = db.prepare("SELECT id, email, name FROM users WHERE email = ?").get(email.trim()) as any;
+  const user = await (await db.prepare("SELECT id, email, name FROM users WHERE email = ?")).get(email.trim()) as any;
   if (!user) {
     res.json({ success: true });
     return;
   }
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(user.id);
-  db.prepare("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)").run(user.id, token, expiresAt);
+  await (await db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?")).run(user.id);
+  await (await db.prepare("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)")).run(user.id, token, expiresAt);
   const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
   const resetLink = `${baseUrl}?view=reset-password&token=${token}`;
   sendMail(
@@ -2795,14 +2986,14 @@ app.post("/api/forgot-password", (req, res) => {
   res.json({ success: true });
 });
 
-app.post("/api/reset-password", (req, res) => {
+app.post("/api/reset-password", async (req, res) => {
   const { token, newPassword } = req.body || {};
   if (!token || !newPassword || typeof newPassword !== "string" || newPassword.length < 6)
     return res.status(400).json({ error: "Token und neues Passwort (min. 6 Zeichen) erforderlich." });
-  const row = db.prepare("SELECT * FROM password_reset_tokens WHERE token = ? AND expires_at > datetime('now')").get(token) as any;
+  const row = await (await db.prepare("SELECT * FROM password_reset_tokens WHERE token = ? AND expires_at > datetime('now')")).get(token) as any;
   if (!row) return res.status(400).json({ error: "Link abgelaufen oder ungültig. Bitte fordern Sie einen neuen an." });
-  db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashPassword(newPassword), row.user_id);
-  db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").run(row.user_id);
+  await (await db.prepare("UPDATE users SET password = ? WHERE id = ?")).run(hashPassword(newPassword), row.user_id);
+  await (await db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?")).run(row.user_id);
   res.json({ success: true });
 });
 
@@ -2811,26 +3002,26 @@ function getBaseUrl(req: express.Request): string {
   const url = process.env.APP_URL || (req.protocol + "://" + req.get("host"));
   return url.replace(/\/$/, "") || "http://localhost:3000";
 }
-app.get("/api/auth/link", (req, res) => {
+app.get("/api/auth/link", async (req, res) => {
   const token = (req.query.token as string)?.trim();
   const baseUrl = getBaseUrl(req);
   if (!token) return res.redirect(302, baseUrl + "/");
-  const row = db.prepare(
+  const row = await (await db.prepare(
     "SELECT * FROM login_links WHERE token = ? AND expires_at > datetime('now') AND used_at IS NULL"
-  ).get(token) as { user_id: number } | undefined;
+  )).get(token) as { user_id: number } | undefined;
   if (!row) return res.redirect(302, baseUrl + "/?login_link=invalid");
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(row.user_id) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(row.user_id) as any;
   if (!user) return res.redirect(302, baseUrl + "/");
-  db.prepare("UPDATE login_links SET used_at = datetime('now') WHERE token = ?").run(token);
-  db.prepare("UPDATE users SET status = 'approved', force_password_change = 1 WHERE id = ?").run(user.id);
+  await (await db.prepare("UPDATE login_links SET used_at = datetime('now') WHERE token = ?")).run(token);
+  await (await db.prepare("UPDATE users SET status = 'approved', force_password_change = 1 WHERE id = ?")).run(user.id);
   const handoffToken = crypto.randomBytes(24).toString("hex");
   const tempPassword = crypto.randomBytes(12).toString("base64").replace(/[+/=]/g, (c) => ({ "+": "x", "/": "y", "=": "" }[c] || c)).slice(0, 16);
   const handoffExpires = new Date(Date.now() + 10 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
-  try { db.prepare("DELETE FROM session_handoff WHERE expires_at < datetime('now')").run(); } catch (_) {}
+  try { await (await db.prepare("DELETE FROM session_handoff WHERE expires_at < datetime('now')")).run(); } catch (_) {}
   try {
-    db.prepare("INSERT INTO session_handoff (token, user_id, expires_at, temp_password) VALUES (?, ?, ?, ?)").run(handoffToken, user.id, handoffExpires, tempPassword);
+    await (await db.prepare("INSERT INTO session_handoff (token, user_id, expires_at, temp_password) VALUES (?, ?, ?, ?)")).run(handoffToken, user.id, handoffExpires, tempPassword);
   } catch (_) {
-    db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)").run(handoffToken, user.id, handoffExpires);
+    await (await db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)")).run(handoffToken, user.id, handoffExpires);
   }
   const isSecure = baseUrl.startsWith("https");
   const cookieOpts = `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
@@ -2845,12 +3036,12 @@ app.get("/api/auth/link", (req, res) => {
 });
 
 // Session aus Handoff-Token (Fallback, wenn Cookie nach Einladungslink nicht ankommt)
-app.post("/api/auth/session-from-handoff", express.json(), (req, res) => {
+app.post("/api/auth/session-from-handoff", express.json(), async (req, res) => {
   const token = (req.body?.token || req.query?.token || "").toString().trim();
   if (!token) return res.status(400).json({ error: "Token fehlt." });
-  const row = db.prepare("SELECT user_id FROM session_handoff WHERE token = ? AND expires_at > datetime('now')").get(token) as { user_id: number } | undefined;
+  const row = await (await db.prepare("SELECT user_id FROM session_handoff WHERE token = ? AND expires_at > datetime('now')")).get(token) as { user_id: number } | undefined;
   if (!row) return res.status(400).json({ error: "Token ungültig oder abgelaufen." });
-  db.prepare("DELETE FROM session_handoff WHERE token = ?").run(token);
+  await (await db.prepare("DELETE FROM session_handoff WHERE token = ?")).run(token);
   const baseUrl = getBaseUrl(req);
   const isSecure = baseUrl.startsWith("https");
   const cookieOpts = `session=${row.user_id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
@@ -2859,19 +3050,19 @@ app.post("/api/auth/session-from-handoff", express.json(), (req, res) => {
 });
 
 // Einmal-Zugangsdaten für Vorausfüllen des Login-Formulars (Einladungslink)
-app.get("/api/auth/temp-login-data", (req, res) => {
+app.get("/api/auth/temp-login-data", async (req, res) => {
   const token = (req.query.token || "").toString().trim();
   if (!token) return res.status(400).json({ error: "Token fehlt." });
-  const row = db.prepare("SELECT user_id, temp_password FROM session_handoff WHERE token = ? AND expires_at > datetime('now')").get(token) as { user_id: number; temp_password: string | null } | undefined;
+  const row = await (await db.prepare("SELECT user_id, temp_password FROM session_handoff WHERE token = ? AND expires_at > datetime('now')")).get(token) as { user_id: number; temp_password: string | null } | undefined;
   if (!row || !row.temp_password) return res.status(400).json({ error: "Token ungültig oder abgelaufen." });
-  const user = db.prepare("SELECT email, username FROM users WHERE id = ?").get(row.user_id) as { email: string; username: string } | undefined;
+  const user = await (await db.prepare("SELECT email, username FROM users WHERE id = ?")).get(row.user_id) as { email: string; username: string } | undefined;
   if (!user) return res.status(400).json({ error: "Nutzer nicht gefunden." });
-  db.prepare("DELETE FROM session_handoff WHERE token = ?").run(token);
+  await (await db.prepare("DELETE FROM session_handoff WHERE token = ?")).run(token);
   res.json({ email: user.email || "", username: user.username || "", password: row.temp_password });
 });
 
 // --- Admin: Einladungslink erstellen (per userId oder per E-Mail – Kunde muss sich nicht anmelden, nur Passwort setzen) ---
-app.post("/api/admin/login-link", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/login-link", requireAuth, requireAdmin, async (req, res) => {
   const userId = Number(req.body?.userId);
   const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
   const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
@@ -2881,26 +3072,26 @@ app.post("/api/admin/login-link", requireAuth, requireAdmin, (req, res) => {
   let targetName: string;
 
   if (userId) {
-    const target = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(userId) as any;
+    const target = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(userId) as any;
     if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
     targetUserId = target.id;
     targetEmail = target.email || "";
     targetName = target.name || "";
   } else if (email) {
-    let target = db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?").get(email.toLowerCase()) as any;
+    let target = await (await db.prepare("SELECT id, name, email FROM users WHERE LOWER(TRIM(email)) = ?")).get(email.toLowerCase()) as any;
     if (!target) {
-      const username = ensureUniqueUsername(deriveUsernameFromEmail(email));
+      const username = await ensureUniqueUsername(deriveUsernameFromEmail(email));
       const tempPassword = crypto.randomBytes(24).toString("hex");
       const hashed = hashPassword(tempPassword);
       const displayName = name || email.split("@")[0] || "Kunde";
       try {
-        const result = db.prepare(
+        const result = await (await db.prepare(
           "INSERT INTO users (email, username, password, name, address, is_vip, language, role, status) VALUES (?, ?, ?, ?, '', 0, 'de', 'client', 'approved')"
-        ).run(email, username, hashed, displayName);
+        )).run(email, username, hashed, displayName);
         targetUserId = result.lastInsertRowid as number;
         targetEmail = email;
         targetName = displayName;
-        try { db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?").run(targetUserId); } catch (_) {}
+        try { await (await db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?")).run(targetUserId); } catch (_) {}
       } catch (e: any) {
         if (e && (e.message || "").includes("UNIQUE") && (e.message || "").toLowerCase().includes("email"))
           return res.status(400).json({ error: "E-Mail bereits vergeben." });
@@ -2917,36 +3108,36 @@ app.post("/api/admin/login-link", requireAuth, requireAdmin, (req, res) => {
 
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
-  db.prepare("INSERT INTO login_links (user_id, token, expires_at) VALUES (?, ?, ?)").run(targetUserId, token, expiresAt);
+  await (await db.prepare("INSERT INTO login_links (user_id, token, expires_at) VALUES (?, ?, ?)")).run(targetUserId, token, expiresAt);
   const baseUrl = process.env.APP_URL || req.protocol + "://" + req.get("host") || "http://localhost:3000";
   const url = baseUrl + "/api/auth/link?token=" + token;
-  logAudit((req as any).userId, "LOGIN_LINK_CREATE", String(targetUserId), targetEmail || targetName);
+  await logAudit((req as any).userId, "LOGIN_LINK_CREATE", String(targetUserId), targetEmail || targetName);
   res.json({ url, expiresAt });
 });
 
 // Masterpieces (optional ?search= für globale Suche)
 // Expire private viewing slots and set piece to archived_private_collection
-function expirePrivateViewing() {
+async function expirePrivateViewing() {
   const now = new Date().toISOString();
   try {
-    const expired = db.prepare("SELECT id, masterpiece_id FROM private_viewing_slots WHERE status = 'active' AND expires_at <= ?").all(now) as { id: number; masterpiece_id: number }[];
+    const expired = await (await db.prepare("SELECT id, masterpiece_id FROM private_viewing_slots WHERE status = 'active' AND expires_at <= ?")).all(now) as { id: number; masterpiece_id: number }[];
     for (const s of expired) {
-      db.prepare("UPDATE masterpieces SET status = 'archived_private_collection', private_viewing_expires_at = NULL WHERE id = ?").run(s.masterpiece_id);
-      db.prepare("UPDATE private_viewing_slots SET status = 'expired' WHERE id = ?").run(s.id);
+      await (await db.prepare("UPDATE masterpieces SET status = 'archived_private_collection', private_viewing_expires_at = NULL WHERE id = ?")).run(s.masterpiece_id);
+      await (await db.prepare("UPDATE private_viewing_slots SET status = 'expired' WHERE id = ?")).run(s.id);
     }
   } catch (_) {}
 }
 
 // Resale marketplace: only pieces that are on resale (curated_marketplace) – so clients know they are pre-owned
-app.get("/api/resale/marketplace", (req, res) => {
-  expirePrivateViewing();
-  const rows = db.prepare(`
+app.get("/api/resale/marketplace", async (req, res) => {
+  await expirePrivateViewing();
+  const rows = await (await db.prepare(`
     SELECT m.*, rl.id AS resale_listing_id, rl.asking_price, rl.commission_pct, rl.sale_method
     FROM masterpieces m
     JOIN resale_listings rl ON rl.masterpiece_id = m.id
     WHERE m.status = 'available' AND rl.status = 'curated_marketplace'
     ORDER BY rl.updated_at DESC
-  `).all();
+  `)).all();
   const pieces = rows.map((r: any) => {
     const { resale_listing_id, asking_price, commission_pct, sale_method, ...piece } = r;
     return { ...piece, is_resale: true, resale_listing_id, resale_asking_price: asking_price };
@@ -2954,18 +3145,18 @@ app.get("/api/resale/marketplace", (req, res) => {
   res.json(pieces);
 });
 
-app.get("/api/masterpieces", (req, res) => {
-  expirePrivateViewing();
+app.get("/api/masterpieces", async (req, res) => {
+  await expirePrivateViewing();
   const search = (req.query.search as string)?.trim();
   const userId = req.query.userId ? Number(req.query.userId) : null;
-  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
+  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
   const isVip = user ? isVipActive(user) : false;
   let pieces: any[];
   if (search && search.length >= 2) {
     const term = "%" + search + "%";
-    pieces = db.prepare("SELECT * FROM masterpieces WHERE title LIKE ? OR serial_id LIKE ? OR category LIKE ? OR materials LIKE ?").all(term, term, term, term);
+    pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE title LIKE ? OR serial_id LIKE ? OR category LIKE ? OR materials LIKE ?")).all(term, term, term, term);
   } else {
-    pieces = db.prepare("SELECT * FROM masterpieces").all();
+    pieces = await (await db.prepare("SELECT * FROM masterpieces")).all();
   }
   const now = Date.now();
   pieces = pieces.filter((p: any) => {
@@ -2980,8 +3171,8 @@ app.get("/api/masterpieces", (req, res) => {
 });
 
 // Extended search: q, category, minPrice, maxPrice, rarity, sort (newest | price_asc | price_desc | title)
-app.get("/api/search", (req, res) => {
-  expirePrivateViewing();
+app.get("/api/search", async (req, res) => {
+  await expirePrivateViewing();
   const q = (req.query.q as string)?.trim();
   const category = (req.query.category as string)?.trim();
   const minPrice = req.query.minPrice != null ? Number(req.query.minPrice) : null;
@@ -2989,7 +3180,7 @@ app.get("/api/search", (req, res) => {
   const rarity = (req.query.rarity as string)?.trim();
   const sort = (req.query.sort as string) || "newest";
 
-  let pieces: any[] = db.prepare("SELECT * FROM masterpieces").all();
+  let pieces: any[] = await (await db.prepare("SELECT * FROM masterpieces")).all();
 
   if (q && q.length >= 1) {
     const term = "%" + q + "%";
@@ -3013,13 +3204,13 @@ app.get("/api/search", (req, res) => {
   res.json(pieces);
 });
 
-app.post("/api/admin/assign-piece", (req, res) => {
+app.post("/api/admin/assign-piece", async (req, res) => {
   const { userId, masterpieceId } = req.body;
-  db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold' WHERE id = ?").run(userId, masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold' WHERE id = ?")).run(userId, masterpieceId);
   
   // Create ownership history
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
-  db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)").run(
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
+  await (await db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)")).run(
     masterpieceId, userId, piece.valuation
   );
   
@@ -3100,14 +3291,14 @@ function parseMarktplatzPdfText(text: string): { title: string; serial_id: strin
   return products;
 }
 
-app.post("/api/admin/import/pdf", requireAuth, requireAdmin, (req, res, next) => {
+app.post("/api/admin/import/pdf", requireAuth, requireAdmin, async (req, res, next) => {
   pdfUpload.single('pdf')(req, res, (err: any) => {
     if (err) return res.status(400).json({ error: err.message || "Nur PDF-Dateien erlaubt" });
     next();
   });
 }, async (req, res) => {
   const userId = getSessionUserId(req);
-  const admin = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  const admin = userId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const file = (req as any).file;
   if (!file || !file.buffer) return res.status(400).json({ error: "Keine PDF-Datei hochgeladen. Bitte eine PDF-Datei auswählen." });
@@ -3117,27 +3308,27 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, (req, res, next) =>
     const products = parseMarktplatzPdfText(text);
     const inserted: { id: number; title: string; serial_id: string }[] = [];
     const skipped: { serial_id: string; reason: string }[] = [];
-    const insStmt = db.prepare(`
+    const insStmt = await (await db.prepare(`
       INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, status, pricing_mode, hide_price)
       VALUES (?, ?, 'jewelry', ?, ?, ?, ?, ?, 'available', ?, ?)
-    `);
+    `));
     for (const p of products) {
-      const existing = db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?").get(p.serial_id);
+      const existing = await (await db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?")).get(p.serial_id);
       if (existing) {
         skipped.push({ serial_id: p.serial_id, reason: 'Seriennummer bereits vorhanden' });
         continue;
       }
       const hide_price = p.pricing_mode === 'price_on_request' ? 1 : 0;
-      const result = insStmt.run(p.title, p.serial_id, p.description, p.materials, p.gemstones, p.valuation, p.rarity, p.pricing_mode, hide_price);
+      const result = await insStmt.run(p.title, p.serial_id, p.description, p.materials, p.gemstones, p.valuation, p.rarity, p.pricing_mode, hide_price);
       const id = Number(result.lastInsertRowid);
       inserted.push({ id, title: p.title, serial_id: p.serial_id });
       try {
         if (p.description) fillDescriptionTranslations(id, p.description, 'de');
-        updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
-        calculateRarityScore(id);
+        await updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
+        await calculateRarityScore(id);
       } catch (_) {}
     }
-    try { logAudit(userId!, 'PDF_IMPORT', String(inserted.length), `Importiert: ${inserted.length}, Übersprungen: ${skipped.length}`); } catch (_) {}
+    try { await logAudit(userId!, 'PDF_IMPORT', String(inserted.length), `Importiert: ${inserted.length}, Übersprungen: ${skipped.length}`); } catch (_) {}
     res.json({ success: true, inserted: inserted.length, skipped: skipped.length, parsed: products.length, details: { inserted, skipped } });
   } catch (err: any) {
     console.error("[admin/import/pdf]", err);
@@ -3145,37 +3336,37 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, (req, res, next) =>
   }
 });
 
-app.post("/api/admin/masterpieces", (req, res) => {
+app.post("/api/admin/masterpieces", async (req, res) => {
   const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
-  const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : nextProductSerial(category || 'GEN');
+  const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : await nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
   const image_url = bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : '');
   try {
-    const result = db.prepare(`
+    const result = await (await db.prepare(`
       INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url);
+    `)).run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url);
     const id = Number(result.lastInsertRowid);
     try {
-      db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id);
+      await (await db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?")).run(pricing_mode, hide_price, id);
     } catch (_) {}
     try {
-      if (bodyPriceVisibility != null && String(bodyPriceVisibility).trim()) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility).trim(), id);
+      if (bodyPriceVisibility != null && String(bodyPriceVisibility).trim()) await (await db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?")).run(String(bodyPriceVisibility).trim(), id);
     } catch (_) {}
     try {
-      if (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(JSON.stringify(bodyImageUrls), id);
+      if (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0) await (await db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?")).run(JSON.stringify(bodyImageUrls), id);
     } catch (_) {}
     try {
-      if (bodyDescI18n != null && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
-      if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
-      if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
+      if (bodyDescI18n != null && typeof bodyDescI18n === 'object') await (await db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyDescI18n), id);
+      if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') await (await db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyMaterialsI18n), id);
+      if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') await (await db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyGemstonesI18n), id);
     } catch (_) {}
     broadcast({ type: 'MASTERPIECE_CREATED', id });
     if (description && typeof description === 'string') fillDescriptionTranslations(id, description, (req as any).body?.description_lang || 'de');
     // Initial Provenance
-    updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
-    calculateRarityScore(id);
+    await updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
+    await calculateRarityScore(id);
 
     res.json({ id });
   } catch (e: any) {
@@ -3188,10 +3379,10 @@ app.post("/api/admin/masterpieces", (req, res) => {
 });
 
 // Admin: Meisterstück bearbeiten (PATCH)
-app.patch("/api/admin/masterpieces/:id", (req, res) => {
+app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
-  const existing = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  const existing = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!existing) return res.status(404).json({ error: "Masterpiece not found" });
   const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
   const serial_id = bodySerial != null && String(bodySerial).trim() ? String(bodySerial).trim() : existing.serial_id;
@@ -3199,10 +3390,10 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
   const image_url = bodyImageUrl !== undefined ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : existing.image_url);
   try {
-    db.prepare(`
+    await (await db.prepare(`
       UPDATE masterpieces SET title = ?, serial_id = ?, category = ?, description = ?, materials = ?, gemstones = ?, valuation = ?, rarity = ?, production_time = ?, cert_data = ?, deposit_pct = ?, image_url = ?
       WHERE id = ?
-    `).run(
+    `)).run(
       title !== undefined ? title : existing.title,
       serial_id,
       category !== undefined ? category : existing.category,
@@ -3217,12 +3408,12 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
       image_url,
       id
     );
-    try { db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id); } catch (_) {}
-    if (bodyPriceVisibility !== undefined) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility || '').trim(), id);
-    if (bodyImageUrls !== undefined && Array.isArray(bodyImageUrls)) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(JSON.stringify(bodyImageUrls), id);
-    if (bodyDescI18n !== undefined && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
-    if (bodyMaterialsI18n !== undefined && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
-    if (bodyGemstonesI18n !== undefined && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
+    try { await (await db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?")).run(pricing_mode, hide_price, id); } catch (_) {}
+    if (bodyPriceVisibility !== undefined) await (await db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?")).run(String(bodyPriceVisibility || '').trim(), id);
+    if (bodyImageUrls !== undefined && Array.isArray(bodyImageUrls)) await (await db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?")).run(JSON.stringify(bodyImageUrls), id);
+    if (bodyDescI18n !== undefined && typeof bodyDescI18n === 'object') await (await db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyDescI18n), id);
+    if (bodyMaterialsI18n !== undefined && typeof bodyMaterialsI18n === 'object') await (await db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyMaterialsI18n), id);
+    if (bodyGemstonesI18n !== undefined && typeof bodyGemstonesI18n === 'object') await (await db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyGemstonesI18n), id);
     broadcast({ type: 'MASTERPIECE_UPDATED', id });
     res.json({ ok: true });
   } catch (e: any) {
@@ -3235,12 +3426,12 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
 });
 
 // Admin: Stück bearbeiten (PATCH)
-app.patch("/api/admin/masterpieces/:id", (req, res) => {
+app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   const admin = (req as any).user;
   if (!admin || admin.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: 'Invalid masterpiece ID' });
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!piece) return res.status(404).json({ error: 'Masterpiece not found' });
   const body = req.body || {};
   const updates: string[] = [];
@@ -3274,7 +3465,7 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
-    db.prepare(`UPDATE masterpieces SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    await (await db.prepare(`UPDATE masterpieces SET ${updates.join(', ')} WHERE id = ?`)).run(...values);
     broadcast({ type: 'MASTERPIECE_UPDATED', id });
     res.json({ ok: true });
   } catch (e: any) {
@@ -3284,10 +3475,10 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
 });
 
 // Admin: Stück bearbeiten (PATCH)
-app.patch("/api/admin/masterpieces/:id", (req, res) => {
+app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, purchase_price: bodyPurchasePrice, estimated_market_value: bodyEstimatedMarketValue } = req.body;
   const updates: string[] = [];
@@ -3307,79 +3498,78 @@ app.patch("/api/admin/masterpieces/:id", (req, res) => {
   if (bodyPurchasePrice !== undefined) { updates.push("purchase_price = ?"); values.push(bodyPurchasePrice === null || bodyPurchasePrice === '' ? null : Number(bodyPurchasePrice)); }
   if (bodyEstimatedMarketValue !== undefined) { updates.push("estimated_market_value = ?"); values.push(bodyEstimatedMarketValue === null || bodyEstimatedMarketValue === '' ? null : Number(bodyEstimatedMarketValue)); }
   if (updates.length > 0) {
-    db.prepare(`UPDATE masterpieces SET ${updates.join(", ")} WHERE id = ?`).run(...values, id);
+    await (await db.prepare(`UPDATE masterpieces SET ${updates.join(", ")} WHERE id = ?`)).run(...values, id);
   }
   if (bodyPricingMode !== undefined) {
     const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
     const hide_price = pricing_mode === 'hidden' ? 1 : 0;
-    db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?").run(pricing_mode, hide_price, id);
+    await (await db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?")).run(pricing_mode, hide_price, id);
   }
-  if (bodyPriceVisibility !== undefined) db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?").run(String(bodyPriceVisibility || '').trim(), id);
-  if (Array.isArray(bodyImageUrls) && bodyImageUrls.length >= 0) db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?").run(bodyImageUrls.length > 0 ? JSON.stringify(bodyImageUrls) : null, id);
-  if (bodyDescI18n != null && typeof bodyDescI18n === 'object') db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?").run(JSON.stringify(bodyDescI18n), id);
-  if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?").run(JSON.stringify(bodyMaterialsI18n), id);
-  if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?").run(JSON.stringify(bodyGemstonesI18n), id);
+  if (bodyPriceVisibility !== undefined) await (await db.prepare("UPDATE masterpieces SET price_visibility_rules = ? WHERE id = ?")).run(String(bodyPriceVisibility || '').trim(), id);
+  if (Array.isArray(bodyImageUrls) && bodyImageUrls.length >= 0) await (await db.prepare("UPDATE masterpieces SET image_urls = ? WHERE id = ?")).run(bodyImageUrls.length > 0 ? JSON.stringify(bodyImageUrls) : null, id);
+  if (bodyDescI18n != null && typeof bodyDescI18n === 'object') await (await db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyDescI18n), id);
+  if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') await (await db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyMaterialsI18n), id);
+  if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') await (await db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyGemstonesI18n), id);
   broadcast({ type: 'MASTERPIECE_UPDATED', id });
   res.json({ ok: true });
 });
 
 // Admin: Stück dauerhaft aus dem System löschen (mit Passwortbestätigung)
-app.post("/api/admin/masterpieces/:id/delete", (req, res) => {
+app.post("/api/admin/masterpieces/:id/delete", async (req, res) => {
   const admin = (req as any).user;
   const masterpieceId = Number(req.params.id);
   const { password } = req.body || {};
   if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece ID" });
-  const row = db.prepare("SELECT password FROM users WHERE id = ?").get(admin.id) as { password: string } | undefined;
+  const row = await (await db.prepare("SELECT password FROM users WHERE id = ?")).get(admin.id) as { password: string } | undefined;
   if (!row || !checkPassword(String(password || ""), row.password)) return res.status(401).json({ error: "Admin-Passwort erforderlich oder falsch." });
-  const piece = db.prepare("SELECT id, title, serial_id FROM masterpieces WHERE id = ?").get(masterpieceId) as { id: number; title: string; serial_id: string } | undefined;
+  const piece = await (await db.prepare("SELECT id, title, serial_id FROM masterpieces WHERE id = ?")).get(masterpieceId) as { id: number; title: string; serial_id: string } | undefined;
   if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
-  const run = db.transaction(() => {
-    const mid = masterpieceId;
-    const resaleIds = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ?").all(mid) as { id: number }[];
-    const resaleIdList = resaleIds.map(r => r.id);
-    if (resaleIdList.length > 0) {
-      db.prepare("DELETE FROM maison_buyback_offers WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")").run();
-      db.prepare("DELETE FROM resale_audit_log WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")").run();
-    }
-    db.prepare("DELETE FROM resale_listings WHERE masterpiece_id = ?").run(mid);
-    const auctionIds = db.prepare("SELECT id FROM auctions WHERE masterpiece_id = ?").all(mid) as { id: number }[];
-    const aidList = auctionIds.map(a => a.id);
-    if (aidList.length > 0) db.prepare("DELETE FROM bids WHERE auction_id IN (" + aidList.join(",") + ")").run();
-    db.prepare("DELETE FROM auctions WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM ownership_history WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM payments WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM contracts WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM escrow_transactions WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM certificates WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM purchase_workflow WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM provenance_timeline WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM service_history WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM waitlist WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM reservations WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM fractional_shares WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM fractional_transfers WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM production_progress WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM delivery_details WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM atelier_moments WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM shipping_orchestration WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM insurance_policies WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM resale_negotiations WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM fractional_availability WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM user_favorites WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM investor_requests WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM revenue_ledger WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM investor_view_logs WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM service_requests WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM concierge_requests WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM vault_requests WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM asset_views WHERE masterpiece_id = ?").run(mid);
-    db.prepare("DELETE FROM design_requests WHERE masterpiece_id = ?").run(mid);
-    try { db.prepare("DELETE FROM chat_threads WHERE masterpiece_id = ?").run(mid); } catch (_) {}
-    db.prepare("DELETE FROM masterpieces WHERE id = ?").run(mid);
-  });
   try {
-    run();
+    await db.transaction(async (tx) => {
+      const mid = masterpieceId;
+      const resaleIds = await (await tx.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
+      const resaleIdList = resaleIds.map(r => r.id);
+      if (resaleIdList.length > 0) {
+        await (await tx.prepare("DELETE FROM maison_buyback_offers WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")")).run();
+        await (await tx.prepare("DELETE FROM resale_audit_log WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")")).run();
+      }
+      await (await tx.prepare("DELETE FROM resale_listings WHERE masterpiece_id = ?")).run(mid);
+      const auctionIds = await (await tx.prepare("SELECT id FROM auctions WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
+      const aidList = auctionIds.map(a => a.id);
+      if (aidList.length > 0) await (await tx.prepare("DELETE FROM bids WHERE auction_id IN (" + aidList.join(",") + ")")).run();
+      await (await tx.prepare("DELETE FROM auctions WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM ownership_history WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM payments WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM contracts WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM escrow_transactions WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM certificates WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM purchase_workflow WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM provenance_timeline WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM service_history WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM waitlist WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM reservations WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM fractional_shares WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM fractional_transfers WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM production_progress WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM delivery_details WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM atelier_moments WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM shipping_orchestration WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM insurance_policies WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM resale_negotiations WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM fractional_availability WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM user_favorites WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM investor_requests WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM revenue_ledger WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM investor_view_logs WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM service_requests WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM concierge_requests WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM vault_requests WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM asset_views WHERE masterpiece_id = ?")).run(mid);
+      await (await tx.prepare("DELETE FROM design_requests WHERE masterpiece_id = ?")).run(mid);
+      try { await (await tx.prepare("DELETE FROM chat_threads WHERE masterpiece_id = ?")).run(mid); } catch (_) {}
+      await (await tx.prepare("DELETE FROM masterpieces WHERE id = ?")).run(mid);
+    });
     broadcast({ type: "MASTERPIECE_DELETED", id: masterpieceId });
     res.json({ success: true, message: "Stück wurde dauerhaft aus dem System entfernt." });
   } catch (e: any) {
@@ -3388,10 +3578,10 @@ app.post("/api/admin/masterpieces/:id/delete", (req, res) => {
 });
 
 // Investor Features
-app.get("/api/investor/analytics", (req, res) => {
-  const totalValuation = db.prepare("SELECT SUM(valuation) as total FROM masterpieces").get().total || 0;
-  const piecesSold = db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'").get().count;
-  const totalBids = db.prepare("SELECT COUNT(*) as count FROM bids").get().count;
+app.get("/api/investor/analytics", async (req, res) => {
+  const totalValuation = await (await db.prepare("SELECT SUM(valuation) as total FROM masterpieces")).get().total || 0;
+  const piecesSold = await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'")).get().count;
+  const totalBids = await (await db.prepare("SELECT COUNT(*) as count FROM bids")).get().count;
   
   // Mocking some metrics for the luxury feel
   const analytics = {
@@ -3406,8 +3596,8 @@ app.get("/api/investor/analytics", (req, res) => {
       avg_bid_increase: 18.5
     },
     rarity_distribution: {
-      "Unique": db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Unique'").get().count,
-      "Limited": db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Limited'").get().count
+      "Unique": await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Unique'")).get().count,
+      "Limited": await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Limited'")).get().count
     },
     liquidity_forecast: totalValuation * 0.15,
     scarcity_index: 94
@@ -3415,99 +3605,99 @@ app.get("/api/investor/analytics", (req, res) => {
   res.json(analytics);
 });
 
-app.post("/api/investor/request", (req, res) => {
+app.post("/api/investor/request", async (req, res) => {
   const { userId, type, message, masterpiece_id, request_metadata } = req.body;
   if (type === 'share' && !masterpiece_id) return res.status(400).json({ error: "masterpiece_id required for share request" });
-  db.prepare("INSERT INTO investor_requests (user_id, type, message, masterpiece_id, request_metadata) VALUES (?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO investor_requests (user_id, type, message, masterpiece_id, request_metadata) VALUES (?, ?, ?, ?, ?)")).run(
     userId, type, message || null, masterpiece_id || null, request_metadata ? JSON.stringify(request_metadata) : null
   );
   res.json({ success: true });
 });
 
-app.get("/api/admin/investor-requests", (req, res) => {
-  const requests = db.prepare(`
+app.get("/api/admin/investor-requests", async (req, res) => {
+  const requests = await (await db.prepare(`
     SELECT ir.*, u.name as user_name, u.email as user_email, m.title as masterpiece_title, m.serial_id as masterpiece_serial
     FROM investor_requests ir 
     JOIN users u ON ir.user_id = u.id 
     LEFT JOIN masterpieces m ON ir.masterpiece_id = m.id
     ORDER BY ir.created_at DESC
-  `).all();
+  `)).all();
   res.json(requests);
 });
 
-app.get("/api/investor/my-requests", (req, res) => {
+app.get("/api/investor/my-requests", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(400).json({ error: "userId required" });
-  const requests = db.prepare("SELECT * FROM investor_requests WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+  const requests = await (await db.prepare("SELECT * FROM investor_requests WHERE user_id = ? ORDER BY created_at DESC")).all(userId);
   res.json(requests);
 });
 
-app.post("/api/admin/investor-requests/:id/review", (req, res) => {
+app.post("/api/admin/investor-requests/:id/review", async (req, res) => {
   const id = Number(req.params.id);
   const { approve } = req.body;
-  const reqRow = db.prepare("SELECT * FROM investor_requests WHERE id = ?").get(id) as any;
+  const reqRow = await (await db.prepare("SELECT * FROM investor_requests WHERE id = ?")).get(id) as any;
   if (!reqRow) return res.status(404).json({ error: "Request not found" });
   const status = approve ? 'approved' : 'rejected';
   if (approve && reqRow.type === 'share' && reqRow.masterpiece_id) {
     const meta = reqRow.request_metadata ? JSON.parse(reqRow.request_metadata) : {};
     const pct = Math.min(Number(meta.percentage) || 5, 100);
-    const avail = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(reqRow.masterpiece_id) as any;
+    const avail = await (await db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?")).get(reqRow.masterpiece_id) as any;
     if (!avail || (avail.available_pct || 0) < pct) return res.status(400).json({ error: "Not enough fractional availability for this piece" });
     const minPct = avail.min_investment_pct != null ? Number(avail.min_investment_pct) : null;
     if (minPct != null && pct < minPct) return res.status(400).json({ error: `Minimum investment is ${minPct}% for this asset` });
-    db.prepare("INSERT INTO fractional_shares (masterpiece_id, owner_id, percentage) VALUES (?, ?, ?)").run(reqRow.masterpiece_id, reqRow.user_id, pct);
-    db.prepare("UPDATE fractional_availability SET available_pct = available_pct - ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(pct, reqRow.masterpiece_id);
-    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(reqRow.masterpiece_id) as any;
+    await (await db.prepare("INSERT INTO fractional_shares (masterpiece_id, owner_id, percentage) VALUES (?, ?, ?)")).run(reqRow.masterpiece_id, reqRow.user_id, pct);
+    await (await db.prepare("UPDATE fractional_availability SET available_pct = available_pct - ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?")).run(pct, reqRow.masterpiece_id);
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(reqRow.masterpiece_id) as any;
     if (piece && avail.price_per_pct) {
       const amount = pct * (avail.price_per_pct || 0);
-      try { db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)").run('fractional_fee', amount, reqRow.user_id, reqRow.masterpiece_id, `share_req_${id}`); } catch (_) {}
+      try { await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)")).run('fractional_fee', amount, reqRow.user_id, reqRow.masterpiece_id, `share_req_${id}`); } catch (_) {}
     }
-    try { db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'fractional', ?, ?, 'signed')").run(reqRow.user_id, reqRow.masterpiece_id, `FRA-${reqRow.masterpiece_id}-${reqRow.user_id}`, `Fractional ownership: ${pct}% of ${piece?.title || 'Asset'}.`); } catch (_) {}
+    try { await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'fractional', ?, ?, 'signed')")).run(reqRow.user_id, reqRow.masterpiece_id, `FRA-${reqRow.masterpiece_id}-${reqRow.user_id}`, `Fractional ownership: ${pct}% of ${piece?.title || 'Asset'}.`); } catch (_) {}
   }
-  db.prepare("UPDATE investor_requests SET status = ? WHERE id = ?").run(status, id);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(reqRow.user_id) as any;
+  await (await db.prepare("UPDATE investor_requests SET status = ? WHERE id = ?")).run(status, id);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(reqRow.user_id) as any;
   if (user) {
     const msg = approve
       ? (reqRow.type === 'share' ? `Your fractional share request has been approved. You now own a share of the asset.` : "Your investor request has been approved. Access granted.")
       : "Your investor request could not be approved at this time.";
-    try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(user.id, msg, approve ? 'success' : 'info'); } catch (_) {}
+    try { await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(user.id, msg, approve ? 'success' : 'info'); } catch (_) {}
   }
   res.json({ success: true, status });
 });
 
-app.get("/api/admin/appointments", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/appointments", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT a.*, u.name as user_name, u.email as user_email, ad.name as admin_name
     FROM appointments a
     JOIN users u ON a.user_id = u.id
     JOIN users ad ON a.admin_id = ad.id
     ORDER BY a.scheduled_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.post("/api/admin/appointments", (req, res) => {
+app.post("/api/admin/appointments", async (req, res) => {
   const { adminId, userId, requestId, scheduled_at, title, notes, status } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   if (!userId || !scheduled_at) return res.status(400).json({ error: "userId and scheduled_at required" });
-  const customer = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const customer = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!customer) return res.status(404).json({ error: "User not found" });
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO appointments (request_id, admin_id, user_id, scheduled_at, title, notes, status)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(requestId || null, adminId, userId, scheduled_at, title || null, notes || null, status || 'proposed');
-  const id = (db.prepare("SELECT last_insert_rowid()").get() as any)['last_insert_rowid()'];
-  try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(userId, `Termin vorgeschlagen: ${title || 'Beratung'} am ${scheduled_at}`, 'info'); } catch (_) {}
+  `)).run(requestId || null, adminId, userId, scheduled_at, title || null, notes || null, status || 'proposed');
+  const id = (await (await db.prepare("SELECT last_insert_rowid()")).get() as any)['last_insert_rowid()'];
+  try { await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(userId, `Termin vorgeschlagen: ${title || 'Beratung'} am ${scheduled_at}`, 'info'); } catch (_) {}
   res.json({ success: true, id });
 });
 
-app.patch("/api/admin/appointments/:id", (req, res) => {
+app.patch("/api/admin/appointments/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { adminId, scheduled_at, title, notes, status } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const row = db.prepare("SELECT * FROM appointments WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM appointments WHERE id = ?")).get(id) as any;
   if (!row) return res.status(404).json({ error: "Appointment not found" });
   const updates: string[] = [];
   const values: any[] = [];
@@ -3517,66 +3707,66 @@ app.patch("/api/admin/appointments/:id", (req, res) => {
   if (status !== undefined) { updates.push("status = ?"); values.push(status); }
   if (updates.length) {
     values.push(id);
-    db.prepare(`UPDATE appointments SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+    await (await db.prepare(`UPDATE appointments SET ${updates.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...values);
   }
   res.json({ success: true });
 });
 
-app.get("/api/appointments", (req, res) => {
+app.get("/api/appointments", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(400).json({ error: "userId required" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT a.*, ad.name as admin_name
     FROM appointments a
     JOIN users ad ON a.admin_id = ad.id
     WHERE a.user_id = ? ORDER BY a.scheduled_at DESC
-  `).all(userId);
+  `)).all(userId);
   res.json(rows);
 });
 
-app.patch("/api/appointments/:id/respond", (req, res) => {
+app.patch("/api/appointments/:id/respond", async (req, res) => {
   const id = Number(req.params.id);
   const { userId, status } = req.body;
   if (!userId || !status || !['confirmed', 'cancelled'].includes(status)) return res.status(400).json({ error: "userId and status (confirmed|cancelled) required" });
-  const row = db.prepare("SELECT * FROM appointments WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM appointments WHERE id = ?")).get(id) as any;
   if (!row || row.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
-  db.prepare("UPDATE appointments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, id);
+  await (await db.prepare("UPDATE appointments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status, id);
   res.json({ success: true });
 });
 
-app.post("/api/investor/log-view", (req, res) => {
+app.post("/api/investor/log-view", async (req, res) => {
   const { userId, masterpieceId, interestLevel } = req.body;
-  db.prepare("INSERT INTO investor_view_logs (user_id, masterpiece_id, interest_level) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO investor_view_logs (user_id, masterpiece_id, interest_level) VALUES (?, ?, ?)")).run(
     userId, masterpieceId, interestLevel || 1
   );
   res.json({ success: true });
 });
 
-app.get("/api/investor/view-logs", (req, res) => {
-  const logs = db.prepare(`
+app.get("/api/investor/view-logs", async (req, res) => {
+  const logs = await (await db.prepare(`
     SELECT ivl.*, m.title as masterpiece_title 
     FROM investor_view_logs ivl 
     JOIN masterpieces m ON ivl.masterpiece_id = m.id 
     ORDER BY ivl.created_at DESC
-  `).all();
+  `)).all();
   res.json(logs);
 });
-app.post("/api/marketplace/buy", (req, res) => {
+app.post("/api/marketplace/buy", async (req, res) => {
   const { userId, masterpieceId, delivery_option } = req.body;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
   if (piece.status !== 'available') return res.status(400).json({ error: "Stück ist nicht verfügbar." });
-  logMasterpieceStatusChange(masterpieceId, 'reserved', null);
-  db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
+  await logMasterpieceStatusChange(masterpieceId, 'reserved', null);
+  await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(masterpieceId);
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const depositAmount = (piece.valuation * (piece.deposit_pct || 10)) / 100;
   const meta = JSON.stringify({ delivery_option: delivery_option || null, is_resale: false });
-  const listing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status = 'curated_marketplace'").get(masterpieceId) as { id: number } | undefined;
+  const listing = await (await db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status = 'curated_marketplace'")).get(masterpieceId) as { id: number } | undefined;
   const isResale = !!listing;
 
   if (isResale) {
-    const docRef = nextContractRef('deposit');
+    const docRef = await nextContractRef('deposit');
     const L: ContractLang = getContractLang(user.preferred_language || user.language);
     const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
     if (resaleT) {
@@ -3584,18 +3774,18 @@ app.post("/api/marketplace/buy", (req, res) => {
       const content = applyContractVars(resaleT.body, vars);
       const html = generateLuxuryDocument(resaleT.title, content, user, piece, { docRef, title: resaleT.title, lang: L });
       const metaResale = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      const rr = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResale);
+      const rr = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, metaResale);
       createActivityNotification(userId, 'new_contract', String(rr.lastInsertRowid), 'Contract ready for signature');
     } else {
       const docRef = 'DEP-RSL-' + Date.now();
       const content = `Anzahlungsvertrag Wiederverkauf – ${piece.title} (${piece.serial_id}). Kaufpreis: ${piece.valuation} EUR. Anzahlung: ${depositAmount} EUR. Privatverkäufer über Antonio Bellanova Vault. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
       const html = generateLuxuryDocument("Anzahlungsvertrag Wiederverkauf", content, user, piece, { docRef, title: "Anzahlungsvertrag Wiederverkauf", lang: 'de' });
       const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      const rrf = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)").run(userId, masterpieceId, docRef, html, metaResaleFallback);
+      const rrf = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, metaResaleFallback);
       createActivityNotification(userId, 'new_contract', String(rrf.lastInsertRowid), 'Contract ready for signature');
     }
   } else {
-    const content = `
+  const content = `
     ANZAHLUNGSVERTRAG (DEPOSIT AGREEMENT)
     VERKÄUFER: Juwelen & Schmuckatelier Antonio Bellanova, Ahorstraße 8, 50765 Köln, USt-IdNr.: DE457682154
     KÄUFER: ${user.name}, ${user.address}
@@ -3606,36 +3796,36 @@ app.post("/api/marketplace/buy", (req, res) => {
     Datum: ${new Date().toLocaleDateString('de-DE')}
   `;
     try {
-      const rd = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content, meta);
+      const rd = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)")).run(userId, masterpieceId, 'deposit', content, meta);
       createActivityNotification(userId, 'new_contract', String(rd.lastInsertRowid), 'Contract ready for signature');
     } catch (_) {
-      const rd2 = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)").run(userId, masterpieceId, 'deposit', content);
+      const rd2 = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)")).run(userId, masterpieceId, 'deposit', content);
       createActivityNotification(userId, 'new_contract', String(rd2.lastInsertRowid), 'Contract ready for signature');
     }
   }
-
+  
   broadcast({ type: 'MASTERPIECE_RESERVED', id: masterpieceId });
   res.json({ success: true });
 });
 
-app.post("/api/admin/approve-purchase", (req, res) => {
+app.post("/api/admin/approve-purchase", async (req, res) => {
   const { masterpieceId, approve, adminId } = req.body;
   
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
-  const contract = db.prepare("SELECT * FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC").get(masterpieceId);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
+  const contract = await (await db.prepare("SELECT * FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC")).get(masterpieceId);
   
   if (!contract) return res.status(404).json({ error: "Contract not found" });
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(contract.user_id);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(contract.user_id);
 
   if (approve) {
     // Check for duplicate approval
-    const existingWorkflow = db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?").get(masterpieceId);
+    const existingWorkflow = await (await db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId);
     if (existingWorkflow) return res.status(400).json({ error: "Purchase already approved" });
 
     let deliveryOption: string | null = null;
     try {
-      const depContract = db.prepare("SELECT metadata FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC LIMIT 1").get(masterpieceId) as { metadata?: string } | undefined;
+      const depContract = await (await db.prepare("SELECT metadata FROM contracts WHERE masterpiece_id = ? AND (type = 'deposit' OR type = 'deposit_resale') ORDER BY id DESC LIMIT 1")).get(masterpieceId) as { metadata?: string } | undefined;
       if (depContract?.metadata) {
         const parsed = JSON.parse(depContract.metadata);
         if (parsed.delivery_option) deliveryOption = parsed.delivery_option;
@@ -3645,19 +3835,19 @@ app.post("/api/admin/approve-purchase", (req, res) => {
     // 1. Update status & workflow (with delivery_option from buy intent); collector level production priority
     const cl = (user.collector_level || user.role || '') as string;
     const productionPriority = (cl === 'grand_collector' || cl === 'legacy_collector') ? 'high' : (cl === 'private_collector' || isVipActive(user)) ? 'high' : 'standard';
-    db.prepare(`
+    await (await db.prepare(`
       INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option, production_priority)
       VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?, ?)
-    `).run(masterpieceId, user.id, adminId, deliveryOption, productionPriority);
+    `)).run(masterpieceId, user.id, adminId, deliveryOption, productionPriority);
 
     // 2. Generate Documents
     const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
-    const docRef = nextContractRef('deposit');
+    const docRef = await nextContractRef('deposit');
     
     // Deposit Contract
     const depositContent = `This binding instrument confirms the formal reservation of the Masterpiece identified as "${piece.title}" (Serial: ${piece.serial_id}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of ${piece.valuation.toLocaleString()} EUR.\n\nA non-refundable commitment deposit of ${depositAmount.toLocaleString()} EUR (${piece.deposit_pct}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.`;
     const depositHtml = generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement" });
-    const contractRun = db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')").run(
+    const contractRun = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(
       user.id, masterpieceId, docRef, depositHtml
     );
     const contractId = Number(contractRun.lastInsertRowid);
@@ -3672,39 +3862,39 @@ app.post("/api/admin/approve-purchase", (req, res) => {
         `Guten Tag ${user.name || ''},\n\nIhr Kaufantrag für "${piece.title}" wurde genehmigt. Der Anzahlungsvertrag steht in Ihrem Vault zur Unterzeichnung bereit.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`
       ).catch(() => {});
     }
-    updateProvenance(masterpieceId, 'vip_event', `Acquisition request approved for client ${user.name}.`);
+    await updateProvenance(masterpieceId, 'vip_event', `Acquisition request approved for client ${user.name}.`);
 
     // 4. Start Payment Workflow (IBAN aus Admin Bank-Konfiguration)
     const bankDeposit = getBankConfig();
-    db.prepare(`
+    await (await db.prepare(`
       INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
       VALUES (?, ?, 'deposit', ?, 'awaiting_deposit', ?, ?)
-    `).run(user.id, masterpieceId, depositAmount, bankDeposit.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', docRef);
+    `)).run(user.id, masterpieceId, depositAmount, bankDeposit.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', docRef);
 
     // 5. Private Deal Automation: create Deal Room + Payment Schedule + link to production
     const totalPrice = piece.valuation;
     const remainingBalance = totalPrice - depositAmount;
-    const dealRun = db.prepare(`
+    const dealRun = await (await db.prepare(`
       INSERT INTO deal_rooms (client_id, project_title, price, masterpiece_id, total_price, deposit_amount, remaining_balance, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
-    `).run(user.id, piece.title || `Deal – ${piece.serial_id}`, totalPrice, masterpieceId, totalPrice, depositAmount, remainingBalance);
+    `)).run(user.id, piece.title || `Deal – ${piece.serial_id}`, totalPrice, masterpieceId, totalPrice, depositAmount, remainingBalance);
     const dealId = Number(dealRun.lastInsertRowid);
     const dueDeposit = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
     const dueBalance = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-    db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(dealId, depositAmount, dueDeposit);
-    if (remainingBalance > 0) db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(dealId, remainingBalance, dueBalance);
-    try { db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)").run(dealId, user.id); } catch (_) {}
+    await (await db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)")).run(dealId, depositAmount, dueDeposit);
+    if (remainingBalance > 0) await (await db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)")).run(dealId, remainingBalance, dueBalance);
+    try { await (await db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)")).run(dealId, user.id); } catch (_) {}
     addClientTimeline(user.id, 'deal_room_created', `Deal Room opened for ${piece.title}`, `deal:${dealId}`);
     addClientTimeline(user.id, 'payment_schedule_created', `Payment schedule: deposit €${depositAmount.toLocaleString()}, balance €${remainingBalance.toLocaleString()}`, `deal:${dealId}`);
     addClientTimeline(user.id, 'production_started', 'Production status: RESERVED', String(masterpieceId));
 
-    logAudit(adminId, 'APPROVE_PURCHASE', masterpieceId.toString(), `Approved purchase for user ${user.id} - Status: RESERVED; Deal Room ${dealId} created`);
+    await logAudit(adminId, 'APPROVE_PURCHASE', masterpieceId.toString(), `Approved purchase for user ${user.id} - Status: RESERVED; Deal Room ${dealId} created`);
   }
  else {
-    logMasterpieceStatusChange(masterpieceId, 'available', adminId ?? null);
-    db.prepare("UPDATE masterpieces SET status = 'available' WHERE id = ?").run(masterpieceId);
+    await logMasterpieceStatusChange(masterpieceId, 'available', adminId ?? null);
+    await (await db.prepare("UPDATE masterpieces SET status = 'available' WHERE id = ?")).run(masterpieceId);
     notifyUser(user.id, "Your purchase request for " + piece.title + " was not approved.", "warning");
-    logAudit(adminId, 'REJECT_PURCHASE', masterpieceId.toString(), `Rejected purchase for user ${user.id}`);
+    await logAudit(adminId, 'REJECT_PURCHASE', masterpieceId.toString(), `Rejected purchase for user ${user.id}`);
   }
 
   broadcast({ type: 'PURCHASE_REVIEWED', id: masterpieceId, approved: approve });
@@ -3713,45 +3903,45 @@ app.post("/api/admin/approve-purchase", (req, res) => {
 
 // --- NFT Minting Service (Mock) ---
 async function mintNFT(masterpieceId: number, ownerId: number): Promise<string> {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
-  const owner = db.prepare("SELECT * FROM users WHERE id = ?").get(ownerId);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
+  const owner = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(ownerId);
   
   // Simulate blockchain minting process
   await new Promise(resolve => setTimeout(resolve, 3000));
   
   const tokenId = `NFT-${piece.serial_id}-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
   
-  db.prepare("UPDATE masterpieces SET nft_token_id = ? WHERE id = ?").run(tokenId, masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET nft_token_id = ? WHERE id = ?")).run(tokenId, masterpieceId);
   
-  updateProvenance(masterpieceId, 'certificate', `Digital Ownership NFT minted. Token ID: ${tokenId}. Registered to ${owner.name}.`);
+  await updateProvenance(masterpieceId, 'certificate', `Digital Ownership NFT minted. Token ID: ${tokenId}. Registered to ${owner.name}.`);
   
   return tokenId;
 }
 
-app.post("/api/admin/workflow/update", (req, res) => {
+app.post("/api/admin/workflow/update", async (req, res) => {
   try {
-    const { masterpieceId, step, adminId } = req.body;
+  const { masterpieceId, step, adminId } = req.body;
     if (!masterpieceId || !step) return res.status(400).json({ error: "masterpieceId und step erforderlich." });
-    const workflow = db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?").get(masterpieceId) as any;
+    const workflow = await (await db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId) as any;
     if (!workflow) return res.status(404).json({ error: "Workflow nicht gefunden." });
 
-    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(workflow.user_id) as any;
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
+    const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(workflow.user_id) as any;
     if (!piece) return res.status(404).json({ error: "Meisterstück nicht gefunden." });
     if (!user) return res.status(404).json({ error: "Kunde zum Workflow nicht gefunden." });
 
-    let updateField = "";
-    let newStatus = "";
-    let message = "";
+  let updateField = "";
+  let newStatus = "";
+  let message = "";
 
   switch (step) {
     case 'deposit_paid':
       updateField = "deposit_paid_at";
       newStatus = "PRODUCTION_STARTED";
       message = `Deposit for ${piece.title} received. Handcrafted production has officially commenced.`;
-      db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'deposit'").run(masterpieceId);
-      logMasterpieceStatusChange(masterpieceId, 'reserved', adminId ?? null);
-      db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?").run(masterpieceId);
+      await (await db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'deposit'")).run(masterpieceId);
+      await logMasterpieceStatusChange(masterpieceId, 'reserved', adminId ?? null);
+      await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(masterpieceId);
       break;
     case 'production_started':
       updateField = "production_started_at";
@@ -3765,7 +3955,7 @@ app.post("/api/admin/workflow/update", (req, res) => {
       
       // Generate Final Invoice
       const balanceDue = piece.valuation - (piece.valuation * piece.deposit_pct / 100);
-      const invRef = nextContractRef('invoice');
+      const invRef = await nextContractRef('invoice');
       const invContent = `FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "${piece.title}".\n\nTotal Valuation: ${piece.valuation.toLocaleString()} EUR\nDeposit Paid: ${(piece.valuation * piece.deposit_pct / 100).toLocaleString()} EUR\nRemaining Balance: ${balanceDue.toLocaleString()} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.`;
       const invHtml = generateLuxuryDocument("Final Invoice", invContent, user, piece, { 
         docRef: invRef, 
@@ -3773,29 +3963,29 @@ app.post("/api/admin/workflow/update", (req, res) => {
         balanceDue,
         escrowEnabled: true 
       });
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')").run(
+      await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')")).run(
         user.id, masterpieceId, invRef, invHtml
       );
       
       const bankFull = getBankConfig();
-      db.prepare(`
+      await (await db.prepare(`
         INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
         VALUES (?, ?, 'full', ?, 'awaiting_payment', ?, ?)
-      `).run(user.id, masterpieceId, balanceDue, bankFull.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', invRef);
+      `)).run(user.id, masterpieceId, balanceDue, bankFull.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', invRef);
       break;
     case 'final_payment_paid':
     case 'final_payment_pending':
       updateField = "final_payment_pending_at";
       newStatus = "FUNDS_HELD";
       message = `Final payment received. Funds are now held in Escrow. Preparing for delivery.`;
-      db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'full'").run(masterpieceId);
+      await (await db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'full'")).run(masterpieceId);
       // Initialize Escrow only if not already present
-      const existingEscrow = db.prepare("SELECT id FROM escrow_transactions WHERE masterpiece_id = ?").get(masterpieceId);
+      const existingEscrow = await (await db.prepare("SELECT id FROM escrow_transactions WHERE masterpiece_id = ?")).get(masterpieceId);
       if (!existingEscrow) {
-        db.prepare(`
-          INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
-          VALUES (?, ?, 1, ?, 'HELD', datetime('now', '+2 days'))
-        `).run(masterpieceId, user.id, piece.valuation);
+        await (await db.prepare(`
+        INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+        VALUES (?, ?, 1, ?, 'HELD', datetime('now', '+2 days'))
+        `)).run(masterpieceId, user.id, piece.valuation);
       }
       break;
     case 'delivered':
@@ -3810,19 +4000,19 @@ app.post("/api/admin/workflow/update", (req, res) => {
       message = `Ownership of ${piece.title} has been officially transferred to you. Congratulations.`;
       
       // Release Escrow
-      db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?").run(masterpieceId);
-      logMasterpieceStatusChange(masterpieceId, 'sold', adminId ?? null);
-db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purchase_price = COALESCE(purchase_price, valuation), estimated_market_value = COALESCE(estimated_market_value, valuation) WHERE id = ?").run(user.id, masterpieceId);
+      await (await db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?")).run(masterpieceId);
+      await logMasterpieceStatusChange(masterpieceId, 'sold', adminId ?? null);
+await (await db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purchase_price = COALESCE(purchase_price, valuation), estimated_market_value = COALESCE(estimated_market_value, valuation) WHERE id = ?")).run(user.id, masterpieceId);
 
-      updateProvenance(masterpieceId, 'ownership_transfer', `Ownership officially transferred to ${user.name}.`);
+      await updateProvenance(masterpieceId, 'ownership_transfer', `Ownership officially transferred to ${user.name}.`);
 
       // Generate Certificate of Authenticity; assign Registry ID if first time
-      const regId = piece.registry_id || nextRegRef();
-      if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, masterpieceId);
-      const certRef = nextCertRef();
+      const regId = piece.registry_id || await nextRegRef();
+      if (!piece.registry_id) await (await db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?")).run(regId, masterpieceId);
+      const certRef = await nextCertRef();
       const certContent = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
       const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef: certRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${masterpieceId}`, certificateVerifyUrl: `${BASE_URL}/verify/${certRef}` });
-      db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'certificate', ?, ?, 'signed')").run(
+      await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'certificate', ?, ?, 'signed')")).run(
         user.id, masterpieceId, certRef, certHtml
       );
 
@@ -3835,13 +4025,13 @@ db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purch
       break;
   }
 
-    if (updateField) {
-      db.prepare(`UPDATE purchase_workflow SET ${updateField} = CURRENT_TIMESTAMP, status = ? WHERE masterpiece_id = ?`).run(newStatus, masterpieceId);
-      notifyUser(workflow.user_id, message, "success");
-      logAudit(adminId, 'WORKFLOW_UPDATE', masterpieceId.toString(), `Updated step ${step} to ${newStatus}`);
-      broadcast({ type: 'WORKFLOW_UPDATED', masterpieceId, status: newStatus });
-      res.json({ success: true });
-    } else {
+  if (updateField) {
+      await (await db.prepare(`UPDATE purchase_workflow SET ${updateField} = CURRENT_TIMESTAMP, status = ? WHERE masterpiece_id = ?`)).run(newStatus, masterpieceId);
+    notifyUser(workflow.user_id, message, "success");
+      await logAudit(adminId, 'WORKFLOW_UPDATE', masterpieceId.toString(), `Updated step ${step} to ${newStatus}`);
+    broadcast({ type: 'WORKFLOW_UPDATED', masterpieceId, status: newStatus });
+    res.json({ success: true });
+  } else {
       res.status(400).json({ error: "Ungültiger Workflow-Schritt." });
     }
   } catch (err: any) {
@@ -3850,74 +4040,79 @@ db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purch
   }
 });
 
-app.get("/api/notifications/:userId", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/notifications/:userId", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT id, user_id, type, reference_id, message, status, is_read, created_at
     FROM notifications WHERE user_id = ?
     ORDER BY CASE WHEN type = 'new_contract' THEN 0 WHEN type = 'new_room' THEN 1 WHEN type = 'new_message' THEN 2 WHEN type = 'new_offer' THEN 3 ELSE 4 END,
     created_at DESC
     LIMIT 50
-  `).all(req.params.userId) as any[];
+  `)).all(req.params.userId) as any[];
   res.json(rows);
 });
 
-app.post("/api/notifications/:userId/read-all", (req, res) => {
-  db.prepare("UPDATE notifications SET is_read = 1, status = 'read' WHERE user_id = ?").run(req.params.userId);
+app.post("/api/notifications/:userId/read-all", async (req, res) => {
+  await (await db.prepare("UPDATE notifications SET is_read = 1, status = 'read' WHERE user_id = ?")).run(req.params.userId);
   res.json({ success: true });
 });
 
-app.get("/api/workflow/:masterpieceId", (req, res) => {
-  const workflow = db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?").get(req.params.masterpieceId);
+app.get("/api/workflow/:masterpieceId", async (req, res) => {
+  const workflow = await (await db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?")).get(req.params.masterpieceId);
   res.json(workflow || null);
 });
 
 // Admin: production queue (workflows sorted by VIP priority first)
-app.get("/api/admin/workflows", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/workflows", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT pw.*, m.title as piece_title, m.serial_id, u.name as user_name
     FROM purchase_workflow pw
     LEFT JOIN masterpieces m ON m.id = pw.masterpiece_id
     LEFT JOIN users u ON u.id = pw.user_id
     WHERE pw.status NOT IN ('COMPLETED', 'CANCELLED')
     ORDER BY CASE WHEN pw.production_priority = 'high' THEN 0 ELSE 1 END, pw.approved_at ASC
-  `).all() as any[];
+  `)).all() as any[];
   res.json(rows);
 });
 
-app.get("/api/admin/masterpieces/:id/status-history", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/masterpieces/:id/status-history", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "masterpieceId erforderlich." });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT h.*, u.name as changed_by_name
     FROM masterpiece_status_history h
     LEFT JOIN users u ON u.id = h.changed_by_user_id
     WHERE h.masterpiece_id = ?
     ORDER BY h.changed_at DESC
-  `).all(id);
+  `)).all(id);
   res.json(rows);
 });
 
-app.get("/api/escrow/:masterpieceId", (req, res) => {
-  const escrow = db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? ORDER BY created_at DESC LIMIT 1").get(req.params.masterpieceId);
+app.get("/api/escrow/:masterpieceId", async (req, res) => {
+  const escrow = await (await db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? ORDER BY created_at DESC LIMIT 1")).get(req.params.masterpieceId);
   res.json(escrow || null);
 });
 
-function closeEndedAuctions(): void {
-  const ended = db.prepare("SELECT id, masterpiece_id, highest_bidder_id, current_bid FROM auctions WHERE status = 'active' AND end_time < datetime('now')").all() as any[];
+async function closeEndedAuctions(): Promise<void> {
+  const ended = await (await db.prepare("SELECT id, masterpiece_id, highest_bidder_id, current_bid FROM auctions WHERE status = 'active' AND end_time < datetime('now')")).all() as any[];
   for (const a of ended) {
-    db.prepare("UPDATE auctions SET status = 'ended' WHERE id = ?").run(a.id);
     if (a.highest_bidder_id) {
-      const piece = db.prepare("SELECT title, valuation FROM masterpieces WHERE id = ?").get(a.masterpiece_id) as any;
-      db.prepare("UPDATE masterpieces SET status = 'sold', current_owner_id = ? WHERE id = ?").run(a.highest_bidder_id, a.masterpiece_id);
-      db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)").run(a.masterpiece_id, a.highest_bidder_id, a.current_bid);
+      const winningBid = Number(a.current_bid) || 0;
+      await db.transaction(async (tx) => {
+        await (await tx.prepare("UPDATE auctions SET status = 'ended' WHERE id = ?")).run(a.id);
+        await (await tx.prepare("UPDATE users SET wallet_balance = wallet_balance - ?, wallet_locked = wallet_locked - ? WHERE id = ?")).run(winningBid, winningBid, a.highest_bidder_id);
+        await (await tx.prepare("UPDATE masterpieces SET status = 'sold', current_owner_id = ? WHERE id = ?")).run(a.highest_bidder_id, a.masterpiece_id);
+        await (await tx.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)")).run(a.masterpiece_id, a.highest_bidder_id, a.current_bid);
+      });
+      console.log("[Auction] Winner charged: auction_id=" + a.id + " winner_id=" + a.highest_bidder_id + " winning_bid=" + winningBid + " (wallet_balance and wallet_locked decreased)");
+      const piece = await (await db.prepare("SELECT title, valuation FROM masterpieces WHERE id = ?")).get(a.masterpiece_id) as any;
       try {
-        db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(
+        await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(
           a.highest_bidder_id,
           `Sie haben die Auktion für "${piece?.title || "Stück"}" gewonnen. Unser Team wird sich in Kürze bei Ihnen melden.`,
           "success"
         );
       } catch (_) {}
-      const winner = db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?").get(a.highest_bidder_id) as any;
+      const winner = await (await db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?")).get(a.highest_bidder_id) as any;
       if (winner && shouldSendEmailToUser(winner)) {
         sendMail(
           winner.email,
@@ -3925,16 +4120,18 @@ function closeEndedAuctions(): void {
           `Guten Tag ${winner.name || ""},\n\nHerzlichen Glückwunsch! Sie haben die Auktion für "${piece?.title || "Stück"}" mit ${Number(a.current_bid).toLocaleString("de-DE")} € gewonnen. Unser Team wird sich in Kürze bei Ihnen melden.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`
         ).catch(() => {});
       }
+    } else {
+      await (await db.prepare("UPDATE auctions SET status = 'ended' WHERE id = ?")).run(a.id);
     }
   }
 }
 
 // Auctions
-app.get("/api/auctions", (req, res) => {
-  closeEndedAuctions();
+app.get("/api/auctions", async (req, res) => {
+  await closeEndedAuctions();
   const userId = req.query.userId;
-  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
-  const isVip = user && (user.role === 'admin' || user.role === 'super_admin' || isVipActive(user));
+  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+  const isVip = user && (user.role === "admin" || user.role === "super_admin" || isVipActive(user) || canAccessVipContent(user));
 
   let query = `
     SELECT a.*, m.title, m.image_url, m.description 
@@ -3943,10 +4140,10 @@ app.get("/api/auctions", (req, res) => {
     WHERE a.status = 'active'
   `;
   if (!isVip) query += " AND a.vip_only = 0";
-  let activeAuctions = db.prepare(query).all() as any[];
+  let activeAuctions = await (await db.prepare(query)).all() as any[];
   const visibility = (a: any) => a.visibility || 'public';
   if (user && userId) {
-    const invitedAuctionIds = new Set((db.prepare("SELECT auction_id FROM auction_invitations WHERE user_id = ?").all(userId) as { auction_id: number }[]).map(r => r.auction_id));
+    const invitedAuctionIds = new Set((await (await db.prepare("SELECT auction_id FROM auction_invitations WHERE user_id = ?")).all(userId) as { auction_id: number }[]).map(r => r.auction_id));
     activeAuctions = activeAuctions.filter(a => {
       if (visibility(a) === 'public') return true;
       if (visibility(a) === 'vip_only') return isVip;
@@ -3959,10 +4156,10 @@ app.get("/api/auctions", (req, res) => {
   res.json(activeAuctions);
 });
 
-app.get("/api/auctions/my-bids", (req, res) => {
+app.get("/api/auctions/my-bids", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(400).json({ error: "userId required" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT a.*, m.title, m.image_url, m.description,
            b.amount as my_bid_amount,
            (a.highest_bidder_id = ?) as is_leading
@@ -3971,104 +4168,351 @@ app.get("/api/auctions/my-bids", (req, res) => {
     JOIN masterpieces m ON a.masterpiece_id = m.id
     WHERE b.user_id = ? AND a.status = 'active'
     ORDER BY b.created_at DESC
-  `).all(userId, userId);
+  `)).all(userId, userId);
   res.json(rows);
 });
 
-app.get("/api/auctions/:auctionId/bids", (req, res) => {
+app.get("/api/auctions/:auctionId/bids", async (req, res) => {
   const { auctionId } = req.params;
-  const bids = db.prepare(`
+  const bids = await (await db.prepare(`
     SELECT b.*, u.name as bidder_name 
     FROM bids b 
     JOIN users u ON b.user_id = u.id 
     WHERE b.auction_id = ? 
     ORDER BY b.amount DESC
-  `).all(auctionId);
+  `)).all(auctionId);
   res.json(bids);
 });
 
-app.post("/api/admin/auctions", (req, res) => {
+app.post("/api/admin/auctions", async (req, res) => {
   const { masterpieceId, startPrice, endTime, vipOnly, terms, visibility } = req.body;
   const vis = visibility === 'vip_only' || visibility === 'private_invitation' ? visibility : 'public';
-  const result = db.prepare(`
+  const result = await (await db.prepare(`
     INSERT INTO auctions (masterpiece_id, start_price, current_bid, end_time, vip_only, terms, visibility)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(masterpieceId, startPrice, startPrice, endTime, vipOnly ? 1 : 0, terms || "Standard luxury auction terms apply. 10% buyer's premium. Secure transport included.", vis);
+  `)).run(masterpieceId, startPrice, startPrice, endTime, vipOnly ? 1 : 0, terms || "Standard luxury auction terms apply. 10% buyer's premium. Secure transport included.", vis);
 
-  db.prepare("UPDATE masterpieces SET status = 'auction' WHERE id = ?").run(masterpieceId);
-  updateProvenance(masterpieceId, 'auction', `Masterpiece listed for auction with starting price of ${startPrice} EUR.`);
-
+  await (await db.prepare("UPDATE masterpieces SET status = 'auction' WHERE id = ?")).run(masterpieceId);
+  await updateProvenance(masterpieceId, 'auction', `Masterpiece listed for auction with starting price of ${startPrice} EUR.`);
+  
   broadcast({ type: 'AUCTION_CREATED', id: result.lastInsertRowid });
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post("/api/admin/auctions/:id/invite", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/auctions/:id/invite", requireAuth, requireAdmin, async (req, res) => {
   const { user_id } = req.body;
   try {
-    db.prepare("INSERT OR IGNORE INTO auction_invitations (auction_id, user_id) VALUES (?, ?)").run(req.params.id, user_id);
+    await (await db.prepare("INSERT OR IGNORE INTO auction_invitations (auction_id, user_id) VALUES (?, ?)")).run(req.params.id, user_id);
   } catch (_) {}
   res.json({ success: true });
 });
 
-app.post("/api/auctions/bid", (req, res) => {
-  const { auctionId, userId, amount } = req.body;
-  const auction = db.prepare("SELECT * FROM auctions WHERE id = ?").get(auctionId) as any;
-  if (!auction) return res.status(404).json({ error: "Auction not found" });
-  if (auction.vip_only === 1) {
-    const bidder = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-    if (!bidder || !isVipActive(bidder)) return res.status(403).json({ error: "This auction is for VIP members only." });
-  }
-  if (amount <= auction.current_bid) return res.status(400).json({ error: "Bid too low" });
-
-  const previousHighestBidderId = auction.highest_bidder_id;
-  const piece = db.prepare("SELECT title FROM masterpieces WHERE id = ?").get(auction.masterpiece_id) as any;
-  const pieceTitle = piece?.title || "Stück";
-
-  db.prepare("UPDATE auctions SET current_bid = ?, highest_bidder_id = ? WHERE id = ?").run(amount, userId, auctionId);
-  db.prepare("INSERT INTO bids (auction_id, user_id, amount) VALUES (?, ?, ?)").run(auctionId, userId, amount);
-
-  if (previousHighestBidderId && previousHighestBidderId !== userId) {
-    const prevBidder = db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?").get(previousHighestBidderId) as any;
-    if (prevBidder && shouldSendEmailToUser(prevBidder)) {
-      sendMail(
-        prevBidder.email,
-        "Antonio Bellanova – Sie wurden bei einer Auktion überboten",
-        `Guten Tag ${prevBidder.name || ""},\n\nIhr Gebot für "${pieceTitle}" wurde überboten. Das aktuelle Höchstgebot beträgt ${Number(amount).toLocaleString("de-DE")} €.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`
-      ).catch(() => {});
+app.post("/api/auctions/bid", async (req, res) => {
+  try {
+    const { auctionId, userId, amount } = req.body;
+    const amountNum = Number(amount);
+    if (!auctionId || !userId || !Number.isFinite(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ error: "Invalid auction, user, or bid amount." });
     }
-  }
+    const auction = await (await db.prepare("SELECT * FROM auctions WHERE id = ?")).get(auctionId) as any;
+    if (!auction) return res.status(404).json({ error: "Auction not found" });
+    if (auction.status !== 'active') return res.status(400).json({ error: "Auction is not active." });
+    if (auction.vip_only === 1) {
+      const bidder = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+      if (!bidder || (!isVipActive(bidder) && !canAccessVipContent(bidder))) return res.status(403).json({ error: "This auction is for VIP and Legacy Collector members only." });
+    }
+    if (amountNum <= (Number(auction.current_bid) || 0)) return res.status(400).json({ error: "Bid too low" });
 
-  broadcast({ type: 'NEW_BID', auctionId, amount, userId });
-  res.json({ success: true });
+    const previousHighestBidderId = auction.highest_bidder_id ? Number(auction.highest_bidder_id) : null;
+    const previousBidAmount = Number(auction.current_bid) || 0;
+
+    await db.transaction(async (tx) => {
+      const selSql = db.isMySQL
+        ? "SELECT wallet_balance, wallet_locked FROM users WHERE id = ? FOR UPDATE"
+        : "SELECT wallet_balance, wallet_locked FROM users WHERE id = ?";
+      const userRow = await (await tx.prepare(selSql)).get(userId) as { wallet_balance?: number | null; wallet_locked?: number | null } | undefined;
+      if (!userRow) throw new Error("User not found");
+      const balance = Number(userRow.wallet_balance) || 0;
+      const locked = Number(userRow.wallet_locked) || 0;
+      const available = balance - locked;
+      if (amountNum > available) throw new Error("Insufficient available balance");
+
+      if (previousHighestBidderId && previousHighestBidderId !== userId && previousBidAmount > 0) {
+        await (await tx.prepare("UPDATE users SET wallet_locked = wallet_locked - ? WHERE id = ?")).run(previousBidAmount, previousHighestBidderId);
+      }
+      await (await tx.prepare("UPDATE auctions SET current_bid = ?, highest_bidder_id = ? WHERE id = ?")).run(amountNum, userId, auctionId);
+      await (await tx.prepare("INSERT INTO bids (auction_id, user_id, amount) VALUES (?, ?, ?)")).run(auctionId, userId, amountNum);
+      await (await tx.prepare("UPDATE users SET wallet_locked = wallet_locked + ? WHERE id = ?")).run(amountNum, userId);
+    });
+
+    const piece = await (await db.prepare("SELECT title FROM masterpieces WHERE id = ?")).get(auction.masterpiece_id) as any;
+    const pieceTitle = piece?.title || "Stück";
+
+    if (previousHighestBidderId && previousHighestBidderId !== userId) {
+      const prevBidder = await (await db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?")).get(previousHighestBidderId) as any;
+      if (prevBidder && shouldSendEmailToUser(prevBidder)) {
+        sendMail(
+          prevBidder.email,
+          "Antonio Bellanova – Sie wurden bei einer Auktion überboten",
+          `Guten Tag ${prevBidder.name || ""},\n\nIhr Gebot für "${pieceTitle}" wurde überboten. Das aktuelle Höchstgebot beträgt ${amountNum.toLocaleString("de-DE")} €.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`
+        ).catch(() => {});
+      }
+    }
+
+    console.log("[Auction] Bid accepted: auction_id=" + auctionId + " user_id=" + userId + " amount=" + amountNum + " (wallet_locked updated)");
+    broadcast({ type: 'NEW_BID', auctionId, amount: amountNum, userId });
+    res.json({ success: true });
+  } catch (e: any) {
+    const msg = e?.message || "Bid could not be placed.";
+    if (msg === "Insufficient available balance") return res.status(400).json({ error: "Insufficient available balance" });
+    if (msg === "User not found") return res.status(404).json({ error: "User not found" });
+    console.error("[Auction] Bid error:", e?.message || e);
+    res.status(500).json({ error: msg });
+  }
+});
+
+// Wallet (Stripe deposit) – amounts in cents, stored as integer/BIGINT
+app.get("/api/wallet/:userId", requireAuth, async (req, res) => {
+  const userId = Number(req.params.userId);
+  const sessionUserId = getSessionUserId(req);
+  if (sessionUserId === null || sessionUserId !== userId) return res.status(403).json({ error: "Forbidden" });
+  const row = await (await db.prepare("SELECT wallet_balance, wallet_locked FROM users WHERE id = ?")).get(userId) as { wallet_balance?: number | null; wallet_locked?: number | null } | undefined;
+  if (!row) return res.status(404).json({ error: "User not found" });
+  const balance = Number(row.wallet_balance) || 0;
+  const locked = Number(row.wallet_locked) || 0;
+  res.json({ wallet_balance: balance, wallet_locked: locked, available: balance - locked });
+});
+
+app.post("/api/wallet/deposit", requireAuth, async (req, res) => {
+  const sessionUserId = getSessionUserId(req);
+  if (sessionUserId === null || sessionUserId === 0) return res.status(401).json({ error: "Not signed in" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Wallet deposits are not configured" });
+  const amountCents = Math.floor(Number(req.body?.amount) || 0);
+  if (amountCents < 100) return res.status(400).json({ error: "Minimum deposit is 1.00 (100 cents)" });
+  const maxCents = 99999999;
+  if (amountCents > maxCents) return res.status(400).json({ error: "Amount too large" });
+  try {
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "eur",
+      automatic_payment_methods: { enabled: true },
+      metadata: { user_id: String(sessionUserId) },
+    });
+    console.log("[Wallet] Deposit intent created: user_id=" + sessionUserId + " amount_cents=" + amountCents + " payment_intent=" + paymentIntent.id);
+    res.json({ client_secret: paymentIntent.client_secret, amount_cents: amountCents });
+  } catch (e: any) {
+    console.error("[Wallet] Deposit Stripe error:", e?.message || e);
+    res.status(500).json({ error: e?.message || "Could not create payment" });
+  }
 });
 
 // Payments
-app.get("/api/payments/:userId", (req, res) => {
-  const payments = db.prepare("SELECT * FROM payments WHERE user_id = ?").all(req.params.userId);
+app.get("/api/payments/:userId", async (req, res) => {
+  const payments = await (await db.prepare("SELECT * FROM payments WHERE user_id = ?")).all(req.params.userId);
   res.json(payments);
 });
 
+/** Public Stripe publishable key for frontend (no auth required so client can load Stripe.js). */
+app.get("/api/stripe/config", (_req, res) => {
+  const key = process.env.STRIPE_PUBLIC_KEY || process.env.STRIPE_PUBLISHABLE_KEY;
+  res.json({ publishableKey: key || "" });
+});
+
+// --- Invoices (made-to-order / payment requests) ---
+/** List invoices for the current user (client). */
+app.get("/api/invoices", async (req, res) => {
+  const userId = (req as any).userId;
+  if (userId == null) return res.status(401).json({ error: "Not signed in" });
+  try {
+    const rows = await (await db.prepare("SELECT * FROM invoices WHERE user_id = ? ORDER BY created_at DESC")).all(userId);
+    res.json(rows);
+  } catch (e: any) {
+    console.error("[Invoices] List error:", e?.message);
+    res.status(500).json({ error: "Failed to load invoices" });
+  }
+});
+
+/** Client: list payment history (transactions for current user). */
+app.get("/api/transactions", async (req, res) => {
+  const userId = (req as any).userId;
+  if (userId == null) return res.status(401).json({ error: "Not signed in" });
+  try {
+    const rows = await (await db.prepare("SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at DESC")).all(userId);
+    res.json(rows);
+  } catch (e: any) {
+    console.error("[Transactions] List error:", e?.message);
+    res.status(500).json({ error: "Failed to load transactions" });
+  }
+});
+
+/** Admin: create an invoice (status = pending). */
+app.post("/api/invoices/create", requireAuth, requireAdmin, async (req, res) => {
+  const { user_id, project_id, amount, type } = req.body || {};
+  const userId = Number(user_id);
+  const projectId = project_id != null ? Number(project_id) : null;
+  const amountCents = Math.floor(Number(amount) || 0);
+  const allowedTypes = ["deposit", "final_payment", "custom_order"];
+  if (!userId || isNaN(userId)) return res.status(400).json({ error: "Invalid user_id" });
+  if (!allowedTypes.includes(String(type))) return res.status(400).json({ error: "Invalid type; use deposit, final_payment, or custom_order" });
+  if (amountCents < 1) return res.status(400).json({ error: "Amount must be positive (in cents)" });
+  try {
+    await (await db.prepare("INSERT INTO invoices (user_id, project_id, amount, status, type) VALUES (?, ?, ?, 'pending', ?)")).run(userId, projectId, amountCents, String(type));
+    const row = await (await db.prepare("SELECT * FROM invoices WHERE id = last_insert_rowid()")).get() as { id: number };
+    console.log("[Invoice] Created: id=" + row.id + " user_id=" + userId + " amount_cents=" + amountCents + " type=" + type);
+    res.status(201).json({ id: row.id, user_id: userId, project_id: projectId, amount: amountCents, status: "pending", type: String(type) });
+  } catch (e: any) {
+    console.error("[Invoices] Create error:", e?.message);
+    res.status(500).json({ error: "Failed to create invoice" });
+  }
+});
+
+// --- Direct purchases (Stripe PaymentIntent → order on success) ---
+/** Create Stripe PaymentIntent for direct purchase of a masterpiece. On payment_intent.succeeded webhook, order is created and masterpiece marked sold. */
+app.post("/api/purchase", async (req, res) => {
+  const userId = (req as any).userId;
+  if (userId == null) return res.status(401).json({ error: "Not signed in" });
+  const itemId = Number(req.body?.item_id ?? req.body?.masterpiece_id);
+  if (!itemId) return res.status(400).json({ error: "Missing item_id or masterpiece_id" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(itemId) as { id: number; status: string; valuation?: number; purchase_price?: number } | undefined;
+  if (!piece) return res.status(404).json({ error: "Item not found" });
+  if (piece.status !== "available") return res.status(400).json({ error: "Item is not available for purchase" });
+  const amountEur = Number(piece.valuation ?? piece.purchase_price ?? 0);
+  if (amountEur <= 0) return res.status(400).json({ error: "Item has no valid price" });
+  const amountCents = Math.round(amountEur * 100);
+  if (amountCents < 100) return res.status(400).json({ error: "Minimum charge is 1.00 EUR" });
+  try {
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "eur",
+      automatic_payment_methods: { enabled: true },
+      metadata: { payment_type: "purchase", user_id: String(userId), masterpiece_id: String(itemId) },
+    });
+    console.log("[Purchase] Intent created: masterpiece_id=" + itemId + " user_id=" + userId + " amount_cents=" + amountCents);
+    res.json({ client_secret: paymentIntent.client_secret, item_id: itemId, amount_cents: amountCents });
+  } catch (e: any) {
+    console.error("[Purchase] Stripe error:", e?.message || e);
+    res.status(500).json({ error: e?.message || "Could not create payment" });
+  }
+});
+
+/** Client: create Stripe PaymentIntent for an invoice and return client_secret (only invoice owner can pay). */
+app.post("/api/invoices/pay", async (req, res) => {
+  const userId = (req as any).userId;
+  if (userId == null) return res.status(401).json({ error: "Not signed in" });
+  const invoiceId = Number(req.body?.invoice_id);
+  if (!invoiceId) return res.status(400).json({ error: "Missing invoice_id" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
+  const row = await (await db.prepare("SELECT * FROM invoices WHERE id = ?")).get(invoiceId) as { user_id: number; status: string; amount: number } | undefined;
+  if (!row) return res.status(404).json({ error: "Invoice not found" });
+  if (row.user_id !== userId) return res.status(403).json({ error: "You can only pay your own invoice" });
+  const allowedStatuses = ["pending", "awaiting_payment"];
+  if (!allowedStatuses.includes(row.status)) return res.status(400).json({ error: "Invoice is not awaiting payment" });
+  const amountCents = Number(row.amount) || 0;
+  if (amountCents < 1) return res.status(400).json({ error: "Invalid invoice amount" });
+  try {
+    const stripe = getStripe();
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "eur",
+      automatic_payment_methods: { enabled: true },
+      metadata: { payment_type: "invoice", invoice_id: String(invoiceId), user_id: String(userId) },
+    });
+    console.log("[Invoice] Pay intent created: invoice_id=" + invoiceId + " user_id=" + userId + " amount_cents=" + amountCents);
+    res.json({ client_secret: paymentIntent.client_secret, invoice_id: invoiceId });
+  } catch (e: any) {
+    console.error("[Invoice] Pay Stripe error:", e?.message || e);
+    res.status(500).json({ error: e?.message || "Could not create payment" });
+  }
+});
+
+/** Admin: list all invoices. */
+app.get("/api/admin/invoices", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await (await db.prepare("SELECT * FROM invoices ORDER BY created_at DESC")).all();
+    res.json(rows);
+  } catch (e: any) {
+    console.error("[Admin Invoices] List error:", e?.message);
+    res.status(500).json({ error: "Failed to load invoices" });
+  }
+});
+
+/** Admin: list all transactions. */
+app.get("/api/admin/transactions", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const rows = await (await db.prepare("SELECT * FROM transactions ORDER BY created_at DESC")).all();
+    res.json(rows);
+  } catch (e: any) {
+    console.error("[Admin Transactions] List error:", e?.message);
+    res.status(500).json({ error: "Failed to load transactions" });
+  }
+});
+
+/** Admin: mark invoice as paid (manual). */
+app.patch("/api/admin/invoices/:id", requireAuth, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid invoice id" });
+  const { status } = req.body || {};
+  if (status !== "paid") return res.status(400).json({ error: "Only status 'paid' is allowed" });
+  const row = await (await db.prepare("SELECT id, user_id, amount, status FROM invoices WHERE id = ?")).get(id) as { id: number; user_id: number; amount: number; status: string } | undefined;
+  if (!row) return res.status(404).json({ error: "Invoice not found" });
+  if (row.status === "paid") return res.status(400).json({ error: "Invoice is already paid" });
+  try {
+    await (await db.prepare("UPDATE invoices SET status = 'paid' WHERE id = ?")).run(id);
+    await (await db.prepare("INSERT INTO transactions (user_id, invoice_id, amount, status, stripe_payment_intent_id) VALUES (?, ?, ?, 'PAID', ?)")).run(row.user_id, id, row.amount, null);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("[Admin Invoices] Mark paid error:", e?.message);
+    res.status(500).json({ error: "Failed to update invoice" });
+  }
+});
+
+/** Admin: refund an invoice payment (Stripe refund + optional status update). */
+app.post("/api/admin/invoices/:id/refund", requireAuth, requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid invoice id" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Stripe not configured" });
+  const txn = await (await db.prepare("SELECT * FROM transactions WHERE invoice_id = ? AND status = 'PAID' ORDER BY created_at DESC LIMIT 1")).get(id) as { id: number; stripe_payment_intent_id: string | null } | undefined;
+  if (!txn?.stripe_payment_intent_id) return res.status(400).json({ error: "No Stripe payment found for this invoice" });
+  try {
+    const stripe = getStripe();
+    await stripe.refunds.create({ payment_intent: txn.stripe_payment_intent_id });
+    await (await db.prepare("UPDATE invoices SET status = 'refunded' WHERE id = ?")).run(id);
+    await (await db.prepare("UPDATE transactions SET status = 'REFUNDED' WHERE id = ?")).run(txn.id);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("[Admin Invoices] Refund error:", e?.message);
+    res.status(500).json({ error: e?.message || "Refund failed" });
+  }
+});
+
 // Certificates
-app.get("/api/certificates/:userId", (req, res) => {
-  const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(req.params.userId);
+app.get("/api/certificates/:userId", async (req, res) => {
+  const certs = await (await db.prepare("SELECT * FROM certificates WHERE owner_id = ?")).all(req.params.userId);
   res.json(certs);
 });
 
-app.post("/api/admin/generate-certificate", (req, res) => {
+app.post("/api/admin/generate-certificate", async (req, res) => {
   const { masterpieceId, adminId } = req.body;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
   
   if (!piece || !piece.current_owner_id) {
     return res.status(400).json({ error: "Masterpiece must have an owner to generate a certificate." });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(piece.current_owner_id);
-  const certId = nextCertRef();
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(piece.current_owner_id);
+  const certId = await nextCertRef();
   
   const certContent = `CERTIFICATE OF AUTHENTICITY & PROVENANCE\n\nThis definitive instrument serves as the permanent record of authenticity for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nMaterials: ${piece.materials}\nGemstones: ${piece.gemstones}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-' + Math.random().toString(16).slice(2, 10).toUpperCase()}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
   
-  const regId = piece.registry_id || nextRegRef();
-  if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, masterpieceId);
+  const regId = piece.registry_id || await nextRegRef();
+  if (!piece.registry_id) await (await db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?")).run(regId, masterpieceId);
   const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { 
     docRef: certId, 
     title: "Certificate of Authenticity",
@@ -4078,13 +4522,13 @@ app.post("/api/admin/generate-certificate", (req, res) => {
   });
 
   try {
-    db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)")).run(
       masterpieceId, user.id, certId, certHtml, 'DIGITAL_SIG_ANTONIO_BELLANOVA', piece.blockchain_hash || '0x' + Math.random().toString(16).slice(2)
     );
     
-    updateProvenance(masterpieceId, 'certificate', `Official Certificate of Authenticity issued by Antonio Bellanova (ID: ${certId}).`);
-    calculateRarityScore(masterpieceId);
-    logAudit(adminId, 'GENERATE_CERTIFICATE', masterpieceId.toString(), `Generated COA for user ${user.id}`);
+    await updateProvenance(masterpieceId, 'certificate', `Official Certificate of Authenticity issued by Antonio Bellanova (ID: ${certId}).`);
+    await calculateRarityScore(masterpieceId);
+    await logAudit(adminId, 'GENERATE_CERTIFICATE', masterpieceId.toString(), `Generated COA for user ${user.id}`);
     
     broadcast({ type: 'CERTIFICATE_GENERATED', userId: user.id, masterpieceId });
     res.json({ success: true, certId });
@@ -4093,38 +4537,38 @@ app.post("/api/admin/generate-certificate", (req, res) => {
   }
 });
 
-app.post("/api/admin/confirm-payment", (req, res) => {
+app.post("/api/admin/confirm-payment", async (req, res) => {
   const { paymentId } = req.body;
-  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(paymentId) as any;
+  const payment = await (await db.prepare("SELECT * FROM payments WHERE id = ?")).get(paymentId) as any;
   if (!payment) return res.status(404).json({ error: "Payment not found" });
-  db.prepare("UPDATE payments SET status = 'paid' WHERE id = ?").run(paymentId);
-
-  db.prepare("UPDATE masterpieces SET status = 'sold', current_owner_id = ? WHERE id = ?").run(
+  await (await db.prepare("UPDATE payments SET status = 'paid' WHERE id = ?")).run(paymentId);
+  
+  await (await db.prepare("UPDATE masterpieces SET status = 'sold', current_owner_id = ? WHERE id = ?")).run(
     payment.user_id, payment.masterpiece_id
   );
-  db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO ownership_history (masterpiece_id, owner_id, price) VALUES (?, ?, ?)")).run(
     payment.masterpiece_id, payment.user_id, payment.amount
   );
-
+  
   // Advisor commission: if buyer is a referred client, create commission (confirmed)
-  const referral = db.prepare("SELECT advisor_id FROM advisor_referrals WHERE user_id = ?").get(payment.user_id) as { advisor_id: number } | undefined;
+  const referral = await (await db.prepare("SELECT advisor_id FROM advisor_referrals WHERE user_id = ?")).get(payment.user_id) as { advisor_id: number } | undefined;
   if (referral) {
-    const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(referral.advisor_id) as { default_commission_pct: number } | undefined;
+    const profile = await (await db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?")).get(referral.advisor_id) as { default_commission_pct: number } | undefined;
     const pct = payment.advisor_commission_pct != null ? Number(payment.advisor_commission_pct) : (profile?.default_commission_pct ?? 8);
     const commissionAmount = (payment.amount * pct) / 100;
     try {
-      db.prepare(`
+      await (await db.prepare(`
         INSERT INTO advisor_commissions (advisor_id, payment_id, masterpiece_id, client_id, sale_amount, commission_pct, commission_amount, status)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'confirmed')
-      `).run(referral.advisor_id, paymentId, payment.masterpiece_id, payment.user_id, payment.amount, pct, commissionAmount);
+      `)).run(referral.advisor_id, paymentId, payment.masterpiece_id, payment.user_id, payment.amount, pct, commissionAmount);
     } catch (_) {}
   }
 
-  const certId = nextCertRef();
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payment.user_id);
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(payment.masterpiece_id);
-  const regId = piece.registry_id || nextRegRef();
-  if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, payment.masterpiece_id);
+  const certId = await nextCertRef();
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(payment.user_id);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(payment.masterpiece_id);
+  const regId = piece.registry_id || await nextRegRef();
+  if (!piece.registry_id) await (await db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?")).run(regId, payment.masterpiece_id);
 
   const certBody = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
   const certContent = generateLuxuryDocument("Certificate of Authenticity", certBody, user, piece, {
@@ -4135,29 +4579,29 @@ app.post("/api/admin/confirm-payment", (req, res) => {
     certificateVerifyUrl: `${BASE_URL}/verify/${certId}`
   });
 
-  db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)")).run(
     payment.masterpiece_id, payment.user_id, certId, certContent, 'DIGITAL_SIG_AB', '0x' + Math.random().toString(16).slice(2)
   );
   
-  updateProvenance(payment.masterpiece_id, 'certificate', `Certificate of Authenticity issued (ID: ${certId}).`);
-  calculateRarityScore(payment.masterpiece_id);
+  await updateProvenance(payment.masterpiece_id, 'certificate', `Certificate of Authenticity issued (ID: ${certId}).`);
+  await calculateRarityScore(payment.masterpiece_id);
 
   broadcast({ type: 'PAYMENT_CONFIRMED', paymentId, masterpieceId: payment.masterpiece_id });
   res.json({ success: true });
 });
 
 // Vault Data (discreet mode: only admin can see another user's portfolio when private_portfolio_visibility is on)
-app.get("/api/vault/:userId", (req, res) => {
+app.get("/api/vault/:userId", async (req, res) => {
   const userId = req.params.userId;
   const requesterId = getSessionUserId(req);
-  const target = db.prepare("SELECT id, private_portfolio_visibility FROM users WHERE id = ?").get(userId) as any;
+  const target = await (await db.prepare("SELECT id, private_portfolio_visibility FROM users WHERE id = ?")).get(userId) as any;
   if (target?.private_portfolio_visibility === 1 && String(requesterId) !== String(userId)) {
-    const requester = requesterId ? db.prepare("SELECT role FROM users WHERE id = ?").get(requesterId) as any : null;
+    const requester = requesterId ? await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(requesterId) as any : null;
     if (!requester || (requester.role !== 'admin' && requester.role !== 'super_admin'))
       return res.status(403).json({ error: "Portfolio is private." });
   }
-  enforceVipExpiry(Number(userId));
-  const piecesRaw = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  await enforceVipExpiry(Number(userId));
+  const piecesRaw = await (await db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
   const pieces = piecesRaw.map((p: any) => {
     const purchase = Number(p.purchase_price) || 0;
     const estimated = p.estimated_market_value != null ? Number(p.estimated_market_value) : null;
@@ -4165,60 +4609,60 @@ app.get("/api/vault/:userId", (req, res) => {
     if (purchase > 0 && estimated != null) value_growth = (estimated - purchase) / purchase;
     return { ...p, value_growth };
   });
-  const certs = db.prepare("SELECT * FROM certificates WHERE owner_id = ?").all(userId);
-  const contracts = db.prepare("SELECT * FROM contracts WHERE user_id = ?").all(userId);
-  const vault_documents = db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(userId);
-  const hiddenRows = db.prepare("SELECT masterpiece_id FROM user_portfolio_hidden WHERE user_id = ?").all(userId) as { masterpiece_id: number }[];
+  const certs = await (await db.prepare("SELECT * FROM certificates WHERE owner_id = ?")).all(userId);
+  const contracts = await (await db.prepare("SELECT * FROM contracts WHERE user_id = ?")).all(userId);
+  const vault_documents = await (await db.prepare("SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC")).all(userId);
+  const hiddenRows = await (await db.prepare("SELECT masterpiece_id FROM user_portfolio_hidden WHERE user_id = ?")).all(userId) as { masterpiece_id: number }[];
   const portfolio_hidden_ids = hiddenRows.map((r) => r.masterpiece_id);
   res.json({ pieces, certs, contracts, vault_documents, portfolio_hidden_ids });
 });
 
 // Portfolio: Stück aus Anzeige entfernen / wieder anzeigen (nur Besitzer)
-app.post("/api/portfolio/hide", (req, res) => {
+app.post("/api/portfolio/hide", async (req, res) => {
   const userId = (req as any).userId;
   if (!userId) return res.status(401).json({ error: "Nicht angemeldet." });
   const { masterpieceId } = req.body || {};
   const id = Number(masterpieceId);
   if (!id) return res.status(400).json({ error: "masterpieceId erforderlich." });
-  const piece = db.prepare("SELECT current_owner_id FROM masterpieces WHERE id = ?").get(id) as { current_owner_id: number } | undefined;
+  const piece = await (await db.prepare("SELECT current_owner_id FROM masterpieces WHERE id = ?")).get(id) as { current_owner_id: number } | undefined;
   if (!piece || piece.current_owner_id !== userId) return res.status(403).json({ error: "Nur das eigene Stück kann ausgeblendet werden." });
   try {
-    db.prepare("INSERT OR IGNORE INTO user_portfolio_hidden (user_id, masterpiece_id) VALUES (?, ?)").run(userId, id);
+    await (await db.prepare("INSERT OR IGNORE INTO user_portfolio_hidden (user_id, masterpiece_id) VALUES (?, ?)")).run(userId, id);
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "Fehler beim Ausblenden." });
   }
 });
 
-app.post("/api/portfolio/unhide", (req, res) => {
+app.post("/api/portfolio/unhide", async (req, res) => {
   const userId = (req as any).userId;
   if (!userId) return res.status(401).json({ error: "Nicht angemeldet." });
   const { masterpieceId } = req.body || {};
   const id = Number(masterpieceId);
   if (!id) return res.status(400).json({ error: "masterpieceId erforderlich." });
-  db.prepare("DELETE FROM user_portfolio_hidden WHERE user_id = ? AND masterpiece_id = ?").run(userId, id);
+  await (await db.prepare("DELETE FROM user_portfolio_hidden WHERE user_id = ? AND masterpiece_id = ?")).run(userId, id);
   res.json({ success: true });
 });
 
 // Admin Dashboard Stats (incl. piece views, popular pieces, contact requests)
-app.get("/api/admin/stats", (req, res) => {
-  const ownershipTotal = (db.prepare("SELECT COALESCE(SUM(price), 0) as total FROM ownership_history").get() as { total: number | null })?.total || 0;
-  const paymentsTotal = (db.prepare("SELECT SUM(amount) as total FROM payments WHERE status = 'paid'").get() as { total: number | null })?.total || 0;
+app.get("/api/admin/stats", async (req, res) => {
+  const ownershipTotal = (await (await db.prepare("SELECT COALESCE(SUM(price), 0) as total FROM ownership_history")).get() as { total: number | null })?.total || 0;
+  const paymentsTotal = (await (await db.prepare("SELECT SUM(amount) as total FROM payments WHERE status = 'paid'")).get() as { total: number | null })?.total || 0;
   const totalRevenue = Number(ownershipTotal) || Number(paymentsTotal);
-  const activeUsers = db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'approved'").get().count;
-  const pendingApprovals = db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'pending'").get().count;
-  const pendingPayments = db.prepare("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'").get().count;
-  const pieceViewsTotal = (db.prepare("SELECT COUNT(*) as c FROM asset_views").get() as { c: number })?.c ?? 0;
-  const contactRequestsCount = (db.prepare("SELECT COUNT(*) as c FROM contact_requests").get() as { c: number })?.c ?? 0;
-  const contactRequestsLast30Days = (db.prepare("SELECT COUNT(*) as c FROM contact_requests WHERE created_at >= datetime('now', '-30 days')").get() as { c: number })?.c ?? 0;
-  const popularPieces = db.prepare(`
+  const activeUsers = await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'approved'")).get().count;
+  const pendingApprovals = await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'pending'")).get().count;
+  const pendingPayments = await (await db.prepare("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'")).get().count;
+  const pieceViewsTotal = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views")).get() as { c: number })?.c ?? 0;
+  const contactRequestsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM contact_requests")).get() as { c: number })?.c ?? 0;
+  const contactRequestsLast30Days = (await (await db.prepare("SELECT COUNT(*) as c FROM contact_requests WHERE created_at >= datetime('now', '-30 days')")).get() as { c: number })?.c ?? 0;
+  const popularPieces = await (await db.prepare(`
     SELECT m.id as masterpiece_id, m.title, m.serial_id,
            (SELECT COUNT(*) FROM asset_views av WHERE av.masterpiece_id = m.id) as views,
            (SELECT COUNT(*) FROM user_favorites uf WHERE uf.masterpiece_id = m.id) as favorites
     FROM masterpieces m
     ORDER BY views + (SELECT COUNT(*) FROM user_favorites uf WHERE uf.masterpiece_id = m.id) DESC
     LIMIT 10
-  `).all() as any[];
+  `)).all() as any[];
   res.json({
     totalRevenue,
     activeUsers,
@@ -4231,20 +4675,20 @@ app.get("/api/admin/stats", (req, res) => {
   });
 });
 
-app.get("/api/admin/users", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/users", requireAuth, requireAdmin, async (req, res) => {
   const tag = (req.query.tag as string)?.trim();
   let users: any[];
   if (tag) {
-    users = db.prepare(`
+    users = await (await db.prepare(`
       SELECT u.* FROM users u
       INNER JOIN user_tags ut ON ut.user_id = u.id AND ut.tag = ?
       WHERE COALESCE(u.status, '') != 'deleted'
       ORDER BY u.status = 'pending' DESC, u.created_at DESC
-    `).all(tag) as any[];
+    `)).all(tag) as any[];
   } else {
-    users = db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted' ORDER BY status = 'pending' DESC, created_at DESC").all() as any[];
+    users = await (await db.prepare("SELECT * FROM users WHERE COALESCE(status, '') != 'deleted' ORDER BY status = 'pending' DESC, created_at DESC")).all() as any[];
   }
-  const tagRows = db.prepare("SELECT user_id, tag FROM user_tags").all() as { user_id: number; tag: string }[];
+  const tagRows = await (await db.prepare("SELECT user_id, tag FROM user_tags")).all() as { user_id: number; tag: string }[];
   const tagsByUser: Record<number, string[]> = {};
   for (const r of tagRows) {
     if (!tagsByUser[r.user_id]) tagsByUser[r.user_id] = [];
@@ -4254,74 +4698,74 @@ app.get("/api/admin/users", requireAuth, requireAdmin, (req, res) => {
   res.json(users);
 });
 
-app.patch("/api/admin/users/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "Nutzer-ID erforderlich." });
-  const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(id) as any;
+  const target = await (await db.prepare("SELECT id, role FROM users WHERE id = ?")).get(id) as any;
   if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
   if (target.role === "admin" || target.role === "super_admin") return res.status(403).json({ error: "Admins können nicht bearbeitet werden." });
   const { tags, locked } = req.body || {};
   if (Array.isArray(tags)) {
-    db.prepare("DELETE FROM user_tags WHERE user_id = ?").run(id);
-    const ins = db.prepare("INSERT INTO user_tags (user_id, tag) VALUES (?, ?)");
-    for (const t of tags) if (typeof t === "string" && t.trim()) ins.run(id, t.trim());
+    await (await db.prepare("DELETE FROM user_tags WHERE user_id = ?")).run(id);
+    const ins = await (await db.prepare("INSERT INTO user_tags (user_id, tag) VALUES (?, ?)"));
+    for (const t of tags) if (typeof t === "string" && t.trim()) await ins.run(id, t.trim());
   }
   if (typeof locked === "boolean") {
-    db.prepare("UPDATE users SET locked_at = ? WHERE id = ?").run(locked ? new Date().toISOString() : null, id);
-    logAudit((req as any).userId, locked ? "USER_LOCKED" : "USER_UNLOCKED", String(id), "");
+    await (await db.prepare("UPDATE users SET locked_at = ? WHERE id = ?")).run(locked ? new Date().toISOString() : null, id);
+    await logAudit((req as any).userId, locked ? "USER_LOCKED" : "USER_UNLOCKED", String(id), "");
   }
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as any;
-  const userTags = db.prepare("SELECT tag FROM user_tags WHERE user_id = ?").all(id) as { tag: string }[];
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(id) as any;
+  const userTags = await (await db.prepare("SELECT tag FROM user_tags WHERE user_id = ?")).all(id) as { tag: string }[];
   (user as any).tags = userTags.map(r => r.tag);
   const { password: _p, ...rest } = user;
   res.json(rest);
 });
 
 // Admin: set collector level (collector | vip | private_collector | grand_collector | legacy_collector)
-app.patch("/api/admin/users/:id/collector-level", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/users/:id/collector-level", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const level = (req.body?.collector_level as string)?.trim();
   if (!id) return res.status(400).json({ error: "User ID required." });
   if (!level || !COLLECTOR_LEVELS.includes(level as any)) return res.status(400).json({ error: "collector_level must be one of: " + COLLECTOR_LEVELS.join(", ") });
-  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
+  const target = await (await db.prepare("SELECT id FROM users WHERE id = ?")).get(id);
   if (!target) return res.status(404).json({ error: "User not found." });
-  db.prepare("UPDATE users SET collector_level = ? WHERE id = ?").run(level, id);
-  try { logAudit((req as any).user?.id, 'COLLECTOR_LEVEL_SET', String(id), level); } catch (_) {}
+  await (await db.prepare("UPDATE users SET collector_level = ? WHERE id = ?")).run(level, id);
+  try { await logAudit((req as any).user?.id, 'COLLECTOR_LEVEL_SET', String(id), level); } catch (_) {}
   res.json({ success: true, collector_level: level });
 });
 
 // Admin: Nutzer entfernen (Soft-Delete: status = 'deleted')
-app.delete("/api/admin/users/:id", requireAuth, requireAdmin, (req, res) => {
+app.delete("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "Nutzer-ID erforderlich." });
-  const target = db.prepare("SELECT id, role, email, name FROM users WHERE id = ?").get(id) as any;
+  const target = await (await db.prepare("SELECT id, role, email, name FROM users WHERE id = ?")).get(id) as any;
   if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
   if (target.role === "admin" || target.role === "super_admin") return res.status(403).json({ error: "Admins können nicht entfernt werden." });
-  db.prepare("UPDATE users SET status = 'deleted' WHERE id = ?").run(id);
-  logAudit((req as any).userId, "USER_REMOVED", String(id), target.email || target.name);
+  await (await db.prepare("UPDATE users SET status = 'deleted' WHERE id = ?")).run(id);
+  await logAudit((req as any).userId, "USER_REMOVED", String(id), target.email || target.name);
   res.json({ success: true });
 });
 
-app.get("/api/admin/contracts", (req, res) => {
-  const contracts = db.prepare(`
-    SELECT c.*, u.name as user_name, m.title as piece_title
-    FROM contracts c
-    JOIN users u ON c.user_id = u.id
+app.get("/api/admin/contracts", async (req, res) => {
+  const contracts = await (await db.prepare(`
+    SELECT c.*, u.name as user_name, m.title as piece_title 
+    FROM contracts c 
+    JOIN users u ON c.user_id = u.id 
     LEFT JOIN masterpieces m ON c.masterpiece_id = m.id
-  `).all();
+  `)).all();
   res.json(contracts);
 });
 
-app.post("/api/admin/contracts/regenerate", (req, res) => {
+app.post("/api/admin/contracts/regenerate", async (req, res) => {
   try {
-    const all = db.prepare("SELECT * FROM contracts ORDER BY id").all() as any[];
-    const updateStmt = db.prepare("UPDATE contracts SET content = ? WHERE id = ?");
+    const all = await (await db.prepare("SELECT * FROM contracts ORDER BY id")).all() as any[];
+    const updateStmt = await (await db.prepare("UPDATE contracts SET content = ? WHERE id = ?"));
     let updated = 0;
     const skipped: { id: number; type: string; reason: string }[] = [];
     for (const c of all) {
-      const newContent = regenerateContractContent(c);
+      const newContent = await regenerateContractContent(c);
       if (newContent) {
-        updateStmt.run(newContent, c.id);
+        await updateStmt.run(newContent, c.id);
         updated++;
       } else {
         skipped.push({ id: c.id, type: c.type || 'unknown', reason: 'type not supported or missing user/piece' });
@@ -4335,29 +4779,29 @@ app.post("/api/admin/contracts/regenerate", (req, res) => {
 });
 
 // --- Admin Document Management: Projects ---
-app.get("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/projects", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT p.*, u.name as client_name, u.email as client_email, m.serial_id as masterpiece_serial, m.title as masterpiece_title
     FROM vault_projects p
     LEFT JOIN users u ON p.client_id = u.id
     LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
     ORDER BY p.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.post("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/projects", requireAuth, requireAdmin, async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, production_start, production_duration, completion_date } = req.body || {};
   if (!project_name || typeof project_name !== 'string' || !project_name.trim()) return res.status(400).json({ error: "Projektname erforderlich" });
-  const vaultId = nextVaultId();
-  const serialId = nextProjectSerialId();
-  const result = db.prepare(`
+  const vaultId = await nextVaultId();
+  const serialId = await nextProjectSerialId();
+  const result = await (await db.prepare(`
     INSERT INTO vault_projects (masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, vault_id, serial_id, production_start, production_duration, completion_date)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `)).run(
     masterpiece_id ? Number(masterpiece_id) : null,
     String(project_name).trim(),
     jewelry_piece ? String(jewelry_piece).trim() : null,
@@ -4373,19 +4817,19 @@ app.post("/api/admin/projects", requireAuth, requireAdmin, (req, res) => {
   );
   const projectDir = path.join(vaultStorageProjekteDir, vaultId);
   if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
-  try { logAudit(adminId!, 'PROJECT_CREATED', String(result.lastInsertRowid), project_name); } catch (_) {}
+  try { await logAudit(adminId!, 'PROJECT_CREATED', String(result.lastInsertRowid), project_name); } catch (_) {}
   res.json({ success: true, id: result.lastInsertRowid, vault_id: vaultId, serial_id: serialId });
 });
 
-app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const id = Number(req.params.id);
   const { masterpiece_id, project_name, jewelry_piece, material, gemstones, weight, client_id, production_start, production_duration, completion_date } = req.body || {};
-  const row = db.prepare("SELECT * FROM vault_projects WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM vault_projects WHERE id = ?")).get(id) as any;
   if (!row) return res.status(404).json({ error: "Projekt nicht gefunden" });
-  db.prepare(`
+  await (await db.prepare(`
     UPDATE vault_projects SET
       masterpiece_id = COALESCE(?, masterpiece_id),
       project_name = COALESCE(?, project_name),
@@ -4398,7 +4842,7 @@ app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
       production_duration = COALESCE(?, production_duration),
       completion_date = COALESCE(?, completion_date)
     WHERE id = ?
-  `).run(
+  `)).run(
     masterpiece_id != null ? Number(masterpiece_id) : null,
     project_name != null ? String(project_name).trim() : null,
     jewelry_piece != null ? String(jewelry_piece).trim() : null,
@@ -4414,50 +4858,51 @@ app.patch("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/admin/projects/:id", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/projects/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const row = db.prepare(`
+  const row = await (await db.prepare(`
     SELECT p.*, u.name as client_name, u.email as client_email, m.serial_id as masterpiece_serial, m.title as masterpiece_title
     FROM vault_projects p
     LEFT JOIN users u ON p.client_id = u.id
     LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
     WHERE p.id = ?
-  `).get(id) as any;
+  `)).get(id) as any;
   if (!row) return res.status(404).json({ error: "Projekt nicht gefunden" });
-  const images = db.prepare("SELECT * FROM project_images WHERE project_id = ? ORDER BY image_type = 'main' DESC, sort_order ASC, id ASC").all(id) as any[];
+  const images = await (await db.prepare("SELECT * FROM project_images WHERE project_id = ? ORDER BY image_type = 'main' DESC, sort_order ASC, id ASC")).all(id) as any[];
   res.json({ ...row, images });
 });
 
-app.post("/api/admin/projects/:id/images", requireAuth, requireAdmin, (req, res, next) => {
+app.post("/api/admin/projects/:id/images", requireAuth, requireAdmin, async (req, res, next) => {
   const id = Number(req.params.id);
-  const row = db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?").get(id) as { vault_id: string } | undefined;
+  const row = await (await db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?")).get(id) as { vault_id: string } | undefined;
   if (!row || !row.vault_id) return res.status(404).json({ error: "Projekt nicht gefunden oder keine Vault ID" });
   (req as any).vaultId = row.vault_id;
   next();
-}, projectImageUpload.array('images', 20), (req, res) => {
+}, projectImageUpload.array('images', 20), async (req, res) => {
   const projectId = Number(req.params.id);
   const imageType = (req.body?.image_type as string) || 'detail';
   const files = (req as any).files as Express.Multer.File[];
   if (!files || files.length === 0) return res.status(400).json({ error: "Keine Bilder hochgeladen" });
   const allowedTypes = ['main', 'detail', 'certificate'];
   const type = allowedTypes.includes(imageType) ? imageType : 'detail';
-  const row = db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?").get(projectId) as { vault_id: string };
-  files.forEach((f, i) => {
+  const row = await (await db.prepare("SELECT vault_id FROM vault_projects WHERE id = ?")).get(projectId) as { vault_id: string };
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
     const relPath = path.relative(__dirname, f.path);
     const webPath = '/' + relPath.replace(/\\/g, '/');
-    db.prepare("INSERT INTO project_images (project_id, image_type, file_path, file_name, sort_order) VALUES (?, ?, ?, ?, ?)").run(projectId, type, webPath, f.originalname || f.filename, i);
-  });
+    await (await db.prepare("INSERT INTO project_images (project_id, image_type, file_path, file_name, sort_order) VALUES (?, ?, ?, ?, ?)")).run(projectId, type, webPath, f.originalname || f.filename, i);
+  }
   res.json({ success: true, count: files.length });
 });
 
-app.delete("/api/admin/projects/:projectId/images/:imageId", requireAuth, requireAdmin, (req, res) => {
+app.delete("/api/admin/projects/:projectId/images/:imageId", requireAuth, requireAdmin, async (req, res) => {
   const projectId = Number(req.params.projectId);
   const imageId = Number(req.params.imageId);
-  const img = db.prepare("SELECT * FROM project_images WHERE id = ? AND project_id = ?").get(imageId, projectId) as { file_path: string } | undefined;
+  const img = await (await db.prepare("SELECT * FROM project_images WHERE id = ? AND project_id = ?")).get(imageId, projectId) as { file_path: string } | undefined;
   if (!img) return res.status(404).json({ error: "Bild nicht gefunden" });
   const fullPath = path.join(__dirname, img.file_path.replace(/^\//, ''));
   if (fs.existsSync(fullPath)) try { fs.unlinkSync(fullPath); } catch (_) {}
-  db.prepare("DELETE FROM project_images WHERE id = ?").run(imageId);
+  await (await db.prepare("DELETE FROM project_images WHERE id = ?")).run(imageId);
   res.json({ success: true });
 });
 
@@ -4499,16 +4944,16 @@ ${valuation !== '—' ? `<p><strong>Bewertung:</strong> ${valuation}</p>` : ''}
 </div>`;
 }
 
-app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { document_type, contract_type, certificate_type, client_id, project_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id required" });
   if (!document_type || !['contract', 'invoice', 'certificate'].includes(document_type)) return res.status(400).json({ error: "document_type must be contract, invoice, or certificate" });
   if (document_type === 'contract' && (!contract_type || !CONTRACT_TYPES.includes(contract_type as any))) return res.status(400).json({ error: "contract_type required and must be one of: " + CONTRACT_TYPES.join(', ') });
 
-  const client = db.prepare("SELECT * FROM users WHERE id = ?").get(Number(client_id)) as any;
+  const client = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(Number(client_id)) as any;
   if (!client) return res.status(404).json({ error: "Client not found" });
 
   let project: any = null;
@@ -4516,15 +4961,15 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
   let vaultId = '';
 
   if (project_id) {
-    project = db.prepare(`
+    project = await (await db.prepare(`
       SELECT p.*, m.serial_id as masterpiece_serial, m.title as masterpiece_title, m.materials, m.gemstones, m.valuation
       FROM vault_projects p
       LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
       WHERE p.id = ?
-    `).get(Number(project_id)) as any;
+    `)).get(Number(project_id)) as any;
     if (project) {
-      vaultId = project.vault_id || project.masterpiece_serial || (project.masterpiece_id ? (db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any)?.serial_id : '') || '';
-      if (project.masterpiece_id) masterpiece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any;
+      vaultId = project.vault_id || project.masterpiece_serial || (project.masterpiece_id ? (await (await db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any)?.serial_id : '') || '';
+      if (project.masterpiece_id) masterpiece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any;
     }
   }
 
@@ -4542,21 +4987,21 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
 
   if (document_type === 'contract') {
     content = generateAdminContractContent(contract_type, client, project, masterpiece);
-    const ins = db.prepare(`
+    const ins = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, ?, ?, ?, 'draft')
-    `).run(client.id, project?.masterpiece_id || null, contract_type, docRef, content);
+    `)).run(client.id, project?.masterpiece_id || null, contract_type, docRef, content);
     contractId = ins.lastInsertRowid as number;
   } else if (document_type === 'invoice') {
     content = generateAdminContractContent('purchase_agreement', client, project, masterpiece);
     content = content.replace('Kaufvertrag', 'Rechnung / Schlussrechnung');
-    const ins = db.prepare(`
+    const ins = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, ?, ?, ?, 'draft')
-    `).run(client.id, project?.masterpiece_id || null, 'invoice', docRef, content);
+    `)).run(client.id, project?.masterpiece_id || null, 'invoice', docRef, content);
     contractId = ins.lastInsertRowid as number;
   } else if (document_type === 'certificate') {
-    const piece = masterpiece || (project?.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(project.masterpiece_id) as any : null);
+    const piece = masterpiece || (project?.masterpiece_id ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any : null);
     const certType = (req.body as any).certificate_type || 'ownership';
     const certTitle = CERTIFICATE_TYPES[certType] || CERTIFICATE_TYPES.ownership;
     const certId = `CERT-${Date.now()}-${client.id}`;
@@ -4573,17 +5018,17 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
 <p>Dieses Zertifikat bestätigt die Authentizität und Eigentümerschaft des genannten Objekts.</p>
 <p style="font-size:12px;color:#666;">Juwelen & Schmuckatelier Antonio Bellanova · Köln · USt-IdNr.: ${UST_IDNR}</p>
 </div>`;
-    const certIns = db.prepare(`
+    const certIns = await (await db.prepare(`
       INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(project?.masterpiece_id || null, client.id, certId, content, 'Antonio Bellanova Atelier', null);
+    `)).run(project?.masterpiece_id || null, client.id, certId, content, 'Antonio Bellanova Atelier', null);
     certificateId = certIns.lastInsertRowid as number;
   }
 
-  const vdIns = db.prepare(`
+  const vdIns = await (await db.prepare(`
     INSERT INTO vault_documents (document_type, contract_type, project_id, client_id, vault_id, content, doc_ref, contract_id, certificate_id, created_by)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `)).run(
     document_type,
     document_type === 'contract' ? contract_type : null,
     project_id ? Number(project_id) : null,
@@ -4596,12 +5041,12 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, (req, res) 
     adminId
   );
 
-  try { logAudit(adminId!, 'DOCUMENT_GENERATED', String(vdIns.lastInsertRowid), `${document_type} ${docRef}`); } catch (_) {}
+  try { await logAudit(adminId!, 'DOCUMENT_GENERATED', String(vdIns.lastInsertRowid), `${document_type} ${docRef}`); } catch (_) {}
   res.json({ success: true, id: vdIns.lastInsertRowid, contract_id: contractId, certificate_id: certificateId, doc_ref: docRef });
 });
 
 // --- Admin Document Management: Document Panel ---
-app.get("/api/admin/documents", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/documents", requireAuth, requireAdmin, async (req, res) => {
   const typeFilter = typeof req.query.type === 'string' ? req.query.type : null;
   let sql = `
     SELECT vd.*, u.name as client_name, u.email as client_email, p.project_name, p.masterpiece_id as project_masterpiece_id
@@ -4616,50 +5061,50 @@ app.get("/api/admin/documents", requireAuth, requireAdmin, (req, res) => {
     params.push(typeFilter);
   }
   sql += ` ORDER BY vd.created_at DESC`;
-  const rows = db.prepare(sql).all(...params);
-  const contracts = db.prepare(`
+  const rows = await (await db.prepare(sql)).all(...params);
+  const contracts = await (await db.prepare(`
     SELECT c.*, u.name as user_name, m.title as piece_title, m.serial_id
     FROM contracts c
     JOIN users u ON c.user_id = u.id
     LEFT JOIN masterpieces m ON c.masterpiece_id = m.id
     ORDER BY c.created_at DESC
-  `).all();
-  const certificates = db.prepare(`
+  `)).all();
+  const certificates = await (await db.prepare(`
     SELECT cert.*, u.name as owner_name, m.title as piece_title, m.serial_id
     FROM certificates cert
     JOIN users u ON cert.owner_id = u.id
     LEFT JOIN masterpieces m ON cert.masterpiece_id = m.id
     ORDER BY cert.created_at DESC
-  `).all();
+  `)).all();
   res.json({ vault_documents: rows, contracts, certificates });
 });
 
 // --- Client Documents (read-only) ---
-app.get("/api/client/documents", (req, res) => {
+app.get("/api/client/documents", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || (user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Clients only" });
 
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at, masterpiece_id FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(userId);
-  const certs = db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?").all(userId);
-  const vaultDocs = db.prepare(`
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at, masterpiece_id FROM contracts WHERE user_id = ? ORDER BY created_at DESC")).all(userId);
+  const certs = await (await db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?")).all(userId);
+  const vaultDocs = await (await db.prepare(`
     SELECT id, document_type, contract_type, doc_ref, vault_id, contract_id, certificate_id, created_at
     FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC
-  `).all(userId);
+  `)).all(userId);
 
   res.json({ contracts, certificates: certs, vault_documents: vaultDocs });
 });
 
 // --- Document Download (contract by id, certificate by cert_id) ---
-app.get("/api/documents/:id/download", (req, res) => {
+app.get("/api/documents/:id/download", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const docId = Number(req.params.id);
-  const vd = db.prepare("SELECT * FROM vault_documents WHERE id = ?").get(docId) as any;
+  const vd = await (await db.prepare("SELECT * FROM vault_documents WHERE id = ?")).get(docId) as any;
   if (vd) {
     if (vd.client_id !== userId) {
-      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+      const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
       if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
     }
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${vd.doc_ref || 'Document'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${vd.content || ''}</body></html>`;
@@ -4667,10 +5112,10 @@ app.get("/api/documents/:id/download", (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${(vd.doc_ref || 'document')}.html"`);
     return res.send(html);
   }
-  const c = db.prepare("SELECT * FROM contracts WHERE id = ?").get(docId) as any;
+  const c = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(docId) as any;
   if (c) {
     if (c.user_id !== userId) {
-      const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+      const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
       if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
     }
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || 'Contract'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${c.content || ''}</body></html>`;
@@ -4681,7 +5126,7 @@ app.get("/api/documents/:id/download", (req, res) => {
   return res.status(404).json({ error: "Document not found" });
 });
 
-app.get("/api/admin/audit-logs", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/audit-logs", requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500);
   const action = typeof req.query.action === 'string' ? req.query.action.trim() : null;
   const adminId = req.query.admin_id ? Number(req.query.admin_id) : null;
@@ -4695,22 +5140,22 @@ app.get("/api/admin/audit-logs", requireAuth, requireAdmin, (req, res) => {
   if (dateTo) { sql += ` AND al.created_at <= ?`; params.push(dateTo + ' 23:59:59'); }
   sql += ` ORDER BY al.created_at DESC LIMIT ?`;
   params.push(limit);
-  const rows = db.prepare(sql).all(...params);
+  const rows = await (await db.prepare(sql)).all(...params);
   res.json(rows);
 });
 
-app.get("/api/admin/audit-logs/actions", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare("SELECT DISTINCT action FROM audit_logs WHERE action IS NOT NULL ORDER BY action").all() as { action: string }[];
+app.get("/api/admin/audit-logs/actions", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare("SELECT DISTINCT action FROM audit_logs WHERE action IS NOT NULL ORDER BY action")).all() as { action: string }[];
   res.json(rows.map(r => r.action));
 });
 
-app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 2000, 5000);
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT al.id, al.admin_id, al.action, al.target_id, al.details, al.created_at, u.name as admin_name FROM audit_logs al
     LEFT JOIN users u ON al.admin_id = u.id
     ORDER BY al.created_at DESC LIMIT ?
-  `).all(limit) as any[];
+  `)).all(limit) as any[];
   const header = "id;admin_id;admin_name;action;target_id;details;created_at\n";
   const escape = (v: any) => (v == null ? "" : String(v).replace(/"/g, '""'));
   const lines = rows.map(r => [r.id, r.admin_id, r.admin_name, r.action, r.target_id, r.details, r.created_at].map(escape).join(";"));
@@ -4724,7 +5169,7 @@ app.get("/api/admin/audit-logs/export", requireAuth, requireAdmin, (req, res) =>
 app.get("/api/admin/backup", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Nicht angemeldet." });
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || (user.role !== "admin" && user.role !== "super_admin"))
     return res.status(403).json({ error: "Nur für Administratoren." });
   const backupPath = path.join(__dirname, `vault-backup-${Date.now()}.db`);
@@ -4744,31 +5189,31 @@ app.get("/api/admin/backup", async (req, res) => {
 });
 
 // Service requests (customer submits, admin lists)
-app.post("/api/service/request", (req, res) => {
+app.post("/api/service/request", async (req, res) => {
   const { userId, masterpieceId, type, description } = req.body;
   if (!userId || !type) return res.status(400).json({ error: "userId and type required" });
-  db.prepare("INSERT INTO service_requests (user_id, masterpiece_id, type, description, status) VALUES (?, ?, ?, ?, 'pending')").run(userId, masterpieceId || null, type, description || null);
+  await (await db.prepare("INSERT INTO service_requests (user_id, masterpiece_id, type, description, status) VALUES (?, ?, ?, ?, 'pending')")).run(userId, masterpieceId || null, type, description || null);
   res.json({ success: true });
 });
 
-app.get("/api/admin/service-requests", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/service-requests", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT sr.*, u.name as user_name, u.email as user_email, m.title as masterpiece_title, m.serial_id
     FROM service_requests sr
     JOIN users u ON sr.user_id = u.id
     LEFT JOIN masterpieces m ON sr.masterpiece_id = m.id
     ORDER BY sr.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.get("/api/admin/contact-requests", (req, res) => {
-  const rows = db.prepare("SELECT * FROM contact_requests ORDER BY created_at DESC").all();
+app.get("/api/admin/contact-requests", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM contact_requests ORDER BY created_at DESC")).all();
   res.json(rows);
 });
 
-app.get("/api/admin/contact-requests/export", (req, res) => {
-  const rows = db.prepare("SELECT id, name, email, subject, message, created_at, admin_reply, admin_replied_at FROM contact_requests ORDER BY created_at DESC").all() as any[];
+app.get("/api/admin/contact-requests/export", async (req, res) => {
+  const rows = await (await db.prepare("SELECT id, name, email, subject, message, created_at, admin_reply, admin_replied_at FROM contact_requests ORDER BY created_at DESC")).all() as any[];
   const headers = ['id', 'name', 'email', 'subject', 'message', 'created_at', 'admin_reply', 'admin_replied_at'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
@@ -4779,13 +5224,13 @@ app.get("/api/admin/contact-requests/export", (req, res) => {
 
 app.post("/api/admin/contact-requests/:id/reply", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const id = Number(req.params.id);
   const reply = typeof req.body?.reply === 'string' ? req.body.reply.trim() : '';
-  const row = db.prepare("SELECT * FROM contact_requests WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM contact_requests WHERE id = ?")).get(id) as any;
   if (!row) return res.status(404).json({ error: "Not found" });
-  db.prepare("UPDATE contact_requests SET admin_reply = ?, admin_replied_at = CURRENT_TIMESTAMP WHERE id = ?").run(reply || null, id);
+  await (await db.prepare("UPDATE contact_requests SET admin_reply = ?, admin_replied_at = CURRENT_TIMESTAMP WHERE id = ?")).run(reply || null, id);
 
   if (reply && row.email) {
     const subject = row.subject ? `Re: ${row.subject}` : "Antonio Bellanova – Antwort auf Ihre Anfrage";
@@ -4799,21 +5244,21 @@ app.post("/api/admin/contact-requests/:id/reply", async (req, res) => {
 
 app.post("/api/admin/newsletter", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { subject, message, recipientType, recipientIds } = req.body || {};
   if (!subject || !message) return res.status(400).json({ error: "subject and message required" });
   let users: { id: number; email: string; name: string }[] = [];
   if (Array.isArray(recipientIds) && recipientIds.length > 0) {
-    users = db.prepare("SELECT id, email, name FROM users WHERE id IN (" + recipientIds.map(() => '?').join(',') + ") AND COALESCE(status,'') = 'approved'").all(...recipientIds) as any[];
+    users = await (await db.prepare("SELECT id, email, name FROM users WHERE id IN (" + recipientIds.map(() => '?').join(',') + ") AND COALESCE(status,'') = 'approved'")).all(...recipientIds) as any[];
   } else {
     const type = recipientType || 'all_approved';
-    if (type === 'all') users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
-    else if (type === 'investors') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'investor' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
-    else if (type === 'clients') users = db.prepare("SELECT id, email, name FROM users WHERE role = 'client' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
-    else if (type === 'vip') users = db.prepare("SELECT id, email, name FROM users WHERE (role = 'vip' OR is_vip = 1) AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''").all() as any[];
-    else if (type === 'marketing') users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND COALESCE(notify_marketing, 0) = 1 AND role NOT IN ('admin','super_admin')").all() as any[];
-    else users = db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND role NOT IN ('admin','super_admin')").all() as any[];
+    if (type === 'all') users = await (await db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''")).all() as any[];
+    else if (type === 'investors') users = await (await db.prepare("SELECT id, email, name FROM users WHERE role = 'investor' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''")).all() as any[];
+    else if (type === 'clients') users = await (await db.prepare("SELECT id, email, name FROM users WHERE role = 'client' AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''")).all() as any[];
+    else if (type === 'vip') users = await (await db.prepare("SELECT id, email, name FROM users WHERE (role = 'vip' OR is_vip = 1) AND COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != ''")).all() as any[];
+    else if (type === 'marketing') users = await (await db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND COALESCE(notify_marketing, 0) = 1 AND role NOT IN ('admin','super_admin')")).all() as any[];
+    else users = await (await db.prepare("SELECT id, email, name FROM users WHERE COALESCE(status,'') = 'approved' AND email IS NOT NULL AND email != '' AND role NOT IN ('admin','super_admin')")).all() as any[];
   }
   let sent = 0;
   const text = message.replace(/<[^>]+>/g, '');
@@ -4824,24 +5269,24 @@ app.post("/api/admin/newsletter", async (req, res) => {
       if (ok) sent++;
     }
   }
-  try { logAudit(adminId, 'NEWSLETTER_SENT', String(users.length), `sent=${sent} total=${users.length} subject="${(subject || '').slice(0, 50)}"`); } catch (_) {}
+  try { await logAudit(adminId, 'NEWSLETTER_SENT', String(users.length), `sent=${sent} total=${users.length} subject="${(subject || '').slice(0, 50)}"`); } catch (_) {}
   res.json({ success: true, sent, total: users.length });
 });
 
-app.get("/api/admin/email-templates", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare("SELECT * FROM email_templates ORDER BY key").all();
+app.get("/api/admin/email-templates", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM email_templates ORDER BY key")).all();
   res.json(rows);
 });
 
-app.post("/api/admin/email-templates", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/email-templates", requireAuth, requireAdmin, async (req, res) => {
   const { key, subject_de, body_de, subject_en, body_en, subject_it, body_it } = req.body || {};
   if (!key || typeof key !== "string" || !key.trim()) return res.status(400).json({ error: "key erforderlich." });
   try {
-    db.prepare(`
+    await (await db.prepare(`
       INSERT INTO email_templates (key, subject_de, body_de, subject_en, body_en, subject_it, body_it)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(key.trim(), subject_de ?? null, body_de ?? null, subject_en ?? null, body_en ?? null, subject_it ?? null, body_it ?? null);
-    const row = db.prepare("SELECT * FROM email_templates WHERE key = ?").get(key.trim());
+    `)).run(key.trim(), subject_de ?? null, body_de ?? null, subject_en ?? null, body_en ?? null, subject_it ?? null, body_it ?? null);
+    const row = await (await db.prepare("SELECT * FROM email_templates WHERE key = ?")).get(key.trim());
     res.status(201).json(row);
   } catch (e: any) {
     if (e && e.message && e.message.includes("UNIQUE")) return res.status(409).json({ error: "Vorlage mit diesem Schlüssel existiert bereits." });
@@ -4849,10 +5294,10 @@ app.post("/api/admin/email-templates", requireAuth, requireAdmin, (req, res) => 
   }
 });
 
-app.patch("/api/admin/email-templates/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/email-templates/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { key, subject_de, body_de, subject_en, body_en, subject_it, body_it } = req.body || {};
-  const row = db.prepare("SELECT * FROM email_templates WHERE id = ?").get(id);
+  const row = await (await db.prepare("SELECT * FROM email_templates WHERE id = ?")).get(id);
   if (!row) return res.status(404).json({ error: "Vorlage nicht gefunden." });
   const updates: string[] = ["updated_at = CURRENT_TIMESTAMP"];
   const vals: any[] = [];
@@ -4864,48 +5309,48 @@ app.patch("/api/admin/email-templates/:id", requireAuth, requireAdmin, (req, res
   if (subject_it !== undefined) { updates.push("subject_it = ?"); vals.push(subject_it); }
   if (body_it !== undefined) { updates.push("body_it = ?"); vals.push(body_it); }
   vals.push(id);
-  db.prepare(`UPDATE email_templates SET ${updates.join(", ")} WHERE id = ?`).run(...vals);
-  const updated = db.prepare("SELECT * FROM email_templates WHERE id = ?").get(id);
+  await (await db.prepare(`UPDATE email_templates SET ${updates.join(", ")} WHERE id = ?`)).run(...vals);
+  const updated = await (await db.prepare("SELECT * FROM email_templates WHERE id = ?")).get(id);
   res.json(updated);
 });
 
-app.delete("/api/admin/email-templates/:id", requireAuth, requireAdmin, (req, res) => {
+app.delete("/api/admin/email-templates/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const row = db.prepare("SELECT id FROM email_templates WHERE id = ?").get(id);
+  const row = await (await db.prepare("SELECT id FROM email_templates WHERE id = ?")).get(id);
   if (!row) return res.status(404).json({ error: "Vorlage nicht gefunden." });
-  db.prepare("DELETE FROM email_templates WHERE id = ?").run(id);
+  await (await db.prepare("DELETE FROM email_templates WHERE id = ?")).run(id);
   res.status(204).send();
 });
 
 app.post("/api/admin/payments/:id/send-reminder", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const payment = db.prepare("SELECT * FROM payments WHERE id = ?").get(id) as any;
+  const payment = await (await db.prepare("SELECT * FROM payments WHERE id = ?")).get(id) as any;
   if (!payment) return res.status(404).json({ error: "Zahlung nicht gefunden." });
   if (payment.status === "paid") return res.status(400).json({ error: "Zahlung bereits beglichen." });
-  db.prepare("UPDATE payments SET reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(payment.user_id) as any;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(payment.masterpiece_id) as any;
+  await (await db.prepare("UPDATE payments SET reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?")).run(id);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(payment.user_id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(payment.masterpiece_id) as any;
   if (user?.email && piece && shouldSendEmailToUser(user)) {
     const subject = "Antonio Bellanova – Erinnerung: Offene Zahlung";
     const text = `Guten Tag ${user.name || ''},\n\nhiermit erinnern wir an die ausstehende Zahlung für "${piece.title}" in Höhe von ${Number(payment.amount).toLocaleString('de-DE')} EUR.\n\nReferenz: ${payment.reference || payment.id}\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`;
     await sendMail(user.email, subject, text).catch(() => {});
   }
-  logAudit((req as any).userId, "PAYMENT_REMINDER_SENT", String(id), "");
+  await logAudit((req as any).userId, "PAYMENT_REMINDER_SENT", String(id), "");
   res.json({ success: true });
 });
 
-app.patch("/api/admin/service-requests/:id", (req, res) => {
+app.patch("/api/admin/service-requests/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body;
-  const row = db.prepare("SELECT * FROM service_requests WHERE id = ?").get(id);
+  const row = await (await db.prepare("SELECT * FROM service_requests WHERE id = ?")).get(id);
   if (!row) return res.status(404).json({ error: "Not found" });
-  db.prepare("UPDATE service_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status || "completed", id);
+  await (await db.prepare("UPDATE service_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status || "completed", id);
   res.json({ success: true });
 });
 
 // Contract/Certificate premium download (HTML for Print to PDF)
-app.get("/api/contracts/:id/download", (req, res) => {
-  const c = db.prepare("SELECT * FROM contracts WHERE id = ?").get(req.params.id) as any;
+app.get("/api/contracts/:id/download", async (req, res) => {
+  const c = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(req.params.id) as any;
   if (!c) return res.status(404).send("Contract not found");
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || 'Contract'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${c.content || ''}</body></html>`;
   const filename = `Antonio-Bellanova-${String(c.doc_ref || c.id).replace(/\s/g, '-')}.html`;
@@ -4914,8 +5359,8 @@ app.get("/api/contracts/:id/download", (req, res) => {
   res.send(html);
 });
 
-app.get("/api/certificates/download/:id", (req, res) => {
-  const cert = db.prepare("SELECT * FROM certificates WHERE id = ?").get(req.params.id) as any;
+app.get("/api/certificates/download/:id", async (req, res) => {
+  const cert = await (await db.prepare("SELECT * FROM certificates WHERE id = ?")).get(req.params.id) as any;
   if (!cert) return res.status(404).send("Certificate not found");
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${cert.cert_id || 'Certificate'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${cert.content || ''}</body></html>`;
   const filename = `Antonio-Bellanova-${String(cert.cert_id || cert.id).replace(/\s/g, '-')}.html`;
@@ -4925,8 +5370,8 @@ app.get("/api/certificates/download/:id", (req, res) => {
 });
 
 // Admin: sales overview (name, email, country/address)
-app.get("/api/admin/sales", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/sales", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT p.id as payment_id, p.user_id, p.masterpiece_id, p.type as payment_type, p.amount, p.status as payment_status, p.created_at, p.reminder_sent_at, p.reference,
            u.name, u.email, u.address,
            m.title as masterpiece_title, m.serial_id
@@ -4934,49 +5379,49 @@ app.get("/api/admin/sales", (req, res) => {
     JOIN users u ON p.user_id = u.id
     LEFT JOIN masterpieces m ON p.masterpiece_id = m.id
     ORDER BY p.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
 // Admin: bank config (simple key-value store)
-db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
-app.get("/api/admin/bank-config", (req, res) => {
-  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get();
+await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
+app.get("/api/admin/bank-config", async (req, res) => {
+  const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get();
   res.json(row ? JSON.parse(row.value) : {});
 });
-app.post("/api/admin/bank-config", (req, res) => {
+app.post("/api/admin/bank-config", async (req, res) => {
   const value = JSON.stringify(req.body || {});
-  db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+  await (await db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")).run(value);
   res.json({ success: true });
 });
 
 // Maintenance mode (public read; admin write)
-app.get("/api/maintenance", (req, res) => {
-  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'").get() as { value?: string } | undefined;
+app.get("/api/maintenance", async (req, res) => {
+  const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'")).get() as { value?: string } | undefined;
   res.json({ maintenance: row?.value === "1" });
 });
-app.get("/api/admin/maintenance", requireAuth, requireAdmin, (req, res) => {
-  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'").get() as { value?: string } | undefined;
+app.get("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) => {
+  const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'maintenance_mode'")).get() as { value?: string } | undefined;
   res.json({ maintenance: row?.value === "1" });
 });
-app.post("/api/admin/maintenance", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/maintenance", requireAuth, requireAdmin, async (req, res) => {
   const maintenance = req.body?.maintenance === true || req.body?.maintenance === "1";
-  db.prepare("INSERT INTO admin_config (key, value) VALUES ('maintenance_mode', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(maintenance ? "1" : "0");
+  await (await db.prepare("INSERT INTO admin_config (key, value) VALUES ('maintenance_mode', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")).run(maintenance ? "1" : "0");
   res.json({ maintenance });
 });
 
 // --- Strategic Private Advisor: helpers & RBAC ---
-function getAdvisorProfileByUserId(userId: number): { id: number; user_id: number; status: string; default_commission_pct: number } | null {
-  const row = db.prepare("SELECT id, user_id, status, default_commission_pct FROM advisor_profiles WHERE user_id = ?").get(userId) as any;
+async function getAdvisorProfileByUserId(userId: number): Promise<{ id: number; user_id: number; status: string; default_commission_pct: number } | null> {
+  const row = await (await db.prepare("SELECT id, user_id, status, default_commission_pct FROM advisor_profiles WHERE user_id = ?")).get(userId) as any;
   return row || null;
 }
-function requireAdvisor(req: express.Request, res: express.Response, next: express.NextFunction): void {
+async function requireAdvisor(req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> {
   const user = (req as any).user;
   if (!user || user.role !== "strategic_private_advisor") {
     res.status(403).json({ error: "Advisor access only" });
     return;
   }
-  const profile = getAdvisorProfileByUserId(user.id);
+  const profile = await getAdvisorProfileByUserId(user.id);
   if (!profile || profile.status !== "activated") {
     res.status(403).json({ error: "Advisor account not yet activated. Complete NDA and wait for admin approval." });
     return;
@@ -4987,13 +5432,13 @@ function requireAdvisor(req: express.Request, res: express.Response, next: expre
 }
 
 // Advisor with any profile status (pending_nda, nda_signed, activated) – for contracts so they can download/sign before activation
-function requireAdvisorProfile(req: express.Request, res: express.Response, next: express.NextFunction): void {
+async function requireAdvisorProfile(req: express.Request, res: express.Response, next: express.NextFunction): Promise<void> {
   const user = (req as any).user;
   if (!user || user.role !== "strategic_private_advisor") {
     res.status(403).json({ error: "Advisor access only" });
     return;
   }
-  const profile = getAdvisorProfileByUserId(user.id);
+  const profile = await getAdvisorProfileByUserId(user.id);
   if (!profile) {
     res.status(403).json({ error: "Advisor profile not found." });
     return;
@@ -5004,21 +5449,21 @@ function requireAdvisorProfile(req: express.Request, res: express.Response, next
 }
 
 // Advisor: dashboard stats (own data only)
-app.get("/api/advisor/dashboard", requireAuth, requireAdvisor, (req, res) => {
+app.get("/api/advisor/dashboard", requireAuth, requireAdvisor, async (req, res) => {
   const aid = (req as any).advisorProfileId;
-  const referred = db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM advisor_referrals WHERE advisor_id = ?").get(aid) as { c: number };
-  const commissions = db.prepare(`
+  const referred = await (await db.prepare("SELECT COUNT(DISTINCT user_id) as c FROM advisor_referrals WHERE advisor_id = ?")).get(aid) as { c: number };
+  const commissions = await (await db.prepare(`
     SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status
-  `).all(aid) as { status: string; total: number }[];
+  `)).all(aid) as { status: string; total: number }[];
   const pending = commissions.find(r => r.status === "pending")?.total ?? 0;
   const confirmed = commissions.find(r => r.status === "confirmed")?.total ?? 0;
   const paid = commissions.find(r => r.status === "paid_out")?.total ?? 0;
-  const activeDeals = db.prepare(`
+  const activeDeals = await (await db.prepare(`
     SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ? AND status IN ('pending','confirmed')
-  `).get(aid) as { c: number };
-  const closedDeals = db.prepare(`
+  `)).get(aid) as { c: number };
+  const closedDeals = await (await db.prepare(`
     SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ? AND status = 'paid_out'
-  `).get(aid) as { c: number };
+  `)).get(aid) as { c: number };
   res.json({
     totalReferredClients: referred?.c ?? 0,
     activeDeals: activeDeals?.c ?? 0,
@@ -5030,30 +5475,30 @@ app.get("/api/advisor/dashboard", requireAuth, requireAdvisor, (req, res) => {
 });
 
 // Advisor: list referred clients (own only)
-app.get("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
+app.get("/api/advisor/clients", requireAuth, requireAdvisor, async (req, res) => {
   const aid = (req as any).advisorProfileId;
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT u.id, u.name, u.email, u.address, u.created_at, r.created_at as referred_at
     FROM advisor_referrals r
     JOIN users u ON u.id = r.user_id
     WHERE r.advisor_id = ?
     ORDER BY r.created_at DESC
-  `).all(aid);
+  `)).all(aid);
   res.json(rows);
 });
 
 // Advisor: add referred client (by email; user must exist)
-app.post("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
+app.post("/api/advisor/clients", requireAuth, requireAdvisor, async (req, res) => {
   const aid = (req as any).advisorProfileId;
   const { email, userId } = req.body || {};
   let targetId: number | null = userId ? Number(userId) : null;
   if (targetId == null && email) {
-    const row = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase()) as { id: number } | undefined;
+    const row = await (await db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?")).get(String(email).trim().toLowerCase()) as { id: number } | undefined;
     targetId = row?.id ?? null;
   }
   if (!targetId) return res.status(400).json({ error: "User not found. Provide valid email or userId." });
   try {
-    db.prepare("INSERT INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)").run(aid, targetId);
+    await (await db.prepare("INSERT INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)")).run(aid, targetId);
     res.json({ success: true });
   } catch (e: any) {
     if (e.message?.includes("UNIQUE")) return res.status(400).json({ error: "Client already linked to you." });
@@ -5062,17 +5507,17 @@ app.post("/api/advisor/clients", requireAuth, requireAdvisor, (req, res) => {
 });
 
 // Advisor: remove referral (own only)
-app.delete("/api/advisor/clients/:userId", requireAuth, requireAdvisor, (req, res) => {
+app.delete("/api/advisor/clients/:userId", requireAuth, requireAdvisor, async (req, res) => {
   const aid = (req as any).advisorProfileId;
   const userId = Number(req.params.userId);
-  db.prepare("DELETE FROM advisor_referrals WHERE advisor_id = ? AND user_id = ?").run(aid, userId);
+  await (await db.prepare("DELETE FROM advisor_referrals WHERE advisor_id = ? AND user_id = ?")).run(aid, userId);
   res.json({ success: true });
 });
 
 // Advisor: list commissions (own only)
-app.get("/api/advisor/commissions", requireAuth, requireAdvisor, (req, res) => {
+app.get("/api/advisor/commissions", requireAuth, requireAdvisor, async (req, res) => {
   const aid = (req as any).advisorProfileId;
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT c.id, c.payment_id, c.masterpiece_id, c.client_id, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at,
            m.title as masterpiece_title, m.serial_id,
            u.name as client_name
@@ -5081,7 +5526,7 @@ app.get("/api/advisor/commissions", requireAuth, requireAdvisor, (req, res) => {
     LEFT JOIN users u ON u.id = c.client_id
     WHERE c.advisor_id = ?
     ORDER BY c.created_at DESC
-  `).all(aid);
+  `)).all(aid);
   res.json(rows);
 });
 
@@ -5110,14 +5555,14 @@ function getAdvisorContractContent(type: string, advisorName: string, commission
 }
 
 // Advisor: get contract content for download (draft or signed) – allowed before activation so they can download/sign
-app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisorProfile, (req, res) => {
+app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisorProfile, async (req, res) => {
   const aid = (req as any).advisorProfileId;
   const user = (req as any).user;
   const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
   if (!["nda", "advisor_agreement", "commission_agreement"].includes(type)) return res.status(400).json({ error: "Invalid contract type" });
-  const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(aid) as { default_commission_pct: number } | undefined;
+  const profile = await (await db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?")).get(aid) as { default_commission_pct: number } | undefined;
   const commissionPct = profile?.default_commission_pct ?? 8;
-  const existing = db.prepare("SELECT content, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?").get(aid, type) as { content: string; status: string } | undefined;
+  const existing = await (await db.prepare("SELECT content, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?")).get(aid, type) as { content: string; status: string } | undefined;
   if (existing?.status === "signed" && existing.content) {
     const titles: Record<string, string> = { nda: "Vertraulichkeits- und Geheimhaltungsvereinbarung (NDA)", advisor_agreement: "Strategic Private Advisor – Rahmenvereinbarung", commission_agreement: "Provisionsvereinbarung – Strategic Private Advisor" };
     return res.json({ title: titles[type] || type, content: existing.content });
@@ -5127,83 +5572,83 @@ app.get("/api/advisor/contracts/:type/content", requireAuth, requireAdvisorProfi
 });
 
 // Advisor: list contracts (NDA, advisor_agreement, commission_agreement) – allowed before activation
-app.get("/api/advisor/contracts", requireAuth, requireAdvisorProfile, (req, res) => {
+app.get("/api/advisor/contracts", requireAuth, requireAdvisorProfile, async (req, res) => {
   const aid = (req as any).advisorProfileId;
-  const rows = db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at FROM advisor_contracts WHERE advisor_id = ? ORDER BY created_at DESC").all(aid);
+  const rows = await (await db.prepare("SELECT id, type, doc_ref, status, signed_at, created_at FROM advisor_contracts WHERE advisor_id = ? ORDER BY created_at DESC")).all(aid);
   res.json(rows);
 });
 
 // Advisor: sign contract (digital signature) – uses same rich content as download; allowed before activation
-app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisorProfile, (req, res) => {
+app.post("/api/advisor/contracts/:type/sign", requireAuth, requireAdvisorProfile, async (req, res) => {
   const aid = (req as any).advisorProfileId;
   const user = (req as any).user;
   const type = String(req.params.type || "").toLowerCase().replace(/\s+/g, "_");
   if (!["nda", "advisor_agreement", "commission_agreement"].includes(type)) return res.status(400).json({ error: "Invalid contract type" });
-  const existing = db.prepare("SELECT id, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?").get(aid, type) as any;
+  const existing = await (await db.prepare("SELECT id, status FROM advisor_contracts WHERE advisor_id = ? AND type = ?")).get(aid, type) as any;
   if (existing?.status === "signed") return res.status(400).json({ error: "Already signed" });
-  const profile = db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?").get(aid) as { default_commission_pct: number } | undefined;
+  const profile = await (await db.prepare("SELECT default_commission_pct FROM advisor_profiles WHERE id = ?")).get(aid) as { default_commission_pct: number } | undefined;
   const commissionPct = profile?.default_commission_pct ?? 8;
   const { content } = getAdvisorContractContent(type, user.name || "Berater", commissionPct, true);
   const docRef = `AB-ADV-${type.toUpperCase()}-${Date.now()}`;
   if (existing) {
-    db.prepare("UPDATE advisor_contracts SET content = ?, doc_ref = ?, status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, docRef, existing.id);
+    await (await db.prepare("UPDATE advisor_contracts SET content = ?, doc_ref = ?, status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?")).run(content, docRef, existing.id);
   } else {
-    db.prepare("INSERT INTO advisor_contracts (advisor_id, type, doc_ref, content, status, signed_at) VALUES (?, ?, ?, ?, 'signed', CURRENT_TIMESTAMP)").run(aid, type, docRef, content);
+    await (await db.prepare("INSERT INTO advisor_contracts (advisor_id, type, doc_ref, content, status, signed_at) VALUES (?, ?, ?, ?, 'signed', CURRENT_TIMESTAMP)")).run(aid, type, docRef, content);
   }
   if (type === "nda") {
-    db.prepare("UPDATE advisor_profiles SET nda_signed_at = CURRENT_TIMESTAMP, status = 'nda_signed', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(aid);
+    await (await db.prepare("UPDATE advisor_profiles SET nda_signed_at = CURRENT_TIMESTAMP, status = 'nda_signed', updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(aid);
   }
   res.json({ success: true });
 });
 
 // Admin: invite advisor (create user + profile, status pending_nda). Optional: password im Body; sonst wird eines erzeugt. Antwort enthält das Passwort zum Weitergeben.
-app.post("/api/admin/advisors/invite", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/advisors/invite", requireAuth, requireAdmin, async (req, res) => {
   const { email, name, address, password: customPassword } = req.body || {};
   if (!email || !name) return res.status(400).json({ error: "Email and name required" });
-  const existing = db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?").get(String(email).trim().toLowerCase());
+  const existing = await (await db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ?")).get(String(email).trim().toLowerCase());
   if (existing) return res.status(400).json({ error: "User with this email already exists" });
   const plainPassword = (typeof customPassword === "string" && customPassword.trim()) ? customPassword.trim() : "Temp" + Math.random().toString(36).slice(2, 10);
-  const result = db.prepare(
+  const result = await (await db.prepare(
     "INSERT INTO users (email, name, address, role, status, password) VALUES (?, ?, ?, 'strategic_private_advisor', 'pending', ?)"
-  ).run(String(email).trim(), String(name).trim(), (address && String(address).trim()) || "", hashPassword(plainPassword));
+  )).run(String(email).trim(), String(name).trim(), (address && String(address).trim()) || "", hashPassword(plainPassword));
   const userId = result.lastInsertRowid as number;
-  db.prepare("INSERT INTO advisor_profiles (user_id, status) VALUES (?, 'pending_nda')").run(userId);
+  await (await db.prepare("INSERT INTO advisor_profiles (user_id, status) VALUES (?, 'pending_nda')")).run(userId);
   res.json({ id: userId, email: String(email).trim(), password: plainPassword, message: "Advisor invited. Passwort sicher an den Berater weitergeben; NDA muss vor Freischaltung unterzeichnet werden." });
 });
 
 // Admin: list advisors
-app.get("/api/admin/advisors", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/advisors", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT p.id as profile_id, p.user_id, p.status as profile_status, p.default_commission_pct, p.nda_signed_at, p.activated_at, p.created_at,
            u.name, u.email, u.address
     FROM advisor_profiles p
     JOIN users u ON u.id = p.user_id
     ORDER BY p.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
 // Admin: activate advisor (after NDA signed)
-app.put("/api/admin/advisors/:id/activate", requireAuth, requireAdmin, (req, res) => {
+app.put("/api/admin/advisors/:id/activate", requireAuth, requireAdmin, async (req, res) => {
   const profileId = Number(req.params.id);
-  db.prepare("UPDATE advisor_profiles SET status = 'activated', activated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(profileId);
-  const row = db.prepare("SELECT user_id FROM advisor_profiles WHERE id = ?").get(profileId) as { user_id: number };
-  if (row) db.prepare("UPDATE users SET status = 'approved' WHERE id = ?").run(row.user_id);
+  await (await db.prepare("UPDATE advisor_profiles SET status = 'activated', activated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(profileId);
+  const row = await (await db.prepare("SELECT user_id FROM advisor_profiles WHERE id = ?")).get(profileId) as { user_id: number };
+  if (row) await (await db.prepare("UPDATE users SET status = 'approved' WHERE id = ?")).run(row.user_id);
   res.json({ success: true });
 });
 
 // Admin: set default commission % for advisor
-app.put("/api/admin/advisors/:id/commission", requireAuth, requireAdmin, (req, res) => {
+app.put("/api/admin/advisors/:id/commission", requireAuth, requireAdmin, async (req, res) => {
   const profileId = Number(req.params.id);
   const { commissionPct } = req.body || {};
   const pct = Math.min(100, Math.max(0, Number(commissionPct ?? 8)));
-  db.prepare("UPDATE advisor_profiles SET default_commission_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(pct, profileId);
+  await (await db.prepare("UPDATE advisor_profiles SET default_commission_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(pct, profileId);
   res.json({ success: true, default_commission_pct: pct });
 });
 
 // Admin: list all advisor commissions (JSON)
-app.get("/api/admin/advisors/commissions", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/advisors/commissions", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT c.id, c.advisor_id, c.payment_id, c.masterpiece_id, c.client_id, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at,
            u.name as advisor_name, u.email as advisor_email, cu.name as client_name, m.title as piece_title, m.serial_id
     FROM advisor_commissions c
@@ -5212,20 +5657,20 @@ app.get("/api/admin/advisors/commissions", requireAuth, requireAdmin, (req, res)
     LEFT JOIN users cu ON cu.id = c.client_id
     LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
     ORDER BY c.status ASC, c.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
 // Admin: mark commission as paid
-app.post("/api/admin/advisors/commissions/:id/pay", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/advisors/commissions/:id/pay", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  db.prepare("UPDATE advisor_commissions SET status = 'paid_out', paid_out_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
+  await (await db.prepare("UPDATE advisor_commissions SET status = 'paid_out', paid_out_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(id);
   res.json({ success: true });
 });
 
 // Admin: export advisor commissions CSV
-app.get("/api/admin/advisors/commissions/export", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/advisors/commissions/export", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT c.id, a.user_id as advisor_user_id, u.name as advisor_name, u.email as advisor_email,
            c.client_id, cu.name as client_name, c.masterpiece_id, m.title as piece_title, c.sale_amount, c.commission_pct, c.commission_amount, c.status, c.paid_out_at, c.created_at
     FROM advisor_commissions c
@@ -5234,7 +5679,7 @@ app.get("/api/admin/advisors/commissions/export", requireAuth, requireAdmin, (re
     LEFT JOIN users cu ON cu.id = c.client_id
     LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
     ORDER BY c.created_at DESC
-  `).all() as any[];
+  `)).all() as any[];
   const header = "id,advisor_user_id,advisor_name,advisor_email,client_id,client_name,masterpiece_id,piece_title,sale_amount,commission_pct,commission_amount,status,paid_out_at,created_at";
   const lines = [header, ...rows.map(r => [r.id, r.advisor_user_id, r.advisor_name, r.advisor_email, r.client_id, r.client_name, r.masterpiece_id, r.piece_title, r.sale_amount, r.commission_pct, r.commission_amount, r.status, r.paid_out_at || "", r.created_at].map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))];
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -5243,29 +5688,29 @@ app.get("/api/admin/advisors/commissions/export", requireAuth, requireAdmin, (re
 });
 
 // Admin: override referral (link client to different advisor)
-app.put("/api/admin/advisors/referrals/override", requireAuth, requireAdmin, (req, res) => {
+app.put("/api/admin/advisors/referrals/override", requireAuth, requireAdmin, async (req, res) => {
   const { userId, advisorProfileId } = req.body || {};
   if (!userId || !advisorProfileId) return res.status(400).json({ error: "userId and advisorProfileId required" });
-  db.prepare("DELETE FROM advisor_referrals WHERE user_id = ?").run(userId);
-  db.prepare("INSERT OR IGNORE INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)").run(advisorProfileId, userId);
+  await (await db.prepare("DELETE FROM advisor_referrals WHERE user_id = ?")).run(userId);
+  await (await db.prepare("INSERT OR IGNORE INTO advisor_referrals (advisor_id, user_id) VALUES (?, ?)")).run(advisorProfileId, userId);
   res.json({ success: true });
 });
 
 // --- Imperial Intelligence: AI Client Profiling (admin only) ---
-function computeClientProfile(userId: number): any {
-  const payments = db.prepare("SELECT amount, masterpiece_id, created_at FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')").all(userId) as any[];
+async function computeClientProfile(userId: number): Promise<any> {
+  const payments = await (await db.prepare("SELECT amount, masterpiece_id, created_at FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')")).all(userId) as any[];
   const totalSpend = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const purchaseFrequency = payments.length;
-  const categories = db.prepare(`
+  const categories = await (await db.prepare(`
     SELECT m.category FROM payments p JOIN masterpieces m ON m.id = p.masterpiece_id WHERE p.user_id = ? AND p.status IN ('paid','awaiting_deposit')
-  `).all(userId) as { category: string }[];
+  `)).all(userId) as { category: string }[];
   const categoryPreference = categories.length ? (categories.reduce((acc: Record<string, number>, c) => { acc[c.category || 'Other'] = (acc[c.category || 'Other'] || 0) + 1; return acc; }, {}) as Record<string, number>) : {};
-  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const fractionalShares = db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number };
+  const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const fractionalShares = await (await db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?")).get(userId) as { c: number };
   const investmentParticipation = fractionalShares?.c ?? 0;
-  const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const contractCount = (db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const viewCount = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const favCount = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const contractCount = (await (await db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?")).get(userId) as { c: number })?.c ?? 0;
   const vaultEngagement = Math.min(100, viewCount + favCount * 2 + contractCount * 5);
   let uhnwScore = 0;
   if (totalSpend >= 500000) uhnwScore = 95; else if (totalSpend >= 100000) uhnwScore = 80; else if (totalSpend >= 50000) uhnwScore = 65; else if (totalSpend >= 10000) uhnwScore = 45; else if (totalSpend >= 1000) uhnwScore = 25;
@@ -5274,16 +5719,17 @@ function computeClientProfile(userId: number): any {
   const inviteRecommendation = uhnwScore >= 50 || (totalSpend >= 20000) || (investmentParticipation > 0 && totalSpend >= 5000);
   return { total_spend: totalSpend, purchase_frequency: purchaseFrequency, asset_category_preference: categoryPreference, resale_activity: resaleCount, investment_participation: investmentParticipation, vault_engagement_level: vaultEngagement, uhnw_potential_score: uhnwScore, upsell_recommendation: upsellRecommendation, invite_recommendation: inviteRecommendation };
 }
-app.get("/api/admin/intelligence/client-profiles", requireAuth, requireAdmin, (req, res) => {
-  const users = db.prepare("SELECT id, name, email, role, created_at FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin') ORDER BY created_at DESC").all() as any[];
-  const list = users.map((u: any) => ({ user_id: u.id, name: u.name, email: u.email, role: u.role, created_at: u.created_at, ...computeClientProfile(u.id) }));
+app.get("/api/admin/intelligence/client-profiles", requireAuth, requireAdmin, async (req, res) => {
+  const users = await (await db.prepare("SELECT id, name, email, role, created_at FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin') ORDER BY created_at DESC")).all() as any[];
+  const profiles = await Promise.all(users.map((u: any) => computeClientProfile(u.id)));
+  const list = users.map((u: any, i: number) => ({ user_id: u.id, name: u.name, email: u.email, role: u.role, created_at: u.created_at, ...profiles[i] }));
   res.json(list);
 });
 
 // --- Imperial Intelligence: Advisor Performance Analytics ---
-app.get("/api/admin/intelligence/advisor-analytics", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/intelligence/advisor-analytics", requireAuth, requireAdmin, async (req, res) => {
   const sort = (req.query.sort as string) || 'revenue_desc';
-  const advisors = db.prepare(`
+  const advisors = await (await db.prepare(`
     SELECT p.id as profile_id, p.user_id, u.name as advisor_name, u.email as advisor_email,
            (SELECT COUNT(*) FROM advisor_referrals r WHERE r.advisor_id = p.id) as referral_count,
            (SELECT COUNT(*) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as deals_closed,
@@ -5291,23 +5737,23 @@ app.get("/api/admin/intelligence/advisor-analytics", requireAuth, requireAdmin, 
            (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as commission_paid,
            (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status IN ('pending','confirmed')) as commission_pending
     FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'
-  `).all() as any[];
-  const rows = advisors.map((a: any) => {
+  `)).all() as any[];
+  const rows = await Promise.all(advisors.map(async (a: any) => {
     const refs = a.referral_count || 0;
     const closed = a.deals_closed || 0;
     const conversion_rate = refs > 0 ? Math.round((closed / refs) * 100) : 0;
-    const commissions = db.prepare("SELECT sale_amount FROM advisor_commissions WHERE advisor_id = ? AND status = 'paid_out'").all(a.profile_id) as { sale_amount: number }[];
+    const commissions = await (await db.prepare("SELECT sale_amount FROM advisor_commissions WHERE advisor_id = ? AND status = 'paid_out'")).all(a.profile_id) as { sale_amount: number }[];
     const avgDealSize = commissions.length ? commissions.reduce((s, c) => s + (c.sale_amount || 0), 0) / commissions.length : 0;
     return { ...a, conversion_rate, average_deal_size: Math.round(avgDealSize * 100) / 100 };
-  });
+  }));
   if (sort === 'revenue_desc') rows.sort((a: any, b: any) => (b.total_revenue || 0) - (a.total_revenue || 0));
   else if (sort === 'conversion_desc') rows.sort((a: any, b: any) => b.conversion_rate - a.conversion_rate);
   else if (sort === 'deals_desc') rows.sort((a: any, b: any) => (b.deals_closed || 0) - (a.deals_closed || 0));
   else if (sort === 'name_asc') rows.sort((a: any, b: any) => (a.advisor_name || '').localeCompare(b.advisor_name || ''));
   res.json(rows);
 });
-app.get("/api/admin/intelligence/advisor-analytics/export", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/intelligence/advisor-analytics/export", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT p.id, u.name as advisor_name, u.email,
            (SELECT COUNT(*) FROM advisor_referrals r WHERE r.advisor_id = p.id) as referrals,
            (SELECT COUNT(*) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as deals_closed,
@@ -5315,7 +5761,7 @@ app.get("/api/admin/intelligence/advisor-analytics/export", requireAuth, require
            (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status = 'paid_out') as commission_paid,
            (SELECT COALESCE(SUM(c.commission_amount),0) FROM advisor_commissions c WHERE c.advisor_id = p.id AND c.status IN ('pending','confirmed')) as commission_pending
     FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'
-  `).all() as any[];
+  `)).all() as any[];
   const header = "id,advisor_name,email,referrals,deals_closed,total_revenue,commission_paid,commission_pending";
   const lines = [header, ...rows.map((r: any) => [r.id, r.advisor_name, r.email, r.referrals, r.deals_closed, r.total_revenue, r.commission_paid, r.commission_pending].map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))];
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -5324,79 +5770,79 @@ app.get("/api/admin/intelligence/advisor-analytics/export", requireAuth, require
 });
 
 // --- Imperial Intelligence: Scarcity Heatmap ---
-app.get("/api/admin/intelligence/scarcity-heatmap", requireAuth, requireAdmin, (req, res) => {
-  const pieces = db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces").all() as any[];
-  const heatmap = pieces.map((p: any) => {
-    const views = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
-    const wishlist = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
-    const duration = db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as t FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { t: number };
+app.get("/api/admin/intelligence/scarcity-heatmap", requireAuth, requireAdmin, async (req, res) => {
+  const pieces = await (await db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces")).all() as any[];
+  const heatmap = await Promise.all(pieces.map(async (p: any) => {
+    const views = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
+    const wishlist = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
+    const duration = await (await db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as t FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { t: number };
     const totalDuration = duration?.t ?? 0;
-    const inDrop = (db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const inDrop = (await (await db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
     const demandScore = Math.min(100, Math.round(views * 2 + wishlist * 5 + Math.min(50, totalDuration / 60)));
     const scarcityIntensity = demandScore >= 70 ? 'high_demand' : demandScore >= 30 ? 'moderate' : 'low_interest';
     return { masterpiece_id: p.id, title: p.title, serial_id: p.serial_id, valuation: p.valuation, status: p.status, views, wishlist_adds: wishlist, viewing_duration_seconds: totalDuration, drop_participation: inDrop > 0, demand_score: demandScore, scarcity_intensity: scarcityIntensity };
-  });
+  }));
   heatmap.sort((a: any, b: any) => b.demand_score - a.demand_score);
   res.json(heatmap);
 });
 
 // --- Legacy Mode: beneficiary & succession (client submits, admin approves) ---
-app.post("/api/legacy/beneficiary", requireAuth, (req, res) => {
+app.post("/api/legacy/beneficiary", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const { beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs } = req.body || {};
   if (!beneficiary_name || typeof beneficiary_name !== 'string' || !beneficiary_name.trim()) return res.status(400).json({ error: "Beneficiary name required" });
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs, status)
     VALUES (?, ?, ?, ?, ?, 'pending')
-  `).run(userId, String(beneficiary_name).trim(), beneficiary_contact ? String(beneficiary_contact).trim() : null, transfer_protocol ? String(transfer_protocol).trim() : null, succession_docs ? (typeof succession_docs === 'string' ? succession_docs : JSON.stringify(succession_docs)) : null);
+  `)).run(userId, String(beneficiary_name).trim(), beneficiary_contact ? String(beneficiary_contact).trim() : null, transfer_protocol ? String(transfer_protocol).trim() : null, succession_docs ? (typeof succession_docs === 'string' ? succession_docs : JSON.stringify(succession_docs)) : null);
   res.json({ success: true });
 });
-app.get("/api/legacy/beneficiary", requireAuth, (req, res) => {
+app.get("/api/legacy/beneficiary", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare("SELECT id, beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs, status, created_at, approved_at FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC").all(userId);
+  const rows = await (await db.prepare("SELECT id, beneficiary_name, beneficiary_contact, transfer_protocol, succession_docs, status, created_at, approved_at FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC")).all(userId);
   res.json(rows);
 });
-app.get("/api/admin/legacy/requests", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/legacy/requests", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT lb.*, u.name as user_name, u.email as user_email
     FROM legacy_beneficiaries lb JOIN users u ON u.id = lb.user_id
     ORDER BY lb.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
-app.patch("/api/admin/legacy/requests/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/legacy/requests/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body || {};
   if (!['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ error: "Invalid status" });
-  const row = db.prepare("SELECT * FROM legacy_beneficiaries WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM legacy_beneficiaries WHERE id = ?")).get(id) as any;
   if (!row) return res.status(404).json({ error: "Not found" });
   const adminId = getSessionUserId(req);
-  db.prepare("UPDATE legacy_beneficiaries SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, status === 'approved' ? adminId : null, id);
-  if (status === 'approved') try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(row.user_id, "Your legacy / beneficiary request has been approved.", "success"); } catch (_) {}
+  await (await db.prepare("UPDATE legacy_beneficiaries SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status, status === 'approved' ? adminId : null, id);
+  if (status === 'approved') try { await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(row.user_id, "Your legacy / beneficiary request has been approved.", "success"); } catch (_) {}
   res.json({ success: true });
 });
 
 // --- Prestige Evolution Engine: recalc tier from activity ---
-function recalcPrestigeTier(userId: number): void {
-  const payments = db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')").all(userId) as { amount: number }[];
+async function recalcPrestigeTier(userId: number): Promise<void> {
+  const payments = await (await db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid','awaiting_deposit')")).all(userId) as { amount: number }[];
   const totalSpend = payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
-  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const fracCount = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number })?.c ?? 0;
+  const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const fracCount = (await (await db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?")).get(userId) as { c: number })?.c ?? 0;
   let tier = 'client';
   if (totalSpend >= 500000 || (totalSpend >= 200000 && resaleCount >= 2)) tier = 'black_tier';
   else if (totalSpend >= 200000 || (totalSpend >= 100000 && fracCount > 0)) tier = 'royal_tier';
   else if (totalSpend >= 50000 || resaleCount >= 1) tier = 'elite_collector';
   else if (totalSpend >= 20000) tier = 'collector';
   else if (totalSpend >= 5000) tier = 'private_client';
-  try { db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?").run(tier, userId); } catch (_) {}
+  try { await (await db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?")).run(tier, userId); } catch (_) {}
 }
-app.post("/api/admin/intelligence/recalc-prestige", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/intelligence/recalc-prestige", requireAuth, requireAdmin, async (req, res) => {
   const { userId } = req.body || {};
-  if (userId != null) { recalcPrestigeTier(Number(userId)); return res.json({ success: true, userId }); }
-  const users = db.prepare("SELECT id FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin')").all() as { id: number }[];
-  users.forEach(u => recalcPrestigeTier(u.id));
+  if (userId != null) { await recalcPrestigeTier(Number(userId)); return res.json({ success: true, userId }); }
+  const users = await (await db.prepare("SELECT id FROM users WHERE status = 'approved' AND role NOT IN ('admin','super_admin')")).all() as { id: number }[];
+  for (const u of users) await recalcPrestigeTier(u.id);
   res.json({ success: true, recalculated: users.length });
 });
 
@@ -5404,7 +5850,7 @@ app.post("/api/admin/intelligence/recalc-prestige", requireAuth, requireAdmin, (
 app.post("/api/contact", async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: "Name, E-Mail und Nachricht sind erforderlich." });
-  db.prepare("INSERT INTO contact_requests (name, email, subject, message) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO contact_requests (name, email, subject, message) VALUES (?, ?, ?, ?)")).run(
     String(name).trim(),
     String(email).trim(),
     subject ? String(subject).trim() : null,
@@ -5421,76 +5867,76 @@ app.post("/api/contact", async (req, res) => {
 });
 
 // --- Public: Certificate verification (no auth) — Section 8: Piece Name, Serial, Owner, Creation Date, Certificate Status ---
-app.get("/api/verify/certificate/:certId", (req, res) => {
-  const cert = db.prepare("SELECT * FROM certificates WHERE cert_id = ?").get(req.params.certId) as any;
+app.get("/api/verify/certificate/:certId", async (req, res) => {
+  const cert = await (await db.prepare("SELECT * FROM certificates WHERE cert_id = ?")).get(req.params.certId) as any;
   if (!cert) return res.status(404).json({ error: "Certificate not found" });
-  const piece = cert.masterpiece_id ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(cert.masterpiece_id) as any : null;
-  const owner = db.prepare("SELECT id, name FROM users WHERE id = ?").get(cert.owner_id) as any;
+  const piece = cert.masterpiece_id ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(cert.masterpiece_id) as any : null;
+  const owner = await (await db.prepare("SELECT id, name FROM users WHERE id = ?")).get(cert.owner_id) as any;
   const status = cert.status || 'verified_authentic';
   const statusLabel = status === 'archived' ? 'Archived' : status === 'transferred' ? 'Transferred' : 'Verified Authentic';
   res.json({ cert: { ...cert, status, status_label: statusLabel }, piece, owner_name: owner?.name ?? null });
 });
 
 // --- Profile: language & notification prefs ---
-app.patch("/api/users/me", (req, res) => {
+app.patch("/api/users/me", async (req, res) => {
   const { userId, language, preferred_language, notification_prefs } = req.body;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const u = db.prepare("SELECT id FROM users WHERE id = ?").get(userId);
+  const u = await (await db.prepare("SELECT id FROM users WHERE id = ?")).get(userId);
   if (!u) return res.status(404).json({ error: "User not found" });
   const allowedLangs = ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'];
   if (language != null && allowedLangs.includes(String(language))) {
-    db.prepare("UPDATE users SET language = ?, preferred_language = ? WHERE id = ?").run(language, language, userId);
+    await (await db.prepare("UPDATE users SET language = ?, preferred_language = ? WHERE id = ?")).run(language, language, userId);
   }
   if (preferred_language != null && allowedLangs.includes(String(preferred_language))) {
-    db.prepare("UPDATE users SET preferred_language = ? WHERE id = ?").run(preferred_language, userId);
+    await (await db.prepare("UPDATE users SET preferred_language = ? WHERE id = ?")).run(preferred_language, userId);
   }
-  if (notification_prefs != null) db.prepare("UPDATE users SET notification_prefs = ? WHERE id = ?").run(typeof notification_prefs === 'string' ? notification_prefs : JSON.stringify(notification_prefs), userId);
+  if (notification_prefs != null) await (await db.prepare("UPDATE users SET notification_prefs = ? WHERE id = ?")).run(typeof notification_prefs === 'string' ? notification_prefs : JSON.stringify(notification_prefs), userId);
   res.json({ success: true });
 });
 
 // --- Passwort ändern (eingeloggter User) ---
-app.post("/api/users/me/change-password", (req, res) => {
+app.post("/api/users/me/change-password", async (req, res) => {
   const userId = (req as any).userId;
   if (!userId) return res.status(401).json({ error: "Nicht angemeldet." });
   const { currentPassword, newPassword } = req.body || {};
-  const user = db.prepare("SELECT id, password, force_password_change FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT id, password, force_password_change FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Nutzer nicht gefunden." });
   const forceChange = !!user.force_password_change;
   if (forceChange) {
     if (!newPassword || typeof newPassword !== "string" || newPassword.length < 6)
       return res.status(400).json({ error: "Neues Passwort (min. 6 Zeichen) erforderlich." });
-    db.prepare("UPDATE users SET password = ?, force_password_change = 0 WHERE id = ?").run(hashPassword(newPassword), userId);
+    await (await db.prepare("UPDATE users SET password = ?, force_password_change = 0 WHERE id = ?")).run(hashPassword(newPassword), userId);
     return res.json({ success: true });
   }
   if (!currentPassword || !newPassword || typeof newPassword !== "string" || newPassword.length < 6)
     return res.status(400).json({ error: "Aktuelles Passwort und neues Passwort (min. 6 Zeichen) erforderlich." });
   if (!checkPassword(String(currentPassword), user.password || ""))
     return res.status(400).json({ error: "Aktuelles Passwort ist falsch." });
-  db.prepare("UPDATE users SET password = ? WHERE id = ?").run(hashPassword(newPassword), userId);
+  await (await db.prepare("UPDATE users SET password = ? WHERE id = ?")).run(hashPassword(newPassword), userId);
   res.json({ success: true });
 });
 
 // --- DSGVO: Export my data ---
-app.get("/api/me/export", (req, res) => {
+app.get("/api/me/export", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const user = db.prepare("SELECT id, email, name, address, role, language, created_at FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT id, email, name, address, role, language, created_at FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(404).json({ error: "User not found" });
-  const pieces = db.prepare("SELECT id, serial_id, title, valuation, status FROM masterpieces WHERE current_owner_id = ?").all(userId);
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ?").all(userId);
-  const certs = db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?").all(userId);
+  const pieces = await (await db.prepare("SELECT id, serial_id, title, valuation, status FROM masterpieces WHERE current_owner_id = ?")).all(userId);
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ?")).all(userId);
+  const certs = await (await db.prepare("SELECT cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ?")).all(userId);
   const payload = { exported_at: new Date().toISOString(), user, pieces, contracts, certificates: certs };
   res.setHeader("Content-Disposition", `attachment; filename="antonio-bellanova-data-export-${userId}.json"`);
   res.json(payload);
 });
 
 // --- Portfolio CSV export (logged-in user's pieces) ---
-app.get("/api/portfolio/export", (req, res) => {
+app.get("/api/portfolio/export", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const user = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(404).json({ error: "User not found" });
-  const rows = db.prepare("SELECT id, serial_id, title, category, materials, gemstones, valuation, rarity, status, created_at FROM masterpieces WHERE current_owner_id = ? ORDER BY id").all(userId) as any[];
+  const rows = await (await db.prepare("SELECT id, serial_id, title, category, materials, gemstones, valuation, rarity, status, created_at FROM masterpieces WHERE current_owner_id = ? ORDER BY id")).all(userId) as any[];
   const headers = ['id', 'serial_id', 'title', 'category', 'materials', 'gemstones', 'valuation', 'rarity', 'status', 'created_at'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
@@ -5500,20 +5946,20 @@ app.get("/api/portfolio/export", (req, res) => {
 });
 
 // --- Atelier Moments (editorial) ---
-app.get("/api/atelier-moments", (req, res) => {
-  const row = db.prepare("SELECT value FROM admin_config WHERE key = 'atelier_moments'").get();
+app.get("/api/atelier-moments", async (req, res) => {
+  const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'atelier_moments'")).get();
   const list = row ? JSON.parse((row as any).value) : [];
   res.json(Array.isArray(list) ? list : []);
 });
-app.post("/api/admin/atelier-moments", (req, res) => {
+app.post("/api/admin/atelier-moments", async (req, res) => {
   const value = JSON.stringify(req.body && Array.isArray(req.body) ? req.body : []);
-  db.prepare("INSERT INTO admin_config (key, value) VALUES ('atelier_moments', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(value);
+  await (await db.prepare("INSERT INTO admin_config (key, value) VALUES ('atelier_moments', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")).run(value);
   res.json({ success: true });
 });
 
 // Admin: inventory CSV export
-app.get("/api/admin/inventory/export", (req, res) => {
-  const pieces = db.prepare("SELECT id, serial_id, registry_id, title, category, materials, gemstones, valuation, rarity, status, current_owner_id, transfer_type, warranty_void, created_at FROM masterpieces ORDER BY id").all() as any[];
+app.get("/api/admin/inventory/export", async (req, res) => {
+  const pieces = await (await db.prepare("SELECT id, serial_id, registry_id, title, category, materials, gemstones, valuation, rarity, status, current_owner_id, transfer_type, warranty_void, created_at FROM masterpieces ORDER BY id")).all() as any[];
   const headers = ['id', 'serial_id', 'registry_id', 'title', 'category', 'materials', 'gemstones', 'valuation', 'rarity', 'status', 'current_owner_id', 'transfer_type', 'warranty_void', 'created_at'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...pieces.map(p => headers.map(h => `"${escape(p[h])}"`).join(','))].join('\n');
@@ -5523,14 +5969,14 @@ app.get("/api/admin/inventory/export", (req, res) => {
 });
 
 // Admin CEO: auction export CSV
-app.get("/api/admin/auctions/export", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/auctions/export", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT a.id, a.masterpiece_id, m.serial_id, m.title, a.start_price, a.current_bid, a.highest_bidder_id, u.name as winner_name, u.email as winner_email, a.end_time, a.status, a.vip_only
     FROM auctions a
     LEFT JOIN masterpieces m ON a.masterpiece_id = m.id
     LEFT JOIN users u ON a.highest_bidder_id = u.id
     ORDER BY a.id DESC
-  `).all() as any[];
+  `)).all() as any[];
   const headers = ['id', 'masterpiece_id', 'serial_id', 'title', 'start_price', 'current_bid', 'highest_bidder_id', 'winner_name', 'winner_email', 'end_time', 'status', 'vip_only'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
@@ -5540,88 +5986,88 @@ app.get("/api/admin/auctions/export", (req, res) => {
 });
 
 // Admin CEO: revenue dashboard (aggregate revenue_ledger + payments)
-app.get("/api/admin/revenue-dashboard", (req, res) => {
-  const ledger = db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type").all() as any[];
+app.get("/api/admin/revenue-dashboard", async (req, res) => {
+  const ledger = await (await db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type")).all() as any[];
   const byType = ledger.reduce((acc: Record<string, number>, r) => { acc[r.type] = r.total; return acc; }, {});
-  const paymentsDeposit = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE type = 'deposit' AND status = 'paid'").get() as any;
-  const paymentsFull = db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE type = 'full' AND status = 'paid'").get() as any;
-  const resaleRevenue = (db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger WHERE type = 'resale_fee'").get() as any).t || 0;
+  const paymentsDeposit = await (await db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE type = 'deposit' AND status = 'paid'")).get() as any;
+  const paymentsFull = await (await db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM payments WHERE type = 'full' AND status = 'paid'")).get() as any;
+  const resaleRevenue = (await (await db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger WHERE type = 'resale_fee'")).get() as any).t || 0;
   res.json({
     by_type: byType,
     total_resale_fee: resaleRevenue,
     deposits_received: paymentsDeposit.t || 0,
     full_payments_received: paymentsFull.t || 0,
-    total_ledger: (db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger").get() as any).t || 0,
+    total_ledger: (await (await db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger")).get() as any).t || 0,
   });
 });
 
 // Admin CEO: cashflow tracking (in/out summary)
-app.get("/api/admin/cashflow", (req, res) => {
-  const payments = db.prepare("SELECT type, status, SUM(amount) as total FROM payments GROUP BY type, status").all() as any[];
-  const revenue = db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type").all() as any[];
+app.get("/api/admin/cashflow", async (req, res) => {
+  const payments = await (await db.prepare("SELECT type, status, SUM(amount) as total FROM payments GROUP BY type, status")).all() as any[];
+  const revenue = await (await db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type")).all() as any[];
   res.json({ payments_by_type_status: payments, revenue_by_type: revenue });
 });
 
 // Admin CEO: resale revenue tracking
-app.get("/api/admin/resale-revenue", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/resale-revenue", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT rl.id, rl.type, rl.amount, rl.masterpiece_id, rl.reference_id, rl.created_at, m.title, m.serial_id
     FROM revenue_ledger rl
     LEFT JOIN masterpieces m ON rl.masterpiece_id = m.id
     WHERE rl.type = 'resale_fee'
     ORDER BY rl.created_at DESC
-  `).all();
-  const total = (db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger WHERE type = 'resale_fee'").get() as any).t || 0;
+  `)).all();
+  const total = (await (await db.prepare("SELECT COALESCE(SUM(amount), 0) as t FROM revenue_ledger WHERE type = 'resale_fee'")).get() as any).t || 0;
   res.json({ entries: rows, total_resale_revenue: total });
 });
 
 // GDPR: consent tracking
-app.post("/api/gdpr/consent", (req, res) => {
+app.post("/api/gdpr/consent", async (req, res) => {
   const { userId, consentType, ipAddress, version } = req.body;
-  db.prepare("INSERT INTO consent_log (user_id, consent_type, ip_address, version) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO consent_log (user_id, consent_type, ip_address, version) VALUES (?, ?, ?, ?)")).run(
     userId, consentType || 'platform_terms', ipAddress || null, version || '1.0'
   );
   res.json({ success: true });
 });
-app.get("/api/gdpr/consent/:userId", (req, res) => {
-  const rows = db.prepare("SELECT * FROM consent_log WHERE user_id = ? ORDER BY granted_at DESC").all(req.params.userId);
+app.get("/api/gdpr/consent/:userId", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM consent_log WHERE user_id = ? ORDER BY granted_at DESC")).all(req.params.userId);
   res.json(rows);
 });
-app.post("/api/gdpr/data-request", (req, res) => {
+app.post("/api/gdpr/data-request", async (req, res) => {
   const { userId, requestType } = req.body;
-  const r = db.prepare("INSERT INTO data_access_requests (user_id, request_type) VALUES (?, ?)").run(userId, requestType || 'export');
+  const r = await (await db.prepare("INSERT INTO data_access_requests (user_id, request_type) VALUES (?, ?)")).run(userId, requestType || 'export');
   res.json({ success: true, id: r.lastInsertRowid });
 });
-app.get("/api/admin/gdpr/data-requests", (req, res) => {
-  const rows = db.prepare("SELECT dar.*, u.name, u.email FROM data_access_requests dar JOIN users u ON u.id = dar.user_id ORDER BY dar.requested_at DESC").all();
+app.get("/api/admin/gdpr/data-requests", async (req, res) => {
+  const rows = await (await db.prepare("SELECT dar.*, u.name, u.email FROM data_access_requests dar JOIN users u ON u.id = dar.user_id ORDER BY dar.requested_at DESC")).all();
   res.json(rows);
 });
-app.post("/api/admin/gdpr/data-request/:id/complete", (req, res) => {
+app.post("/api/admin/gdpr/data-request/:id/complete", async (req, res) => {
   const { status, responseDetails } = req.body;
-  db.prepare("UPDATE data_access_requests SET status = ?, completed_at = CURRENT_TIMESTAMP, response_details = ? WHERE id = ?").run(
+  await (await db.prepare("UPDATE data_access_requests SET status = ?, completed_at = CURRENT_TIMESTAMP, response_details = ? WHERE id = ?")).run(
     status || 'completed', responseDetails || null, req.params.id
   );
   res.json({ success: true });
 });
 
 // Digital Asset Registry 2.0: full record (timeline, service log, provenance, rarity, demand, prestige)
-app.get("/api/registry/masterpiece/:id", (req, res) => {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
+app.get("/api/registry/masterpiece/:id", async (req, res) => {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const ownership = db.prepare("SELECT oh.*, u.name as owner_name, u.email as owner_email FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC").all(req.params.id) as any[];
-  const service = db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC").all(req.params.id);
-  const provenance = db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date ASC").all(req.params.id);
+  const ownership = await (await db.prepare("SELECT oh.*, u.name as owner_name, u.email as owner_email FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC")).all(req.params.id) as any[];
+  const service = await (await db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC")).all(req.params.id);
+  const provenance = await (await db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date ASC")).all(req.params.id);
   const holdMonths = ownership.length ? (Date.now() - new Date(ownership[ownership.length - 1].acquired_at).getTime()) / (30 * 24 * 60 * 60 * 1000) : 0;
-  const bidCount = (db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
-  const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
-  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const bidCount = (await (await db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
+  const viewCount = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
+  const favCount = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
   const prestigeScore = piece.prestige_score ?? piece.rarity_score ?? 0;
   const demandScore = Math.min(100, Math.round(bidCount * 8 + viewCount * 0.5 + favCount * 2));
   const rarityLevel = piece.rarity || 'Standard';
   const rarityScoreNum = piece.rarity_score ?? (rarityLevel === 'Unikat' || rarityLevel === 'Unique' ? 95 : rarityLevel === 'Limitiert' ? 75 : 50);
   const ownershipBadge = ownership.length === 0 ? 'Atelier' : ownership.length === 1 ? 'First Owner' : 'Multi-Owner';
   const valueDevelopment = ownership.length >= 2 ? ownership.map((o) => ({ at: o.acquired_at, price: o.price })) : [];
-  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ? AND status IN ('sold','completed')").get(piece.id) as any)?.c ?? 0;
+  const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ? AND status IN ('sold','completed')")).get(piece.id) as any)?.c ?? 0;
   const resaleActivityLevel = resaleCount > 1 ? 'high' : resaleCount === 1 ? 'medium' : 'none';
   const liquidityIndicator = resaleCount > 0 ? 'traded' : viewCount + favCount > 10 ? 'moderate' : 'low';
   res.json({
@@ -5664,13 +6110,13 @@ app.get("/api/registry/masterpiece/:id", (req, res) => {
 });
 
 // Asset Performance View (informational only; not financial advice)
-app.get("/api/masterpieces/:id/performance", (req, res) => {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
+app.get("/api/masterpieces/:id/performance", async (req, res) => {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
-  const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
-  const bidCount = (db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
-  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ?").get(piece.id) as any)?.c ?? 0;
+  const viewCount = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
+  const favCount = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
+  const bidCount = (await (await db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
+  const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE masterpiece_id = ?")).get(piece.id) as any)?.c ?? 0;
   const indicative_demand_score = Math.min(100, Math.round(bidCount * 10 + viewCount * 0.5 + favCount * 3));
   const resale_activity_level = resaleCount === 0 ? 'none' : resaleCount === 1 ? 'low' : resaleCount <= 3 ? 'medium' : 'high';
   const liquidity_indicator = viewCount + favCount * 2 > 20 ? 'high' : viewCount + favCount * 2 > 5 ? 'medium' : 'low';
@@ -5686,12 +6132,12 @@ app.get("/api/masterpieces/:id/performance", (req, res) => {
   });
 });
 
-app.post("/api/admin/clients/add", (req, res) => {
+app.post("/api/admin/clients/add", async (req, res) => {
   const { email, name, address, role, isVip } = req.body;
   const token = Math.random().toString(36).substring(2, 15);
   try {
     const hashed = hashPassword(token);
-    const result = db.prepare("INSERT INTO users (email, name, address, role, is_vip, status, password) VALUES (?, ?, ?, ?, ?, 'approved', ?)").run(
+    const result = await (await db.prepare("INSERT INTO users (email, name, address, role, is_vip, status, password) VALUES (?, ?, ?, ?, ?, 'approved', ?)")).run(
       email, name, address, role || 'client', isVip ? 1 : 0, hashed
     );
     notifyUser(result.lastInsertRowid, "Welcome to the Antonio Bellanova Atelier. Your private vault has been created.", "success");
@@ -5701,23 +6147,23 @@ app.post("/api/admin/clients/add", (req, res) => {
   }
 });
 
-app.post("/api/admin/approve-user", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/approve-user", requireAuth, requireAdmin, async (req, res) => {
   const userId = Number(req.body?.userId);
   const approve = req.body?.approve === true;
   if (!userId) return res.status(400).json({ error: "userId erforderlich." });
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(404).json({ error: "Nutzer nicht gefunden." });
   if (approve) {
-    db.prepare("UPDATE users SET status = 'approved' WHERE id = ?").run(userId);
+    await (await db.prepare("UPDATE users SET status = 'approved' WHERE id = ?")).run(userId);
     if (user.is_vip) {
-      const docRef = nextContractRef('vip');
+      const docRef = await nextContractRef('vip');
       const vipContent = `VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants ${user.name} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.`;
       const dummyPiece = { serial_id: 'VIP', title: 'VIP Membership', materials: '—', gemstones: '—', valuation: 15000, status: 'active', description: 'VIP Annual Membership', blockchain_hash: '' };
       const content = generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement", isVipAgreement: true });
-      db.prepare("INSERT INTO contracts (user_id, type, doc_ref, content) VALUES (?, 'vip', ?, ?)").run(userId, docRef, content);
+      await (await db.prepare("INSERT INTO contracts (user_id, type, doc_ref, content) VALUES (?, 'vip', ?, ?)")).run(userId, docRef, content);
     }
   } else {
-    db.prepare("UPDATE users SET status = 'rejected' WHERE id = ?").run(userId);
+    await (await db.prepare("UPDATE users SET status = 'rejected' WHERE id = ?")).run(userId);
   }
   res.json({ success: true });
 });
@@ -5735,12 +6181,12 @@ function isVipActive(user: { role?: string; is_vip?: number; vip_expiry_date?: s
   }
 }
 
-function enforceVipExpiry(userId: number): void {
+async function enforceVipExpiry(userId: number): Promise<void> {
   try {
-    const user = db.prepare("SELECT id, role, is_vip, vip_expiry_date FROM users WHERE id = ?").get(userId) as any;
+    const user = await (await db.prepare("SELECT id, role, is_vip, vip_expiry_date FROM users WHERE id = ?")).get(userId) as any;
     if (!user || user.role !== 'vip') return;
     if (user.vip_expiry_date && new Date(user.vip_expiry_date) <= new Date()) {
-      db.prepare("UPDATE users SET role = 'client', is_vip = 0 WHERE id = ?").run(userId);
+      await (await db.prepare("UPDATE users SET role = 'client', is_vip = 0 WHERE id = ?")).run(userId);
     }
   } catch (_) {}
 }
@@ -5760,12 +6206,12 @@ function getResaleCommissionPct(user: { role: string; prestige_tier?: string | n
 }
 
 // Prestige Evolution Engine: auto-adjust tier from activity (total spend, resale, investment, engagement)
-function computeEvolvedPrestigeTier(userId: number): string {
-  const totalSpend = (db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(userId) as { s: number })?.s ?? 0;
-  const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const fracCount = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(userId) as { c: number })?.c ?? 0;
-  const invApproved = (db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'").get(userId) as { c: number })?.c ?? 0;
-  const payCount = (db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(userId) as { c: number })?.c ?? 0;
+async function computeEvolvedPrestigeTier(userId: number): Promise<string> {
+  const totalSpend = (await (await db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')")).get(userId) as { s: number })?.s ?? 0;
+  const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const fracCount = (await (await db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?")).get(userId) as { c: number })?.c ?? 0;
+  const invApproved = (await (await db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'")).get(userId) as { c: number })?.c ?? 0;
+  const payCount = (await (await db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')")).get(userId) as { c: number })?.c ?? 0;
   if (totalSpend >= 500000 || (payCount >= 5 && totalSpend >= 200000)) return 'black_tier';
   if (totalSpend >= 200000 || (payCount >= 3 && totalSpend >= 80000)) return 'royal_tier';
   if (totalSpend >= 80000 || resaleCount >= 2 || fracCount + invApproved >= 2) return 'elite_collector';
@@ -5774,31 +6220,31 @@ function computeEvolvedPrestigeTier(userId: number): string {
   return 'client';
 }
 
-function evolvePrestigeTierForUser(userId: number): void {
+async function evolvePrestigeTierForUser(userId: number): Promise<void> {
   try {
-    const user = db.prepare("SELECT id, role FROM users WHERE id = ?").get(userId) as { id: number; role: string } | undefined;
+    const user = await (await db.prepare("SELECT id, role FROM users WHERE id = ?")).get(userId) as { id: number; role: string } | undefined;
     if (!user || ['admin', 'super_admin', 'strategic_private_advisor'].includes(user.role)) return;
-    const newTier = computeEvolvedPrestigeTier(userId);
-    db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?").run(newTier, userId);
+    const newTier = await computeEvolvedPrestigeTier(userId);
+    await (await db.prepare("UPDATE users SET prestige_tier = ? WHERE id = ?")).run(newTier, userId);
   } catch (_) {}
 }
 
 // --- Resale & Maison Commission ---
 const RESALE_COMMISSION_RATES: Record<string, number> = { client: 8, investor: 8, viewer: 8, reseller: 8, vip: 6, royal: 5, black: 5, admin: 8, super_admin: 8 };
 
-function resaleAudit(resaleListingId: number, action: string, adminId?: number, details?: string) {
+async function resaleAudit(resaleListingId: number, action: string, adminId?: number, details?: string) {
   try {
-    db.prepare("INSERT INTO resale_audit_log (resale_listing_id, action, admin_id, details) VALUES (?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO resale_audit_log (resale_listing_id, action, admin_id, details) VALUES (?, ?, ?, ?)")).run(
       resaleListingId, action, adminId ?? null, details ?? null
     );
   } catch (_) {}
 }
 
-function computePrestigeResaleMetrics(masterpieceId: number, currentValuation: number): { prestige_score: number; market_stability_score: number; price_recommendation: number } {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
-  const ownershipRows = db.prepare("SELECT * FROM ownership_history WHERE masterpiece_id = ? ORDER BY acquired_at ASC").all(masterpieceId) as any[];
-  const serviceCount = (db.prepare("SELECT COUNT(*) as c FROM service_history WHERE masterpiece_id = ?").get(masterpieceId) as any).c ?? 0;
-  const bidCount = (db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?").get(masterpieceId) as any).c ?? 0;
+async function computePrestigeResaleMetrics(masterpieceId: number, currentValuation: number): Promise<{ prestige_score: number; market_stability_score: number; price_recommendation: number }> {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
+  const ownershipRows = await (await db.prepare("SELECT * FROM ownership_history WHERE masterpiece_id = ? ORDER BY acquired_at ASC")).all(masterpieceId) as any[];
+  const serviceCount = (await (await db.prepare("SELECT COUNT(*) as c FROM service_history WHERE masterpiece_id = ?")).get(masterpieceId) as any).c ?? 0;
+  const bidCount = (await (await db.prepare("SELECT COUNT(*) as c FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(masterpieceId) as any).c ?? 0;
   const firstAcquired = ownershipRows.length ? new Date(ownershipRows[0].acquired_at).getTime() : Date.now();
   const holdDays = Math.max(0, (Date.now() - firstAcquired) / (1000 * 60 * 60 * 24));
   const prestigeBase = (piece?.prestige_score != null ? Number(piece.prestige_score) : (piece?.rarity_score ?? 0) * 2.5) || 50;
@@ -5906,7 +6352,7 @@ function generateResaleCommissionAgreement(piece: any, owner: any, options: { co
 }
 
 // Contracts
-app.post("/api/contracts/sign", (req, res) => {
+app.post("/api/contracts/sign", async (req, res) => {
   try {
     const userId = getSessionUserId(req);
     if (!userId) {
@@ -5928,45 +6374,45 @@ app.post("/api/contracts/sign", (req, res) => {
       return res.status(400).json({ error: "Bitte geben Sie Ihren vollständigen Namen ein." });
     }
 
-    const contract = db.prepare("SELECT * FROM contracts WHERE id = ?").get(contractId) as any;
+    const contract = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(contractId) as any;
     if (!contract) {
       return res.status(404).json({ error: "Vertrag nicht gefunden." });
     }
     if (contract.status === 'signed') {
       return res.status(400).json({ error: "Vertrag wurde bereits unterzeichnet." });
     }
-    const admin = db.prepare("SELECT role FROM users WHERE id = ?").get(userId) as { role: string } | undefined;
+    const admin = await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(userId) as { role: string } | undefined;
     const isAdmin = admin && (admin.role === "admin" || admin.role === "super_admin");
     if (contract.user_id !== userId && !isAdmin) {
       return res.status(403).json({ error: "Sie sind nicht berechtigt, diesen Vertrag zu unterzeichnen." });
     }
 
-    db.prepare("UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?").run(contractId);
+    await (await db.prepare("UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?")).run(contractId);
     addClientTimeline(contract.user_id, 'contract_signed', `Contract signed (${contract.type})`, String(contractId));
 
-    if (contract.type === 'vip') {
-      db.prepare("INSERT INTO vip_memberships (user_id, contract_id, status, signed_at) VALUES (?, ?, 'WAITING_FOR_PAYMENT', CURRENT_TIMESTAMP)").run(contract.user_id, contractId);
+  if (contract.type === 'vip') {
+      await (await db.prepare("INSERT INTO vip_memberships (user_id, contract_id, status, signed_at) VALUES (?, ?, 'WAITING_FOR_PAYMENT', CURRENT_TIMESTAMP)")).run(contract.user_id, contractId);
     }
     if (contract.type === 'resale_commission' && contract.masterpiece_id) {
-      const listing = db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?").get(contractId) as any;
+      const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE contract_id = ?")).get(contractId) as any;
       if (listing) {
-        const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(contract.masterpiece_id) as any;
-        const metrics = computePrestigeResaleMetrics(contract.masterpiece_id, piece?.valuation ?? listing.asking_price);
-        db.prepare(`
+        const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(contract.masterpiece_id) as any;
+        const metrics = await computePrestigeResaleMetrics(contract.masterpiece_id, piece?.valuation ?? listing.asking_price);
+        await (await db.prepare(`
           UPDATE resale_listings SET status = 'signed', signed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
             original_valuation_at_listing = ?, prestige_score_at_listing = ?, market_stability_score = ?, price_recommendation = ?
           WHERE id = ?
-        `).run(piece?.valuation ?? listing.asking_price, metrics.prestige_score, metrics.market_stability_score, metrics.price_recommendation, listing.id);
-        db.prepare("UPDATE masterpieces SET status = 'resale_review', valuation = ? WHERE id = ?").run(listing.asking_price, contract.masterpiece_id);
-        resaleAudit(listing.id, 'contract_signed', undefined, `Contract ${contractId} signed; asset in review.`);
+        `)).run(piece?.valuation ?? listing.asking_price, metrics.prestige_score, metrics.market_stability_score, metrics.price_recommendation, listing.id);
+        await (await db.prepare("UPDATE masterpieces SET status = 'resale_review', valuation = ? WHERE id = ?")).run(listing.asking_price, contract.masterpiece_id);
+        await resaleAudit(listing.id, 'contract_signed', undefined, `Contract ${contractId} signed; asset in review.`);
         broadcast({ type: 'RESALE_REQUESTED', masterpieceId: contract.masterpiece_id });
       }
-    }
-
-    broadcast({ type: 'CONTRACT_SIGNED', contractId, userId: contract.user_id });
-    const signedUser = db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?").get(contract.user_id) as any;
+  }
+  
+  broadcast({ type: 'CONTRACT_SIGNED', contractId, userId: contract.user_id });
+    const signedUser = await (await db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?")).get(contract.user_id) as any;
     if (signedUser && shouldSendEmailToUser(signedUser)) {
-      const pieceTitle = contract.masterpiece_id ? (db.prepare("SELECT title FROM masterpieces WHERE id = ?").get(contract.masterpiece_id) as any)?.title : null;
+      const pieceTitle = contract.masterpiece_id ? (await (await db.prepare("SELECT title FROM masterpieces WHERE id = ?")).get(contract.masterpiece_id) as any)?.title : null;
       sendMail(
         signedUser.email,
         "Antonio Bellanova – Vertrag unterzeichnet",
@@ -5975,7 +6421,7 @@ app.post("/api/contracts/sign", (req, res) => {
     }
     const payload: { success: true; masterpieceId?: number; vipWaitingPayment?: boolean; membershipId?: number } = { success: true, masterpieceId: contract.masterpiece_id ?? undefined };
     if (contract.type === 'vip') {
-      const vipRow = db.prepare("SELECT id FROM vip_memberships WHERE contract_id = ?").get(contractId) as { id: number } | undefined;
+      const vipRow = await (await db.prepare("SELECT id FROM vip_memberships WHERE contract_id = ?")).get(contractId) as { id: number } | undefined;
       if (vipRow) {
         payload.vipWaitingPayment = true;
         payload.membershipId = vipRow.id;
@@ -5989,24 +6435,24 @@ app.post("/api/contracts/sign", (req, res) => {
 });
 
 // Resale: price suggestion and history (for UI before starting resale)
-app.get("/api/masterpieces/:id/resale-suggestion", (req, res) => {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
+app.get("/api/masterpieces/:id/resale-suggestion", async (req, res) => {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   const valuation = Number(piece.valuation) || 0;
-  const metrics = computePrestigeResaleMetrics(piece.id, valuation);
+  const metrics = await computePrestigeResaleMetrics(piece.id, valuation);
   res.json({ valuation, price_recommendation: metrics.price_recommendation, prestige_score: metrics.prestige_score });
 });
 
-app.get("/api/masterpieces/:id/resale-history", (req, res) => {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.id) as any;
+app.get("/api/masterpieces/:id/resale-history", async (req, res) => {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const ownership = db.prepare("SELECT oh.*, u.name as owner_name FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC").all(req.params.id);
-  const resales = db.prepare("SELECT id, asking_price, final_sale_price, status, signed_at, completed_at, created_at FROM resale_listings WHERE masterpiece_id = ? ORDER BY created_at DESC").all(req.params.id);
+  const ownership = await (await db.prepare("SELECT oh.*, u.name as owner_name FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC")).all(req.params.id);
+  const resales = await (await db.prepare("SELECT id, asking_price, final_sale_price, status, signed_at, completed_at, created_at FROM resale_listings WHERE masterpiece_id = ? ORDER BY created_at DESC")).all(req.params.id);
   res.json({ masterpiece_id: piece.id, ownership_history: ownership, resale_listings: resales });
 });
 
 // Resale: start (create agreement + listing; resale only active after signature)
-app.post("/api/resale/start", (req, res) => {
+app.post("/api/resale/start", async (req, res) => {
   try {
     const uid = Number(req.body?.userId);
     const mid = Number(req.body?.masterpieceId);
@@ -6017,38 +6463,34 @@ app.post("/api/resale/start", (req, res) => {
     const priceNum = Number(askingPrice);
     if (priceNum <= 0) return res.status(400).json({ error: "Der Verkaufspreis muss größer als 0 sein." });
 
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(uid) as any;
-    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(mid) as any;
+    const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(uid) as any;
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid) as any;
     if (!user) return res.status(401).json({ error: "Bitte erneut anmelden." });
     if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
     const ownerId = piece.current_owner_id == null ? null : Number(piece.current_owner_id);
     if (ownerId !== uid) return res.status(403).json({ error: "Nur der Eigentümer kann dieses Stück zum Wiederverkauf anbieten." });
 
-    const existing = db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status IN ('pending_signature','signed','resale_pending','resale_review')").get(mid);
+    const existing = await (await db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status IN ('pending_signature','signed','resale_pending','resale_review')")).get(mid);
     if (existing) return res.status(400).json({ error: "Für dieses Stück läuft bereits ein Wiederverkauf." });
 
     const commissionPct = getResaleCommissionPct(user);
-    const docRef = nextContractRef('resale_commission');
+    const docRef = await nextContractRef('resale_commission');
     const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
 
-    const insertContract = db.prepare(`
+    const insertContract = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, 'resale_commission', ?, ?, 'draft')
-    `);
-    const insertListing = db.prepare(`
+    `));
+    const insertListing = await (await db.prepare(`
       INSERT INTO resale_listings (masterpiece_id, seller_id, asking_price, commission_pct, sale_method, contract_id, status, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, 'pending_signature', CURRENT_TIMESTAMP)
-    `);
-    const runInTransaction = db.transaction(() => {
-      const contractResult = insertContract.run(uid, mid, docRef, agreementHtml);
-      const contractId = Number(contractResult.lastInsertRowid);
-      const listingResult = insertListing.run(mid, uid, priceNum, commissionPct, saleMethod || 'marketplace', contractId);
-      const resaleListingId = Number(listingResult.lastInsertRowid);
-      return { contractId, resaleListingId };
-    });
-    const { contractId, resaleListingId } = runInTransaction();
+    `));
+    const contractResult = await insertContract.run(uid, mid, docRef, agreementHtml);
+    const contractId = Number(contractResult.lastInsertRowid);
+    const listingResult = await insertListing.run(mid, uid, priceNum, commissionPct, saleMethod || 'marketplace', contractId);
+    const resaleListingId = Number(listingResult.lastInsertRowid);
 
-    resaleAudit(resaleListingId, 'resale_started', undefined, `Asking ${priceNum} ${saleMethod || 'marketplace'}; commission ${commissionPct}%.`);
+    await resaleAudit(resaleListingId, 'resale_started', undefined, `Asking ${priceNum} ${saleMethod || 'marketplace'}; commission ${commissionPct}%.`);
     const payload = { success: true, contractId, resaleListingId, contract: { id: contractId, doc_ref: docRef, content: String(agreementHtml), type: 'resale_commission' as const } };
     try {
       res.json(payload);
@@ -6062,31 +6504,31 @@ app.post("/api/resale/start", (req, res) => {
   }
 });
 
-app.get("/api/resale/listings", (req, res) => {
+app.get("/api/resale/listings", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT rl.*, m.title as masterpiece_title, m.serial_id, m.image_url, c.doc_ref, c.status as contract_status, c.signed_at as contract_signed_at
     FROM resale_listings rl
     JOIN masterpieces m ON m.id = rl.masterpiece_id
     LEFT JOIN contracts c ON c.id = rl.contract_id
     WHERE rl.seller_id = ? ORDER BY rl.created_at DESC
-  `).all(userId);
+  `)).all(userId);
   res.json(rows);
 });
 
 // Legacy: list without contract (still sets resell_pending for backward compat)
-app.post("/api/resale/list", (req, res) => {
+app.post("/api/resale/list", async (req, res) => {
   const { userId, masterpieceId, price } = req.body;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
   if (!piece || piece.current_owner_id != userId) return res.status(403).json({ error: "Unauthorized" });
-  db.prepare("UPDATE masterpieces SET status = 'resell_pending', valuation = ? WHERE id = ?").run(Number(price), masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET status = 'resell_pending', valuation = ? WHERE id = ?")).run(Number(price), masterpieceId);
   broadcast({ type: 'RESALE_REQUESTED', masterpieceId });
   res.json({ success: true });
 });
 
-app.get("/api/admin/resale-listings", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/resale-listings", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT rl.*, m.title as masterpiece_title, m.serial_id, m.valuation as current_valuation, u.name as seller_name, u.email as seller_email, u.role as seller_role,
            c.doc_ref, c.status as contract_status, c.signed_at as contract_signed_at
     FROM resale_listings rl
@@ -6094,28 +6536,28 @@ app.get("/api/admin/resale-listings", (req, res) => {
     JOIN users u ON u.id = rl.seller_id
     LEFT JOIN contracts c ON c.id = rl.contract_id
     WHERE rl.status IN ('pending_signature','signed','resale_pending','resale_review') ORDER BY rl.updated_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.post("/api/admin/resale/reject", (req, res) => {
+app.post("/api/admin/resale/reject", async (req, res) => {
   const { resaleListingId, adminId } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
-  db.prepare("UPDATE resale_listings SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(resaleListingId);
-  db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?").run(listing.masterpiece_id);
-  resaleAudit(resaleListingId, 'resale_rejected', adminId);
+  await (await db.prepare("UPDATE resale_listings SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(resaleListingId);
+  await (await db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?")).run(listing.masterpiece_id);
+  await resaleAudit(resaleListingId, 'resale_rejected', adminId);
   broadcast({ type: 'RESALE_REVIEWED', masterpieceId: listing.masterpiece_id, approved: false });
   res.json({ success: true });
 });
 
-app.post("/api/admin/resale/adjust", (req, res) => {
+app.post("/api/admin/resale/adjust", async (req, res) => {
   const { resaleListingId, adminId, commissionPct, minPrice, valueFloorPct } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
   if (listing.status === 'sold') return res.status(400).json({ error: "Already completed" });
   const updates: string[] = [];
@@ -6137,75 +6579,75 @@ app.post("/api/admin/resale/adjust", (req, res) => {
   }
   if (updates.length) {
     params.push(resaleListingId);
-    db.prepare(`UPDATE resale_listings SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...params);
-    resaleAudit(resaleListingId, 'resale_adjusted', adminId, JSON.stringify({ commissionPct, minPrice, valueFloorPct }));
+    await (await db.prepare(`UPDATE resale_listings SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...params);
+    await resaleAudit(resaleListingId, 'resale_adjusted', adminId, JSON.stringify({ commissionPct, minPrice, valueFloorPct }));
   }
   res.json({ success: true });
 });
 
-app.post("/api/admin/resale/prioritize-auction", (req, res) => {
+app.post("/api/admin/resale/prioritize-auction", async (req, res) => {
   const { resaleListingId, adminId } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
-  db.prepare("UPDATE resale_listings SET sale_method = 'auction', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(resaleListingId);
-  resaleAudit(resaleListingId, 'prioritize_auction', adminId);
+  await (await db.prepare("UPDATE resale_listings SET sale_method = 'auction', updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(resaleListingId);
+  await resaleAudit(resaleListingId, 'prioritize_auction', adminId);
   res.json({ success: true });
 });
 
 const RESALE_DECISIONS = ['curated_marketplace', 'private_auction', 'private_offer', 'maison_buyback', 'reject'] as const;
 
-app.post("/api/admin/resale/decision", (req, res) => {
+app.post("/api/admin/resale/decision", async (req, res) => {
   const { resaleListingId, adminId, decision } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   if (!RESALE_DECISIONS.includes(decision)) return res.status(400).json({ error: "Invalid decision" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
   if (listing.admin_decision) return res.status(400).json({ error: "Decision already made" });
 
-  db.prepare(`
+  await (await db.prepare(`
     UPDATE resale_listings SET admin_decision = ?, decided_at = CURRENT_TIMESTAMP, decided_by = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).run(decision, adminId, decision, resaleListingId);
+  `)).run(decision, adminId, decision, resaleListingId);
 
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(listing.masterpiece_id) as any;
   if (decision === 'reject') {
-    db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?").run(listing.masterpiece_id);
-    resaleAudit(resaleListingId, 'resale_rejected', adminId, 'Prestige review: rejected.');
+    await (await db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?")).run(listing.masterpiece_id);
+    await resaleAudit(resaleListingId, 'resale_rejected', adminId, 'Prestige review: rejected.');
   } else if (decision === 'curated_marketplace') {
-    db.prepare("UPDATE masterpieces SET status = 'available', valuation = ? WHERE id = ?").run(listing.asking_price ?? piece?.valuation, listing.masterpiece_id);
-    resaleAudit(resaleListingId, 'decision_curated_marketplace', adminId);
+    await (await db.prepare("UPDATE masterpieces SET status = 'available', valuation = ? WHERE id = ?")).run(listing.asking_price ?? piece?.valuation, listing.masterpiece_id);
+    await resaleAudit(resaleListingId, 'decision_curated_marketplace', adminId);
   } else if (decision === 'private_auction') {
-    db.prepare("UPDATE resale_listings SET sale_method = 'auction' WHERE id = ?").run(resaleListingId);
-    const hasAuction = db.prepare("SELECT id FROM auctions WHERE masterpiece_id = ? AND status = 'active'").get(listing.masterpiece_id);
+    await (await db.prepare("UPDATE resale_listings SET sale_method = 'auction' WHERE id = ?")).run(resaleListingId);
+    const hasAuction = await (await db.prepare("SELECT id FROM auctions WHERE masterpiece_id = ? AND status = 'active'")).get(listing.masterpiece_id);
     if (!hasAuction) {
-      db.prepare(`
+      await (await db.prepare(`
         INSERT INTO auctions (masterpiece_id, start_price, current_bid, highest_bidder_id, end_time, status, vip_only)
         VALUES (?, ?, ?, NULL, datetime('now', '+7 days'), 'active', 0)
-      `).run(listing.masterpiece_id, listing.asking_price || piece?.valuation, listing.asking_price || piece?.valuation);
+      `)).run(listing.masterpiece_id, listing.asking_price || piece?.valuation, listing.asking_price || piece?.valuation);
     }
-    db.prepare("UPDATE masterpieces SET status = 'auction' WHERE id = ?").run(listing.masterpiece_id);
-    resaleAudit(resaleListingId, 'decision_private_auction', adminId);
+    await (await db.prepare("UPDATE masterpieces SET status = 'auction' WHERE id = ?")).run(listing.masterpiece_id);
+    await resaleAudit(resaleListingId, 'decision_private_auction', adminId);
   } else if (decision === 'private_offer') {
-    resaleAudit(resaleListingId, 'decision_private_offer', adminId);
+    await resaleAudit(resaleListingId, 'decision_private_offer', adminId);
   } else if (decision === 'maison_buyback') {
-    resaleAudit(resaleListingId, 'decision_maison_buyback', adminId);
+    await resaleAudit(resaleListingId, 'decision_maison_buyback', adminId);
   }
   broadcast({ type: 'RESALE_REVIEWED', masterpieceId: listing.masterpiece_id, decision });
   res.json({ success: true });
 });
 
-app.get("/api/resale/listing/:id/certified-details", (req, res) => {
+app.get("/api/resale/listing/:id/certified-details", async (req, res) => {
   const id = Number(req.params.id);
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(id) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(id) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
-  const ownership = db.prepare(`
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(listing.masterpiece_id) as any;
+  const ownership = await (await db.prepare(`
     SELECT oh.*, u.name as owner_name FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC
-  `).all(listing.masterpiece_id) as any[];
-  const serviceHistory = db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC").all(listing.masterpiece_id) as any[];
-  const provenance = db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date DESC").all(listing.masterpiece_id) as any[];
+  `)).all(listing.masterpiece_id) as any[];
+  const serviceHistory = await (await db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC")).all(listing.masterpiece_id) as any[];
+  const provenance = await (await db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date DESC")).all(listing.masterpiece_id) as any[];
   const valueDevelopment = ownership.map((o, i) => ({
     acquired_at: o.acquired_at,
     price: o.price,
@@ -6229,126 +6671,141 @@ app.get("/api/resale/listing/:id/certified-details", (req, res) => {
   });
 });
 
-const hasBuybackValuationCol = (() => { try { db.prepare("SELECT valuation_pct_below FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-app.post("/api/admin/resale/buyback-offer", (req, res) => {
+const hasBuybackValuationColPromise = (async () => { try { await (await db.prepare("SELECT valuation_pct_below FROM maison_buyback_offers LIMIT 1")).get(); return true; } catch { return false; } })();
+const hasClientResponseColPromise = (async () => { try { await (await db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1")).get(); return true; } catch { return false; } })();
+const hasMinInvestmentPctPromise = (async () => { try { await (await db.prepare("SELECT min_investment_pct FROM fractional_availability LIMIT 1")).get(); return true; } catch { return false; } })();
+app.post("/api/admin/resale/buyback-offer", async (req, res) => {
   const { resaleListingId, adminId, offeredAmount, valuation_pct_below } = req.body;
-  const admin = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any;
+  const admin = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(resaleListingId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(resaleListingId) as any;
   if (!listing) return res.status(404).json({ error: "Listing not found" });
-  const existing = db.prepare("SELECT id FROM maison_buyback_offers WHERE resale_listing_id = ? AND status = 'pending'").get(resaleListingId);
+  const existing = await (await db.prepare("SELECT id FROM maison_buyback_offers WHERE resale_listing_id = ? AND status = 'pending'")).get(resaleListingId);
   if (existing) return res.status(400).json({ error: "Pending buyback offer already exists" });
-  const piece = db.prepare("SELECT valuation FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as { valuation: number } | undefined;
+  const piece = await (await db.prepare("SELECT valuation FROM masterpieces WHERE id = ?")).get(listing.masterpiece_id) as { valuation: number } | undefined;
   const valuation = piece?.valuation ?? listing.asking_price;
   let amount = Number(offeredAmount);
   const pct = valuation_pct_below != null ? Number(valuation_pct_below) : null;
+  const hasBuybackValuationCol = await hasBuybackValuationColPromise;
   if (hasBuybackValuationCol && pct != null && !isNaN(pct) && pct >= 0 && pct <= 100) {
     amount = valuation * (1 - pct / 100);
   }
   if (hasBuybackValuationCol && (pct != null || valuation_pct_below !== undefined)) {
-    db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by, valuation_pct_below) VALUES (?, ?, ?, ?)").run(resaleListingId, amount, adminId, pct ?? null);
+    await (await db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by, valuation_pct_below) VALUES (?, ?, ?, ?)")).run(resaleListingId, amount, adminId, pct ?? null);
   } else {
-    db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by) VALUES (?, ?, ?)").run(resaleListingId, amount, adminId);
+    await (await db.prepare("INSERT INTO maison_buyback_offers (resale_listing_id, offered_amount, offered_by) VALUES (?, ?, ?)")).run(resaleListingId, amount, adminId);
   }
-  resaleAudit(resaleListingId, 'buyback_offer_sent', adminId, `Offered ${amount} EUR.`);
+  await resaleAudit(resaleListingId, 'buyback_offer_sent', adminId, `Offered ${amount} EUR.`);
   res.json({ success: true });
 });
 
-app.post("/api/resale/accept-buyback", (req, res) => {
+app.post("/api/resale/accept-buyback", async (req, res) => {
   const { offerId, userId } = req.body;
-  const offer = db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?").get(offerId) as any;
+  const offer = await (await db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?")).get(offerId) as any;
   if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(offer.resale_listing_id) as any;
   if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
-  const hasClientResponseCol = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-  if (hasClientResponseCol) db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?").run(userId, offerId);
-  else db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
-  db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(offer.offered_amount, listing.id);
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
-  db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?").run(listing.masterpiece_id);
-  db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', 0, NULL, listing.masterpiece_id, ?)").run(`buyback-${offer.id}`);
-  updateProvenance(listing.masterpiece_id, 'ownership_transfer', `Maison buyback accepted. Asset returned to Vault.`);
-  resaleAudit(listing.id, 'buyback_accepted', undefined, `Offer ${offerId} accepted; asset to vault.`);
+  const hasClientResponseCol = await hasClientResponseColPromise;
+  if (hasClientResponseCol) await (await db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?")).run(userId, offerId);
+  else await (await db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offerId);
+  await (await db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offer.offered_amount, listing.id);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(listing.masterpiece_id) as any;
+  await (await db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?")).run(listing.masterpiece_id);
+  await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', 0, NULL, listing.masterpiece_id, ?)")).run(`buyback-${offer.id}`);
+  await updateProvenance(listing.masterpiece_id, 'ownership_transfer', `Maison buyback accepted. Asset returned to Vault.`);
+  await resaleAudit(listing.id, 'buyback_accepted', undefined, `Offer ${offerId} accepted; asset to vault.`);
   broadcast({ type: 'RESALE_COMPLETED', masterpieceId: listing.masterpiece_id });
   res.json({ success: true });
 });
 
-app.post("/api/resale/decline-buyback", (req, res) => {
+app.post("/api/resale/decline-buyback", async (req, res) => {
   const { offerId, userId } = req.body;
-  const offer = db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?").get(offerId) as any;
+  const offer = await (await db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?")).get(offerId) as any;
   if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(offer.resale_listing_id) as any;
   if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
-  const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-  if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?").run(userId, offerId);
-  else db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
-  resaleAudit(listing.id, 'buyback_declined', undefined);
+  const hasCR = await hasClientResponseColPromise;
+  if (hasCR) await (await db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?")).run(userId, offerId);
+  else await (await db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offerId);
+  await resaleAudit(listing.id, 'buyback_declined', undefined);
   res.json({ success: true });
 });
 
-app.post("/api/resale/buyback-respond", (req, res) => {
+app.post("/api/resale/buyback-respond", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const { offerId, action } = req.body;
-  const offer = db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?").get(offerId) as any;
+  const offer = await (await db.prepare("SELECT * FROM maison_buyback_offers WHERE id = ?")).get(offerId) as any;
   if (!offer || offer.status !== 'pending') return res.status(404).json({ error: "Offer not found or already responded" });
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE id = ?").get(offer.resale_listing_id) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE id = ?")).get(offer.resale_listing_id) as any;
   if (!listing || listing.seller_id !== userId) return res.status(403).json({ error: "Not your listing" });
   if (action === 'accept') {
-    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?").run(userId, offerId);
-    else db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
-    db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(offer.offered_amount, listing.id);
-    const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(listing.masterpiece_id) as any;
-    db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?").run(listing.masterpiece_id);
-    db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', 0, NULL, listing.masterpiece_id, ?)").run(`buyback-${offer.id}`);
-    updateProvenance(listing.masterpiece_id, 'ownership_transfer', `Maison buyback accepted. Asset returned to Vault.`);
-    resaleAudit(listing.id, 'buyback_accepted', undefined, `Offer ${offerId} accepted; asset to vault.`);
+    const hasCR = await hasClientResponseColPromise;
+    if (hasCR) await (await db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, client_response = 'accepted', responded_by = ? WHERE id = ?")).run(userId, offerId);
+    else await (await db.prepare("UPDATE maison_buyback_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offerId);
+    await (await db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = 0, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offer.offered_amount, listing.id);
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(listing.masterpiece_id) as any;
+    await (await db.prepare("UPDATE masterpieces SET current_owner_id = NULL, status = 'available', transfer_type = 'platform', warranty_void = 0 WHERE id = ?")).run(listing.masterpiece_id);
+    await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', 0, NULL, listing.masterpiece_id, ?)")).run(`buyback-${offer.id}`);
+    await updateProvenance(listing.masterpiece_id, 'ownership_transfer', `Maison buyback accepted. Asset returned to Vault.`);
+    await resaleAudit(listing.id, 'buyback_accepted', undefined, `Offer ${offerId} accepted; asset to vault.`);
     broadcast({ type: 'RESALE_COMPLETED', masterpieceId: listing.masterpiece_id });
     return res.json({ success: true });
   }
   if (action === 'reject') {
-    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?").run(userId, offerId);
-    else db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(offerId);
-    resaleAudit(listing.id, 'buyback_declined', undefined);
+    const hasCR = await hasClientResponseColPromise;
+    if (hasCR) await (await db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP, client_response = 'rejected', responded_by = ? WHERE id = ?")).run(userId, offerId);
+    else await (await db.prepare("UPDATE maison_buyback_offers SET status = 'declined', responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(offerId);
+    await resaleAudit(listing.id, 'buyback_declined', undefined);
     return res.json({ success: true });
   }
   if (action === 'negotiate') {
-    const hasCR = (() => { try { db.prepare("SELECT client_response FROM maison_buyback_offers LIMIT 1").get(); return true; } catch { return false; } })();
-    if (hasCR) db.prepare("UPDATE maison_buyback_offers SET client_response = 'request_negotiation', responded_by = ? WHERE id = ?").run(userId, offerId);
-    resaleAudit(listing.id, 'buyback_request_negotiation', undefined);
+    const hasCR = await hasClientResponseColPromise;
+    if (hasCR) await (await db.prepare("UPDATE maison_buyback_offers SET client_response = 'request_negotiation', responded_by = ? WHERE id = ?")).run(userId, offerId);
+    await resaleAudit(listing.id, 'buyback_request_negotiation', undefined);
     return res.json({ success: true, message: "Negotiation requested. The Maison will contact you." });
   }
   return res.status(400).json({ error: "Invalid action. Use accept, reject, or negotiate." });
 });
 
-app.get("/api/resale/buyback-offers", (req, res) => {
+app.get("/api/resale/buyback-offers", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT o.*, rl.masterpiece_id, rl.asking_price, m.title as masterpiece_title
     FROM maison_buyback_offers o
     JOIN resale_listings rl ON rl.id = o.resale_listing_id
     JOIN masterpieces m ON m.id = rl.masterpiece_id
     WHERE rl.seller_id = ? ORDER BY o.offered_at DESC
-  `).all(userId);
+  `)).all(userId);
   res.json(rows);
 });
 
 // --- Imperial Core: Drops (closed drop engine) ---
-app.get("/api/drops", (req, res) => {
+/** True if drop is VIP-only (visible only to vip / legacy_collector). */
+function isVipOnlyDrop(d: { vip_early_access?: number; tier_access?: string }): boolean {
+  if (d.vip_early_access) return true;
+  let tiers: string[] = [];
+  try { tiers = d.tier_access ? JSON.parse(d.tier_access) : []; } catch { tiers = []; }
+  return tiers.some((t: string) => t === "vip" || t === "legacy_collector");
+}
+
+app.get("/api/drops", async (req, res) => {
   const userId = getSessionUserId(req);
-  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
-  const tier = user ? getPrestigeTier(user) : 'client';
+  const user = userId && userId !== GUEST_USER_ID
+    ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any)
+    : (userId === GUEST_USER_ID ? getGuestUserPayload() : null);
+  const tier = user && !(user as any).is_guest ? getPrestigeTier(user) : "client";
   const isVip = user ? isVipActive(user) : false;
+  const canSeeVipDrops = canAccessVipContent(user && !(user as any).is_guest ? user : null);
   const now = new Date();
   const nowMs = now.getTime();
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT * FROM drops WHERE end_at > ? ORDER BY release_at ASC
-  `).all(now.toISOString()) as any[];
+  `)).all(now.toISOString()) as any[];
   const allowed = rows.filter(d => {
-    if (d.status === 'ended') return false;
+    if (d.status === "ended") return false;
+    if (isVipOnlyDrop(d) && !canSeeVipDrops) return false;
     const releaseMs = new Date(d.release_at).getTime();
     const vipReleaseMs = (d.vip_early_access ? releaseMs - 48 * 60 * 60 * 1000 : releaseMs);
     const visibleAt = (isVip && d.vip_early_access) ? vipReleaseMs : releaseMs;
@@ -6361,27 +6818,39 @@ app.get("/api/drops", (req, res) => {
   res.json(allowed);
 });
 
-app.get("/api/drops/:id", (req, res) => {
-  const row = db.prepare("SELECT * FROM drops WHERE id = ?").get(req.params.id);
+app.get("/api/drops/:id", async (req, res) => {
+  const row = await (await db.prepare("SELECT * FROM drops WHERE id = ?")).get(req.params.id) as any;
   if (!row) return res.status(404).json({ error: "Drop not found" });
+  const userId = getSessionUserId(req);
+  const user = userId && userId !== GUEST_USER_ID
+    ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any)
+    : null;
+  if (isVipOnlyDrop(row) && !canAccessVipContent(user)) return res.status(403).json({ error: "Forbidden", reason: "VIP drops are only visible to VIP and Legacy Collector roles." });
   res.json(row);
 });
 
-app.get("/api/drops/:id/pieces", (req, res) => {
-  const pieces = db.prepare(`
+app.get("/api/drops/:id/pieces", async (req, res) => {
+  const drop = await (await db.prepare("SELECT * FROM drops WHERE id = ?")).get(req.params.id) as any;
+  if (!drop) return res.status(404).json({ error: "Drop not found" });
+  const userId = getSessionUserId(req);
+  const user = userId && userId !== GUEST_USER_ID
+    ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any)
+    : null;
+  if (isVipOnlyDrop(drop) && !canAccessVipContent(user)) return res.status(403).json({ error: "Forbidden", reason: "VIP drops are only visible to VIP and Legacy Collector roles." });
+  const pieces = await (await db.prepare(`
     SELECT m.* FROM drop_pieces dp JOIN masterpieces m ON m.id = dp.masterpiece_id WHERE dp.drop_id = ?
-  `).all(req.params.id);
+  `)).all(req.params.id);
   res.json(pieces);
 });
 
-app.get("/api/admin/drops", (req, res) => {
-  const rows = db.prepare("SELECT * FROM drops ORDER BY release_at DESC").all();
+app.get("/api/admin/drops", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM drops ORDER BY release_at DESC")).all();
   res.json(rows);
 });
 
-app.post("/api/admin/upload/image", (req, res) => {
+app.post("/api/admin/upload/image", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { data: dataUrl } = req.body || {};
   if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return res.status(400).json({ error: "Invalid image data" });
@@ -6399,43 +6868,43 @@ app.post("/api/admin/upload/image", (req, res) => {
   res.json({ url: `/uploads/drops/${name}` });
 });
 
-app.post("/api/admin/drops", (req, res) => {
+app.post("/api/admin/drops", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { title, description, image_url, release_at, end_at, tier_access, vip_early_access } = req.body;
   const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : '[]';
   const status = new Date(end_at) < new Date() ? 'ended' : (new Date(release_at) > new Date() ? 'upcoming' : 'live');
   const vipEarly = vip_early_access ? 1 : 0;
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, vip_early_access, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status, vipEarly);
+  `)).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status, vipEarly);
   res.json({ id: r.lastInsertRowid, success: true });
 });
 
-app.put("/api/admin/drops/:id", (req, res) => {
+app.put("/api/admin/drops/:id", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { title, description, image_url, release_at, end_at, tier_access, status, vip_early_access } = req.body;
-  const row = db.prepare("SELECT * FROM drops WHERE id = ?").get(req.params.id);
+  const row = await (await db.prepare("SELECT * FROM drops WHERE id = ?")).get(req.params.id);
   if (!row) return res.status(404).json({ error: "Not found" });
   const tierAccess = tier_access != null ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : (row as any).tier_access;
-  db.prepare(`
+  await (await db.prepare(`
     UPDATE drops SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
     release_at = COALESCE(?, release_at), end_at = COALESCE(?, end_at), tier_access = COALESCE(?, tier_access), status = COALESCE(?, status), vip_early_access = COALESCE(?, vip_early_access), updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `).run(title, description, image_url, release_at, end_at, tierAccess, status, vip_early_access != null ? (vip_early_access ? 1 : 0) : null, req.params.id);
+  `)).run(title, description, image_url, release_at, end_at, tierAccess, status, vip_early_access != null ? (vip_early_access ? 1 : 0) : null, req.params.id);
   res.json({ success: true });
 });
 
-app.post("/api/admin/drops/:id/pieces", (req, res) => {
+app.post("/api/admin/drops/:id/pieces", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { masterpiece_id } = req.body;
   try {
-    db.prepare("INSERT INTO drop_pieces (drop_id, masterpiece_id) VALUES (?, ?)").run(req.params.id, masterpiece_id);
+    await (await db.prepare("INSERT INTO drop_pieces (drop_id, masterpiece_id) VALUES (?, ?)")).run(req.params.id, masterpiece_id);
     res.json({ success: true });
   } catch (e: any) {
     if (e.message?.includes("UNIQUE")) return res.status(400).json({ error: "Piece already in drop" });
@@ -6444,88 +6913,88 @@ app.post("/api/admin/drops/:id/pieces", (req, res) => {
 });
 
 // --- Imperial Core: Private Viewing ---
-app.post("/api/admin/private-viewing", (req, res) => {
+app.post("/api/admin/private-viewing", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { masterpiece_id, expires_at, user_ids } = req.body;
   const expires = expires_at || new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-  db.prepare("UPDATE masterpieces SET status = 'private_viewing', private_viewing_expires_at = ? WHERE id = ?").run(expires, masterpiece_id);
-  const r = db.prepare("INSERT INTO private_viewing_slots (masterpiece_id, expires_at, created_by, status) VALUES (?, ?, ?, 'active')").run(masterpiece_id, expires, adminId);
+  await (await db.prepare("UPDATE masterpieces SET status = 'private_viewing', private_viewing_expires_at = ? WHERE id = ?")).run(expires, masterpiece_id);
+  const r = await (await db.prepare("INSERT INTO private_viewing_slots (masterpiece_id, expires_at, created_by, status) VALUES (?, ?, ?, 'active')")).run(masterpiece_id, expires, adminId);
   const slotId = r.lastInsertRowid;
   for (const uid of user_ids || []) {
-    try { db.prepare("INSERT INTO private_viewing_allowlist (slot_id, user_id) VALUES (?, ?)").run(slotId, uid); } catch (_) {}
+    try { await (await db.prepare("INSERT INTO private_viewing_allowlist (slot_id, user_id) VALUES (?, ?)")).run(slotId, uid); } catch (_) {}
   }
   res.json({ id: slotId, success: true });
 });
 
-app.get("/api/private-viewing/allowed", (req, res) => {
+app.get("/api/private-viewing/allowed", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const now = new Date().toISOString();
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT pv.*, m.title, m.serial_id, m.image_url, m.valuation
     FROM private_viewing_slots pv
     JOIN masterpieces m ON m.id = pv.masterpiece_id
     JOIN private_viewing_allowlist a ON a.slot_id = pv.id
     WHERE a.user_id = ? AND pv.expires_at > ? AND pv.status = 'active'
-  `).all(userId, now);
+  `)).all(userId, now);
   res.json(rows);
 });
 
 // --- Imperial Core: Private Terms (secure negotiation - hide price) ---
-app.post("/api/private-terms/request", (req, res) => {
+app.post("/api/private-terms/request", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const { masterpiece_id } = req.body;
-  const existing = db.prepare("SELECT id FROM private_terms_requests WHERE user_id = ? AND masterpiece_id = ? AND status = 'pending'").get(userId, masterpiece_id);
+  const existing = await (await db.prepare("SELECT id FROM private_terms_requests WHERE user_id = ? AND masterpiece_id = ? AND status = 'pending'")).get(userId, masterpiece_id);
   if (existing) return res.status(400).json({ error: "Request already submitted" });
-  db.prepare("INSERT INTO private_terms_requests (user_id, masterpiece_id, status) VALUES (?, ?, 'pending')").run(userId, masterpiece_id);
+  await (await db.prepare("INSERT INTO private_terms_requests (user_id, masterpiece_id, status) VALUES (?, ?, 'pending')")).run(userId, masterpiece_id);
   res.json({ success: true });
 });
 
-app.get("/api/admin/private-terms-requests", (req, res) => {
+app.get("/api/admin/private-terms-requests", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT r.*, u.name as user_name, u.email as user_email, m.title as masterpiece_title, m.serial_id
     FROM private_terms_requests r
     JOIN users u ON u.id = r.user_id
     JOIN masterpieces m ON m.id = r.masterpiece_id
     ORDER BY r.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.patch("/api/admin/private-terms-requests/:id", (req, res) => {
+app.patch("/api/admin/private-terms-requests/:id", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { status, admin_notes } = req.body;
-  db.prepare("UPDATE private_terms_requests SET status = ?, admin_notes = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(status || 'responded', admin_notes || null, req.params.id);
+  await (await db.prepare("UPDATE private_terms_requests SET status = ?, admin_notes = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status || 'responded', admin_notes || null, req.params.id);
   res.json({ success: true });
 });
 
 // --- Imperial Intelligence & Control Layer ---
 // 1. AI Client Profiling (admin only)
-app.get("/api/admin/intelligence/client-profiles", (req, res) => {
+app.get("/api/admin/intelligence/client-profiles", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const users = db.prepare("SELECT id, name, email, role, prestige_tier, created_at FROM users WHERE role IN ('client','vip','royal','black','investor','reseller') AND status = 'approved'").all() as any[];
-  const profiles = users.map(u => {
-    const totalSpend = (db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(u.id) as { s: number })?.s ?? 0;
-    const payCount = (db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(u.id) as { c: number })?.c ?? 0;
+  const users = await (await db.prepare("SELECT id, name, email, role, prestige_tier, created_at FROM users WHERE role IN ('client','vip','royal','black','investor','reseller') AND status = 'approved'")).all() as any[];
+  const profiles = await Promise.all(users.map(async (u) => {
+    const totalSpend = (await (await db.prepare("SELECT COALESCE(SUM(amount),0) as s FROM payments WHERE user_id = ? AND status IN ('paid','completed')")).get(u.id) as { s: number })?.s ?? 0;
+    const payCount = (await (await db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid','completed')")).get(u.id) as { c: number })?.c ?? 0;
     const purchaseFrequency = payCount > 0 ? payCount / (Math.max(1, (Date.now() - new Date(u.created_at).getTime()) / (365 * 24 * 60 * 60 * 1000))) : 0;
-    const resaleCount = (db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?").get(u.id) as { c: number })?.c ?? 0;
-    const fracShares = (db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?").get(u.id) as { c: number })?.c ?? 0;
-    const invRequests = (db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'").get(u.id) as { c: number })?.c ?? 0;
-    const vaultContracts = (db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
-    const viewCount = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
-    const favCount = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?").get(u.id) as { c: number })?.c ?? 0;
+    const resaleCount = (await (await db.prepare("SELECT COUNT(*) as c FROM resale_listings WHERE seller_id = ?")).get(u.id) as { c: number })?.c ?? 0;
+    const fracShares = (await (await db.prepare("SELECT COUNT(*) as c FROM fractional_shares WHERE owner_id = ?")).get(u.id) as { c: number })?.c ?? 0;
+    const invRequests = (await (await db.prepare("SELECT COUNT(*) as c FROM investor_requests WHERE user_id = ? AND status = 'approved'")).get(u.id) as { c: number })?.c ?? 0;
+    const vaultContracts = (await (await db.prepare("SELECT COUNT(*) as c FROM contracts WHERE user_id = ?")).get(u.id) as { c: number })?.c ?? 0;
+    const viewCount = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?")).get(u.id) as { c: number })?.c ?? 0;
+    const favCount = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE user_id = ?")).get(u.id) as { c: number })?.c ?? 0;
     const vaultEngagement = vaultContracts + viewCount + favCount;
-    const categoryPref = (db.prepare("SELECT m.category FROM payments p JOIN masterpieces m ON m.id = p.masterpiece_id WHERE p.user_id = ? AND p.status IN ('paid','completed')").all(u.id) as { category: string }[]).reduce((acc: Record<string, number>, r) => { acc[r.category || 'Other'] = (acc[r.category || 'Other'] || 0) + 1; return acc; }, {});
+    const categoryPref = (await (await db.prepare("SELECT m.category FROM payments p JOIN masterpieces m ON m.id = p.masterpiece_id WHERE p.user_id = ? AND p.status IN ('paid','completed')")).all(u.id) as { category: string }[]).reduce((acc: Record<string, number>, r) => { acc[r.category || 'Other'] = (acc[r.category || 'Other'] || 0) + 1; return acc; }, {});
     const topCategory = Object.entries(categoryPref).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
     const uhnwScore = Math.min(100, Math.round((totalSpend / 50000) * 25 + Math.min(purchaseFrequency * 20, 25) + (resaleCount + fracShares + invRequests) * 5 + Math.min(vaultEngagement / 20, 25)));
     const upsellRecommendation = uhnwScore >= 40 && (payCount >= 1 || resaleCount >= 1);
@@ -6546,25 +7015,25 @@ app.get("/api/admin/intelligence/client-profiles", (req, res) => {
       upsell_recommendation: upsellRecommendation,
       invite_recommendation: inviteRecommendation,
     };
-  });
+  }));
   res.json(profiles);
 });
 
 // 2. Advisor Performance Analytics (admin only; sortable in UI, CSV export)
-app.get("/api/admin/intelligence/advisor-analytics", (req, res) => {
+app.get("/api/admin/intelligence/advisor-analytics", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const advisors = db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email, p.default_commission_pct FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'").all() as any[];
-  const rows = advisors.map(a => {
-    const commissions = db.prepare("SELECT status, SUM(commission_amount) as total, COUNT(*) as cnt FROM advisor_commissions WHERE advisor_id = ? GROUP BY status").all(a.profile_id) as { status: string; total: number; cnt: number }[];
+  const advisors = await (await db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email, p.default_commission_pct FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'")).all() as any[];
+  const rows = await Promise.all(advisors.map(async (a) => {
+    const commissions = await (await db.prepare("SELECT status, SUM(commission_amount) as total, COUNT(*) as cnt FROM advisor_commissions WHERE advisor_id = ? GROUP BY status")).all(a.profile_id) as { status: string; total: number; cnt: number }[];
     const paid = commissions.find(r => r.status === 'paid_out')?.total ?? 0;
     const pending = commissions.find(r => r.status === 'pending' || r.status === 'confirmed')?.total ?? 0;
     const totalRevenue = paid + pending;
-    const referralsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
-    const dealsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const referralsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?")).get(a.profile_id) as { c: number })?.c ?? 0;
+    const dealsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?")).get(a.profile_id) as { c: number })?.c ?? 0;
     const conversionRate = referralsCount > 0 ? Math.round((dealsCount / referralsCount) * 10000) / 100 : 0;
-    const avgDeal = dealsCount > 0 ? (db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
+    const avgDeal = dealsCount > 0 ? (await (await db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?")).get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
     return {
       profile_id: a.profile_id,
       user_id: a.user_id,
@@ -6578,23 +7047,23 @@ app.get("/api/admin/intelligence/advisor-analytics", (req, res) => {
       deals_count: dealsCount,
       avg_deal_size: Math.round(avgDeal * 100) / 100,
     };
-  });
+  }));
   res.json(rows);
 });
 
-app.get("/api/admin/intelligence/advisor-analytics/export", (req, res) => {
+app.get("/api/admin/intelligence/advisor-analytics/export", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const advisors = db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'").all() as any[];
+  const advisors = await (await db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'")).all() as any[];
   const rows = advisors.map((a: any) => {
-    const commissions = db.prepare("SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status").all(a.profile_id) as { status: string; total: number }[];
+    const commissions = await (await db.prepare("SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status")).all(a.profile_id) as { status: string; total: number }[];
     const paid = commissions.find((r: any) => r.status === 'paid_out')?.total ?? 0;
     const pending = commissions.find((r: any) => r.status === 'pending' || r.status === 'confirmed')?.total ?? 0;
-    const referralsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
-    const dealsCount = (db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { c: number })?.c ?? 0;
+    const referralsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM advisor_referrals WHERE advisor_id = ?")).get(a.profile_id) as { c: number })?.c ?? 0;
+    const dealsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM advisor_commissions WHERE advisor_id = ?")).get(a.profile_id) as { c: number })?.c ?? 0;
     const conversionRate = referralsCount > 0 ? Math.round((dealsCount / referralsCount) * 10000) / 100 : 0;
-    const avgDeal = dealsCount > 0 ? (db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?").get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
+    const avgDeal = dealsCount > 0 ? (await (await db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?")).get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
     return { advisor_name: a.name, advisor_email: a.email, total_revenue: paid + pending, commission_paid: paid, commission_pending: pending, conversion_rate_pct: conversionRate, deals_count: dealsCount, avg_deal_size: Math.round(avgDeal * 100) / 100 };
   });
   const headers = ['advisor_name', 'advisor_email', 'total_revenue', 'commission_paid', 'commission_pending', 'conversion_rate_pct', 'deals_count', 'avg_deal_size'];
@@ -6606,17 +7075,17 @@ app.get("/api/admin/intelligence/advisor-analytics/export", (req, res) => {
 });
 
 // 3. Scarcity Heatmap (admin only)
-app.get("/api/admin/intelligence/scarcity-heatmap", (req, res) => {
+app.get("/api/admin/intelligence/scarcity-heatmap", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const pieces = db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces").all() as any[];
-  const maxViews = Math.max(1, (db.prepare("SELECT MAX(c) as m FROM (SELECT masterpiece_id, COUNT(*) as c FROM asset_views GROUP BY masterpiece_id)").get() as { m: number })?.m ?? 1);
+  const pieces = await (await db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces")).all() as any[];
+  const maxViews = Math.max(1, (await (await db.prepare("SELECT MAX(c) as m FROM (SELECT masterpiece_id, COUNT(*) as c FROM asset_views GROUP BY masterpiece_id)")).get() as { m: number })?.m ?? 1);
   const heatmap = pieces.map(p => {
-    const views = (db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
-    const wishlist = (db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
-    const duration = (db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as s FROM asset_views WHERE masterpiece_id = ?").get(p.id) as { s: number })?.s ?? 0;
-    const inDrops = (db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?").get(p.id) as { c: number })?.c ?? 0;
+    const views = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
+    const wishlist = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
+    const duration = (await (await db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as s FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { s: number })?.s ?? 0;
+    const inDrops = (await (await db.prepare("SELECT COUNT(*) as c FROM drop_pieces WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
     const demandScore = Math.min(100, Math.round((views / maxViews) * 40 + wishlist * 10 + Math.min(duration / 60, 30)));
     const scarcityIntensity = p.status === 'sold' || p.status === 'archived_private_collection' ? 100 : Math.min(100, views + wishlist * 2);
     const interestLevel = views > 10 || wishlist > 2 ? 'high' : views > 2 || wishlist > 0 ? 'medium' : 'low';
@@ -6639,87 +7108,87 @@ app.get("/api/admin/intelligence/scarcity-heatmap", (req, res) => {
 });
 
 // Legacy Mode: client submits beneficiary / succession; admin approves
-app.post("/api/legacy/beneficiary", (req, res) => {
+app.post("/api/legacy/beneficiary", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const { beneficiary_name, beneficiary_email, transfer_protocol, succession_notes } = req.body || {};
-  db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_email, transfer_protocol, succession_notes, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(
+  await (await db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_email, transfer_protocol, succession_notes, status) VALUES (?, ?, ?, ?, ?, 'pending')")).run(
     userId, beneficiary_name || null, beneficiary_email || null, transfer_protocol || null, succession_notes || null
   );
   res.json({ success: true });
 });
 
-app.get("/api/legacy/beneficiary", (req, res) => {
+app.get("/api/legacy/beneficiary", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const row = db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC LIMIT 1").get(userId);
+  const row = await (await db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ? ORDER BY created_at DESC LIMIT 1")).get(userId);
   res.json(row || null);
 });
 
-app.get("/api/admin/legacy-requests", (req, res) => {
+app.get("/api/admin/legacy-requests", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT lb.*, u.name as user_name, u.email as user_email FROM legacy_beneficiaries lb JOIN users u ON u.id = lb.user_id ORDER BY lb.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.post("/api/admin/legacy-requests/:id/approve", (req, res) => {
+app.post("/api/admin/legacy-requests/:id/approve", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  db.prepare("UPDATE legacy_beneficiaries SET status = 'approved', approved_at = CURRENT_TIMESTAMP, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(adminId, req.params.id);
+  await (await db.prepare("UPDATE legacy_beneficiaries SET status = 'approved', approved_at = CURRENT_TIMESTAMP, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(adminId, req.params.id);
   res.json({ success: true });
 });
 
-app.post("/api/admin/approve-resale", (req, res) => {
+app.post("/api/admin/approve-resale", async (req, res) => {
   const { masterpieceId, approve } = req.body;
   if (approve) {
-    db.prepare("UPDATE masterpieces SET status = 'available', current_owner_id = NULL WHERE id = ?").run(masterpieceId);
+    await (await db.prepare("UPDATE masterpieces SET status = 'available', current_owner_id = NULL WHERE id = ?")).run(masterpieceId);
   } else {
-    db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?").run(masterpieceId);
+    await (await db.prepare("UPDATE masterpieces SET status = 'sold' WHERE id = ?")).run(masterpieceId);
   }
   broadcast({ type: 'RESALE_REVIEWED', masterpieceId, approved: approve });
   res.json({ success: true });
 });
 
 // Controlled Resale Ecosystem: mark asset as externally transferred (no legal prohibition; registry and benefits updated)
-app.post("/api/masterpieces/:id/mark-external", (req, res) => {
+app.post("/api/masterpieces/:id/mark-external", async (req, res) => {
   const masterpieceId = Number(req.params.id);
   const { userId, adminId } = req.body;
-  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
-  const admin = adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any : null;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+  const admin = adminId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any : null;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   const isAdmin = admin && (admin.role === 'admin' || admin.role === 'super_admin');
   const isOwner = user && piece.current_owner_id === user.id;
   if (!isAdmin && !isOwner) return res.status(403).json({ error: "Admin or current owner only" });
 
-  db.prepare("UPDATE masterpieces SET transfer_type = 'external', warranty_void = 1 WHERE id = ?").run(masterpieceId);
-  updateProvenance(masterpieceId, 'ownership_transfer', 'Asset marked as externally transferred. Registry updated; warranty and Prestige tracking discontinued.');
+  await (await db.prepare("UPDATE masterpieces SET transfer_type = 'external', warranty_void = 1 WHERE id = ?")).run(masterpieceId);
+  await updateProvenance(masterpieceId, 'ownership_transfer', 'Asset marked as externally transferred. Registry updated; warranty and Prestige tracking discontinued.');
   try {
-    logAudit(admin?.id ?? user?.id ?? 0, 'MARK_EXTERNAL_TRANSFER', String(masterpieceId), 'Transfer type set to external; warranty void.');
+    await logAudit(admin?.id ?? user?.id ?? 0, 'MARK_EXTERNAL_TRANSFER', String(masterpieceId), 'Transfer type set to external; warranty void.');
   } catch (_) {}
   res.json({ success: true });
 });
 
 // VIP Membership: current user's status and payment instructions (after signing agreement)
-app.get("/api/vip/membership-status", (req, res) => {
+app.get("/api/vip/membership-status", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const membership = db.prepare(`
+  const membership = await (await db.prepare(`
     SELECT vm.id, vm.status, vm.signed_at, vm.contract_id
     FROM vip_memberships vm
     WHERE vm.user_id = ?
     ORDER BY vm.created_at DESC
     LIMIT 1
-  `).get(userId) as { id: number; status: string; signed_at: string; contract_id: number } | undefined;
+  `)).get(userId) as { id: number; status: string; signed_at: string; contract_id: number } | undefined;
   if (!membership) return res.json({ membership: null, paymentInstructions: null });
   let paymentInstructions: { accountHolder: string; iban: string; bic: string; reference: string } | null = null;
   if (membership.status === 'WAITING_FOR_PAYMENT') {
-    const bankRow = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+    const bankRow = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get() as { value?: string } | undefined;
     const bank = bankRow?.value ? (() => { try { return JSON.parse(bankRow.value); } catch { return {}; } })() : {};
     paymentInstructions = {
       accountHolder: bank.account_holder || bank.accountHolder || 'Antonio Bellanova Atelier',
@@ -6732,9 +7201,9 @@ app.get("/api/vip/membership-status", (req, res) => {
 });
 
 // VIP Concierge
-app.post("/api/vip/concierge", (req, res) => {
+app.post("/api/vip/concierge", async (req, res) => {
   const { userId, message } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || !isVipActive(user)) return res.status(403).json({ error: "VIP access required" });
   
   // In a real app, this would send an email or notification to Antonio
@@ -6743,39 +7212,39 @@ app.post("/api/vip/concierge", (req, res) => {
 });
 
 // Admin: list VIP members (with start/expiry, cleaning credits)
-app.get("/api/admin/vip-members", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/vip-members", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT vm.id, vm.user_id, vm.contract_id, vm.status, vm.signed_at, vm.created_at,
            u.name as customer_name, u.email, u.address,
            u.vip_start_date, u.vip_expiry_date, u.cleaning_credits_remaining, u.last_cleaning_date
     FROM vip_memberships vm
     JOIN users u ON u.id = vm.user_id
     ORDER BY vm.created_at DESC
-  `).all() as any[];
+  `)).all() as any[];
   res.json(rows);
 });
 
 // Admin: confirm VIP payment -> set ACTIVE, activate VIP access, generate invoice
-app.post("/api/admin/vip-members/:id/confirm-payment", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/vip-members/:id/confirm-payment", requireAuth, requireAdmin, async (req, res) => {
   const membershipId = Number(req.params.id);
-  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  const membership = await (await db.prepare("SELECT * FROM vip_memberships WHERE id = ?")).get(membershipId) as any;
   if (!membership) return res.status(404).json({ error: "VIP membership not found" });
   if (membership.status !== 'WAITING_FOR_PAYMENT') return res.status(400).json({ error: "Membership is not waiting for payment" });
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(membership.user_id) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(membership.user_id) as any;
   if (!user) return res.status(400).json({ error: "User not found" });
 
   const startDate = new Date();
   const expiryDate = new Date(startDate);
   expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-  db.prepare("UPDATE vip_memberships SET status = 'ACTIVE' WHERE id = ?").run(membershipId);
-  db.prepare(`
+  await (await db.prepare("UPDATE vip_memberships SET status = 'ACTIVE' WHERE id = ?")).run(membershipId);
+  await (await db.prepare(`
     UPDATE users SET role = 'vip', is_vip = 1, vip_start_date = ?, vip_expiry_date = ?, vip_membership_id = ?, cleaning_credits_remaining = 1
     WHERE id = ?
-  `).run(startDate.toISOString(), expiryDate.toISOString(), membershipId, membership.user_id);
+  `)).run(startDate.toISOString(), expiryDate.toISOString(), membershipId, membership.user_id);
 
   const year = new Date().getFullYear();
   const invRef = `INV-VIP-${year}-${membershipId}`;
-  const bankRow = db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'").get() as { value?: string } | undefined;
+  const bankRow = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get() as { value?: string } | undefined;
   const bank = bankRow?.value ? (() => { try { return JSON.parse(bankRow.value); } catch { return {}; } })() : {};
   const vatId = bank.vat_id || bank.vatId || UST_IDNR;
   const companyName = 'Antonio Bellanova Atelier';
@@ -6823,10 +7292,10 @@ app.post("/api/admin/vip-members/:id/confirm-payment", requireAuth, requireAdmin
       </div>
     </div>
   `;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO vault_documents (document_type, contract_type, client_id, content, doc_ref, created_by)
     VALUES ('invoice', 'vip', ?, ?, ?, ?)
-  `).run(membership.user_id, invContent, invRef, (req as any).user?.id ?? null);
+  `)).run(membership.user_id, invContent, invRef, (req as any).user?.id ?? null);
 
   const vipCertRef = `VIP-CERT-${membershipId}`;
   const vipCertContent = `
@@ -6858,134 +7327,134 @@ app.post("/api/admin/vip-members/:id/confirm-payment", requireAuth, requireAdmin
       <div style="font-size: 9px; color: #71717a; text-align: center;">Antonio Bellanova Atelier · Ahorstraße 8, 50765 Köln</div>
     </div>
   `;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO vault_documents (document_type, contract_type, client_id, content, doc_ref, created_by)
     VALUES ('certificate', 'vip', ?, ?, ?, ?)
-  `).run(membership.user_id, vipCertContent, vipCertRef, (req as any).user?.id ?? null);
+  `)).run(membership.user_id, vipCertContent, vipCertRef, (req as any).user?.id ?? null);
 
   res.json({ success: true, membershipId, invoiceRef: invRef });
 });
 
 // Admin: deactivate VIP (set role to client, clear VIP dates)
-app.post("/api/admin/vip-members/:id/deactivate", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/vip-members/:id/deactivate", requireAuth, requireAdmin, async (req, res) => {
   const membershipId = Number(req.params.id);
-  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  const membership = await (await db.prepare("SELECT * FROM vip_memberships WHERE id = ?")).get(membershipId) as any;
   if (!membership) return res.status(404).json({ error: "VIP membership not found" });
-  db.prepare("UPDATE vip_memberships SET status = 'EXPIRED' WHERE id = ?").run(membershipId);
-  db.prepare(`
+  await (await db.prepare("UPDATE vip_memberships SET status = 'EXPIRED' WHERE id = ?")).run(membershipId);
+  await (await db.prepare(`
     UPDATE users SET role = 'client', is_vip = 0, vip_start_date = NULL, vip_expiry_date = NULL, vip_membership_id = NULL
     WHERE id = ?
-  `).run(membership.user_id);
+  `)).run(membership.user_id);
   res.json({ success: true });
 });
 
 // Admin: extend VIP by 1 year from current expiry
-app.post("/api/admin/vip-members/:id/extend", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/vip-members/:id/extend", requireAuth, requireAdmin, async (req, res) => {
   const membershipId = Number(req.params.id);
-  const membership = db.prepare("SELECT * FROM vip_memberships WHERE id = ?").get(membershipId) as any;
+  const membership = await (await db.prepare("SELECT * FROM vip_memberships WHERE id = ?")).get(membershipId) as any;
   if (!membership) return res.status(404).json({ error: "VIP membership not found" });
-  const user = db.prepare("SELECT vip_expiry_date FROM users WHERE id = ?").get(membership.user_id) as any;
+  const user = await (await db.prepare("SELECT vip_expiry_date FROM users WHERE id = ?")).get(membership.user_id) as any;
   const base = user?.vip_expiry_date ? new Date(user.vip_expiry_date) : new Date();
   if (base < new Date()) base.setTime(Date.now());
   base.setFullYear(base.getFullYear() + 1);
-  db.prepare("UPDATE users SET role = 'vip', is_vip = 1, vip_expiry_date = ? WHERE id = ?").run(base.toISOString(), membership.user_id);
+  await (await db.prepare("UPDATE users SET role = 'vip', is_vip = 1, vip_expiry_date = ? WHERE id = ?")).run(base.toISOString(), membership.user_id);
   res.json({ success: true, newExpiry: base.toISOString() });
 });
 
 // --- New Expansion Modules API ---
 
 // 1. Provenance Timeline
-app.get("/api/provenance/:masterpieceId", (req, res) => {
-  const timeline = db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date DESC").all(req.params.masterpieceId);
+app.get("/api/provenance/:masterpieceId", async (req, res) => {
+  const timeline = await (await db.prepare("SELECT * FROM provenance_timeline WHERE masterpiece_id = ? ORDER BY event_date DESC")).all(req.params.masterpieceId);
   res.json(timeline);
 });
 
 // 2. Private Resale Module (Extended) — negotiate, message, accept
-app.post("/api/resale/negotiate", (req, res) => {
+app.post("/api/resale/negotiate", async (req, res) => {
   const { masterpieceId, buyer_id, seller_id, offered_price } = req.body;
   const platform_fee = offered_price * 0.05; // 5% platform fee
   
-  const result = db.prepare(`
+  const result = await (await db.prepare(`
     INSERT INTO resale_negotiations (masterpiece_id, seller_id, buyer_id, offered_price, platform_fee)
     VALUES (?, ?, ?, ?, ?)
-  `).run(masterpieceId, seller_id, buyer_id, offered_price, platform_fee);
+  `)).run(masterpieceId, seller_id, buyer_id, offered_price, platform_fee);
   
-  db.prepare("UPDATE masterpieces SET status = 'negotiation' WHERE id = ?").run(masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET status = 'negotiation' WHERE id = ?")).run(masterpieceId);
   
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post("/api/resale/message", (req, res) => {
+app.post("/api/resale/message", async (req, res) => {
   const { negotiation_id, sender_id, message } = req.body;
-  db.prepare("INSERT INTO private_messages (negotiation_id, sender_id, message) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO private_messages (negotiation_id, sender_id, message) VALUES (?, ?, ?)")).run(
     negotiation_id, sender_id, message
   );
   res.json({ success: true });
 });
 
-app.get("/api/resale/negotiation/:id", (req, res) => {
-  const negotiation = db.prepare("SELECT * FROM resale_negotiations WHERE id = ?").get(req.params.id);
-  const messages = db.prepare("SELECT * FROM private_messages WHERE negotiation_id = ? ORDER BY created_at ASC").all(req.params.id);
+app.get("/api/resale/negotiation/:id", async (req, res) => {
+  const negotiation = await (await db.prepare("SELECT * FROM resale_negotiations WHERE id = ?")).get(req.params.id);
+  const messages = await (await db.prepare("SELECT * FROM private_messages WHERE negotiation_id = ? ORDER BY created_at ASC")).all(req.params.id);
   res.json({ negotiation, messages });
 });
 
-app.post("/api/resale/accept", (req, res) => {
+app.post("/api/resale/accept", async (req, res) => {
   const { negotiation_id, userId } = req.body;
-  const negotiation = db.prepare("SELECT * FROM resale_negotiations WHERE id = ?").get(negotiation_id);
+  const negotiation = await (await db.prepare("SELECT * FROM resale_negotiations WHERE id = ?")).get(negotiation_id);
   
   if (negotiation.seller_id !== userId) return res.status(403).json({ error: "Only seller can accept" });
   
-  db.prepare("UPDATE resale_negotiations SET status = 'accepted' WHERE id = ?").run(negotiation_id);
-  db.prepare("UPDATE masterpieces SET status = 'escrow_pending' WHERE id = ?").run(negotiation.masterpiece_id);
+  await (await db.prepare("UPDATE resale_negotiations SET status = 'accepted' WHERE id = ?")).run(negotiation_id);
+  await (await db.prepare("UPDATE masterpieces SET status = 'escrow_pending' WHERE id = ?")).run(negotiation.masterpiece_id);
   
   // Create Escrow Transaction
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
     VALUES (?, ?, ?, ?, 'HELD', datetime('now', '+2 days'))
-  `).run(negotiation.masterpiece_id, negotiation.buyer_id, negotiation.seller_id, negotiation.offered_price);
+  `)).run(negotiation.masterpiece_id, negotiation.buyer_id, negotiation.seller_id, negotiation.offered_price);
 
-  updateProvenance(negotiation.masterpiece_id, 'vip_event', `Resale offer of ${negotiation.offered_price} EUR accepted. Escrow initiated.`);
+  await updateProvenance(negotiation.masterpiece_id, 'vip_event', `Resale offer of ${negotiation.offered_price} EUR accepted. Escrow initiated.`);
   
   broadcast({ type: 'RESALE_ACCEPTED', negotiation_id, masterpieceId: negotiation.masterpiece_id });
   res.json({ success: true });
 });
 
-app.post("/api/resale/complete", (req, res) => {
+app.post("/api/resale/complete", async (req, res) => {
   const { masterpieceId, adminId } = req.body;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
-  const escrow = db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? AND status = 'HELD' ORDER BY created_at DESC LIMIT 1").get(masterpieceId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
+  const escrow = await (await db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? AND status = 'HELD' ORDER BY created_at DESC LIMIT 1")).get(masterpieceId) as any;
   if (!escrow) return res.status(404).json({ error: "Escrow not found" });
 
-  const buyer = db.prepare("SELECT * FROM users WHERE id = ?").get(escrow.buyer_id) as any;
+  const buyer = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(escrow.buyer_id) as any;
   const salePrice = escrow.amount;
 
-  const listing = db.prepare("SELECT * FROM resale_listings WHERE masterpiece_id = ? AND status IN ('signed','resale_pending','resale_review','curated_marketplace','private_auction','private_offer') ORDER BY signed_at DESC LIMIT 1").get(masterpieceId) as any;
+  const listing = await (await db.prepare("SELECT * FROM resale_listings WHERE masterpiece_id = ? AND status IN ('signed','resale_pending','resale_review','curated_marketplace','private_auction','private_offer') ORDER BY signed_at DESC LIMIT 1")).get(masterpieceId) as any;
   const commissionPct = listing ? listing.commission_pct : 8;
   const commissionAmount = salePrice * (commissionPct / 100);
   const sellerPayout = salePrice - commissionAmount;
 
-  db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE id = ?").run(escrow.id);
-  db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', valuation = ?, transfer_type = 'platform', warranty_void = 0 WHERE id = ?").run(
+  await (await db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE id = ?")).run(escrow.id);
+  await (await db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', valuation = ?, transfer_type = 'platform', warranty_void = 0 WHERE id = ?")).run(
     escrow.buyer_id, salePrice, piece.id
   );
 
   if (listing) {
-    db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+    await (await db.prepare("UPDATE resale_listings SET status = 'sold', final_sale_price = ?, commission_amount = ?, completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(
       salePrice, commissionAmount, listing.id
     );
-    resaleAudit(listing.id, 'resale_completed', adminId ?? null, `Sale ${salePrice} EUR; commission ${commissionAmount} EUR (${commissionPct}%).`);
+    await resaleAudit(listing.id, 'resale_completed', adminId ?? null, `Sale ${salePrice} EUR; commission ${commissionAmount} EUR (${commissionPct}%).`);
   }
-  db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', ?, NULL, ?, ?)").run(
+  await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES ('resale_fee', ?, NULL, ?, ?)")).run(
     commissionAmount, piece.id, listing ? `resale-${listing.id}` : `escrow-${escrow.id}`
   );
 
-  updateProvenance(piece.id, 'ownership_transfer', `Resale completed. New owner: ${buyer.name}. Sale price: ${salePrice.toLocaleString()} EUR. Maison commission: ${commissionAmount.toLocaleString()} EUR.`);
-  const certId = nextCertRef();
-  const regId = piece.registry_id || nextRegRef();
-  if (!piece.registry_id) db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?").run(regId, piece.id);
+  await updateProvenance(piece.id, 'ownership_transfer', `Resale completed. New owner: ${buyer.name}. Sale price: ${salePrice.toLocaleString()} EUR. Maison commission: ${commissionAmount.toLocaleString()} EUR.`);
+  const certId = await nextCertRef();
+  const regId = piece.registry_id || await nextRegRef();
+  if (!piece.registry_id) await (await db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?")).run(regId, piece.id);
   const certContent = `CERTIFICATE OF AUTHENTICITY & PRIVATE TRANSFER\n\nThis document confirms the private resale and ownership transfer of "${piece.title}".\n\nNew Owner: ${buyer.name}\nTransfer Price: ${salePrice.toLocaleString()} EUR\nRegistry ID: ${regId}\n\nProvenance has been updated in the Antonio Bellanova Vault.`;
   const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, buyer, piece, { docRef: certId, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${piece.id}`, certificateVerifyUrl: `${BASE_URL}/verify/${certId}` });
-  db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)")).run(
     piece.id, buyer.id, certId, certHtml, 'DIGITAL_SIG_AB', '0x' + Math.random().toString(16).slice(2)
   );
 
@@ -6994,108 +7463,108 @@ app.post("/api/resale/complete", (req, res) => {
 });
 
 // 3. Service Lifecycle Tracking (Extended)
-app.post("/api/admin/service/add", (req, res) => {
+app.post("/api/admin/service/add", async (req, res) => {
   const { masterpieceId, serviceType, description, cost, provider, attachments, adminId } = req.body;
-  db.prepare("INSERT INTO service_history (masterpiece_id, service_type, description, cost, provider, attachments) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO service_history (masterpiece_id, service_type, description, cost, provider, attachments) VALUES (?, ?, ?, ?, ?, ?)")).run(
     masterpieceId, serviceType, description, cost, provider, JSON.stringify(attachments || [])
   );
   
   // Service affects valuation (e.g., restoration adds value)
-  const piece = db.prepare("SELECT valuation FROM masterpieces WHERE id = ?").get(masterpieceId);
+  const piece = await (await db.prepare("SELECT valuation FROM masterpieces WHERE id = ?")).get(masterpieceId);
   const newValuation = piece.valuation + (cost * 0.5); // 50% of service cost added to valuation
-  db.prepare("UPDATE masterpieces SET valuation = ? WHERE id = ?").run(newValuation, masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET valuation = ? WHERE id = ?")).run(newValuation, masterpieceId);
 
-  updateProvenance(masterpieceId, 'service', `Service performed: ${serviceType}. ${description}`);
-  calculateRarityScore(masterpieceId);
-  logAudit(adminId, 'ADD_SERVICE', masterpieceId.toString(), `Added ${serviceType} service record. Valuation updated.`);
+  await updateProvenance(masterpieceId, 'service', `Service performed: ${serviceType}. ${description}`);
+  await calculateRarityScore(masterpieceId);
+  await logAudit(adminId, 'ADD_SERVICE', masterpieceId.toString(), `Added ${serviceType} service record. Valuation updated.`);
   
   res.json({ success: true });
 });
 
 // 4. Waitlist System (Extended) — position/priority by collector level; admin accept/decline/prioritize
-app.post("/api/waitlist/join", (req, res) => {
+app.post("/api/waitlist/join", async (req, res) => {
   const { userId, masterpieceId, requestType, preferredBudget, preferredMaterials } = req.body;
-  const user = db.prepare("SELECT collector_level FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT collector_level FROM users WHERE id = ?")).get(userId) as any;
   const collectorLevel = user?.collector_level || 'collector';
   const priorityLevel = getCollectorLevelPriority(collectorLevel);
-  const count = (db.prepare("SELECT COUNT(*) as c FROM waitlist WHERE masterpiece_id = ?").get(masterpieceId || 0) as any)?.c ?? 0;
+  const count = (await (await db.prepare("SELECT COUNT(*) as c FROM waitlist WHERE masterpiece_id = ?")).get(masterpieceId || 0) as any)?.c ?? 0;
   try {
-    db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position, collector_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position, collector_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")).run(
       masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1, collectorLevel
     );
   } catch (_) {
-    db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO waitlist (masterpiece_id, user_id, request_type, preferred_budget, preferred_materials, priority_level, position) VALUES (?, ?, ?, ?, ?, ?, ?)")).run(
       masterpieceId || null, userId, requestType || 'waitlist', preferredBudget, preferredMaterials, priorityLevel, count + 1
     );
   }
   res.json({ success: true });
 });
 
-app.get("/api/admin/waitlist", (req, res) => {
-  const list = db.prepare(`
+app.get("/api/admin/waitlist", async (req, res) => {
+  const list = await (await db.prepare(`
     SELECT w.*, u.name as user_name, u.email as user_email, u.collector_level, m.title as piece_title, m.serial_id
     FROM waitlist w 
     JOIN users u ON w.user_id = u.id 
     LEFT JOIN masterpieces m ON w.masterpiece_id = m.id
     WHERE COALESCE(w.status, 'waiting') = 'waiting'
     ORDER BY COALESCE(w.priority_level, 0) DESC, w.created_at ASC
-  `).all();
+  `)).all();
   res.json(list);
 });
 
-app.patch("/api/admin/waitlist/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/admin/waitlist/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { action, position } = req.body || {};
-  const row = db.prepare("SELECT * FROM waitlist WHERE id = ?").get(id) as any;
+  const row = await (await db.prepare("SELECT * FROM waitlist WHERE id = ?")).get(id) as any;
   if (!row) return res.status(404).json({ error: "Waitlist entry not found." });
   if (action === 'accept') {
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
-    db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)").run(row.masterpiece_id, row.user_id, expiresAt, 'client');
-    db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?").run('reserved_client', row.masterpiece_id);
-    db.prepare("UPDATE waitlist SET status = ? WHERE id = ?").run('converted', id);
+    await (await db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)")).run(row.masterpiece_id, row.user_id, expiresAt, 'client');
+    await (await db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?")).run('reserved_client', row.masterpiece_id);
+    await (await db.prepare("UPDATE waitlist SET status = ? WHERE id = ?")).run('converted', id);
     res.json({ success: true, reserved: true, expiresAt });
   } else if (action === 'decline') {
-    db.prepare("UPDATE waitlist SET status = ? WHERE id = ?").run('expired', id);
+    await (await db.prepare("UPDATE waitlist SET status = ? WHERE id = ?")).run('expired', id);
     res.json({ success: true });
   } else if (action === 'prioritize' && typeof position === 'number') {
-    db.prepare("UPDATE waitlist SET position = ? WHERE id = ?").run(position, id);
+    await (await db.prepare("UPDATE waitlist SET position = ? WHERE id = ?")).run(position, id);
     res.json({ success: true });
   } else return res.status(400).json({ error: "Use action: accept, decline, or prioritize with position." });
 });
 
 // 5. Soft Reserve System (VIP 48h default; block others while reserved)
-app.post("/api/admin/reserve", (req, res) => {
+app.post("/api/admin/reserve", async (req, res) => {
   const { masterpieceId, userId, durationHours, type, adminId } = req.body;
   const hours = durationHours != null ? Number(durationHours) : (type === 'vip' ? 48 : 24);
   const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
   
-  db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO reservations (masterpiece_id, user_id, expires_at, type) VALUES (?, ?, ?, ?)")).run(
     masterpieceId, userId, expiresAt, type
   );
   
   const status = type === 'vip' ? 'reserved_vip' : 'reserved_client';
-  db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?").run(status, masterpieceId);
+  await (await db.prepare("UPDATE masterpieces SET status = ? WHERE id = ?")).run(status, masterpieceId);
   
-  updateProvenance(masterpieceId, 'vip_event', `Piece reserved for ${type} (User ID: ${userId}) for ${hours}h.`);
-  logAudit(adminId, 'SOFT_RESERVE', masterpieceId.toString(), `Reserved piece for ${type} until ${expiresAt}`);
+  await updateProvenance(masterpieceId, 'vip_event', `Piece reserved for ${type} (User ID: ${userId}) for ${hours}h.`);
+  await logAudit(adminId, 'SOFT_RESERVE', masterpieceId.toString(), `Reserved piece for ${type} until ${expiresAt}`);
   
   res.json({ success: true, expiresAt });
 });
 
 // Private Gallery — only for VIP and above
-app.get("/api/private-gallery", (req, res) => {
+app.get("/api/private-gallery", async (req, res) => {
   const userId = req.query.userId ? Number(req.query.userId) : getSessionUserId(req);
-  const user = userId ? db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any : null;
+  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
   if (!canAccessPrivateGallery(user)) return res.json([]);
-  const pieces = db.prepare("SELECT * FROM masterpieces WHERE private_gallery = 1 AND (status = 'available' OR status = 'reserved_vip' OR status = 'reserved_client')").all();
+  const pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE private_gallery = 1 AND (status = 'available' OR status = 'reserved_vip' OR status = 'reserved_client')")).all();
   res.json(pieces);
 });
 
 // Private Offers — admin create; client list (only their offers)
-app.post("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/private-offers", requireAuth, requireAdmin, async (req, res) => {
   const { masterpieceId, clientId, message, expiresInDays } = req.body;
   const expiresAt = new Date(Date.now() + (expiresInDays || 14) * 24 * 60 * 60 * 1000).toISOString();
-  const r = db.prepare("INSERT INTO private_offers (masterpiece_id, client_id, offered_by, message, expires_at) VALUES (?, ?, ?, ?, ?)").run(
+  const r = await (await db.prepare("INSERT INTO private_offers (masterpiece_id, client_id, offered_by, message, expires_at) VALUES (?, ?, ?, ?, ?)")).run(
     masterpieceId, clientId, (req as any).user?.id, message || null, expiresAt
   );
   const offerId = Number(r.lastInsertRowid);
@@ -7103,30 +7572,30 @@ app.post("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
   res.json({ success: true, id: offerId });
 });
 
-app.get("/api/private-offers", (req, res) => {
+app.get("/api/private-offers", async (req, res) => {
   const userId = Number(req.query.userId) || getSessionUserId(req);
   if (!userId) return res.json([]);
   const now = new Date().toISOString();
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT po.*, m.title, m.serial_id, m.image_url, m.valuation
     FROM private_offers po JOIN masterpieces m ON m.id = po.masterpiece_id
     WHERE po.client_id = ? AND po.expires_at > ? AND po.status = 'pending'
-  `).all(userId, now);
+  `)).all(userId, now);
   res.json(rows);
 });
 
-app.get("/api/admin/private-offers", requireAuth, requireAdmin, (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/private-offers", requireAuth, requireAdmin, async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT po.*, m.title, m.serial_id, u.name as client_name
     FROM private_offers po JOIN masterpieces m ON m.id = po.masterpiece_id JOIN users u ON u.id = po.client_id
     ORDER BY po.created_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
 // Bellanova Registry — master list (Section 15: serial_number, vault_id, certificate_id, owner, creation_date, estimated_value)
-app.get("/api/registry", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/registry", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT m.id, m.serial_id as serial_number, m.id as vault_id, m.title, m.created_at as creation_date,
            (SELECT cert_id FROM certificates WHERE masterpiece_id = m.id ORDER BY id DESC LIMIT 1) as certificate_reference,
            u.name as owner_name, u.id as owner_id,
@@ -7134,36 +7603,36 @@ app.get("/api/registry", (req, res) => {
     FROM masterpieces m
     LEFT JOIN users u ON u.id = m.current_owner_id
     ORDER BY m.serial_id
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
 // Ownership history with certificate reference (for registry display)
-app.get("/api/masterpieces/:id/ownership-chain", (req, res) => {
-  const chain = db.prepare(`
+app.get("/api/masterpieces/:id/ownership-chain", async (req, res) => {
+  const chain = await (await db.prepare(`
     SELECT oh.*, u.name as owner_name, (SELECT cert_id FROM certificates WHERE masterpiece_id = oh.masterpiece_id AND owner_id = oh.owner_id LIMIT 1) as certificate_reference
     FROM ownership_history oh LEFT JOIN users u ON u.id = oh.owner_id WHERE oh.masterpiece_id = ? ORDER BY oh.acquired_at ASC
-  `).all(req.params.id);
+  `)).all(req.params.id);
   res.json(chain);
 });
 
 // Collector profile preferences
-app.get("/api/collector/preferences", (req, res) => {
+app.get("/api/collector/preferences", async (req, res) => {
   const userId = Number(req.query.userId) || getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
-  const row = db.prepare("SELECT user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus FROM collector_profiles WHERE user_id = ?").get(userId);
+  const row = await (await db.prepare("SELECT user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus FROM collector_profiles WHERE user_id = ?")).get(userId);
   res.json(row || { user_id: userId, favorite_gemstones: null, preferred_metals: null, design_style: null, budget_range: null, collection_type: null, collection_focus: null });
 });
-app.patch("/api/collector/preferences", (req, res) => {
+app.patch("/api/collector/preferences", async (req, res) => {
   const { userId, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus } = req.body;
-  const existing = db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?").get(userId);
+  const existing = await (await db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?")).get(userId);
   const cf = collection_focus ?? collection_type;
   if (existing) {
-    db.prepare("UPDATE collector_profiles SET favorite_gemstones = ?, preferred_metals = ?, design_style = ?, budget_range = ?, collection_type = ?, collection_focus = ? WHERE user_id = ?").run(
+    await (await db.prepare("UPDATE collector_profiles SET favorite_gemstones = ?, preferred_metals = ?, design_style = ?, budget_range = ?, collection_type = ?, collection_focus = ? WHERE user_id = ?")).run(
       favorite_gemstones ?? null, preferred_metals ?? null, design_style ?? null, budget_range ?? null, collection_type ?? null, cf ?? null, userId
     );
   } else {
-    db.prepare("INSERT INTO collector_profiles (user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO collector_profiles (user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus) VALUES (?, ?, ?, ?, ?, ?, ?)")).run(
       userId, favorite_gemstones ?? null, preferred_metals ?? null, design_style ?? null, budget_range ?? null, collection_type ?? null, cf ?? null
     );
   }
@@ -7171,13 +7640,13 @@ app.patch("/api/collector/preferences", (req, res) => {
 });
 
 // Section 12: Collector Prestige Score
-app.get("/api/collector/prestige-score", (req, res) => {
+app.get("/api/collector/prestige-score", async (req, res) => {
   const userId = Number(req.query.userId) || getSessionUserId(req);
   if (!userId) return res.json({ prestige_score: 0 });
-  const payments = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(userId) as any;
-  const pieces = db.prepare("SELECT COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?").get(userId) as any;
-  const user = db.prepare("SELECT collector_level FROM users WHERE id = ?").get(userId) as any;
-  const eventCount = db.prepare("SELECT COUNT(*) as c FROM event_rsvps WHERE user_id = ?").get(userId) as any;
+  const payments = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(userId) as any;
+  const pieces = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?")).get(userId) as any;
+  const user = await (await db.prepare("SELECT collector_level FROM users WHERE id = ?")).get(userId) as any;
+  const eventCount = await (await db.prepare("SELECT COUNT(*) as c FROM event_rsvps WHERE user_id = ?")).get(userId) as any;
   const levelBonus: Record<string, number> = { legacy_collector: 80, grand_collector: 60, private_collector: 40, vip: 25, collector: 10 };
   const bonus = levelBonus[(user?.collector_level) || 'collector'] ?? 10;
   const purchaseScore = Math.min((payments?.c ?? 0) * 15, 100);
@@ -7188,12 +7657,12 @@ app.get("/api/collector/prestige-score", (req, res) => {
 });
 
 // Section 17: Collector leaderboard — admin only (privacy: never visible to clients)
-app.get("/api/collector/leaderboard", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/collector/leaderboard", requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 100);
-  const clients = db.prepare("SELECT id, name, email, collector_level FROM users WHERE role != 'admin' AND role != 'super_admin'").all() as any[];
+  const clients = await (await db.prepare("SELECT id, name, email, collector_level FROM users WHERE role != 'admin' AND role != 'super_admin'")).all() as any[];
   const rows = clients.map((u: any) => {
-    const pieces = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?").get(u.id) as any;
-    const payments = db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(u.id) as any;
+    const pieces = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?")).get(u.id) as any;
+    const payments = await (await db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(u.id) as any;
     const levelBonus: Record<string, number> = { legacy_collector: 80, grand_collector: 60, private_collector: 40, vip: 25, collector: 10 };
     const prestige = Math.min((payments?.c ?? 0) * 15, 100) + Math.min(Math.floor((pieces?.total ?? 0) / 10000), 150) + (levelBonus[u.collector_level || 'collector'] ?? 10);
     return { user_id: u.id, name: u.name, collector_level: u.collector_level, collection_value: pieces?.total ?? 0, purchase_count: payments?.c ?? 0, prestige_score: prestige };
@@ -7203,123 +7672,123 @@ app.get("/api/collector/leaderboard", requireAuth, requireAdmin, (req, res) => {
 });
 
 // Asset insurance
-app.get("/api/masterpieces/:id/insurance", (req, res) => {
-  const rows = db.prepare("SELECT * FROM asset_insurance WHERE masterpiece_id = ? ORDER BY id DESC").all(req.params.id);
+app.get("/api/masterpieces/:id/insurance", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM asset_insurance WHERE masterpiece_id = ? ORDER BY id DESC")).all(req.params.id);
   res.json(rows);
 });
-app.post("/api/masterpieces/:id/insurance", (req, res) => {
+app.post("/api/masterpieces/:id/insurance", async (req, res) => {
   const { userId, adminId, insurance_provider, insured_value, policy_number, coverage_start, coverage_end } = req.body;
-  const admin = adminId ? db.prepare("SELECT role FROM users WHERE id = ?").get(adminId) as any : null;
+  const admin = adminId ? await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(adminId) as any : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  db.prepare("INSERT INTO asset_insurance (masterpiece_id, insurance_provider, insured_value, policy_number, coverage_start, coverage_end) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO asset_insurance (masterpiece_id, insurance_provider, insured_value, policy_number, coverage_start, coverage_end) VALUES (?, ?, ?, ?, ?, ?)")).run(
     req.params.id, insurance_provider, insured_value, policy_number, coverage_start, coverage_end
   );
   res.json({ success: true });
 });
 
 // Discreet mode — private portfolio visibility (only admin sees when enabled)
-app.patch("/api/me/private-portfolio", (req, res) => {
+app.patch("/api/me/private-portfolio", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const enabled = !!req.body?.enabled;
-  db.prepare("UPDATE users SET private_portfolio_visibility = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+  await (await db.prepare("UPDATE users SET private_portfolio_visibility = ? WHERE id = ?")).run(enabled ? 1 : 0, userId);
   res.json({ success: true, private_portfolio_visibility: enabled });
 });
 
 // Section 17: Collector directory — allow other collectors to view my collection
-app.patch("/api/me/collector-directory-visibility", (req, res) => {
+app.patch("/api/me/collector-directory-visibility", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const enabled = !!req.body?.enabled;
   try {
-    db.prepare("UPDATE users SET collector_directory_visible = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+    await (await db.prepare("UPDATE users SET collector_directory_visible = ? WHERE id = ?")).run(enabled ? 1 : 0, userId);
   } catch (_) {}
   res.json({ success: true, collector_directory_visible: enabled });
 });
 
 // Section 20: Discreet transaction mode (ultra-luxury)
-app.patch("/api/me/discreet-transaction", (req, res) => {
+app.patch("/api/me/discreet-transaction", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const enabled = !!req.body?.enabled;
-  db.prepare("UPDATE users SET discreet_transaction_mode = ? WHERE id = ?").run(enabled ? 1 : 0, userId);
+  await (await db.prepare("UPDATE users SET discreet_transaction_mode = ? WHERE id = ?")).run(enabled ? 1 : 0, userId);
   res.json({ success: true, discreet_transaction_mode: enabled });
 });
 
 // Private events (invited users see their events; admin sees all)
-app.get("/api/events", (req, res) => {
+app.get("/api/events", async (req, res) => {
   const userId = getSessionUserId(req);
-  const user = userId ? db.prepare("SELECT role FROM users WHERE id = ?").get(userId) as any : null;
+  const user = userId ? await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(userId) as any : null;
   const isAdmin = user && (user.role === 'admin' || user.role === 'super_admin');
-  const rows = db.prepare("SELECT * FROM private_events WHERE event_at > datetime('now') ORDER BY event_at ASC").all() as any[];
+  const rows = await (await db.prepare("SELECT * FROM private_events WHERE event_at > datetime('now') ORDER BY event_at ASC")).all() as any[];
   if (isAdmin) return res.json(rows);
   if (!userId) return res.json([]);
-  const invitedIds = new Set((db.prepare("SELECT event_id FROM event_invitees WHERE user_id = ?").all(userId) as { event_id: number }[]).map(i => i.event_id));
+  const invitedIds = new Set((await (await db.prepare("SELECT event_id FROM event_invitees WHERE user_id = ?")).all(userId) as { event_id: number }[]).map(i => i.event_id));
   res.json(rows.filter(e => invitedIds.has(e.id)));
 });
-app.post("/api/admin/events", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/events", requireAuth, requireAdmin, async (req, res) => {
   const { title, event_type, description, event_at, location } = req.body;
-  const r = db.prepare("INSERT INTO private_events (title, event_type, description, event_at, location, created_by) VALUES (?, ?, ?, ?, ?, ?)").run(
+  const r = await (await db.prepare("INSERT INTO private_events (title, event_type, description, event_at, location, created_by) VALUES (?, ?, ?, ?, ?, ?)")).run(
     title, event_type || 'private_showing', description, event_at, location, (req as any).user?.id
   );
   res.json({ id: r.lastInsertRowid, success: true });
 });
-app.post("/api/admin/events/:id/invite", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/events/:id/invite", requireAuth, requireAdmin, async (req, res) => {
   const { user_id } = req.body;
   try {
-    db.prepare("INSERT OR IGNORE INTO event_invitees (event_id, user_id) VALUES (?, ?)").run(req.params.id, user_id);
+    await (await db.prepare("INSERT OR IGNORE INTO event_invitees (event_id, user_id) VALUES (?, ?)")).run(req.params.id, user_id);
   } catch (_) {}
   res.json({ success: true });
 });
 
 // Legacy beneficiaries
-app.get("/api/legacy/beneficiaries", (req, res) => {
+app.get("/api/legacy/beneficiaries", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.json([]);
-  const rows = db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ?").all(userId);
+  const rows = await (await db.prepare("SELECT * FROM legacy_beneficiaries WHERE user_id = ?")).all(userId);
   res.json(rows);
 });
-app.post("/api/legacy/beneficiaries", (req, res) => {
+app.post("/api/legacy/beneficiaries", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Not signed in" });
   const { beneficiary_name, beneficiary_contact, transfer_conditions } = req.body;
-  db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_contact, transfer_conditions) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO legacy_beneficiaries (user_id, beneficiary_name, beneficiary_contact, transfer_conditions) VALUES (?, ?, ?, ?)")).run(
     userId, beneficiary_name, beneficiary_contact, transfer_conditions
   );
   res.json({ success: true });
 });
 
 // 6. Collector Profile
-app.get("/api/collector/:userId", (req, res) => {
-  const profile = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(req.params.userId);
-  const user = db.prepare("SELECT id, name, role, is_vip FROM users WHERE id = ?").get(req.params.userId);
-  const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(req.params.userId);
+app.get("/api/collector/:userId", async (req, res) => {
+  const profile = await (await db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?")).get(req.params.userId);
+  const user = await (await db.prepare("SELECT id, name, role, is_vip FROM users WHERE id = ?")).get(req.params.userId);
+  const pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?")).all(req.params.userId);
   
   res.json({ profile, user, pieces });
 });
 
-app.post("/api/collector/update", (req, res) => {
+app.post("/api/collector/update", async (req, res) => {
   const { userId, bio, visibility } = req.body;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO collector_profiles (user_id, bio, visibility) 
     VALUES (?, ?, ?) 
     ON CONFLICT(user_id) DO UPDATE SET bio = excluded.bio, visibility = excluded.visibility
-  `).run(userId, bio, visibility);
+  `)).run(userId, bio, visibility);
   res.json({ success: true });
 });
 
 // 7. Investor Analytics Dashboard
-app.get("/api/admin/analytics", (req, res) => {
-  const platformValuation = db.prepare("SELECT SUM(valuation) as total FROM masterpieces").get().total || 0;
-  const piecesSold = db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'").get().count;
+app.get("/api/admin/analytics", async (req, res) => {
+  const platformValuation = await (await db.prepare("SELECT SUM(valuation) as total FROM masterpieces")).get().total || 0;
+  const piecesSold = await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'")).get().count;
   
-  const rarityDistribution = db.prepare("SELECT rarity, COUNT(*) as count FROM masterpieces GROUP BY rarity").all().reduce((acc: any, curr: any) => {
+  const rarityDistribution = await (await db.prepare("SELECT rarity, COUNT(*) as count FROM masterpieces GROUP BY rarity")).all().reduce((acc: any, curr: any) => {
     acc[curr.rarity] = curr.count;
     return acc;
   }, {});
 
   const auctionPerformance = {
-    total_bids: db.prepare("SELECT COUNT(*) as count FROM bids").get().count,
+    total_bids: await (await db.prepare("SELECT COUNT(*) as count FROM bids")).get().count,
     avg_bid_increase: 15.5
   };
 
@@ -7340,7 +7809,7 @@ const CONCIERGE_REQUEST_TYPES = ['stone_sourcing', 'custom_design', 'repairs', '
 function canAccessConcierge(user: { collector_level?: string; role?: string } | null): boolean {
   return canAccessPrivateGallery(user);
 }
-app.get("/api/admin/concierge/requests", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/concierge/requests", requireAuth, requireAdmin, async (req, res) => {
   const requestType = (req.query.requestType as string)?.trim();
   let sql = `
     SELECT cr.id, cr.user_id, cr.masterpiece_id, cr.request_type, cr.message, cr.status, cr.priority, cr.created_at,
@@ -7357,78 +7826,78 @@ app.get("/api/admin/concierge/requests", requireAuth, requireAdmin, (req, res) =
     params.push(requestType);
   }
   sql += " ORDER BY CASE WHEN cr.priority = 'vip' THEN 0 ELSE 1 END, cr.created_at ASC";
-  const rows = db.prepare(sql).all(...params);
+  const rows = await (await db.prepare(sql)).all(...params);
   res.json(rows);
 });
 
-app.post("/api/concierge/request", (req, res) => {
+app.post("/api/concierge/request", async (req, res) => {
   const { userId, masterpieceId, requestType, message, priority } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   if (!canAccessConcierge(user)) return res.status(403).json({ error: "Concierge-Zugang nur für VIP und höhere Sammlerstufen." });
   const reqType = (requestType || '').toString().toLowerCase().replace(/\s/g, '_');
   const finalType = reqType === 'repair' ? 'repairs' : (reqType || 'consultation');
   if (!CONCIERGE_REQUEST_TYPES.includes(finalType)) return res.status(400).json({ error: "Ungültiger requestType. Erlaubt: stone_sourcing, custom_design, repairs, private_viewing, consultation, cleaning, restoration, resizing, valuation_update, secure_transport, insurance_assistance, private_showing." });
   if (finalType === 'cleaning') {
-    enforceVipExpiry(userId);
-    const u = db.prepare("SELECT cleaning_credits_remaining, last_cleaning_date, vip_start_date FROM users WHERE id = ?").get(userId) as any;
+    await enforceVipExpiry(userId);
+    const u = await (await db.prepare("SELECT cleaning_credits_remaining, last_cleaning_date, vip_start_date FROM users WHERE id = ?")).get(userId) as any;
     let credits = Number(u?.cleaning_credits_remaining ?? 0);
     const lastCleaning = u?.last_cleaning_date ? new Date(u.last_cleaning_date) : null;
     const now = new Date();
     const oneYearMs = 365 * 24 * 60 * 60 * 1000;
     if (credits < 1 && lastCleaning && (now.getTime() - lastCleaning.getTime() >= oneYearMs)) {
       credits = 1;
-      db.prepare("UPDATE users SET cleaning_credits_remaining = 1 WHERE id = ?").run(userId);
+      await (await db.prepare("UPDATE users SET cleaning_credits_remaining = 1 WHERE id = ?")).run(userId);
     }
     if (credits < 1) return res.status(400).json({ error: "No cleaning credits remaining. One complimentary cleaning per year." });
-    db.prepare("UPDATE users SET cleaning_credits_remaining = ?, last_cleaning_date = CURRENT_TIMESTAMP WHERE id = ?").run(credits - 1, userId);
+    await (await db.prepare("UPDATE users SET cleaning_credits_remaining = ?, last_cleaning_date = CURRENT_TIMESTAMP WHERE id = ?")).run(credits - 1, userId);
   }
-  const result = db.prepare("INSERT INTO concierge_requests (user_id, masterpiece_id, request_type, message, priority) VALUES (?, ?, ?, ?, ?)").run(
+  const result = await (await db.prepare("INSERT INTO concierge_requests (user_id, masterpiece_id, request_type, message, priority) VALUES (?, ?, ?, ?, ?)")).run(
     userId, masterpieceId || null, finalType, message, (priority === 'vip' || canAccessConcierge(user)) ? 'vip' : (priority || 'standard')
   );
   
   if (masterpieceId) {
-    updateProvenance(masterpieceId, 'service', `Concierge-Anfrage: ${finalType}. Status: requested.`);
+    await updateProvenance(masterpieceId, 'service', `Concierge-Anfrage: ${finalType}. Status: requested.`);
   }
   
   res.json({ id: result.lastInsertRowid });
 });
 
-app.post("/api/concierge/message", (req, res) => {
+app.post("/api/concierge/message", async (req, res) => {
   const { requestId, senderId, message } = req.body;
-  db.prepare("INSERT INTO concierge_messages (request_id, sender_id, message) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO concierge_messages (request_id, sender_id, message) VALUES (?, ?, ?)")).run(
     requestId, senderId, message
   );
   res.json({ success: true });
 });
 
-app.get("/api/concierge/request/:id", (req, res) => {
-  const request = db.prepare(`
+app.get("/api/concierge/request/:id", async (req, res) => {
+  const request = await (await db.prepare(`
     SELECT cr.*, u.name as user_name, m.title as piece_title 
     FROM concierge_requests cr 
     JOIN users u ON cr.user_id = u.id 
     LEFT JOIN masterpieces m ON cr.masterpiece_id = m.id
     WHERE cr.id = ?
-  `).get(req.params.id);
-  const messages = db.prepare("SELECT * FROM concierge_messages WHERE request_id = ? ORDER BY created_at ASC").all(req.params.id);
+  `)).get(req.params.id);
+  const messages = await (await db.prepare("SELECT * FROM concierge_messages WHERE request_id = ? ORDER BY created_at ASC")).all(req.params.id);
   res.json({ request, messages });
 });
 
-app.post("/api/admin/concierge/update", (req, res) => {
+app.post("/api/admin/concierge/update", async (req, res) => {
   const { requestId, status, assignedAdminId, adminId } = req.body;
-  db.prepare("UPDATE concierge_requests SET status = ?, assigned_admin_id = ? WHERE id = ?").run(
+  await (await db.prepare("UPDATE concierge_requests SET status = ?, assigned_admin_id = ? WHERE id = ?")).run(
     status, assignedAdminId, requestId
   );
   
-  const request = db.prepare("SELECT * FROM concierge_requests WHERE id = ?").get(requestId);
+  const request = await (await db.prepare("SELECT * FROM concierge_requests WHERE id = ?")).get(requestId);
   if (request.masterpiece_id) {
-    updateProvenance(request.masterpiece_id, 'service', `Concierge status updated to ${status}.`);
+    await updateProvenance(request.masterpiece_id, 'service', `Concierge status updated to ${status}.`);
     if (status === 'completed') {
-      calculateRarityScore(request.masterpiece_id);
+      await calculateRarityScore(request.masterpiece_id);
     }
   }
   
-  logAudit(adminId, 'CONCIERGE_UPDATE', requestId.toString(), `Updated concierge request to ${status}`);
+  await logAudit(adminId, 'CONCIERGE_UPDATE', requestId.toString(), `Updated concierge request to ${status}`);
   res.json({ success: true });
 });
 
@@ -7441,105 +7910,105 @@ function isAdminUser(user: { role?: string } | null): boolean {
   return !!(user && (user.role === 'admin' || user.role === 'super_admin'));
 }
 
-app.get("/api/private-clients/conversations", requireAuth, (req, res) => {
+app.get("/api/private-clients/conversations", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const admin = isAdminUser(user);
   if (admin) {
-    const rows = db.prepare(`
+    const rows = await (await db.prepare(`
       SELECT c.id, c.admin_id, c.client_id, c.project_id, c.created_at, c.updated_at,
              u.name as client_name, u.email as client_email
       FROM private_client_conversations c
       JOIN users u ON u.id = c.client_id
       ORDER BY c.updated_at DESC
-    `).all();
+    `)).all();
     return res.json(rows);
   }
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT c.id, c.admin_id, c.client_id, c.project_id, c.created_at, c.updated_at
     FROM private_client_conversations c
     WHERE c.client_id = ?
     ORDER BY c.updated_at DESC
-  `).all(userId);
+  `)).all(userId);
   res.json(rows);
 });
 
-app.post("/api/private-clients/conversations", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/private-clients/conversations", requireAuth, requireAdmin, async (req, res) => {
   const adminId = getSessionUserId(req)!;
   const { client_id, project_id } = req.body || {};
   const clientId = Number(client_id);
   if (!clientId) return res.status(400).json({ error: "client_id erforderlich." });
-  const existing = db.prepare("SELECT id FROM private_client_conversations WHERE admin_id = ? AND client_id = ?").get(adminId, clientId) as { id: number } | undefined;
+  const existing = await (await db.prepare("SELECT id FROM private_client_conversations WHERE admin_id = ? AND client_id = ?")).get(adminId, clientId) as { id: number } | undefined;
   if (existing) return res.json({ id: existing.id });
-  const r = db.prepare("INSERT INTO private_client_conversations (admin_id, client_id, project_id) VALUES (?, ?, ?)").run(adminId, clientId, project_id ? Number(project_id) : null);
+  const r = await (await db.prepare("INSERT INTO private_client_conversations (admin_id, client_id, project_id) VALUES (?, ?, ?)")).run(adminId, clientId, project_id ? Number(project_id) : null);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.get("/api/private-clients/conversations/:id", requireAuth, (req, res) => {
+app.get("/api/private-clients/conversations/:id", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const conv = await (await db.prepare("SELECT * FROM private_client_conversations WHERE id = ?")).get(Number(req.params.id)) as any;
   if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
-  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(conv.client_id) as any;
+  const client = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(conv.client_id) as any;
   res.json({ ...conv, client_name: client?.name, client_email: client?.email });
 });
 
-app.get("/api/private-clients/conversations/:id/messages", requireAuth, (req, res) => {
+app.get("/api/private-clients/conversations/:id/messages", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const conv = await (await db.prepare("SELECT * FROM private_client_conversations WHERE id = ?")).get(Number(req.params.id)) as any;
   if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT m.*, s.name as sender_name
     FROM private_client_messages m
     LEFT JOIN users s ON s.id = m.sender_id
     WHERE m.conversation_id = ?
     ORDER BY m.created_at ASC
-  `).all(conv.id) as any[];
+  `)).all(conv.id) as any[];
   const withProduct = rows.map((m: any) => {
     if (m.product_share_masterpiece_id) {
-      m.product_share = db.prepare("SELECT id, title, description, image_url, serial_id FROM masterpieces WHERE id = ?").get(m.product_share_masterpiece_id);
+      m.product_share = await (await db.prepare("SELECT id, title, description, image_url, serial_id FROM masterpieces WHERE id = ?")).get(m.product_share_masterpiece_id);
     }
     return m;
   });
   res.json(withProduct);
 });
 
-app.post("/api/private-clients/conversations/:id/messages", requireAuth, (req, res) => {
+app.post("/api/private-clients/conversations/:id/messages", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const conv = db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(req.params.id)) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const conv = await (await db.prepare("SELECT * FROM private_client_conversations WHERE id = ?")).get(Number(req.params.id)) as any;
   if (!conv || !canAccessPrivateConversation(conv, userId, isAdminUser(user))) return res.status(404).json({ error: "Konversation nicht gefunden." });
   const { message_text, attachments, product_share_masterpiece_id } = req.body || {};
   const receiverId = userId === conv.admin_id ? conv.client_id : conv.admin_id;
   const attachmentsStr = attachments != null ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null;
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO private_client_messages (conversation_id, sender_id, receiver_id, message_text, attachments, product_share_masterpiece_id, status)
     VALUES (?, ?, ?, ?, ?, ?, 'sent')
-  `).run(conv.id, userId, receiverId, message_text || null, attachmentsStr, product_share_masterpiece_id ? Number(product_share_masterpiece_id) : null);
-  db.prepare("UPDATE private_client_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(conv.id);
+  `)).run(conv.id, userId, receiverId, message_text || null, attachmentsStr, product_share_masterpiece_id ? Number(product_share_masterpiece_id) : null);
+  await (await db.prepare("UPDATE private_client_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(conv.id);
   const msgId = Number(r.lastInsertRowid);
   createActivityNotification(receiverId, 'new_message', String(msgId), 'New message received');
   res.status(201).json({ id: msgId, status: 'sent' });
 });
 
-app.patch("/api/private-clients/messages/:id/status", requireAuth, (req, res) => {
+app.patch("/api/private-clients/messages/:id/status", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const msg = db.prepare("SELECT * FROM private_client_messages WHERE id = ?").get(Number(req.params.id)) as any;
+  const msg = await (await db.prepare("SELECT * FROM private_client_messages WHERE id = ?")).get(Number(req.params.id)) as any;
   if (!msg || msg.receiver_id !== userId) return res.status(404).json({ error: "Nachricht nicht gefunden." });
   const { status } = req.body || {};
   if (!['sent', 'delivered', 'seen'].includes(status)) return res.status(400).json({ error: "Ungültiger Status." });
-  db.prepare("UPDATE private_client_messages SET status = ? WHERE id = ?").run(status, msg.id);
+  await (await db.prepare("UPDATE private_client_messages SET status = ? WHERE id = ?")).run(status, msg.id);
   res.json({ success: true });
 });
 
-app.post("/api/private-clients/upload", requireAuth, (req, res) => {
+app.post("/api/private-clients/upload", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const { client_id, conversation_id, base64, filename, mimeType } = req.body || {};
   const clientId = Number(client_id);
   if (!clientId) return res.status(400).json({ error: "client_id erforderlich." });
-  const conv = conversation_id ? db.prepare("SELECT * FROM private_client_conversations WHERE id = ?").get(Number(conversation_id)) as any : null;
+  const conv = conversation_id ? await (await db.prepare("SELECT * FROM private_client_conversations WHERE id = ?")).get(Number(conversation_id)) as any : null;
   const allowed = conv ? canAccessPrivateConversation(conv, userId, isAdminUser(user)) : (isAdminUser(user) || userId === clientId);
   if (!allowed) return res.status(403).json({ error: "Kein Zugriff." });
   const dir = path.join(privateClientsUploadDir, String(clientId));
@@ -7558,126 +8027,126 @@ app.post("/api/private-clients/upload", requireAuth, (req, res) => {
   res.json({ url, name, path: url });
 });
 
-app.get("/api/private-clients/projects", requireAuth, (req, res) => {
+app.get("/api/private-clients/projects", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const rows = db.prepare(`
+    const rows = await (await db.prepare(`
       SELECT p.*, u.name as client_name
       FROM client_projects p
       JOIN users u ON u.id = p.client_id
       ORDER BY p.updated_at DESC
-    `).all();
+    `)).all();
     return res.json(rows);
   }
-  const rows = db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY updated_at DESC").all(userId);
+  const rows = await (await db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY updated_at DESC")).all(userId);
   res.json(rows);
 });
 
-app.post("/api/private-clients/projects", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/private-clients/projects", requireAuth, requireAdmin, async (req, res) => {
   const { client_id, project_type, title, status } = req.body || {};
   const clientId = Number(client_id);
   if (!clientId || !title) return res.status(400).json({ error: "client_id und title erforderlich." });
   const type = ['custom_jewelry', 'stone_request', 'consultation'].includes(project_type) ? project_type : 'consultation';
-  const r = db.prepare("INSERT INTO client_projects (client_id, project_type, title, status) VALUES (?, ?, ?, ?)").run(clientId, type, String(title).trim(), status || 'active');
+  const r = await (await db.prepare("INSERT INTO client_projects (client_id, project_type, title, status) VALUES (?, ?, ?, ?)")).run(clientId, type, String(title).trim(), status || 'active');
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.get("/api/private-clients/stone-requests", requireAuth, (req, res) => {
+app.get("/api/private-clients/stone-requests", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const rows = db.prepare(`
+    const rows = await (await db.prepare(`
       SELECT r.*, u.name as client_name, u.email as client_email
       FROM stone_requests r JOIN users u ON u.id = r.client_id
       ORDER BY r.created_at DESC
-    `).all();
+    `)).all();
     return res.json(rows);
   }
-  const rows = db.prepare("SELECT * FROM stone_requests WHERE client_id = ? ORDER BY created_at DESC").all(userId);
+  const rows = await (await db.prepare("SELECT * FROM stone_requests WHERE client_id = ? ORDER BY created_at DESC")).all(userId);
   res.json(rows);
 });
 
-app.post("/api/private-clients/stone-requests", requireAuth, (req, res) => {
+app.post("/api/private-clients/stone-requests", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const { gemstone_type, carat_size, origin_preference, budget_range } = req.body || {};
-  db.prepare("INSERT INTO stone_requests (client_id, gemstone_type, carat_size, origin_preference, budget_range, status) VALUES (?, ?, ?, ?, ?, 'pending')").run(
+  await (await db.prepare("INSERT INTO stone_requests (client_id, gemstone_type, carat_size, origin_preference, budget_range, status) VALUES (?, ?, ?, ?, ?, 'pending')")).run(
     userId, gemstone_type || null, carat_size || null, origin_preference || null, budget_range || null
   );
   res.status(201).json({ success: true });
 });
 
-app.get("/api/private-clients/design-gallery", requireAuth, (req, res) => {
+app.get("/api/private-clients/design-gallery", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const clientId = req.query.client_id ? Number(req.query.client_id) : userId;
   if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Kein Zugriff." });
-  const rows = db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC").all(clientId);
+  const rows = await (await db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC")).all(clientId);
   res.json(rows);
 });
 
-app.post("/api/private-clients/design-gallery", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/private-clients/design-gallery", requireAuth, requireAdmin, async (req, res) => {
   const { client_id, image, description } = req.body || {};
   const clientId = Number(client_id);
   if (!clientId || !image) return res.status(400).json({ error: "client_id und image (URL) erforderlich." });
-  const r = db.prepare("INSERT INTO private_design_gallery (client_id, image, description) VALUES (?, ?, ?)").run(clientId, String(image), description || null);
+  const r = await (await db.prepare("INSERT INTO private_design_gallery (client_id, image, description) VALUES (?, ?, ?)")).run(clientId, String(image), description || null);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
-app.get("/api/private-clients/design-gallery/:id/comments", requireAuth, (req, res) => {
+app.get("/api/private-clients/design-gallery/:id/comments", requireAuth, async (req, res) => {
   const designId = Number(req.params.id);
-  const design = db.prepare("SELECT * FROM private_design_gallery WHERE id = ?").get(designId) as any;
+  const design = await (await db.prepare("SELECT * FROM private_design_gallery WHERE id = ?")).get(designId) as any;
   if (!design) return res.status(404).json({ error: "Design nicht gefunden." });
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!isAdminUser(user) && design.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT c.*, u.name as user_name
     FROM design_gallery_comments c
     JOIN users u ON u.id = c.user_id
     WHERE c.design_id = ?
     ORDER BY c.created_at ASC
-  `).all(designId);
+  `)).all(designId);
   res.json(rows);
 });
 
-app.post("/api/private-clients/design-gallery/:id/comments", requireAuth, (req, res) => {
+app.post("/api/private-clients/design-gallery/:id/comments", requireAuth, async (req, res) => {
   const designId = Number(req.params.id);
-  const design = db.prepare("SELECT * FROM private_design_gallery WHERE id = ?").get(designId) as any;
+  const design = await (await db.prepare("SELECT * FROM private_design_gallery WHERE id = ?")).get(designId) as any;
   if (!design) return res.status(404).json({ error: "Design nicht gefunden." });
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!isAdminUser(user) && design.client_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
   const { comment_text } = req.body || {};
   if (!comment_text || !String(comment_text).trim()) return res.status(400).json({ error: "comment_text erforderlich." });
-  db.prepare("INSERT INTO design_gallery_comments (design_id, user_id, comment_text) VALUES (?, ?, ?)").run(designId, userId, String(comment_text).trim());
+  await (await db.prepare("INSERT INTO design_gallery_comments (design_id, user_id, comment_text) VALUES (?, ?, ?)")).run(designId, userId, String(comment_text).trim());
   res.status(201).json({ success: true });
 });
 
-app.get("/api/private-clients/documents", requireAuth, (req, res) => {
+app.get("/api/private-clients/documents", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const clientId = req.query.client_id ? Number(req.query.client_id) : userId;
   if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Kein Zugriff." });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT id, document_type, contract_type, doc_ref, created_at, file_path
     FROM vault_documents
     WHERE client_id = ?
     ORDER BY created_at DESC
-  `).all(clientId);
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(clientId);
-  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(clientId);
+  `)).all(clientId);
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC")).all(clientId);
+  const certs = await (await db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC")).all(clientId);
   res.json({ documents: rows, contracts, certificates: certs });
 });
 
-app.get("/api/private-clients/production-timeline/:masterpieceId", requireAuth, (req, res) => {
+app.get("/api/private-clients/production-timeline/:masterpieceId", requireAuth, async (req, res) => {
   const masterpieceId = Number(req.params.masterpieceId);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
   if (!isAdminUser(user) && piece.current_owner_id !== userId) return res.status(403).json({ error: "Kein Zugriff." });
-  const stages = db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC, timestamp ASC").all(masterpieceId) as any[];
+  const stages = await (await db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC, timestamp ASC")).all(masterpieceId) as any[];
   const defaultStages = [
     { step_name: 'Design bestätigt', status: 'pending' },
     { step_name: 'Steinbeschaffung', status: 'pending' },
@@ -7694,13 +8163,13 @@ app.get("/api/private-clients/production-timeline/:masterpieceId", requireAuth, 
   res.json({ masterpiece_id: masterpieceId, stages: stages.length ? stages : merged });
 });
 
-app.get("/api/private-clients/my-production", requireAuth, (req, res) => {
+app.get("/api/private-clients/my-production", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.json({ pieces: [] });
   const defaultStageNames = ['Design bestätigt', 'Steinbeschaffung', 'Steinschliff', 'Fassung', 'Politur', 'Qualitätskontrolle', 'Abgeschlossen'];
-  const pieces = db.prepare("SELECT id, title, serial_id, image_url FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  const pieces = await (await db.prepare("SELECT id, title, serial_id, image_url FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
   const result = pieces.map((p: any) => {
-    const stages = db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC").all(p.id) as any[];
+    const stages = await (await db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC")).all(p.id) as any[];
     const merged = defaultStageNames.map((name, i) => {
       const s = stages.find((st: any) => st.step_index === i) || stages[i];
       return s ? { step_index: i, step_name: s.step_name || name, status: s.status || 'pending' } : { step_index: i, step_name: name, status: 'pending' };
@@ -7710,84 +8179,84 @@ app.get("/api/private-clients/my-production", requireAuth, (req, res) => {
   res.json({ pieces: result });
 });
 
-app.get("/api/private-clients/collector-preferences/:clientId", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/private-clients/collector-preferences/:clientId", requireAuth, requireAdmin, async (req, res) => {
   const clientId = Number(req.params.clientId);
-  const row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId);
+  const row = await (await db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?")).get(clientId);
   res.json(row || null);
 });
 
 // --- High Jewelry Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
-app.get("/api/collector-rooms", requireAuth, (req, res) => {
+app.get("/api/collector-rooms", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const rooms = db.prepare(`
+    const rooms = await (await db.prepare(`
       SELECT r.*, u.name as client_name, u.email as client_email
       FROM collector_rooms r JOIN users u ON u.id = r.client_id
       ORDER BY r.updated_at DESC
-    `).all();
+    `)).all();
     return res.json(rooms);
   }
-  const owned = db.prepare("SELECT *, 1 as is_owner FROM collector_rooms WHERE client_id = ?").all(userId) as any[];
-  const assigned = db.prepare(`
+  const owned = await (await db.prepare("SELECT *, 1 as is_owner FROM collector_rooms WHERE client_id = ?")).all(userId) as any[];
+  const assigned = await (await db.prepare(`
     SELECT r.*, 0 as is_owner FROM collector_rooms r
     JOIN room_assigned_clients a ON a.room_type = 'collector' AND a.room_id = r.id AND a.client_id = ?
     WHERE r.client_id != ?
-  `).all(userId, userId) as any[];
+  `)).all(userId, userId) as any[];
   const seen = new Set((owned as any[]).map((x: any) => x.id));
   const combined = [...owned, ...(assigned as any[]).filter((x: any) => !seen.has(x.id))];
   combined.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
   res.json(combined);
 });
-app.post("/api/collector-rooms", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/collector-rooms", requireAuth, requireAdmin, async (req, res) => {
   const { client_id, project_title, status } = req.body || {};
   if (!client_id || !project_title) return res.status(400).json({ error: "client_id und project_title erforderlich." });
-  const r = db.prepare("INSERT INTO collector_rooms (client_id, project_title, status) VALUES (?, ?, ?)").run(client_id, String(project_title).trim(), status || 'active');
+  const r = await (await db.prepare("INSERT INTO collector_rooms (client_id, project_title, status) VALUES (?, ?, ?)")).run(client_id, String(project_title).trim(), status || 'active');
   res.status(201).json({ id: r.lastInsertRowid, success: true });
 });
-app.get("/api/collector-rooms/:id", requireAuth, (req, res) => {
+app.get("/api/collector-rooms/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const room = db.prepare("SELECT * FROM collector_rooms WHERE id = ?").get(id) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const room = await (await db.prepare("SELECT * FROM collector_rooms WHERE id = ?")).get(id) as any;
   if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
   const isOwner = room.client_id === userId;
-  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'collector' AND room_id = ? AND client_id = ?").get(id, userId);
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'collector' AND room_id = ? AND client_id = ?")).get(id, userId);
   if (!isAdminUser(user) && !isOwner && !isAssigned) return res.status(403).json({ error: "Kein Zugriff." });
-  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
-  const conversations = db.prepare("SELECT * FROM private_client_conversations WHERE client_id = ? ORDER BY updated_at DESC").all(room.client_id);
-  const projects = db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
-  const designs = db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
-  const stones = db.prepare(`
+  const client = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(room.client_id) as any;
+  const conversations = await (await db.prepare("SELECT * FROM private_client_conversations WHERE client_id = ? ORDER BY updated_at DESC")).all(room.client_id);
+  const projects = await (await db.prepare("SELECT * FROM client_projects WHERE client_id = ? ORDER BY created_at DESC")).all(room.client_id);
+  const designs = await (await db.prepare("SELECT * FROM private_design_gallery WHERE client_id = ? ORDER BY created_at DESC")).all(room.client_id);
+  const stones = await (await db.prepare(`
     SELECT s.*, sa.assigned_at FROM stone_library s
     JOIN stone_assignments sa ON sa.stone_id = s.stone_id
     WHERE sa.client_id = ? AND (sa.collector_room_id = ? OR sa.collector_room_id IS NULL)
-  `).all(room.client_id, id);
-  const docs = db.prepare("SELECT id, document_type, doc_ref, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC").all(room.client_id);
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
-  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
+  `)).all(room.client_id, id);
+  const docs = await (await db.prepare("SELECT id, document_type, doc_ref, created_at FROM vault_documents WHERE client_id = ? ORDER BY created_at DESC")).all(room.client_id);
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC")).all(room.client_id);
+  const certs = await (await db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC")).all(room.client_id);
   res.json({ room, client, conversations, projects, designs, stones, documents: docs, contracts, certificates: certs });
 });
-app.patch("/api/collector-rooms/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/collector-rooms/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { project_title, status } = req.body || {};
-  const room = db.prepare("SELECT id FROM collector_rooms WHERE id = ?").get(id);
+  const room = await (await db.prepare("SELECT id FROM collector_rooms WHERE id = ?")).get(id);
   if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
   const updates: string[] = []; const values: any[] = [];
   if (project_title !== undefined) { updates.push("project_title = ?"); values.push(project_title); }
   if (status !== undefined) { updates.push("status = ?"); values.push(status); }
-  if (updates.length) { values.push(id); db.prepare(`UPDATE collector_rooms SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values); }
+  if (updates.length) { values.push(id); await (await db.prepare(`UPDATE collector_rooms SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...values); }
   res.json({ success: true });
 });
 
-app.post("/api/admin/collector-rooms/:id/assign", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/collector-rooms/:id/assign", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { client_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id erforderlich." });
-  const room = db.prepare("SELECT id FROM collector_rooms WHERE id = ?").get(id);
+  const room = await (await db.prepare("SELECT id FROM collector_rooms WHERE id = ?")).get(id);
   if (!room) return res.status(404).json({ error: "Raum nicht gefunden." });
   try {
-    db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('collector', ?, ?)").run(id, client_id);
+    await (await db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('collector', ?, ?)")).run(id, client_id);
     createActivityNotification(Number(client_id), 'new_room', `collector:${id}`, 'New Collector Room assigned');
     addClientTimeline(Number(client_id), 'collector_room_assigned', 'Collector Room opened', `collector:${id}`);
     res.status(201).json({ success: true });
@@ -7797,14 +8266,14 @@ app.post("/api/admin/collector-rooms/:id/assign", requireAuth, requireAdmin, (re
   }
 });
 
-app.post("/api/admin/deal-rooms/:id/assign", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/deal-rooms/:id/assign", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { client_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id erforderlich." });
-  const room = db.prepare("SELECT id FROM deal_rooms WHERE id = ?").get(id);
+  const room = await (await db.prepare("SELECT id FROM deal_rooms WHERE id = ?")).get(id);
   if (!room) return res.status(404).json({ error: "Deal-Raum nicht gefunden." });
   try {
-    db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)").run(id, client_id);
+    await (await db.prepare("INSERT INTO room_assigned_clients (room_type, room_id, client_id) VALUES ('deal', ?, ?)")).run(id, client_id);
     createActivityNotification(Number(client_id), 'new_room', `deal:${id}`, 'New Deal Room available');
     addClientTimeline(Number(client_id), 'deal_room_opened', 'Deal Room opened', `deal:${id}`);
     res.status(201).json({ success: true });
@@ -7814,74 +8283,74 @@ app.post("/api/admin/deal-rooms/:id/assign", requireAuth, requireAdmin, (req, re
   }
 });
 
-app.get("/api/stone-library", requireAuth, (req, res) => {
+app.get("/api/stone-library", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const stones = db.prepare("SELECT * FROM stone_library ORDER BY created_at DESC").all();
+    const stones = await (await db.prepare("SELECT * FROM stone_library ORDER BY created_at DESC")).all();
     return res.json(stones);
   }
-  const stones = db.prepare(`
+  const stones = await (await db.prepare(`
     SELECT s.*, sa.assigned_at, sa.collector_room_id FROM stone_library s
     JOIN stone_assignments sa ON sa.stone_id = s.stone_id WHERE sa.client_id = ?
     ORDER BY sa.assigned_at DESC
-  `).all(userId);
+  `)).all(userId);
   res.json(stones);
 });
-app.post("/api/stone-library", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/stone-library", requireAuth, requireAdmin, async (req, res) => {
   const { stone_type, carat, cut, origin, color, clarity, supplier, price_estimate, status } = req.body || {};
   if (!stone_type) return res.status(400).json({ error: "stone_type erforderlich." });
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO stone_library (stone_type, carat, cut, origin, color, clarity, supplier, price_estimate, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(stone_type, carat ?? null, cut ?? null, origin ?? null, color ?? null, clarity ?? null, supplier ?? null, price_estimate ?? null, status || 'available');
+  `)).run(stone_type, carat ?? null, cut ?? null, origin ?? null, color ?? null, clarity ?? null, supplier ?? null, price_estimate ?? null, status || 'available');
   res.status(201).json({ stone_id: r.lastInsertRowid, success: true });
 });
-app.patch("/api/stone-library/:stoneId", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/stone-library/:stoneId", requireAuth, requireAdmin, async (req, res) => {
   const stoneId = Number(req.params.stoneId);
   const body = req.body || {};
   const cols = ['stone_type', 'carat', 'cut', 'origin', 'color', 'clarity', 'supplier', 'price_estimate', 'status', 'image', 'color_grade'];
   const updates: string[] = []; const values: any[] = [];
   cols.forEach(c => { if (body[c] !== undefined) { updates.push(`${c} = ?`); values.push(body[c]); } });
-  if (updates.length) { values.push(stoneId); db.prepare(`UPDATE stone_library SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE stone_id = ?`).run(...values); }
+  if (updates.length) { values.push(stoneId); await (await db.prepare(`UPDATE stone_library SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE stone_id = ?`)).run(...values); }
   res.json({ success: true });
 });
-app.post("/api/stone-library/assign", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/stone-library/assign", requireAuth, requireAdmin, async (req, res) => {
   const { stone_id, collector_room_id, client_id } = req.body || {};
   if (!stone_id || !client_id) return res.status(400).json({ error: "stone_id und client_id erforderlich." });
-  db.prepare("INSERT INTO stone_assignments (stone_id, collector_room_id, client_id) VALUES (?, ?, ?)").run(stone_id, collector_room_id ?? null, client_id);
-  db.prepare("UPDATE stone_library SET status = 'reserved' WHERE stone_id = ?").run(stone_id);
+  await (await db.prepare("INSERT INTO stone_assignments (stone_id, collector_room_id, client_id) VALUES (?, ?, ?)")).run(stone_id, collector_room_id ?? null, client_id);
+  await (await db.prepare("UPDATE stone_library SET status = 'reserved' WHERE stone_id = ?")).run(stone_id);
   res.status(201).json({ success: true });
 });
 
 // --- Client timeline (Section 1): admin sees all, client sees own ---
-app.get("/api/client-timeline/:clientId", requireAuth, (req, res) => {
+app.get("/api/client-timeline/:clientId", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const clientId = Number(req.params.clientId);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!isAdminUser(user) && userId !== clientId) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare("SELECT * FROM client_timeline WHERE client_id = ? ORDER BY created_at DESC LIMIT 100").all(clientId);
+  const rows = await (await db.prepare("SELECT * FROM client_timeline WHERE client_id = ? ORDER BY created_at DESC LIMIT 100")).all(clientId);
   res.json(rows);
 });
-app.post("/api/client-timeline", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/client-timeline", requireAuth, requireAdmin, async (req, res) => {
   const { client_id, event_type, description, reference_id } = req.body || {};
   if (!client_id || !event_type) return res.status(400).json({ error: "client_id and event_type required." });
-  db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)").run(client_id, event_type, description || null, reference_id ?? null);
-  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+  await (await db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)")).run(client_id, event_type, description || null, reference_id ?? null);
+  res.status(201).json({ id: await (await db.prepare("SELECT last_insert_rowid()")).get(), success: true });
 });
 
 // --- Payment schedule (Section 2): deal room payment tracking ---
-app.get("/api/payment-schedule/deal/:dealId", requireAuth, (req, res) => {
+app.get("/api/payment-schedule/deal/:dealId", requireAuth, async (req, res) => {
   const dealId = Number(req.params.dealId);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const room = await (await db.prepare("SELECT * FROM deal_rooms WHERE id = ?")).get(dealId) as any;
   if (!room) return res.status(404).json({ error: "Deal room not found." });
   const isAdmin = isAdminUser(user);
   const isOwner = room.client_id === userId;
-  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?")).get(dealId, userId);
   if (!isAdmin && !isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare("SELECT * FROM payment_schedule WHERE deal_id = ? ORDER BY due_date ASC").all(dealId) as any[];
+  const rows = await (await db.prepare("SELECT * FROM payment_schedule WHERE deal_id = ? ORDER BY due_date ASC")).all(dealId) as any[];
   const totalPrice = room.total_price ?? room.price ?? rows.reduce((s: number, r: any) => s + (r.amount || 0), 0);
   const depositAmount = room.deposit_amount ?? 0;
   const paidTotal = rows.filter((r: any) => r.paid_date != null).reduce((s: number, r: any) => s + (r.amount || 0), 0);
@@ -7894,13 +8363,13 @@ app.get("/api/payment-schedule/deal/:dealId", requireAuth, (req, res) => {
     summary: { total_price: totalPrice, deposit_amount: depositAmount, remaining_balance: totalPrice - paidTotal, paid_total: paidTotal, progress_pct: progressPct, status: statusLabel }
   });
 });
-app.post("/api/payment-schedule", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/payment-schedule", requireAuth, requireAdmin, async (req, res) => {
   const { deal_id, amount, due_date } = req.body || {};
   if (!deal_id || amount == null) return res.status(400).json({ error: "deal_id and amount required." });
-  db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)").run(deal_id, amount, due_date || null);
-  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+  await (await db.prepare("INSERT INTO payment_schedule (deal_id, amount, status, due_date) VALUES (?, ?, 'pending', ?)")).run(deal_id, amount, due_date || null);
+  res.status(201).json({ id: await (await db.prepare("SELECT last_insert_rowid()")).get(), success: true });
 });
-app.patch("/api/payment-schedule/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/payment-schedule/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { status, paid_date } = req.body || {};
   const updates: string[] = []; const values: any[] = [];
@@ -7908,183 +8377,183 @@ app.patch("/api/payment-schedule/:id", requireAuth, requireAdmin, (req, res) => 
   if (paid_date !== undefined) { updates.push("paid_date = ?"); values.push(paid_date); }
   if (updates.length === 0) return res.status(400).json({ error: "No updates." });
   values.push(id);
-  db.prepare(`UPDATE payment_schedule SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  await (await db.prepare(`UPDATE payment_schedule SET ${updates.join(", ")} WHERE id = ?`)).run(...values);
   res.json({ success: true });
 });
-app.get("/api/admin/payments-overview", requireAuth, requireAdmin, (req, res) => {
-  const pending = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' ORDER BY ps.due_date ASC").all() as any[];
-  const overdue = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' AND ps.due_date IS NOT NULL AND ps.due_date < datetime('now') ORDER BY ps.due_date ASC").all() as any[];
-  const recent = db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.paid_date IS NOT NULL ORDER BY ps.paid_date DESC LIMIT 20").all() as any[];
+app.get("/api/admin/payments-overview", requireAuth, requireAdmin, async (req, res) => {
+  const pending = await (await db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' ORDER BY ps.due_date ASC")).all() as any[];
+  const overdue = await (await db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.status = 'pending' AND ps.due_date IS NOT NULL AND ps.due_date < datetime('now') ORDER BY ps.due_date ASC")).all() as any[];
+  const recent = await (await db.prepare("SELECT ps.*, d.project_title, d.client_id FROM payment_schedule ps JOIN deal_rooms d ON d.id = ps.deal_id WHERE ps.paid_date IS NOT NULL ORDER BY ps.paid_date DESC LIMIT 20")).all() as any[];
   res.json({ pending, overdue, recent });
 });
 
 // --- Admin client notes (Section 11): admin only ---
-app.get("/api/admin/client-notes/:clientId", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/client-notes/:clientId", requireAuth, requireAdmin, async (req, res) => {
   const clientId = Number(req.params.clientId);
-  const rows = db.prepare("SELECT n.*, u.name as admin_name FROM admin_client_notes n JOIN users u ON u.id = n.admin_id WHERE n.client_id = ? ORDER BY n.created_at DESC").all(clientId);
+  const rows = await (await db.prepare("SELECT n.*, u.name as admin_name FROM admin_client_notes n JOIN users u ON u.id = n.admin_id WHERE n.client_id = ? ORDER BY n.created_at DESC")).all(clientId);
   res.json(rows);
 });
-app.post("/api/admin/client-notes", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/client-notes", requireAuth, requireAdmin, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const { client_id, note } = req.body || {};
   if (!client_id || !note) return res.status(400).json({ error: "client_id and note required." });
-  db.prepare("INSERT INTO admin_client_notes (client_id, admin_id, note) VALUES (?, ?, ?)").run(client_id, userId, note);
-  res.status(201).json({ id: db.prepare("SELECT last_insert_rowid()").get(), success: true });
+  await (await db.prepare("INSERT INTO admin_client_notes (client_id, admin_id, note) VALUES (?, ?, ?)")).run(client_id, userId, note);
+  res.status(201).json({ id: await (await db.prepare("SELECT last_insert_rowid()")).get(), success: true });
 });
 
 // --- Client preferences (Section 5): favorite_stones, budget_range, preferred_jewelry_types, interests ---
-app.get("/api/client-preferences", requireAuth, (req, res) => {
+app.get("/api/client-preferences", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const clientId = isAdminUser(user) && req.query.client_id ? Number(req.query.client_id) : userId;
   if (isAdminUser(user) && clientId !== userId && !clientId) return res.status(400).json({ error: "client_id required for admin." });
   if (!isAdminUser(user) && clientId !== userId) return res.status(403).json({ error: "Forbidden" });
-  let row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
-  if (!row) { db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)").run(clientId); row = db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?").get(clientId) as any; }
+  let row = await (await db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?")).get(clientId) as any;
+  if (!row) { await (await db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)")).run(clientId); row = await (await db.prepare("SELECT * FROM collector_profiles WHERE user_id = ?")).get(clientId) as any; }
   res.json({ favorite_stones: row?.favorite_gemstones, budget_range: row?.budget_range, preferred_jewelry_types: row?.preferred_jewelry_types, interests: row?.interests });
 });
-app.patch("/api/client-preferences", requireAuth, (req, res) => {
+app.patch("/api/client-preferences", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const { favorite_stones, budget_range, preferred_jewelry_types, interests } = req.body || {};
-  let row = db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?").get(userId);
-  if (!row) db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)").run(userId);
+  let row = await (await db.prepare("SELECT id FROM collector_profiles WHERE user_id = ?")).get(userId);
+  if (!row) await (await db.prepare("INSERT INTO collector_profiles (user_id) VALUES (?)")).run(userId);
   const updates: string[] = []; const values: any[] = [];
   if (favorite_stones !== undefined) { updates.push("favorite_gemstones = ?"); values.push(favorite_stones); }
   if (budget_range !== undefined) { updates.push("budget_range = ?"); values.push(budget_range); }
   if (preferred_jewelry_types !== undefined) { updates.push("preferred_jewelry_types = ?"); values.push(preferred_jewelry_types); }
   if (interests !== undefined) { updates.push("interests = ?"); values.push(interests); }
-  if (updates.length) { values.push(userId); db.prepare(`UPDATE collector_profiles SET ${updates.join(", ")} WHERE user_id = ?`).run(...values); }
+  if (updates.length) { values.push(userId); await (await db.prepare(`UPDATE collector_profiles SET ${updates.join(", ")} WHERE user_id = ?`)).run(...values); }
   res.json({ success: true });
 });
 
 // --- Deal room negotiation (Section 12): client submit offer, admin accept/reject/counter ---
-app.get("/api/deal-rooms/:id/offers", requireAuth, (req, res) => {
+app.get("/api/deal-rooms/:id/offers", requireAuth, async (req, res) => {
   const dealId = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const room = await (await db.prepare("SELECT * FROM deal_rooms WHERE id = ?")).get(dealId) as any;
   if (!room) return res.status(404).json({ error: "Deal room not found." });
   const isAdmin = isAdminUser(user);
   const isOwner = room.client_id === userId;
-  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?")).get(dealId, userId);
   if (!isAdmin && !isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare("SELECT * FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC").all(dealId);
+  const rows = await (await db.prepare("SELECT * FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC")).all(dealId);
   res.json(rows);
 });
-app.post("/api/deal-rooms/:id/offers", requireAuth, (req, res) => {
+app.post("/api/deal-rooms/:id/offers", requireAuth, async (req, res) => {
   const dealId = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(dealId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const room = await (await db.prepare("SELECT * FROM deal_rooms WHERE id = ?")).get(dealId) as any;
   if (!room) return res.status(404).json({ error: "Deal room not found." });
   if (isAdminUser(user)) return res.status(400).json({ error: "Use PATCH to respond as admin." });
   const isOwner = room.client_id === userId;
-  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(dealId, userId);
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?")).get(dealId, userId);
   if (!isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
   const { amount } = req.body || {};
   if (amount == null) return res.status(400).json({ error: "amount required." });
-  const r = db.prepare("INSERT INTO deal_room_offers (deal_id, client_id, amount, status) VALUES (?, ?, ?, 'pending')").run(dealId, userId, amount);
+  const r = await (await db.prepare("INSERT INTO deal_room_offers (deal_id, client_id, amount, status) VALUES (?, ?, ?, 'pending')")).run(dealId, userId, amount);
   addClientTimeline(room.client_id, "deal_offer_submitted", `Offer submitted: €${Number(amount).toLocaleString()}`, String(r.lastInsertRowid));
   res.status(201).json({ id: r.lastInsertRowid, success: true });
 });
-app.patch("/api/deal-rooms/offers/:offerId", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/deal-rooms/offers/:offerId", requireAuth, requireAdmin, async (req, res) => {
   const offerId = Number(req.params.offerId);
   const { action, counter_amount, counter_message } = req.body || {};
-  const offer = db.prepare("SELECT * FROM deal_room_offers WHERE id = ?").get(offerId) as any;
+  const offer = await (await db.prepare("SELECT * FROM deal_room_offers WHERE id = ?")).get(offerId) as any;
   if (!offer) return res.status(404).json({ error: "Offer not found." });
   if (action === "accept") {
-    db.prepare("UPDATE deal_room_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(getSessionUserId(req), offerId);
+    await (await db.prepare("UPDATE deal_room_offers SET status = 'accepted', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?")).run(getSessionUserId(req), offerId);
     addClientTimeline(offer.client_id, "deal_offer_accepted", `Offer accepted: €${Number(offer.amount).toLocaleString()}`, String(offerId));
   } else if (action === "reject") {
-    db.prepare("UPDATE deal_room_offers SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(getSessionUserId(req), offerId);
+    await (await db.prepare("UPDATE deal_room_offers SET status = 'rejected', responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?")).run(getSessionUserId(req), offerId);
     addClientTimeline(offer.client_id, "deal_offer_rejected", `Offer rejected: €${Number(offer.amount).toLocaleString()}`, String(offerId));
   } else if (action === "counter") {
-    db.prepare("UPDATE deal_room_offers SET status = 'countered', counter_amount = ?, counter_message = ?, responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?").run(counter_amount ?? null, counter_message ?? null, getSessionUserId(req), offerId);
+    await (await db.prepare("UPDATE deal_room_offers SET status = 'countered', counter_amount = ?, counter_message = ?, responded_at = CURRENT_TIMESTAMP, responded_by = ? WHERE id = ?")).run(counter_amount ?? null, counter_message ?? null, getSessionUserId(req), offerId);
     addClientTimeline(offer.client_id, "deal_offer_countered", `Counter offer: €${Number(counter_amount).toLocaleString()}`, String(offerId));
   } else return res.status(400).json({ error: "action must be accept, reject, or counter." });
   res.json({ success: true });
 });
 
 // --- Event invitations (Section 4): invite clients, accept/decline ---
-app.get("/api/events", requireAuth, (req, res) => {
+app.get("/api/events", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const events = db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' AND event_date > datetime('now') ORDER BY event_date ASC").all() as any[];
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const events = await (await db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' AND event_date > datetime('now') ORDER BY event_date ASC")).all() as any[];
   const withInvite = events.map((e: any) => {
-    const inv = db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?").get(e.id, userId) as any;
+    const inv = await (await db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?")).get(e.id, userId) as any;
     return { ...e, invitation_status: inv?.status ?? null };
   });
   if (isAdminUser(user)) return res.json(withInvite);
   const allowed = withInvite.filter((e: any) => e.invitation_status != null || e.min_vip_tier === 0);
   res.json(allowed);
 });
-app.get("/api/events/:id/invitations", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/events/:id/invitations", requireAuth, requireAdmin, async (req, res) => {
   const eventId = Number(req.params.id);
-  const rows = db.prepare("SELECT ei.*, u.name as client_name, u.email FROM event_invitations ei JOIN users u ON u.id = ei.client_id WHERE ei.event_id = ?").all(eventId);
+  const rows = await (await db.prepare("SELECT ei.*, u.name as client_name, u.email FROM event_invitations ei JOIN users u ON u.id = ei.client_id WHERE ei.event_id = ?")).all(eventId);
   res.json(rows);
 });
-app.post("/api/events/:id/invite", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/events/:id/invite", requireAuth, requireAdmin, async (req, res) => {
   const eventId = Number(req.params.id);
   const { client_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id required." });
   try {
-    db.prepare("INSERT INTO event_invitations (event_id, client_id, status) VALUES (?, ?, 'pending')").run(eventId, client_id);
+    await (await db.prepare("INSERT INTO event_invitations (event_id, client_id, status) VALUES (?, ?, 'pending')")).run(eventId, client_id);
     createActivityNotification(Number(client_id), 'new_message', `event:${eventId}`, 'Event invitation');
     res.status(201).json({ success: true });
   } catch (e: any) { if (e.message && e.message.includes('UNIQUE')) return res.status(400).json({ error: "Already invited." }); throw e; }
 });
-app.post("/api/events/:id/respond", requireAuth, (req, res) => {
+app.post("/api/events/:id/respond", requireAuth, async (req, res) => {
   const eventId = Number(req.params.id);
   const userId = getSessionUserId(req)!;
   const { status } = req.body || {};
   if (!['accepted', 'declined'].includes(status)) return res.status(400).json({ error: "status must be accepted or declined." });
-  const inv = db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?").get(eventId, userId) as any;
+  const inv = await (await db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?")).get(eventId, userId) as any;
   if (!inv) return res.status(404).json({ error: "Invitation not found." });
-  db.prepare("UPDATE event_invitations SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, inv.id);
+  await (await db.prepare("UPDATE event_invitations SET status = ?, responded_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status, inv.id);
   res.json({ success: true });
 });
 
 // --- Smart offer accept/decline (Section 6) ---
-app.patch("/api/private-offers/:id/respond", requireAuth, (req, res) => {
+app.patch("/api/private-offers/:id/respond", requireAuth, async (req, res) => {
   const offerId = Number(req.params.id);
   const userId = getSessionUserId(req)!;
   const { action } = req.body || {};
   if (!['accept', 'decline'].includes(action)) return res.status(400).json({ error: "action must be accept or decline." });
-  const offer = db.prepare("SELECT * FROM private_offers WHERE id = ?").get(offerId) as any;
+  const offer = await (await db.prepare("SELECT * FROM private_offers WHERE id = ?")).get(offerId) as any;
   if (!offer || offer.client_id !== userId) return res.status(404).json({ error: "Offer not found." });
   if (offer.status !== 'pending') return res.status(400).json({ error: "Offer already responded." });
   const newStatus = action === 'accept' ? 'accepted' : 'declined';
-  db.prepare("UPDATE private_offers SET status = ? WHERE id = ?").run(newStatus, offerId);
+  await (await db.prepare("UPDATE private_offers SET status = ? WHERE id = ?")).run(newStatus, offerId);
   addClientTimeline(userId, action === 'accept' ? "offer_accepted" : "offer_declined", `Offer ${newStatus}`, String(offerId));
   res.json({ success: true });
 });
 
 // --- Admin intelligence dashboard (Section 15) ---
-app.get("/api/admin/intelligence", requireAuth, requireAdmin, (req, res) => {
-  const topByPurchases = db.prepare(`
+app.get("/api/admin/intelligence", requireAuth, requireAdmin, async (req, res) => {
+  const topByPurchases = await (await db.prepare(`
     SELECT u.id, u.name, u.email, COUNT(p.id) as purchase_count, COALESCE(SUM(p.amount), 0) as total_spent
     FROM users u LEFT JOIN payments p ON p.user_id = u.id AND p.status IN ('paid', 'completed')
     WHERE u.role NOT IN ('admin', 'super_admin') GROUP BY u.id ORDER BY total_spent DESC LIMIT 10
-  `).all() as any[];
-  const topByValue = db.prepare(`
+  `)).all() as any[];
+  const topByValue = await (await db.prepare(`
     SELECT u.id, u.name, COALESCE(SUM(m.valuation), 0) as collection_value FROM users u
     LEFT JOIN masterpieces m ON m.current_owner_id = u.id WHERE u.role NOT IN ('admin', 'super_admin')
     GROUP BY u.id ORDER BY collection_value DESC LIMIT 10
-  `).all() as any[];
-  const pendingDeals = db.prepare("SELECT COUNT(*) as c FROM deal_room_offers WHERE status = 'pending'").get() as { c: number };
-  const vipActivity = db.prepare("SELECT COUNT(*) as c FROM client_timeline ct JOIN users u ON u.id = ct.client_id WHERE u.collector_level = 'vip' AND ct.created_at > datetime('now', '-30 days')").get() as { c: number };
+  `)).all() as any[];
+  const pendingDeals = await (await db.prepare("SELECT COUNT(*) as c FROM deal_room_offers WHERE status = 'pending'")).get() as { c: number };
+  const vipActivity = await (await db.prepare("SELECT COUNT(*) as c FROM client_timeline ct JOIN users u ON u.id = ct.client_id WHERE u.collector_level = 'vip' AND ct.created_at > datetime('now', '-30 days')")).get() as { c: number };
   res.json({ topByPurchases, topByValue, pendingDeals: pendingDeals.c, vipActivity: vipActivity.c });
 });
 
 // --- Collector Intelligence (Section 3): per-client analytics for admin ---
-app.get("/api/admin/collector-intelligence/:clientId", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/collector-intelligence/:clientId", requireAuth, requireAdmin, async (req, res) => {
   const clientId = Number(req.params.clientId);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(clientId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(clientId) as any;
   if (!user) return res.status(404).json({ error: "Client not found." });
-  const purchases = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(clientId) as { c: number; total: number };
-  const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(clientId) as { v: number };
-  const profile = db.prepare("SELECT favorite_gemstones, budget_range, preferred_jewelry_types, interests FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
-  const dealSizes = db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").all(clientId) as { amount: number }[];
+  const purchases = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(clientId) as { c: number; total: number };
+  const collectionValue = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?")).get(clientId) as { v: number };
+  const profile = await (await db.prepare("SELECT favorite_gemstones, budget_range, preferred_jewelry_types, interests FROM collector_profiles WHERE user_id = ?")).get(clientId) as any;
+  const dealSizes = await (await db.prepare("SELECT amount FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).all(clientId) as { amount: number }[];
   const avgDealSize = dealSizes.length > 0 ? dealSizes.reduce((s, d) => s + d.amount, 0) / dealSizes.length : 0;
   const isHighValue = (collectionValue?.v ?? 0) >= UHNW_COLLECTION_THRESHOLD_EUR;
   res.json({
@@ -8101,12 +8570,12 @@ app.get("/api/admin/collector-intelligence/:clientId", requireAuth, requireAdmin
   });
 });
 
-app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, (req, res) => {
-  const clients = db.prepare("SELECT id, name, email, collector_level FROM users WHERE role NOT IN ('admin', 'super_admin')").all() as any[];
+app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, async (req, res) => {
+  const clients = await (await db.prepare("SELECT id, name, email, collector_level FROM users WHERE role NOT IN ('admin', 'super_admin')")).all() as any[];
   const list = clients.map((u: any) => {
-    const purchases = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')").get(u.id) as { c: number; total: number };
-    const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(u.id) as { v: number };
-    const profile = db.prepare("SELECT favorite_gemstones FROM collector_profiles WHERE user_id = ?").get(u.id) as { favorite_gemstones: string | null } | undefined;
+    const purchases = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(u.id) as { c: number; total: number };
+    const collectionValue = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?")).get(u.id) as { v: number };
+    const profile = await (await db.prepare("SELECT favorite_gemstones FROM collector_profiles WHERE user_id = ?")).get(u.id) as { favorite_gemstones: string | null } | undefined;
     const v = collectionValue?.v ?? 0;
     return {
       ...u,
@@ -8126,30 +8595,30 @@ app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, (req, re
 const PROSPECT_STATUSES = ['new', 'contacted', 'interested', 'meeting_scheduled', 'converted_to_client', 'not_interested'] as const;
 const PROSPECT_SOURCES = ['real_estate_broker', 'private_bank', 'concierge', 'art_advisor', 'referral', 'website'] as const;
 
-app.get("/api/admin/prospects", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/prospects", requireAuth, requireAdmin, async (req, res) => {
   const status = req.query.status as string | undefined;
-  let rows = db.prepare("SELECT * FROM prospects ORDER BY updated_at DESC, created_at DESC").all() as any[];
+  let rows = await (await db.prepare("SELECT * FROM prospects ORDER BY updated_at DESC, created_at DESC")).all() as any[];
   if (status && PROSPECT_STATUSES.includes(status as any)) rows = rows.filter((r: any) => r.status === status);
   res.json(rows);
 });
 
-app.get("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
-  const row = db.prepare("SELECT * FROM prospects WHERE id = ?").get(req.params.id) as any;
+app.get("/api/admin/prospects/:id", requireAuth, requireAdmin, async (req, res) => {
+  const row = await (await db.prepare("SELECT * FROM prospects WHERE id = ?")).get(req.params.id) as any;
   if (!row) return res.status(404).json({ error: "Prospect not found" });
   res.json(row);
 });
 
-app.post("/api/admin/prospects", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/prospects", requireAuth, requireAdmin, async (req, res) => {
   const b = req.body || {};
   const name = String(b.name || '').trim();
   const contact_email = String(b.contact_email || '').trim();
   if (!name || !contact_email) return res.status(400).json({ error: "name and contact_email required" });
   const source = PROSPECT_SOURCES.includes((b.source || 'website') as any) ? b.source : 'website';
   const status = PROSPECT_STATUSES.includes((b.status || 'new') as any) ? b.status : 'new';
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO prospects (name, city, country, contact_email, phone, net_worth_category, interest_type, source, notes, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `)).run(
     name,
     (b.city && String(b.city).trim()) || null,
     (b.country && String(b.country).trim()) || null,
@@ -8164,9 +8633,9 @@ app.post("/api/admin/prospects", requireAuth, requireAdmin, (req, res) => {
   res.status(201).json({ id: r.lastInsertRowid, success: true });
 });
 
-app.put("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
+app.put("/api/admin/prospects/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const existing = db.prepare("SELECT * FROM prospects WHERE id = ?").get(id) as any;
+  const existing = await (await db.prepare("SELECT * FROM prospects WHERE id = ?")).get(id) as any;
   if (!existing) return res.status(404).json({ error: "Prospect not found" });
   const b = req.body || {};
   const updates: string[] = [];
@@ -8181,14 +8650,14 @@ app.put("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
   });
   if (updates.length) {
     values.push(id);
-    db.prepare(`UPDATE prospects SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+    await (await db.prepare(`UPDATE prospects SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...values);
   }
   res.json({ success: true });
 });
 
-app.delete("/api/admin/prospects/:id", requireAuth, requireAdmin, (req, res) => {
+app.delete("/api/admin/prospects/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const r = db.prepare("DELETE FROM prospects WHERE id = ?").run(id);
+  const r = await (await db.prepare("DELETE FROM prospects WHERE id = ?")).run(id);
   if (r.changes === 0) return res.status(404).json({ error: "Prospect not found" });
   res.json({ success: true });
 });
@@ -8200,40 +8669,40 @@ function generateVaultId(userId: number): string {
   return `AB-VAULT-${year}-${seq}`;
 }
 
-app.post("/api/admin/prospects/:id/convert", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/prospects/:id/convert", requireAuth, requireAdmin, async (req, res) => {
   const prospectId = Number(req.params.id);
-  const prospect = db.prepare("SELECT * FROM prospects WHERE id = ?").get(prospectId) as any;
+  const prospect = await (await db.prepare("SELECT * FROM prospects WHERE id = ?")).get(prospectId) as any;
   if (!prospect) return res.status(404).json({ error: "Prospect not found" });
   if (prospect.status === 'converted_to_client' && prospect.converted_user_id) {
-    return res.json({ success: true, user_id: prospect.converted_user_id, vault_id: (db.prepare("SELECT vault_id FROM users WHERE id = ?").get(prospect.converted_user_id) as any)?.vault_id, message: "Already converted" });
+    return res.json({ success: true, user_id: prospect.converted_user_id, vault_id: (await (await db.prepare("SELECT vault_id FROM users WHERE id = ?")).get(prospect.converted_user_id) as any)?.vault_id, message: "Already converted" });
   }
   const email = (prospect.contact_email || '').trim();
   if (!email) return res.status(400).json({ error: "Prospect has no contact_email" });
-  const existingUser = db.prepare("SELECT id, vault_id FROM users WHERE email = ?").get(email) as any;
+  const existingUser = await (await db.prepare("SELECT id, vault_id FROM users WHERE email = ?")).get(email) as any;
   if (existingUser) {
-    db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(existingUser.id, prospectId);
+    await (await db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(existingUser.id, prospectId);
     const vaultId = existingUser.vault_id || generateVaultId(existingUser.id);
-    if (!existingUser.vault_id) try { db.prepare("UPDATE users SET vault_id = ? WHERE id = ?").run(vaultId, existingUser.id); } catch (_) {}
+    if (!existingUser.vault_id) try { await (await db.prepare("UPDATE users SET vault_id = ? WHERE id = ?")).run(vaultId, existingUser.id); } catch (_) {}
     return res.json({ success: true, user_id: existingUser.id, vault_id: vaultId, message: "Linked to existing account" });
   }
   const username = (email.split('@')[0] || 'client').replace(/\W/g, '_').slice(0, 40) + '_' + Date.now().toString(36);
   const tempPassword = crypto.randomBytes(16).toString("hex");
   const hashed = hashPassword(tempPassword);
   const name = (prospect.name || email).trim();
-  const r = db.prepare(
+  const r = await (await db.prepare(
     "INSERT INTO users (email, username, password, name, address, is_vip, language, role, status) VALUES (?, ?, ?, ?, ?, 0, 'de', 'client', 'approved')"
-  ).run(email, username, hashed, name, [prospect.city, prospect.country].filter(Boolean).join(', ') || '');
+  )).run(email, username, hashed, name, [prospect.city, prospect.country].filter(Boolean).join(', ') || '');
   const userId = Number(r.lastInsertRowid);
   const vaultId = generateVaultId(userId);
-  try { db.prepare("UPDATE users SET vault_id = ? WHERE id = ?").run(vaultId, userId); } catch (_) {}
-  try { db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?").run(userId); } catch (_) {}
-  db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(userId, prospectId);
+  try { await (await db.prepare("UPDATE users SET vault_id = ? WHERE id = ?")).run(vaultId, userId); } catch (_) {}
+  try { await (await db.prepare("UPDATE users SET force_password_change = 1 WHERE id = ?")).run(userId); } catch (_) {}
+  await (await db.prepare("UPDATE prospects SET status = 'converted_to_client', converted_user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(userId, prospectId);
   res.status(201).json({ success: true, user_id: userId, vault_id: vaultId, temp_password: tempPassword });
 });
 
 // Prospect discovery dashboard (Section 3 & 5): source stats, totals, high value
-app.get("/api/admin/prospects-dashboard", requireAuth, requireAdmin, (req, res) => {
-  const all = db.prepare("SELECT * FROM prospects").all() as any[];
+app.get("/api/admin/prospects-dashboard", requireAuth, requireAdmin, async (req, res) => {
+  const all = await (await db.prepare("SELECT * FROM prospects")).all() as any[];
   const total_prospects = all.length;
   const converted = all.filter((p: any) => p.status === 'converted_to_client');
   const converted_clients = converted.length;
@@ -8257,11 +8726,11 @@ app.get("/api/admin/prospects-dashboard", requireAuth, requireAdmin, (req, res) 
 });
 
 // --- Smart offer suggestions (Section 4): suggest assets for a client ---
-app.get("/api/admin/suggested-offers/:clientId", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/suggested-offers/:clientId", requireAuth, requireAdmin, async (req, res) => {
   const clientId = Number(req.params.clientId);
-  const profile = db.prepare("SELECT favorite_gemstones, budget_range FROM collector_profiles WHERE user_id = ?").get(clientId) as any;
-  const ownedIds = db.prepare("SELECT id FROM masterpieces WHERE current_owner_id = ?").all(clientId).map((r: any) => r.id);
-  let pieces = db.prepare("SELECT * FROM masterpieces WHERE status = 'available' AND id NOT IN (SELECT masterpiece_id FROM private_offers WHERE client_id = ? AND status = 'pending')").all(clientId) as any[];
+  const profile = await (await db.prepare("SELECT favorite_gemstones, budget_range FROM collector_profiles WHERE user_id = ?")).get(clientId) as any;
+  const ownedIds = await (await db.prepare("SELECT id FROM masterpieces WHERE current_owner_id = ?")).all(clientId).map((r: any) => r.id);
+  let pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE status = 'available' AND id NOT IN (SELECT masterpiece_id FROM private_offers WHERE client_id = ? AND status = 'pending')")).all(clientId) as any[];
   if (ownedIds.length) pieces = pieces.filter((p: any) => !ownedIds.includes(p.id));
   const budgetStr = profile?.budget_range || '';
   const budgetMatch = budgetStr.match(/(\d[\d\s.]*)\s*[-–]\s*(\d[\d\s.]*)/);
@@ -8280,191 +8749,191 @@ app.get("/api/admin/suggested-offers/:clientId", requireAuth, requireAdmin, (req
 });
 
 // --- UHNW / Private Client Mode (Section 5): threshold €5M ---
-app.get("/api/me/uhnw-status", requireAuth, (req, res) => {
+app.get("/api/me/uhnw-status", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const collectionValue = db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?").get(userId) as { v: number };
+  const collectionValue = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?")).get(userId) as { v: number };
   const value = collectionValue?.v ?? 0;
   const isUhnw = value >= UHNW_COLLECTION_THRESHOLD_EUR;
-  if (isUhnw) try { db.prepare("UPDATE users SET private_client_mode = 1 WHERE id = ?").run(userId); } catch (_) {}
+  if (isUhnw) try { await (await db.prepare("UPDATE users SET private_client_mode = 1 WHERE id = ?")).run(userId); } catch (_) {}
   res.json({ collection_value: value, is_uhnw: isUhnw, threshold: UHNW_COLLECTION_THRESHOLD_EUR });
 });
 
-app.get("/api/deal-rooms", requireAuth, (req, res) => {
+app.get("/api/deal-rooms", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const rooms = db.prepare(`
+    const rooms = await (await db.prepare(`
       SELECT d.*, u.name as client_name, u.email as client_email
       FROM deal_rooms d JOIN users u ON u.id = d.client_id ORDER BY d.updated_at DESC
-    `).all();
+    `)).all();
     return res.json(rooms);
   }
-  const owned = db.prepare("SELECT *, 1 as is_owner FROM deal_rooms WHERE client_id = ?").all(userId) as any[];
-  const assigned = db.prepare(`
+  const owned = await (await db.prepare("SELECT *, 1 as is_owner FROM deal_rooms WHERE client_id = ?")).all(userId) as any[];
+  const assigned = await (await db.prepare(`
     SELECT d.*, 0 as is_owner FROM deal_rooms d
     JOIN room_assigned_clients a ON a.room_type = 'deal' AND a.room_id = d.id AND a.client_id = ?
     WHERE d.client_id != ?
-  `).all(userId, userId) as any[];
+  `)).all(userId, userId) as any[];
   const seen = new Set((owned as any[]).map((x: any) => x.id));
   const combined = [...owned, ...(assigned as any[]).filter((x: any) => !seen.has(x.id))];
   combined.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
   res.json(combined);
 });
-app.post("/api/deal-rooms", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/deal-rooms", requireAuth, requireAdmin, async (req, res) => {
   const { collector_room_id, client_id, project_title, price, payment_plan, status } = req.body || {};
   if (!client_id || !project_title) return res.status(400).json({ error: "client_id und project_title erforderlich." });
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO deal_rooms (collector_room_id, client_id, project_title, price, payment_plan, status)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(collector_room_id ?? null, client_id, String(project_title).trim(), price ?? null, payment_plan ?? null, status || 'active');
+  `)).run(collector_room_id ?? null, client_id, String(project_title).trim(), price ?? null, payment_plan ?? null, status || 'active');
   res.status(201).json({ id: r.lastInsertRowid, success: true });
 });
-app.get("/api/deal-rooms/:id", requireAuth, (req, res) => {
+app.get("/api/deal-rooms/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
-  const room = db.prepare("SELECT * FROM deal_rooms WHERE id = ?").get(id) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  const room = await (await db.prepare("SELECT * FROM deal_rooms WHERE id = ?")).get(id) as any;
   if (!room) return res.status(404).json({ error: "Deal-Raum nicht gefunden." });
   const isOwner = room.client_id === userId;
-  const isAssigned = db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?").get(id, userId);
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?")).get(id, userId);
   if (!isAdminUser(user) && !isOwner && !isAssigned) return res.status(403).json({ error: "Kein Zugriff." });
-  const client = db.prepare("SELECT id, name, email FROM users WHERE id = ?").get(room.client_id) as any;
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC").all(room.client_id);
-  const certs = db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC").all(room.client_id);
+  const client = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(room.client_id) as any;
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE user_id = ? ORDER BY created_at DESC")).all(room.client_id);
+  const certs = await (await db.prepare("SELECT id, cert_id, masterpiece_id, created_at FROM certificates WHERE owner_id = ? ORDER BY created_at DESC")).all(room.client_id);
   const dealRef = `deal:${id}`;
-  const productionUpdates = db.prepare("SELECT id, event_type, description, reference_id, created_at FROM client_timeline WHERE client_id = ? AND (reference_id = ? OR reference_id = ?) ORDER BY created_at DESC LIMIT 50").all(room.client_id, dealRef, String(room.masterpiece_id || ''));
-  const offers = db.prepare("SELECT id, amount, status, counter_amount, counter_message, created_at, responded_at FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC").all(id);
+  const productionUpdates = await (await db.prepare("SELECT id, event_type, description, reference_id, created_at FROM client_timeline WHERE client_id = ? AND (reference_id = ? OR reference_id = ?) ORDER BY created_at DESC LIMIT 50")).all(room.client_id, dealRef, String(room.masterpiece_id || ''));
+  const offers = await (await db.prepare("SELECT id, amount, status, counter_amount, counter_message, created_at, responded_at FROM deal_room_offers WHERE deal_id = ? ORDER BY created_at DESC")).all(id);
   res.json({ room, client, contracts, certificates: certs, documents: certs, production_updates: productionUpdates, chat: offers });
 });
 
-app.get("/api/collector-reputation", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/collector-reputation", requireAuth, requireAdmin, async (req, res) => {
   const clientId = req.query.client_id ? Number(req.query.client_id) : null;
   if (clientId) {
-    const row = db.prepare("SELECT * FROM collector_reputation WHERE user_id = ?").get(clientId) as any;
-    const payments = db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount),0) as total FROM payments WHERE user_id = ? AND status IN ('paid','completed')").get(clientId) as any;
-    const projects = db.prepare("SELECT COUNT(*) as c FROM client_projects WHERE client_id = ? AND status = 'completed'").get(clientId) as any;
+    const row = await (await db.prepare("SELECT * FROM collector_reputation WHERE user_id = ?")).get(clientId) as any;
+    const payments = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount),0) as total FROM payments WHERE user_id = ? AND status IN ('paid','completed')")).get(clientId) as any;
+    const projects = await (await db.prepare("SELECT COUNT(*) as c FROM client_projects WHERE client_id = ? AND status = 'completed'")).get(clientId) as any;
     const totalPurchases = row?.total_purchases ?? payments?.c ?? 0;
     const totalSpent = row?.total_spent ?? payments?.total ?? 0;
     const projectsCompleted = row?.projects_completed ?? projects?.c ?? 0;
     const trustScore = row?.trust_score ?? 100;
     return res.json({ user_id: clientId, total_purchases: totalPurchases, total_spent: totalSpent, projects_completed: projectsCompleted, trust_score: trustScore });
   }
-  const list = db.prepare(`
+  const list = await (await db.prepare(`
     SELECT r.*, u.name, u.email FROM collector_reputation r JOIN users u ON u.id = r.user_id ORDER BY r.trust_score DESC
-  `).all();
+  `)).all();
   res.json(list);
 });
-app.patch("/api/collector-reputation/:userId", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/collector-reputation/:userId", requireAuth, requireAdmin, async (req, res) => {
   const userId = Number(req.params.userId);
   const { total_purchases, total_spent, projects_completed, trust_score } = req.body || {};
-  const existing = db.prepare("SELECT user_id FROM collector_reputation WHERE user_id = ?").get(userId);
+  const existing = await (await db.prepare("SELECT user_id FROM collector_reputation WHERE user_id = ?")).get(userId);
   if (existing) {
     const updates: string[] = []; const values: any[] = [];
     if (total_purchases !== undefined) { updates.push("total_purchases = ?"); values.push(total_purchases); }
     if (total_spent !== undefined) { updates.push("total_spent = ?"); values.push(total_spent); }
     if (projects_completed !== undefined) { updates.push("projects_completed = ?"); values.push(projects_completed); }
     if (trust_score !== undefined) { updates.push("trust_score = ?"); values.push(trust_score); }
-    if (updates.length) { values.push(userId); db.prepare(`UPDATE collector_reputation SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`).run(...values); }
+    if (updates.length) { values.push(userId); await (await db.prepare(`UPDATE collector_reputation SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`)).run(...values); }
   } else {
-    db.prepare("INSERT INTO collector_reputation (user_id, total_purchases, total_spent, projects_completed, trust_score) VALUES (?, ?, ?, ?, ?)").run(
+    await (await db.prepare("INSERT INTO collector_reputation (user_id, total_purchases, total_spent, projects_completed, trust_score) VALUES (?, ?, ?, ?, ?)")).run(
       userId, total_purchases ?? 0, total_spent ?? 0, projects_completed ?? 0, trust_score ?? 100);
   }
   res.json({ success: true });
 });
 
-app.get("/api/investor-documents", requireAuth, (req, res) => {
+app.get("/api/investor-documents", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (isAdminUser(user)) {
-    const docs = db.prepare("SELECT * FROM investor_documents ORDER BY created_at DESC").all();
+    const docs = await (await db.prepare("SELECT * FROM investor_documents ORDER BY created_at DESC")).all();
     return res.json(docs);
   }
   const role = (user?.role || '').toLowerCase();
   if (role !== 'investor' && role !== 'admin' && role !== 'super_admin') return res.json([]);
-  const docs = db.prepare("SELECT id, document_type, title, file_path, created_at FROM investor_documents WHERE access_control IN ('investor', 'all') ORDER BY created_at DESC").all();
+  const docs = await (await db.prepare("SELECT id, document_type, title, file_path, created_at FROM investor_documents WHERE access_control IN ('investor', 'all') ORDER BY created_at DESC")).all();
   res.json(docs);
 });
-app.post("/api/investor-documents", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/investor-documents", requireAuth, requireAdmin, async (req, res) => {
   const { document_type, title, file_path, access_control } = req.body || {};
   if (!document_type || !file_path) return res.status(400).json({ error: "document_type und file_path erforderlich." });
   const type = ['pitch_deck', 'business_plan', 'investment_proposal'].includes(document_type) ? document_type : 'investment_proposal';
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO investor_documents (document_type, title, file_path, access_control)
     VALUES (?, ?, ?, ?)
-  `).run(type, title ?? null, file_path, access_control || 'investor');
+  `)).run(type, title ?? null, file_path, access_control || 'investor');
   res.status(201).json({ id: r.lastInsertRowid, success: true });
 });
-app.patch("/api/investor-documents/:id", requireAuth, requireAdmin, (req, res) => {
+app.patch("/api/investor-documents/:id", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { title, access_control } = req.body || {};
-  const doc = db.prepare("SELECT id FROM investor_documents WHERE id = ?").get(id);
+  const doc = await (await db.prepare("SELECT id FROM investor_documents WHERE id = ?")).get(id);
   if (!doc) return res.status(404).json({ error: "Dokument nicht gefunden." });
   const updates: string[] = []; const values: any[] = [];
   if (title !== undefined) { updates.push("title = ?"); values.push(title); }
   if (access_control !== undefined) { updates.push("access_control = ?"); values.push(access_control); }
-  if (updates.length) { values.push(id); db.prepare(`UPDATE investor_documents SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values); }
+  if (updates.length) { values.push(id); await (await db.prepare(`UPDATE investor_documents SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...values); }
   res.json({ success: true });
 });
 
 // 10. Fractional Ownership
-app.post("/api/admin/fractional/initialize", (req, res) => {
+app.post("/api/admin/fractional/initialize", async (req, res) => {
   const { masterpieceId, shares, adminId } = req.body; // shares: [{ owner_id, percentage }]
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  db.prepare("UPDATE masterpieces SET status = 'fractional_open' WHERE id = ?").run(masterpieceId);
-  const insertShare = db.prepare("INSERT INTO fractional_shares (masterpiece_id, owner_id, percentage) VALUES (?, ?, ?)");
+  await (await db.prepare("UPDATE masterpieces SET status = 'fractional_open' WHERE id = ?")).run(masterpieceId);
+  const insertShare = await (await db.prepare("INSERT INTO fractional_shares (masterpiece_id, owner_id, percentage) VALUES (?, ?, ?)"));
   for (const share of shares) {
-    insertShare.run(masterpieceId, share.owner_id, share.percentage);
-    const user = db.prepare("SELECT * FROM users WHERE id = ?").get(share.owner_id) as any;
-    const docRef = nextContractRef('fractional');
+    await insertShare.run(masterpieceId, share.owner_id, share.percentage);
+    const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(share.owner_id) as any;
+    const docRef = await nextContractRef('fractional');
     const content = `FRACTIONAL OWNERSHIP AGREEMENT\n\nThis agreement grants ${user.name} a ${share.percentage}% participation in the asset "${piece.title}" (Serial: ${piece.serial_id}).\n\nThe physical asset remains in the custody of the Antonio Bellanova Vault. No physical division of the object. Secondary trading of participation may be permitted on the platform. Exit and redemption terms as per platform rules. Governing Law: Germany; Jurisdiction: Cologne.`;
     const html = generateLuxuryDocument("Fractional Ownership Agreement", content, user, piece, { docRef, title: "Fractional Ownership Agreement" });
-    db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'fractional', ?, ?, 'signed')").run(
+    await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'fractional', ?, ?, 'signed')")).run(
       share.owner_id, masterpieceId, docRef, html
     );
   }
-  updateProvenance(masterpieceId, 'vip_event', `Masterpiece fractionalized into ${shares.length} initial shares.`);
-  logAudit(adminId, 'FRACTIONAL_INIT', masterpieceId.toString(), `Fractionalized masterpiece.`);
+  await updateProvenance(masterpieceId, 'vip_event', `Masterpiece fractionalized into ${shares.length} initial shares.`);
+  await logAudit(adminId, 'FRACTIONAL_INIT', masterpieceId.toString(), `Fractionalized masterpiece.`);
   res.json({ success: true });
 });
 
-app.get("/api/admin/fractional-offers", (req, res) => {
-  const rows = db.prepare(`
+app.get("/api/admin/fractional-offers", async (req, res) => {
+  const rows = await (await db.prepare(`
     SELECT fa.*, m.title, m.serial_id, m.valuation, m.status as piece_status
     FROM fractional_availability fa
     JOIN masterpieces m ON fa.masterpiece_id = m.id
     ORDER BY fa.updated_at DESC
-  `).all();
+  `)).all();
   res.json(rows);
 });
 
-app.post("/api/admin/fractional/offer", (req, res) => {
+app.post("/api/admin/fractional/offer", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any : null;
+  const admin = adminId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { masterpiece_id, available_pct, price_per_pct, min_investment_pct } = req.body;
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpiece_id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpiece_id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  db.prepare("UPDATE masterpieces SET status = 'fractional_open' WHERE id = ?").run(masterpiece_id);
-  const existing = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(masterpiece_id) as any;
-  const hasMin = (() => { try { db.prepare("SELECT min_investment_pct FROM fractional_availability LIMIT 1").get(); return true; } catch { return false; } })();
+  await (await db.prepare("UPDATE masterpieces SET status = 'fractional_open' WHERE id = ?")).run(masterpiece_id);
+  const existing = await (await db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?")).get(masterpiece_id) as any;
+  const hasMin = await hasMinInvestmentPctPromise;
   if (existing) {
     if (hasMin) {
-      db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, min_investment_pct = COALESCE(?, min_investment_pct), updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(
+      await (await db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, min_investment_pct = COALESCE(?, min_investment_pct), updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?")).run(
         available_pct ?? existing.available_pct, price_per_pct ?? existing.price_per_pct, min_investment_pct != null ? min_investment_pct : existing.min_investment_pct, masterpiece_id
       );
     } else {
-      db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(
+      await (await db.prepare("UPDATE fractional_availability SET available_pct = ?, price_per_pct = ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?")).run(
         available_pct ?? existing.available_pct, price_per_pct ?? existing.price_per_pct, masterpiece_id
       );
     }
   } else {
     if (hasMin) {
-      db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct, min_investment_pct) VALUES (?, ?, ?, ?)").run(
+      await (await db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct, min_investment_pct) VALUES (?, ?, ?, ?)")).run(
         masterpiece_id, available_pct ?? 0, price_per_pct ?? null, min_investment_pct ?? null
       );
     } else {
-      db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct) VALUES (?, ?, ?)").run(
+      await (await db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct, price_per_pct) VALUES (?, ?, ?)")).run(
         masterpiece_id, available_pct ?? 0, price_per_pct ?? null
       );
     }
@@ -8472,46 +8941,46 @@ app.post("/api/admin/fractional/offer", (req, res) => {
   res.json({ success: true });
 });
 
-app.get("/api/fractional/shares/:masterpieceId", (req, res) => {
-  const shares = db.prepare(`
+app.get("/api/fractional/shares/:masterpieceId", async (req, res) => {
+  const shares = await (await db.prepare(`
     SELECT fs.*, u.name as owner_name 
     FROM fractional_shares fs 
     JOIN users u ON fs.owner_id = u.id 
     WHERE fs.masterpiece_id = ?
-  `).all(req.params.masterpieceId);
+  `)).all(req.params.masterpieceId);
   res.json(shares);
 });
 
-app.get("/api/investor/fractional-offers", (req, res) => {
-  const hasMin = (() => { try { db.prepare("SELECT min_investment_pct FROM fractional_availability LIMIT 1").get(); return true; } catch { return false; } })();
-  const rows = db.prepare(`
+app.get("/api/investor/fractional-offers", async (req, res) => {
+  const hasMin = await hasMinInvestmentPctPromise;
+  const rows = await (await db.prepare(`
     SELECT m.id, m.title, m.serial_id, m.valuation, m.status, m.image_url,
            fa.available_pct, fa.price_per_pct${hasMin ? ', fa.min_investment_pct' : ''}
     FROM fractional_availability fa
     JOIN masterpieces m ON fa.masterpiece_id = m.id
     WHERE fa.available_pct > 0 AND m.status IN ('fractional_open', 'fractional_full', 'fractional_resale')
     ORDER BY fa.updated_at DESC
-  `).all() as any[];
+  `)).all() as any[];
   res.json(rows);
 });
 
-app.get("/api/investor/portfolio/:userId", (req, res) => {
-  const shares = db.prepare(`
+app.get("/api/investor/portfolio/:userId", async (req, res) => {
+  const shares = await (await db.prepare(`
     SELECT fs.*, m.title, m.serial_id, m.valuation, m.status as asset_status
     FROM fractional_shares fs
     JOIN masterpieces m ON fs.masterpiece_id = m.id
     WHERE fs.owner_id = ?
-  `).all(req.params.userId) as any[];
+  `)).all(req.params.userId) as any[];
   const totalValue = shares.reduce((sum: number, s: any) => sum + (s.valuation || 0) * (s.percentage / 100), 0);
   res.json({ shares, total_fractional_value: totalValue });
 });
 
-app.get("/api/investor/exit-simulation", (req, res) => {
+app.get("/api/investor/exit-simulation", async (req, res) => {
   const { userId, masterpieceId } = req.query;
   const share = userId && masterpieceId
-    ? db.prepare("SELECT * FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?").get(userId, masterpieceId) as any
+    ? await (await db.prepare("SELECT * FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?")).get(userId, masterpieceId) as any
     : null;
-  const piece = masterpieceId ? db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId) as any : null;
+  const piece = masterpieceId ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any : null;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
   const pct = share ? share.percentage : 100;
   const estimatedValue = (piece.valuation || 0) * (pct / 100);
@@ -8519,35 +8988,35 @@ app.get("/api/investor/exit-simulation", (req, res) => {
 });
 
 // Admin: execute exit (buy back fractional share; single physical custody remains with platform/current_owner_id)
-app.post("/api/admin/fractional/execute-exit", (req, res) => {
+app.post("/api/admin/fractional/execute-exit", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any : null;
+  const admin = adminId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const { user_id, masterpiece_id } = req.body;
-  const share = db.prepare("SELECT * FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?").get(user_id, masterpiece_id) as any;
+  const share = await (await db.prepare("SELECT * FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?")).get(user_id, masterpiece_id) as any;
   if (!share) return res.status(404).json({ error: "Fractional share not found" });
   const pct = share.percentage;
-  db.prepare("DELETE FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?").run(user_id, masterpiece_id);
-  const avail = db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?").get(masterpiece_id) as any;
+  await (await db.prepare("DELETE FROM fractional_shares WHERE owner_id = ? AND masterpiece_id = ?")).run(user_id, masterpiece_id);
+  const avail = await (await db.prepare("SELECT * FROM fractional_availability WHERE masterpiece_id = ?")).get(masterpiece_id) as any;
   if (avail) {
-    db.prepare("UPDATE fractional_availability SET available_pct = available_pct + ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?").run(pct, masterpiece_id);
+    await (await db.prepare("UPDATE fractional_availability SET available_pct = available_pct + ?, updated_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?")).run(pct, masterpiece_id);
   } else {
-    db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct) VALUES (?, ?)").run(masterpiece_id, pct);
+    await (await db.prepare("INSERT INTO fractional_availability (masterpiece_id, available_pct) VALUES (?, ?)")).run(masterpiece_id, pct);
   }
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpiece_id) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpiece_id) as any;
   const exitValue = (piece?.valuation || 0) * (pct / 100);
-  try { db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)").run('fractional_fee', -exitValue, user_id, masterpiece_id, `exit_${share.id}`); } catch (_) {}
-  try { db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)").run(user_id, `Your fractional share (${pct}%) exit has been executed by the Maison.`, 'info'); } catch (_) {}
+  try { await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)")).run('fractional_fee', -exitValue, user_id, masterpiece_id, `exit_${share.id}`); } catch (_) {}
+  try { await (await db.prepare("INSERT INTO notifications (user_id, message, type) VALUES (?, ?, ?)")).run(user_id, `Your fractional share (${pct}%) exit has been executed by the Maison.`, 'info'); } catch (_) {}
   res.json({ success: true, exited_pct: pct, returned_to_availability: pct });
 });
 
 // --- Fractional Assets (Production / Vault) ---
 function getAssetSharesSold(assetId: number): number {
-  const row = db.prepare("SELECT COALESCE(SUM(num_shares), 0) as sold FROM asset_shares WHERE asset_id = ?").get(assetId) as { sold: number };
+  const row = await (await db.prepare("SELECT COALESCE(SUM(num_shares), 0) as sold FROM asset_shares WHERE asset_id = ?")).get(assetId) as { sold: number };
   return row?.sold ?? 0;
 }
 function updateAssetStatusFromProgress(assetId: number) {
-  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return;
   const sold = getAssetSharesSold(assetId);
   const total = asset.total_shares || 100;
@@ -8559,7 +9028,7 @@ function updateAssetStatusFromProgress(assetId: number) {
   else if (fundingPct >= 10) next = 'financing';
   else next = 'design';
   if (next !== asset.asset_status) {
-    db.prepare("UPDATE fractional_assets SET asset_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(next, assetId);
+    await (await db.prepare("UPDATE fractional_assets SET asset_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(next, assetId);
   }
 }
 
@@ -8604,8 +9073,8 @@ table{width:100%;border-collapse:collapse;} td{padding:8px 0;border-bottom:1px s
 </body></html>`;
 }
 
-app.get("/api/fractional-assets", (req, res) => {
-  const rows = db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC").all() as any[];
+app.get("/api/fractional-assets", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC")).all() as any[];
   const out = rows.map(a => {
     const sold = getAssetSharesSold(a.id);
     const total = a.total_shares || 100;
@@ -8628,20 +9097,20 @@ app.get("/api/fractional-assets", (req, res) => {
   res.json(out);
 });
 
-app.get("/api/fractional-assets/:id", (req, res) => {
-  const a = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(req.params.id) as any;
+app.get("/api/fractional-assets/:id", async (req, res) => {
+  const a = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(req.params.id) as any;
   if (!a) return res.status(404).json({ error: "Asset not found" });
   const sold = getAssetSharesSold(a.id);
   const total = a.total_shares || 100;
   const remaining = Math.max(0, total - sold);
   const totalValue = (a.total_value != null && a.total_value > 0) ? a.total_value : (total * (a.share_price || 0));
   const financingPct = total ? (sold / total) * 100 : 0;
-  const ownershipRows = db.prepare(`
+  const ownershipRows = await (await db.prepare(`
     SELECT ash.user_id, ash.num_shares, ash.purchase_price, ash.purchase_date, u.name as user_name
     FROM asset_shares ash
     LEFT JOIN users u ON u.id = ash.user_id
     WHERE ash.asset_id = ?
-  `).all(a.id) as any[];
+  `)).all(a.id) as any[];
   const ownership_distribution = ownershipRows.map((r: any) => ({
     client_id: r.user_id,
     user_id: r.user_id,
@@ -8667,9 +9136,9 @@ app.get("/api/fractional-assets/:id", (req, res) => {
   });
 });
 
-app.post("/api/admin/fractional-assets", (req, res) => {
+app.post("/api/admin/fractional-assets", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const body = req.body;
   const title = body.title || 'Asset';
@@ -8692,22 +9161,22 @@ app.post("/api/admin/fractional-assets", (req, res) => {
   const available_for_resale = body.available_for_resale ? 1 : 0;
   const requires_investor_approval = body.requires_investor_approval ? 1 : 0;
   const images = typeof body.images === 'string' ? body.images : (Array.isArray(body.images) ? JSON.stringify(body.images) : null);
-  const r = db.prepare(`
+  const r = await (await db.prepare(`
     INSERT INTO fractional_assets (title, description, image_url, asset_type, asset_status, total_shares, share_price, total_value, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, requires_investor_approval, images, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, total_value, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, requires_investor_approval, images);
+  `)).run(title, description, image_url, asset_type, asset_status, total_shares, share_price, total_value, production_threshold_pct, masterpiece_id, estimated_production_weeks, storage_location, certification_status, gemstone_documentation, estimated_carat_weight, atelier_info, available_for_resale, requires_investor_approval, images);
   const id = Number(r.lastInsertRowid);
   const asset_code = generateAssetCode(id);
-  try { db.prepare("UPDATE fractional_assets SET asset_code = ? WHERE id = ?").run(asset_code, id); } catch (_) {}
+  try { await (await db.prepare("UPDATE fractional_assets SET asset_code = ? WHERE id = ?")).run(asset_code, id); } catch (_) {}
   res.json({ id, asset_code, success: true });
 });
 
-app.put("/api/admin/fractional-assets/:id", (req, res) => {
+app.put("/api/admin/fractional-assets/:id", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const b = req.body;
-  const existing = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(req.params.id) as any;
+  const existing = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(req.params.id) as any;
   if (!existing) return res.status(404).json({ error: "Not found" });
   const updates: string[] = [];
   const values: any[] = [];
@@ -8718,91 +9187,91 @@ app.put("/api/admin/fractional-assets/:id", (req, res) => {
   if (b.requires_investor_approval !== undefined) { updates.push('requires_investor_approval = ?'); values.push(b.requires_investor_approval ? 1 : 0); }
   if (updates.length) {
     values.push(req.params.id);
-    db.prepare(`UPDATE fractional_assets SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(...values);
+    await (await db.prepare(`UPDATE fractional_assets SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(...values);
   }
   res.json({ success: true });
 });
 
 // Approve or reject investor for a fractional asset (admin)
-app.post("/api/admin/fractional-assets/:id/approve-investor", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/fractional-assets/:id/approve-investor", requireAuth, requireAdmin, async (req, res) => {
   const assetId = Number(req.params.id);
   const { user_id, status } = req.body || {};
   const userId = Number(user_id);
   if (!userId) return res.status(400).json({ error: "user_id required" });
-  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return res.status(404).json({ error: "Asset not found" });
   const newStatus = status === 'rejected' ? 'rejected' : 'approved';
-  const existing = db.prepare("SELECT id FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId);
+  const existing = await (await db.prepare("SELECT id FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?")).get(assetId, userId);
   if (existing) {
-    db.prepare("UPDATE fractional_investor_approvals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?").run(newStatus, assetId, userId);
+    await (await db.prepare("UPDATE fractional_investor_approvals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?")).run(newStatus, assetId, userId);
   } else {
-    db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, ?)").run(assetId, userId, newStatus);
+    await (await db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, ?)")).run(assetId, userId, newStatus);
   }
   res.json({ success: true, status: newStatus });
 });
 
 // List investor approvals for an asset (admin)
-app.get("/api/admin/fractional-assets/:id/approvals", requireAuth, requireAdmin, (req, res) => {
+app.get("/api/admin/fractional-assets/:id/approvals", requireAuth, requireAdmin, async (req, res) => {
   const assetId = Number(req.params.id);
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT a.id, a.asset_id, a.user_id, a.status, a.created_at, a.updated_at, u.name, u.email
     FROM fractional_investor_approvals a
     LEFT JOIN users u ON u.id = a.user_id
     WHERE a.asset_id = ?
     ORDER BY a.updated_at DESC
-  `).all(assetId) as any[];
+  `)).all(assetId) as any[];
   res.json(rows);
 });
 
 // Client request investor approval (creates pending record for admin to approve)
-app.post("/api/fractional-assets/:id/request-approval", (req, res) => {
+app.post("/api/fractional-assets/:id/request-approval", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   const assetId = Number(req.params.id);
-  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return res.status(404).json({ error: "Asset not found" });
   if (!asset.requires_investor_approval) return res.json({ success: true, message: "No approval required" });
-  const existing = db.prepare("SELECT id, status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as any;
+  const existing = await (await db.prepare("SELECT id, status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?")).get(assetId, userId) as any;
   if (existing) {
     if (existing.status === 'approved') return res.json({ success: true, message: "Already approved" });
     if (existing.status === 'pending') return res.json({ success: true, message: "Request pending" });
-    db.prepare("UPDATE fractional_investor_approvals SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?").run(assetId, userId);
+    await (await db.prepare("UPDATE fractional_investor_approvals SET status = 'pending', updated_at = CURRENT_TIMESTAMP WHERE asset_id = ? AND user_id = ?")).run(assetId, userId);
   } else {
-    db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, 'pending')").run(assetId, userId);
+    await (await db.prepare("INSERT INTO fractional_investor_approvals (asset_id, user_id, status) VALUES (?, ?, 'pending')")).run(assetId, userId);
   }
   res.json({ success: true, message: "Approval requested" });
 });
 
 // Asset sale event: record sale price and create payouts per owner (admin)
-app.post("/api/admin/fractional-assets/:id/sale", requireAuth, requireAdmin, (req, res) => {
+app.post("/api/admin/fractional-assets/:id/sale", requireAuth, requireAdmin, async (req, res) => {
   const assetId = Number(req.params.id);
   const salePrice = Number(req.body?.sale_price);
   if (!Number.isFinite(salePrice) || salePrice < 0) return res.status(400).json({ error: "Valid sale_price required" });
-  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return res.status(404).json({ error: "Asset not found" });
   const total = asset.total_shares || 100;
-  const owners = db.prepare("SELECT user_id, num_shares FROM asset_shares WHERE asset_id = ?").all(assetId) as any[];
+  const owners = await (await db.prepare("SELECT user_id, num_shares FROM asset_shares WHERE asset_id = ?")).all(assetId) as any[];
   for (const o of owners) {
     const pct = total ? (o.num_shares / total) * 100 : 0;
     const payoutAmount = (pct / 100) * salePrice;
-    db.prepare("INSERT INTO fractional_asset_sale_payouts (asset_id, user_id, shares_owned, ownership_pct, sale_price_total, payout_amount) VALUES (?, ?, ?, ?, ?, ?)").run(assetId, o.user_id, o.num_shares, pct, salePrice, payoutAmount);
+    await (await db.prepare("INSERT INTO fractional_asset_sale_payouts (asset_id, user_id, shares_owned, ownership_pct, sale_price_total, payout_amount) VALUES (?, ?, ?, ?, ?, ?)")).run(assetId, o.user_id, o.num_shares, pct, salePrice, payoutAmount);
   }
-  db.prepare("UPDATE fractional_assets SET asset_status = 'sold', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(assetId);
+  await (await db.prepare("UPDATE fractional_assets SET asset_status = 'sold', updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(assetId);
   res.json({ success: true, sale_price: salePrice, payouts_count: owners.length });
 });
 
-app.post("/api/fractional-assets/:id/buy", (req, res) => {
+app.post("/api/fractional-assets/:id/buy", async (req, res) => {
   const userId = getSessionUserId(req);
-  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  const user = userId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any) : null;
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   const numShares = Math.floor(Number(req.body?.num_shares)) || 1;
   if (numShares < 1) return res.status(400).json({ error: "Invalid num_shares" });
   const assetId = Number(req.params.id);
-  const asset = db.prepare("SELECT * FROM fractional_assets WHERE id = ?").get(assetId) as any;
+  const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return res.status(404).json({ error: "Asset not found" });
   if ((asset.asset_status || '').toLowerCase() === 'sold') return res.status(400).json({ error: "Asset has been sold" });
   if (asset.requires_investor_approval) {
-    const approval = db.prepare("SELECT status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as { status: string } | undefined;
+    const approval = await (await db.prepare("SELECT status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?")).get(assetId, userId) as { status: string } | undefined;
     if (!approval || approval.status !== 'approved') return res.status(403).json({ error: "Investor approval required. Please request access." });
   }
   const sold = getAssetSharesSold(assetId);
@@ -8811,11 +9280,11 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
   const sharePrice = asset.share_price || 0;
   const purchasePrice = numShares * sharePrice;
   const purchaseDate = new Date().toISOString();
-  const existing = db.prepare("SELECT * FROM asset_shares WHERE asset_id = ? AND user_id = ?").get(assetId, userId) as any;
+  const existing = await (await db.prepare("SELECT * FROM asset_shares WHERE asset_id = ? AND user_id = ?")).get(assetId, userId) as any;
   if (existing) {
-    db.prepare("UPDATE asset_shares SET num_shares = num_shares + ?, purchase_price = COALESCE(purchase_price, 0) + ?, purchase_date = COALESCE(purchase_date, ?) WHERE asset_id = ? AND user_id = ?").run(numShares, purchasePrice, purchaseDate, assetId, userId);
+    await (await db.prepare("UPDATE asset_shares SET num_shares = num_shares + ?, purchase_price = COALESCE(purchase_price, 0) + ?, purchase_date = COALESCE(purchase_date, ?) WHERE asset_id = ? AND user_id = ?")).run(numShares, purchasePrice, purchaseDate, assetId, userId);
   } else {
-    db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares, purchase_price, purchase_date) VALUES (?, ?, ?, ?, ?)").run(assetId, userId, numShares, purchasePrice, purchaseDate);
+    await (await db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares, purchase_price, purchase_date) VALUES (?, ?, ?, ?, ?)")).run(assetId, userId, numShares, purchasePrice, purchaseDate);
   }
   updateAssetStatusFromProgress(assetId);
 
@@ -8849,18 +9318,18 @@ app.post("/api/fractional-assets/:id/buy", (req, res) => {
       contractId: docRef
     });
     try {
-      db.prepare("INSERT INTO fractional_asset_contracts (asset_id, user_id, type, doc_ref, content) VALUES (?, ?, ?, ?, ?)").run(assetId, userId, d.type, docRef, content);
+      await (await db.prepare("INSERT INTO fractional_asset_contracts (asset_id, user_id, type, doc_ref, content) VALUES (?, ?, ?, ?, ?)")).run(assetId, userId, d.type, docRef, content);
     } catch (e) { /* ignore duplicate or schema */ }
   }
 
   res.json({ success: true, num_shares: numShares });
 });
 
-app.get("/api/admin/fractional-assets", (req, res) => {
+app.get("/api/admin/fractional-assets", async (req, res) => {
   const adminId = getSessionUserId(req);
-  const admin = adminId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(adminId) as any) : null;
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const rows = db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC").all() as any[];
+  const rows = await (await db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC")).all() as any[];
   const out = rows.map(a => {
     const sold = getAssetSharesSold(a.id);
     const total = a.total_shares || 100;
@@ -8872,16 +9341,16 @@ app.get("/api/admin/fractional-assets", (req, res) => {
   res.json(out);
 });
 
-app.get("/api/fractional-assets/my-shares", (req, res) => {
+app.get("/api/fractional-assets/my-shares", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.json([]);
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT fa.id, fa.title, fa.asset_code, fa.image_url, fa.asset_status, fa.total_shares, fa.share_price, fa.total_value,
            ash.num_shares, ash.purchase_price, ash.purchase_date
     FROM asset_shares ash
     JOIN fractional_assets fa ON fa.id = ash.asset_id
     WHERE ash.user_id = ?
-  `).all(userId) as any[];
+  `)).all(userId) as any[];
   const out = rows.map((r: any) => {
     const total = r.total_shares || 100;
     const totalVal = (r.total_value != null && r.total_value > 0) ? r.total_value : (total * (r.share_price || 0));
@@ -8902,23 +9371,23 @@ app.get("/api/fractional-assets/my-shares", (req, res) => {
   res.json(out);
 });
 
-app.get("/api/investor/fractional-documents", (req, res) => {
+app.get("/api/investor/fractional-documents", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT c.id, c.asset_id, c.type, c.doc_ref, c.created_at, fa.title as asset_title, fa.asset_code
     FROM fractional_asset_contracts c
     JOIN fractional_assets fa ON fa.id = c.asset_id
     WHERE c.user_id = ?
     ORDER BY c.created_at DESC
-  `).all(userId) as any[];
+  `)).all(userId) as any[];
   res.json(rows);
 });
 
-app.get("/api/investor/fractional-documents/:id", (req, res) => {
+app.get("/api/investor/fractional-documents/:id", async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const row = db.prepare("SELECT * FROM fractional_asset_contracts WHERE id = ? AND user_id = ?").get(req.params.id, userId) as any;
+  const row = await (await db.prepare("SELECT * FROM fractional_asset_contracts WHERE id = ? AND user_id = ?")).get(req.params.id, userId) as any;
   if (!row || !row.content) return res.status(404).json({ error: "Not found" });
   const disposition = req.query.download === '1' ? `attachment; filename="${(row.doc_ref || 'contract')}.html"` : 'inline';
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -8927,51 +9396,51 @@ app.get("/api/investor/fractional-documents/:id", (req, res) => {
 });
 
 // Investor Data Room: access limited to Investor & above; optional: approved dataroom request for piece
-app.get("/api/investor/dataroom/:masterpieceId", (req, res) => {
+app.get("/api/investor/dataroom/:masterpieceId", async (req, res) => {
   const userId = getSessionUserId(req);
-  const user = userId ? (db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any) : null;
+  const user = userId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any) : null;
   const allowedRoles = ['investor', 'admin', 'super_admin', 'vip', 'royal', 'black'];
   if (!user || !allowedRoles.includes(user.role)) return res.status(403).json({ error: "Access limited to Investor and above." });
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.masterpieceId) as any;
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.masterpieceId) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const registry = db.prepare("SELECT * FROM ownership_history WHERE masterpiece_id = ? ORDER BY acquired_at ASC").all(req.params.masterpieceId);
-  const contracts = db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE masterpiece_id = ? ORDER BY created_at DESC").all(req.params.masterpieceId);
-  const service = db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC").all(req.params.masterpieceId);
+  const registry = await (await db.prepare("SELECT * FROM ownership_history WHERE masterpiece_id = ? ORDER BY acquired_at ASC")).all(req.params.masterpieceId);
+  const contracts = await (await db.prepare("SELECT id, type, doc_ref, status, created_at FROM contracts WHERE masterpiece_id = ? ORDER BY created_at DESC")).all(req.params.masterpieceId);
+  const service = await (await db.prepare("SELECT * FROM service_history WHERE masterpiece_id = ? ORDER BY service_date DESC")).all(req.params.masterpieceId);
   res.json({ masterpiece: piece, ownership_history: registry, contracts, service_history: service });
 });
 
 // 11. Monetization Dashboard
-app.get("/api/admin/revenue", (req, res) => {
-  const totalRevenue = db.prepare("SELECT SUM(amount) as total FROM revenue_ledger").get().total || 0;
-  const revenueByType = db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type").all();
-  const recentTransactions = db.prepare(`
+app.get("/api/admin/revenue", async (req, res) => {
+  const totalRevenue = await (await db.prepare("SELECT SUM(amount) as total FROM revenue_ledger")).get().total || 0;
+  const revenueByType = await (await db.prepare("SELECT type, SUM(amount) as total FROM revenue_ledger GROUP BY type")).all();
+  const recentTransactions = await (await db.prepare(`
     SELECT rl.*, u.name as user_name, m.title as piece_title 
     FROM revenue_ledger rl 
     JOIN users u ON rl.user_id = u.id 
     LEFT JOIN masterpieces m ON rl.masterpiece_id = m.id
     ORDER BY rl.created_at DESC LIMIT 20
-  `).all();
+  `)).all();
   
   res.json({ totalRevenue, revenueByType, recentTransactions });
 });
 
-app.post("/api/revenue/add", (req, res) => {
+app.post("/api/revenue/add", async (req, res) => {
   const { type, amount, userId, masterpieceId, referenceId } = req.body;
-  db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO revenue_ledger (type, amount, user_id, masterpiece_id, reference_id) VALUES (?, ?, ?, ?, ?)")).run(
     type, amount, userId, masterpieceId, referenceId
   );
   res.json({ success: true });
 });
 
 // 12. Production Progress
-app.get("/api/production/:masterpieceId", (req, res) => {
-  const progress = db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC").all(req.params.masterpieceId);
+app.get("/api/production/:masterpieceId", async (req, res) => {
+  const progress = await (await db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC")).all(req.params.masterpieceId);
   res.json(progress);
 });
 
-app.post("/api/admin/production/update", (req, res) => {
+app.post("/api/admin/production/update", async (req, res) => {
   const { masterpieceId, stepIndex, status, notes, mediaUrl, adminId } = req.body;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO production_progress (masterpiece_id, step_index, status, notes, media_url, staff_id, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(masterpiece_id, step_index) DO UPDATE SET 
@@ -8980,25 +9449,25 @@ app.post("/api/admin/production/update", (req, res) => {
       media_url = excluded.media_url, 
       staff_id = excluded.staff_id,
       timestamp = CURRENT_TIMESTAMP
-  `).run(masterpieceId, stepIndex, status, notes, mediaUrl, adminId);
+  `)).run(masterpieceId, stepIndex, status, notes, mediaUrl, adminId);
   
   const steps = ["Deposit received", "Production started", "Production finished", "Quality control", "Ready for delivery", "Final payment requested", "Final payment received", "Shipped", "Delivered", "Completed"];
   const stepName = steps[stepIndex];
   
-  updateProvenance(masterpieceId, 'service', `Production step "${stepName}" marked as ${status}.`);
+  await updateProvenance(masterpieceId, 'service', `Production step "${stepName}" marked as ${status}.`);
   broadcast({ type: 'PRODUCTION_UPDATED', masterpieceId, stepIndex, status });
   res.json({ success: true });
 });
 
 // 13. Delivery Details
-app.get("/api/delivery/:masterpieceId", (req, res) => {
-  const delivery = db.prepare("SELECT * FROM delivery_details WHERE masterpiece_id = ?").get(req.params.masterpieceId);
+app.get("/api/delivery/:masterpieceId", async (req, res) => {
+  const delivery = await (await db.prepare("SELECT * FROM delivery_details WHERE masterpiece_id = ?")).get(req.params.masterpieceId);
   res.json(delivery || null);
 });
 
-app.post("/api/admin/delivery/update", (req, res) => {
+app.post("/api/admin/delivery/update", async (req, res) => {
   const { masterpieceId, courierName, trackingNumber, scheduledAt, status, adminId } = req.body;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO delivery_details (masterpiece_id, courier_name, tracking_number, scheduled_at, status)
     VALUES (?, ?, ?, ?, ?)
     ON CONFLICT(masterpiece_id) DO UPDATE SET 
@@ -9006,22 +9475,22 @@ app.post("/api/admin/delivery/update", (req, res) => {
       tracking_number = excluded.tracking_number, 
       scheduled_at = excluded.scheduled_at, 
       status = excluded.status
-  `).run(masterpieceId, courierName, trackingNumber, scheduledAt, status);
+  `)).run(masterpieceId, courierName, trackingNumber, scheduledAt, status);
   
-  updateProvenance(masterpieceId, 'vip_event', `Delivery status updated to ${status}. Courier: ${courierName}`);
+  await updateProvenance(masterpieceId, 'vip_event', `Delivery status updated to ${status}. Courier: ${courierName}`);
   broadcast({ type: 'DELIVERY_UPDATED', masterpieceId, status });
   res.json({ success: true });
 });
 
 // 14. Atelier Moments
-app.get("/api/moments/:masterpieceId", (req, res) => {
-  const moments = db.prepare("SELECT * FROM atelier_moments WHERE masterpiece_id = ? ORDER BY created_at DESC").all(req.params.masterpieceId);
+app.get("/api/moments/:masterpieceId", async (req, res) => {
+  const moments = await (await db.prepare("SELECT * FROM atelier_moments WHERE masterpiece_id = ? ORDER BY created_at DESC")).all(req.params.masterpieceId);
   res.json(moments);
 });
 
-app.post("/api/admin/moments/add", (req, res) => {
+app.post("/api/admin/moments/add", async (req, res) => {
   const { masterpieceId, title, caption, mediaUrl, adminId } = req.body;
-  db.prepare("INSERT INTO atelier_moments (masterpiece_id, title, caption, media_url) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO atelier_moments (masterpiece_id, title, caption, media_url) VALUES (?, ?, ?, ?)")).run(
     masterpieceId, title, caption, mediaUrl
   );
   broadcast({ type: 'NEW_MOMENT', masterpieceId });
@@ -9029,31 +9498,31 @@ app.post("/api/admin/moments/add", (req, res) => {
 });
 
 // 15. User Applications
-app.post("/api/applications/apply", (req, res) => {
+app.post("/api/applications/apply", async (req, res) => {
   const { userId, type, portfolioUrl, budgetRange, interests, verificationDocs } = req.body;
-  db.prepare("INSERT INTO user_applications (user_id, type, portfolio_url, budget_range, interests, verification_docs) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO user_applications (user_id, type, portfolio_url, budget_range, interests, verification_docs) VALUES (?, ?, ?, ?, ?, ?)")).run(
     userId, type, portfolioUrl, budgetRange, interests, JSON.stringify(verificationDocs)
   );
   res.json({ success: true });
 });
 
-app.get("/api/admin/applications", (req, res) => {
-  const apps = db.prepare(`
+app.get("/api/admin/applications", async (req, res) => {
+  const apps = await (await db.prepare(`
     SELECT ua.*, u.name as user_name, u.email as user_email 
     FROM user_applications ua 
     JOIN users u ON ua.user_id = u.id 
     ORDER BY ua.created_at DESC
-  `).all();
+  `)).all();
   res.json(apps);
 });
 
-app.post("/api/admin/applications/review", (req, res) => {
+app.post("/api/admin/applications/review", async (req, res) => {
   const { applicationId, status, adminId } = req.body;
-  const application = db.prepare("SELECT * FROM user_applications WHERE id = ?").get(applicationId);
-  db.prepare("UPDATE user_applications SET status = ? WHERE id = ?").run(status, applicationId);
+  const application = await (await db.prepare("SELECT * FROM user_applications WHERE id = ?")).get(applicationId);
+  await (await db.prepare("UPDATE user_applications SET status = ? WHERE id = ?")).run(status, applicationId);
   
   if (status === 'approved') {
-    db.prepare("UPDATE users SET role = ? WHERE id = ?").run(application.type, application.user_id);
+    await (await db.prepare("UPDATE users SET role = ? WHERE id = ?")).run(application.type, application.user_id);
     notifyUser(application.user_id, `Your application for ${application.type} status has been approved.`, "success");
   } else {
     notifyUser(application.user_id, `Your application for ${application.type} status was not approved.`, "warning");
@@ -9063,8 +9532,8 @@ app.post("/api/admin/applications/review", (req, res) => {
 });
 
 // 16. AI Pricing Engine (Mock)
-app.get("/api/pricing/estimate/:masterpieceId", (req, res) => {
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(req.params.masterpieceId);
+app.get("/api/pricing/estimate/:masterpieceId", async (req, res) => {
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(req.params.masterpieceId);
   if (!piece) return res.status(404).json({ error: "Piece not found" });
   
   // Mock AI logic
@@ -9083,34 +9552,34 @@ app.get("/api/pricing/estimate/:masterpieceId", (req, res) => {
 });
 
 // 17. Wealth CRM
-app.get("/api/admin/crm/:userId", (req, res) => {
-  const interactions = db.prepare(`
+app.get("/api/admin/crm/:userId", async (req, res) => {
+  const interactions = await (await db.prepare(`
     SELECT ci.*, u.name as admin_name 
     FROM crm_interactions ci 
     JOIN users u ON ci.admin_id = u.id 
     WHERE ci.user_id = ? 
     ORDER BY ci.created_at DESC
-  `).all(req.params.userId);
+  `)).all(req.params.userId);
   res.json(interactions);
 });
 
-app.post("/api/admin/crm/add", (req, res) => {
+app.post("/api/admin/crm/add", async (req, res) => {
   const { userId, adminId, type, content, priority } = req.body;
-  db.prepare("INSERT INTO crm_interactions (user_id, admin_id, type, content, priority) VALUES (?, ?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO crm_interactions (user_id, admin_id, type, content, priority) VALUES (?, ?, ?, ?, ?)")).run(
     userId, adminId, type, content, priority || 'normal'
   );
   res.json({ success: true });
 });
 
 // 18. Shipping & Logistics
-app.get("/api/shipping/:masterpieceId", (req, res) => {
-  const shipping = db.prepare("SELECT * FROM shipping_orchestration WHERE masterpiece_id = ?").get(req.params.masterpieceId);
+app.get("/api/shipping/:masterpieceId", async (req, res) => {
+  const shipping = await (await db.prepare("SELECT * FROM shipping_orchestration WHERE masterpiece_id = ?")).get(req.params.masterpieceId);
   res.json(shipping || null);
 });
 
-app.post("/api/admin/shipping/update", (req, res) => {
+app.post("/api/admin/shipping/update", async (req, res) => {
   const { masterpieceId, status, courier, trackingNumber, insuranceValue, whiteGlove, custodyEvent } = req.body;
-  const existing = db.prepare("SELECT * FROM shipping_orchestration WHERE masterpiece_id = ?").get(masterpieceId);
+  const existing = await (await db.prepare("SELECT * FROM shipping_orchestration WHERE masterpiece_id = ?")).get(masterpieceId);
   
   let custodyLog = [];
   if (existing && existing.custody_log) {
@@ -9120,7 +9589,7 @@ app.post("/api/admin/shipping/update", (req, res) => {
     custodyLog.push({ event: custodyEvent, timestamp: new Date().toISOString() });
   }
 
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO shipping_orchestration (masterpiece_id, status, courier, tracking_number, insurance_value, white_glove, custody_log)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(masterpiece_id) DO UPDATE SET 
@@ -9130,48 +9599,48 @@ app.post("/api/admin/shipping/update", (req, res) => {
       insurance_value = excluded.insurance_value, 
       white_glove = excluded.white_glove,
       custody_log = excluded.custody_log
-  `).run(masterpieceId, status, courier, trackingNumber, insuranceValue, whiteGlove ? 1 : 0, JSON.stringify(custodyLog));
+  `)).run(masterpieceId, status, courier, trackingNumber, insuranceValue, whiteGlove ? 1 : 0, JSON.stringify(custodyLog));
   
   res.json({ success: true });
 });
 
 // 19. Insurance
-app.get("/api/insurance/:masterpieceId", (req, res) => {
-  const policies = db.prepare("SELECT * FROM insurance_policies WHERE masterpiece_id = ?").all(req.params.masterpieceId);
+app.get("/api/insurance/:masterpieceId", async (req, res) => {
+  const policies = await (await db.prepare("SELECT * FROM insurance_policies WHERE masterpiece_id = ?")).all(req.params.masterpieceId);
   res.json(policies);
 });
 
-app.post("/api/admin/insurance/add", (req, res) => {
+app.post("/api/admin/insurance/add", async (req, res) => {
   const { masterpieceId, provider, policyNumber, coverageAmount, premium, expiresAt, documentUrl } = req.body;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO insurance_policies (masterpiece_id, provider, policy_number, coverage_amount, premium, expires_at, document_url)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(masterpieceId, provider, policyNumber, coverageAmount, premium, expiresAt, documentUrl);
+  `)).run(masterpieceId, provider, policyNumber, coverageAmount, premium, expiresAt, documentUrl);
   res.json({ success: true });
 });
 
 // 20. Private Events
-app.get("/api/events", (req, res) => {
-  const events = db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' ORDER BY event_date ASC").all();
+app.get("/api/events", async (req, res) => {
+  const events = await (await db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' ORDER BY event_date ASC")).all();
   res.json(events);
 });
 
-app.post("/api/events/rsvp", (req, res) => {
+app.post("/api/events/rsvp", async (req, res) => {
   const { eventId, userId, status } = req.body;
-  db.prepare(`
+  await (await db.prepare(`
     INSERT INTO event_rsvps (event_id, user_id, status) 
     VALUES (?, ?, ?) 
     ON CONFLICT(event_id, user_id) DO UPDATE SET status = excluded.status
-  `).run(eventId, userId, status);
+  `)).run(eventId, userId, status);
   res.json({ success: true });
 });
 
 // 21. Platform Intelligence (Founder Dashboard)
-app.get("/api/admin/intelligence", (req, res) => {
-  const totalValue = db.prepare("SELECT SUM(valuation) as total FROM masterpieces").get().total || 0;
-  const userGrowth = db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM users GROUP BY month").all();
-  const liquidity = db.prepare("SELECT status, COUNT(*) as count FROM masterpieces GROUP BY status").all();
-  const reputationAvg = db.prepare("SELECT AVG(reputation_score) as avg FROM users").get().avg || 0;
+app.get("/api/admin/intelligence", async (req, res) => {
+  const totalValue = await (await db.prepare("SELECT SUM(valuation) as total FROM masterpieces")).get().total || 0;
+  const userGrowth = await (await db.prepare("SELECT strftime('%Y-%m', created_at) as month, COUNT(*) as count FROM users GROUP BY month")).all();
+  const liquidity = await (await db.prepare("SELECT status, COUNT(*) as count FROM masterpieces GROUP BY status")).all();
+  const reputationAvg = await (await db.prepare("SELECT AVG(reputation_score) as avg FROM users")).get().avg || 0;
   
   res.json({
     total_portfolio_value: totalValue,
@@ -9187,10 +9656,9 @@ app.get("/api/admin/intelligence", (req, res) => {
 const COMM_THREAD_TYPES = ['concierge', 'asset', 'investor_hub', 'auction_live', 'black_direct', 'vault'] as const;
 const ROLES_PRIORITY: Record<string, number> = { client: 1, investor: 1, vip: 2, admin: 1, royal: 3, black: 3 };
 
-function commAudit(action: string, userId: number, threadId?: number, messageId?: number, targetId?: string, details?: string) {
+async function commAudit(action: string, userId: number, threadId?: number, messageId?: number, targetId?: string, details?: string) {
   try {
-    db.prepare("INSERT INTO communication_audit_log (action, thread_id, message_id, user_id, target_id, details) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(action, threadId ?? null, messageId ?? null, userId, targetId ?? null, details ?? null);
+    await (await db.prepare("INSERT INTO communication_audit_log (action, thread_id, message_id, user_id, target_id, details) VALUES (?, ?, ?, ?, ?, ?)")).run(action, threadId ?? null, messageId ?? null, userId, targetId ?? null, details ?? null);
   } catch (_) {}
 }
 
@@ -9199,23 +9667,23 @@ function canAccessThread(thread: any, userId: number, userRole: string, isAdmin:
   if (thread.type === 'black_direct' && thread.user_id === userId) return true;
   if (thread.user_id === userId) return true;
   if (thread.type === 'asset' && thread.masterpiece_id) {
-    const piece = db.prepare("SELECT current_owner_id FROM masterpieces WHERE id = ?").get(thread.masterpiece_id);
+    const piece = await (await db.prepare("SELECT current_owner_id FROM masterpieces WHERE id = ?")).get(thread.masterpiece_id);
     if (piece && piece.current_owner_id === userId) return true;
   }
   if (thread.type === 'investor_hub') {
-    const access = db.prepare("SELECT 1 FROM investor_hub_write_access WHERE thread_id = ? AND user_id = ? AND can_write = 1").get(thread.id, userId);
+    const access = await (await db.prepare("SELECT 1 FROM investor_hub_write_access WHERE thread_id = ? AND user_id = ? AND can_write = 1")).get(thread.id, userId);
     if (access) return true;
   }
   if (thread.type === 'auction_live' && thread.auction_id) {
-    const bid = db.prepare("SELECT 1 FROM bids WHERE auction_id = ? AND user_id = ?").get(thread.auction_id, userId);
+    const bid = await (await db.prepare("SELECT 1 FROM bids WHERE auction_id = ? AND user_id = ?")).get(thread.auction_id, userId);
     if (bid) return true;
   }
   return false;
 }
 
-app.get("/api/communication/threads", (req, res) => {
+app.get("/api/communication/threads", async (req, res) => {
   const userId = Number(req.query.userId);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   const isAdmin = user.role === 'admin' || user.role === 'super_admin';
   const type = req.query.type as string | undefined;
@@ -9227,19 +9695,19 @@ app.get("/api/communication/threads", (req, res) => {
     if (req.query.status) { sql += " AND ct.status = ?"; params.push(req.query.status); }
     if (req.query.assetId) { sql += " AND ct.masterpiece_id = ?"; params.push(req.query.assetId); }
     sql += " ORDER BY ct.priority DESC, ct.updated_at DESC";
-    rows = db.prepare(sql).all(...params);
+    rows = await (await db.prepare(sql)).all(...params);
   } else {
     let sql = "SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id WHERE (ct.user_id = ? OR ct.assigned_admin_id = ?)";
     const params: any[] = [userId, userId];
     if (type) { sql += " AND ct.type = ?"; params.push(type); }
     sql += " AND ct.type != 'black_direct'";
     sql += " ORDER BY ct.priority DESC, ct.updated_at DESC";
-    rows = db.prepare(sql).all(...params);
-    const assetThreads = db.prepare(`
+    rows = await (await db.prepare(sql)).all(...params);
+    const assetThreads = await (await db.prepare(`
       SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct
       JOIN masterpieces m ON ct.masterpiece_id = m.id
       WHERE ct.type = 'asset' AND m.current_owner_id = ? AND ct.user_id != ?
-    `).all(userId, userId);
+    `)).all(userId, userId);
     const merged = [...rows];
     for (const t of assetThreads) {
       if (!merged.find((x: any) => x.id === t.id)) merged.push(t);
@@ -9249,34 +9717,34 @@ app.get("/api/communication/threads", (req, res) => {
   res.json(rows);
 });
 
-app.post("/api/communication/threads", (req, res) => {
+app.post("/api/communication/threads", async (req, res) => {
   const { userId, type, masterpieceId, auctionId, poolId } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   if (!COMM_THREAD_TYPES.includes(type)) return res.status(400).json({ error: "Invalid thread type" });
   const priority = ROLES_PRIORITY[user.role] ?? 1;
   if (type === 'black_direct') return res.status(403).json({ error: "Black channel is invite-only" });
   let existing: any = null;
   if (type === 'concierge') {
-    existing = db.prepare("SELECT id FROM chat_threads WHERE type = 'concierge' AND user_id = ? AND status = 'open'").get(userId);
+    existing = await (await db.prepare("SELECT id FROM chat_threads WHERE type = 'concierge' AND user_id = ? AND status = 'open'")).get(userId);
   } else if (type === 'asset' && masterpieceId) {
-    existing = db.prepare("SELECT id FROM chat_threads WHERE type = 'asset' AND masterpiece_id = ?").get(masterpieceId);
+    existing = await (await db.prepare("SELECT id FROM chat_threads WHERE type = 'asset' AND masterpiece_id = ?")).get(masterpieceId);
   }
   if (existing) return res.json({ id: existing.id, existing: true });
-  const result = db.prepare(`
+  const result = await (await db.prepare(`
     INSERT INTO chat_threads (type, user_id, masterpiece_id, auction_id, pool_id, priority, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `).run(type, userId, masterpieceId ?? null, auctionId ?? null, poolId ?? null, priority);
-  commAudit('thread_created', userId, Number(result.lastInsertRowid), undefined, undefined, type);
+  `)).run(type, userId, masterpieceId ?? null, auctionId ?? null, poolId ?? null, priority);
+  await commAudit('thread_created', userId, Number(result.lastInsertRowid), undefined, undefined, type);
   res.json({ id: result.lastInsertRowid });
 });
 
-app.get("/api/communication/threads/:id/messages", (req, res) => {
+app.get("/api/communication/threads/:id/messages", async (req, res) => {
   const threadId = Number(req.params.id);
   const userId = Number(req.query.userId);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
-  const thread = db.prepare("SELECT * FROM chat_threads WHERE id = ?").get(threadId);
+  const thread = await (await db.prepare("SELECT * FROM chat_threads WHERE id = ?")).get(threadId);
   if (!thread) return res.status(404).json({ error: "Thread not found" });
   if (!canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const limit = Math.min(Number(req.query.limit) || 50, 100);
@@ -9286,7 +9754,7 @@ app.get("/api/communication/threads/:id/messages", (req, res) => {
   if (before) { sql += " AND created_at < ?"; params.push(before); }
   sql += " ORDER BY created_at DESC LIMIT ?";
   params.push(limit);
-  const rows = db.prepare(sql).all(...params);
+  const rows = await (await db.prepare(sql)).all(...params);
   res.json(rows.reverse());
 });
 
@@ -9301,52 +9769,52 @@ function checkMessageRateLimit(userId: number): boolean {
   return true;
 }
 
-app.post("/api/communication/threads/:id/messages", (req, res) => {
+app.post("/api/communication/threads/:id/messages", async (req, res) => {
   const threadId = Number(req.params.id);
   const { userId, content, contentLang, assetRef } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   if (!checkMessageRateLimit(userId)) return res.status(429).json({ error: "Too many messages" });
-  const thread = db.prepare("SELECT * FROM chat_threads WHERE id = ?").get(threadId);
+  const thread = await (await db.prepare("SELECT * FROM chat_threads WHERE id = ?")).get(threadId);
   if (!thread) return res.status(404).json({ error: "Thread not found" });
   if (!canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const result = db.prepare(`
+  const result = await (await db.prepare(`
     INSERT INTO chat_messages (thread_id, sender_id, content, content_lang, asset_ref, is_system, is_moderated)
     VALUES (?, ?, ?, ?, ?, 0, 0)
-  `).run(threadId, userId, (content || '').toString().trim().slice(0, 10000), contentLang || null, assetRef || null);
-  db.prepare("UPDATE chat_threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(threadId);
+  `)).run(threadId, userId, (content || '').toString().trim().slice(0, 10000), contentLang || null, assetRef || null);
+  await (await db.prepare("UPDATE chat_threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(threadId);
   if (!thread.first_response_at && user.role === 'admin') {
-    db.prepare("UPDATE chat_threads SET first_response_at = CURRENT_TIMESTAMP WHERE id = ?").run(threadId);
+    await (await db.prepare("UPDATE chat_threads SET first_response_at = CURRENT_TIMESTAMP WHERE id = ?")).run(threadId);
   }
-  commAudit('message_sent', userId, threadId, Number(result.lastInsertRowid), undefined, undefined);
-  const msg = db.prepare("SELECT * FROM chat_messages WHERE id = ?").get(result.lastInsertRowid);
+  await commAudit('message_sent', userId, threadId, Number(result.lastInsertRowid), undefined, undefined);
+  const msg = await (await db.prepare("SELECT * FROM chat_messages WHERE id = ?")).get(result.lastInsertRowid);
   broadcast({ type: 'CHAT_MESSAGE', threadId, message: msg });
   res.json(msg);
 });
 
-app.get("/api/communication/concierge/status", (req, res) => {
-  const rows = db.prepare("SELECT * FROM concierge_availability").all();
+app.get("/api/communication/concierge/status", async (req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM concierge_availability")).all();
   res.json(rows);
 });
 
-app.patch("/api/communication/concierge/status", (req, res) => {
+app.patch("/api/communication/concierge/status", async (req, res) => {
   const { adminId, status } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId);
   if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const st = status === 'available' || status === 'busy' ? status : 'away';
-  const existing = db.prepare("SELECT id FROM concierge_availability WHERE admin_id = ?").get(adminId);
+  const existing = await (await db.prepare("SELECT id FROM concierge_availability WHERE admin_id = ?")).get(adminId);
   if (existing) {
-    db.prepare("UPDATE concierge_availability SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE admin_id = ?").run(st, adminId);
+    await (await db.prepare("UPDATE concierge_availability SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE admin_id = ?")).run(st, adminId);
   } else {
-    db.prepare("INSERT INTO concierge_availability (admin_id, status, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)").run(adminId, st);
+    await (await db.prepare("INSERT INTO concierge_availability (admin_id, status, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)")).run(adminId, st);
   }
   broadcast({ type: 'CONCIERGE_STATUS', adminId, status: st });
   res.json({ status: st });
 });
 
-app.get("/api/communication/admin/threads", (req, res) => {
+app.get("/api/communication/admin/threads", async (req, res) => {
   const adminId = Number(req.query.adminId);
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(adminId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId);
   if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const type = req.query.type as string | undefined;
   let sql = "SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id WHERE 1=1";
@@ -9355,119 +9823,119 @@ app.get("/api/communication/admin/threads", (req, res) => {
   if (req.query.status) { sql += " AND ct.status = ?"; params.push(req.query.status); }
   if (req.query.assetId) { sql += " AND ct.masterpiece_id = ?"; params.push(req.query.assetId); }
   sql += " ORDER BY ct.priority DESC, ct.updated_at DESC";
-  const rows = db.prepare(sql).all(...params);
+  const rows = await (await db.prepare(sql)).all(...params);
   res.json(rows);
 });
 
-app.post("/api/communication/vault-request", (req, res) => {
+app.post("/api/communication/vault-request", async (req, res) => {
   const { userId, masterpieceId, requestType, details } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId);
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
   if (!user) return res.status(401).json({ error: "Unauthorized" });
-  const piece = db.prepare("SELECT * FROM masterpieces WHERE id = ?").get(masterpieceId);
+  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
   if (!piece || piece.current_owner_id !== userId) return res.status(403).json({ error: "Not owner" });
   const allowed = ['audit', 'insurance_update', 'transfer', 'withdrawal'];
   if (!allowed.includes(requestType)) return res.status(400).json({ error: "Invalid request type" });
-  const result = db.prepare("INSERT INTO vault_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)").run(userId, masterpieceId, requestType, details ? JSON.stringify(details) : null);
-  commAudit('asset_transfer_request', userId, undefined, undefined, String(masterpieceId), requestType);
+  const result = await (await db.prepare("INSERT INTO vault_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)")).run(userId, masterpieceId, requestType, details ? JSON.stringify(details) : null);
+  await commAudit('asset_transfer_request', userId, undefined, undefined, String(masterpieceId), requestType);
   res.json({ id: result.lastInsertRowid });
 });
 
-app.get("/api/communication/login-history", (req, res) => {
+app.get("/api/communication/login-history", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare("SELECT id, ip_address, user_agent, success, created_at FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").all(userId);
+  const rows = await (await db.prepare("SELECT id, ip_address, user_agent, success, created_at FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")).all(userId);
   res.json(rows);
 });
 
 // --- AI Sales Psychology Engine ---
-app.post("/api/analytics/asset-view", (req, res) => {
+app.post("/api/analytics/asset-view", async (req, res) => {
   const { userId, masterpieceId, durationSeconds } = req.body;
   if (!userId || !masterpieceId) return res.status(400).json({ error: "userId and masterpieceId required" });
-  db.prepare("INSERT INTO asset_views (user_id, masterpiece_id, duration_seconds) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO asset_views (user_id, masterpiece_id, duration_seconds) VALUES (?, ?, ?)")).run(
     userId, masterpieceId, Math.max(0, Math.min(Number(durationSeconds) || 0, 86400))
   );
   res.json({ success: true });
 });
 
-app.get("/api/recent-views", (req, res) => {
+app.get("/api/recent-views", async (req, res) => {
   const userId = (req as any).userId;
   if (!userId) return res.json([]);
-  const rows = db.prepare(`
+  const rows = await (await db.prepare(`
     SELECT av.masterpiece_id, av.viewed_at
     FROM asset_views av
     WHERE av.user_id = ? ORDER BY av.viewed_at DESC LIMIT 30
-  `).all(userId) as { masterpiece_id: number, viewed_at: string }[];
+  `)).all(userId) as { masterpiece_id: number, viewed_at: string }[];
   const seen = new Set<number>();
   const ids = rows.filter((r) => { if (seen.has(r.masterpiece_id)) return false; seen.add(r.masterpiece_id); return true; }).map((r) => r.masterpiece_id).slice(0, 12);
-  const piecesRaw = ids.length ? db.prepare("SELECT * FROM masterpieces WHERE id IN (" + ids.map(() => "?").join(",") + ")").all(...ids) : [];
+  const piecesRaw = ids.length ? await (await db.prepare("SELECT * FROM masterpieces WHERE id IN (" + ids.map(() => "?").join(",") + ")")).all(...ids) : [];
   const pieces = piecesRaw as any[];
   const orderMap = ids.reduce((acc: Record<number, number>, id, i) => { acc[id] = i; return acc; }, {});
   pieces.sort((a, b) => (orderMap[a.id] ?? 99) - (orderMap[b.id] ?? 99));
   res.json(pieces);
 });
 
-app.get("/api/analytics/favorites", (req, res) => {
+app.get("/api/analytics/favorites", async (req, res) => {
   const userId = Number(req.query.userId);
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = db.prepare("SELECT masterpiece_id FROM user_favorites WHERE user_id = ?").all(userId) as { masterpiece_id: number }[];
+  const rows = await (await db.prepare("SELECT masterpiece_id FROM user_favorites WHERE user_id = ?")).all(userId) as { masterpiece_id: number }[];
   res.json(rows.map(r => r.masterpiece_id));
 });
 
-app.post("/api/analytics/favorite", (req, res) => {
+app.post("/api/analytics/favorite", async (req, res) => {
   const { userId, masterpieceId, add } = req.body;
   if (!userId || !masterpieceId) return res.status(400).json({ error: "userId and masterpieceId required" });
   if (add) {
     try {
-      db.prepare("INSERT INTO user_favorites (user_id, masterpiece_id) VALUES (?, ?)").run(userId, masterpieceId);
+      await (await db.prepare("INSERT INTO user_favorites (user_id, masterpiece_id) VALUES (?, ?)")).run(userId, masterpieceId);
     } catch (e: any) {
       if (!e.message?.includes("UNIQUE")) throw e;
     }
   } else {
-    db.prepare("DELETE FROM user_favorites WHERE user_id = ? AND masterpiece_id = ?").run(userId, masterpieceId);
+    await (await db.prepare("DELETE FROM user_favorites WHERE user_id = ? AND masterpiece_id = ?")).run(userId, masterpieceId);
   }
   res.json({ success: true });
 });
 
-app.post("/api/analytics/interest", (req, res) => {
+app.post("/api/analytics/interest", async (req, res) => {
   const { userId, interestType, referenceId } = req.body;
   if (!userId || !interestType) return res.status(400).json({ error: "userId and interestType required" });
   const allowed = ['drop', 'collection', 'category'];
   if (!allowed.includes(interestType)) return res.status(400).json({ error: "Invalid interestType" });
-  db.prepare("INSERT INTO interest_events (user_id, interest_type, reference_id) VALUES (?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO interest_events (user_id, interest_type, reference_id) VALUES (?, ?, ?)")).run(
     userId, interestType, referenceId ?? null
   );
   res.json({ success: true });
 });
 
-app.post("/api/analytics/design-request", (req, res) => {
+app.post("/api/analytics/design-request", async (req, res) => {
   const { userId, masterpieceId, requestType, details } = req.body;
   if (!userId || !requestType) return res.status(400).json({ error: "userId and requestType required" });
   const allowed = ['size', 'proportion', 'stone', 'neck'];
   if (!allowed.includes(requestType)) return res.status(400).json({ error: "Invalid requestType" });
-  db.prepare("INSERT INTO design_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)").run(
+  await (await db.prepare("INSERT INTO design_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)")).run(
     userId, masterpieceId ?? null, requestType, details ? JSON.stringify(details) : null
   );
   res.json({ success: true });
 });
 
 function buildSalesContext(userId: number): Record<string, unknown> {
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return {};
 
-  const viewCount = db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?").get(userId) as { c: number };
-  const avgDuration = db.prepare("SELECT AVG(duration_seconds) as d FROM asset_views WHERE user_id = ? AND duration_seconds > 0").get(userId) as { d: number | null };
-  const favoriteIds = db.prepare("SELECT masterpiece_id FROM user_favorites WHERE user_id = ?").all(userId) as { masterpiece_id: number }[];
-  const recentViews = db.prepare(`
+  const viewCount = await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE user_id = ?")).get(userId) as { c: number };
+  const avgDuration = await (await db.prepare("SELECT AVG(duration_seconds) as d FROM asset_views WHERE user_id = ? AND duration_seconds > 0")).get(userId) as { d: number | null };
+  const favoriteIds = await (await db.prepare("SELECT masterpiece_id FROM user_favorites WHERE user_id = ?")).all(userId) as { masterpiece_id: number }[];
+  const recentViews = await (await db.prepare(`
     SELECT av.masterpiece_id, av.duration_seconds, m.title, m.valuation, m.rarity
     FROM asset_views av
     JOIN masterpieces m ON m.id = av.masterpiece_id
     WHERE av.user_id = ? ORDER BY av.viewed_at DESC LIMIT 20
-  `).all(userId) as any[];
-  const waitlistEntries = db.prepare("SELECT masterpiece_id, request_type, status FROM waitlist WHERE user_id = ?").all(userId) as any[];
-  const investorReqs = db.prepare("SELECT type, status FROM investor_requests WHERE user_id = ?").all(userId) as any[];
-  const designReqs = db.prepare("SELECT masterpiece_id, request_type, details FROM design_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").all(userId) as any[];
-  const interestEvents = db.prepare("SELECT interest_type, reference_id FROM interest_events WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").all(userId) as any[];
-  const ownedPieces = db.prepare("SELECT id, title, valuation FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  `)).all(userId) as any[];
+  const waitlistEntries = await (await db.prepare("SELECT masterpiece_id, request_type, status FROM waitlist WHERE user_id = ?")).all(userId) as any[];
+  const investorReqs = await (await db.prepare("SELECT type, status FROM investor_requests WHERE user_id = ?")).all(userId) as any[];
+  const designReqs = await (await db.prepare("SELECT masterpiece_id, request_type, details FROM design_requests WHERE user_id = ? ORDER BY created_at DESC LIMIT 10")).all(userId) as any[];
+  const interestEvents = await (await db.prepare("SELECT interest_type, reference_id FROM interest_events WHERE user_id = ? ORDER BY created_at DESC LIMIT 10")).all(userId) as any[];
+  const ownedPieces = await (await db.prepare("SELECT id, title, valuation FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
 
   const prestigePref = recentViews.length ? recentViews.reduce((a, r) => a + (r.rarity === 'Unique' || r.rarity === 'Limited' ? 1 : 0), 0) / recentViews.length : 0;
 
@@ -9488,9 +9956,9 @@ function buildSalesContext(userId: number): Record<string, unknown> {
   };
 }
 
-app.get("/api/ai/sales-context/:userId", (req, res) => {
+app.get("/api/ai/sales-context/:userId", async (req, res) => {
   const userId = Number(req.params.userId);
-  const requestingUser = req.query.adminId ? db.prepare("SELECT * FROM users WHERE id = ?").get(Number(req.query.adminId)) : null;
+  const requestingUser = req.query.adminId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(Number(req.query.adminId)) : null;
   if (!requestingUser || (requestingUser as any).role !== 'admin' && (requestingUser as any).role !== 'super_admin') {
     return res.status(403).json({ error: "Admin only" });
   }
@@ -9499,9 +9967,9 @@ app.get("/api/ai/sales-context/:userId", (req, res) => {
 
 app.post("/api/concierge/ai", async (req, res) => {
   const { userId, message, salesContext: injectedContext } = req.body;
-  const user = db.prepare("SELECT * FROM users WHERE id = ?").get(userId) as any;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Unauthorized" });
-  const pieces = db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?").all(userId) as any[];
+  const pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
   const salesContext = injectedContext && typeof injectedContext === 'object' ? injectedContext : buildSalesContext(userId);
 
   const systemPrompt = `You are the AI Concierge for Antonio Bellanova Vault, a luxury atelier platform. Elegant, calm, Maison tone. No slang, no emojis.
@@ -9536,6 +10004,9 @@ Respond in a highly sophisticated, professional, helpful tone. Elegant purchase 
 
 // --- Vite Integration ---
 async function startServer() {
+  db = await initDb();
+  await runSchema(db);
+  await seedAdmin();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -9548,7 +10019,7 @@ async function startServer() {
       console.warn("Production: dist/ not found. Run 'npm run build' first. Serving API only.");
     } else {
       app.use(express.static(distPath));
-      app.get("*", (req, res, next) => {
+      app.get("*", async (req, res, next) => {
         if (req.path.startsWith("/api")) return next();
         res.sendFile(path.join(distPath, "index.html"));
       });
@@ -9560,4 +10031,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Server start failed:", err);
+  process.exit(1);
+});

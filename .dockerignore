@@ -9,3 +9,12 @@ dist
 .cursor
 coverage
 .nyc_output
+
+```env
+# Google Cloud SQL (MySQL) – bellanova-main-db
+MYSQL_HOST=34.185.191.69
+MYSQL_PORT=3306
+MYSQL_USER=bellanova_admin
+MYSQL_PASSWORD=BellanovaSecureVault!2026
+MYSQL_DATABASE=bellanova_vault
+```

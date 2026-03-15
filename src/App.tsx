@@ -43,9 +43,13 @@ import {
   BookOpen,
   LineChart,
   Menu,
-  X
+  X,
+  Wallet,
+  Receipt
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { jsPDF } from "jspdf";
 import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest, ChatThread, ChatMessage, ConciergeAvailability, Appointment } from './types';
 import deLocale from './locales/de.json';
@@ -159,6 +163,12 @@ const TRANSLATIONS: any = {
     my_pieces: "Meine Stücke",
     contracts: "Verträge",
     payments: "Zahlungen",
+    "payments.orders": "Bestellungen & Zahlungen",
+    "payments.history": "Zahlungshistorie",
+    "payments.no_history": "Keine Zahlungshistorie.",
+    "payments.payment": "Zahlung",
+    "invoices.awaiting_payment": "Zahlung ausstehend",
+    "invoices.invoice": "Rechnung",
     my_bids: "Meine Gebote",
     resale: "Wiederverkauf",
     vip: "VIP",
@@ -448,6 +458,17 @@ const TRANSLATIONS: any = {
     "admin.send_offer": "Angebot senden",
     "admin.payments_overview": "Zahlungsübersicht",
     "admin.payments_overdue": "Überfällig",
+    "admin.payments_invoices": "Zahlungen & Rechnungen",
+    "admin.payments_invoices_desc": "Alle Rechnungen und Transaktionen. Manuell als bezahlt markieren oder erstatten.",
+    "admin.all_invoices": "Alle Rechnungen",
+    "admin.all_transactions": "Alle Transaktionen",
+    "admin.mark_paid": "Als bezahlt",
+    "admin.marked_paid": "Als bezahlt markiert",
+    "admin.refund": "Erstatten",
+    "admin.refund_confirm": "Zahlung über Stripe erstatten?",
+    "admin.refunded": "Erstattet",
+    "admin.no_invoices": "Keine Rechnungen",
+    "admin.no_transactions": "Keine Transaktionen",
     "admin.prospects": "Prospects",
     "admin.prospects_overview": "Private Client Discovery",
     "admin.total_prospects": "Prospects gesamt",
@@ -1260,6 +1281,17 @@ const TRANSLATIONS: any = {
     "admin.send_offer": "Send offer",
     "admin.payments_overview": "Payment tracking",
     "admin.payments_overdue": "Overdue",
+    "admin.payments_invoices": "Payments & Invoices",
+    "admin.payments_invoices_desc": "All invoices and transactions. Mark as paid or refund where applicable.",
+    "admin.all_invoices": "All invoices",
+    "admin.all_transactions": "All transactions",
+    "admin.mark_paid": "Mark paid",
+    "admin.marked_paid": "Marked as paid",
+    "admin.refund": "Refund",
+    "admin.refund_confirm": "Refund this payment via Stripe?",
+    "admin.refunded": "Refunded",
+    "admin.no_invoices": "No invoices",
+    "admin.no_transactions": "No transactions",
     "admin.prospects": "Prospects",
     "admin.prospects_overview": "Private Client Discovery",
     "admin.total_prospects": "Total prospects",
@@ -1440,6 +1472,12 @@ const TRANSLATIONS: any = {
     "my_pieces": "My pieces",
     "contracts": "Contracts",
     "payments": "Payments",
+    "payments.orders": "Orders & payments",
+    "payments.history": "Payment history",
+    "payments.no_history": "No payment history.",
+    "payments.payment": "Payment",
+    "invoices.awaiting_payment": "Awaiting payment",
+    "invoices.invoice": "Invoice",
     "my_bids": "My bids",
     "resale": "Resale",
     "vault.no_certs": "No certificates issued yet.",
@@ -2878,7 +2916,21 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'settings'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'settings'>('pieces');
+  const [walletData, setWalletData] = useState<{ wallet_balance: number; wallet_locked: number; available: number } | null>(null);
+  const [stripePk, setStripePk] = useState<string | null>(null);
+  const [depositClientSecret, setDepositClientSecret] = useState<string | null>(null);
+  const [depositAmountCents, setDepositAmountCents] = useState<number | null>(null);
+  const [depositLoading, setDepositLoading] = useState(false);
+  const [depositError, setDepositError] = useState<string | null>(null);
+  const [invoicesList, setInvoicesList] = useState<{ id: number; user_id: number; project_id: number | null; amount: number; status: string; type: string; created_at: string }[]>([]);
+  const [transactionsList, setTransactionsList] = useState<{ id: number; user_id: number; invoice_id: number | null; amount: number; status: string; stripe_payment_intent_id: string | null; created_at: string }[]>([]);
+  const [invoicePayClientSecret, setInvoicePayClientSecret] = useState<string | null>(null);
+  const [invoicePayId, setInvoicePayId] = useState<number | null>(null);
+  const [invoicePayLoading, setInvoicePayLoading] = useState(false);
+  const [purchaseClientSecret, setPurchaseClientSecret] = useState<string | null>(null);
+  const [purchaseItemId, setPurchaseItemId] = useState<number | null>(null);
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [clientLegacyRequests, setClientLegacyRequests] = useState<any[]>([]);
   const [legacyForm, setLegacyForm] = useState({ beneficiary_name: '', beneficiary_contact: '', transfer_protocol: '' });
   const [collectorPreferences, setCollectorPreferences] = useState<{ favorite_gemstones?: string; preferred_metals?: string; design_style?: string; budget_range?: string; collection_type?: string; collection_focus?: string }>({});
@@ -3007,7 +3059,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -3054,6 +3106,8 @@ export default function App() {
   const [myPrivateDocuments, setMyPrivateDocuments] = useState<any>({ documents: [], contracts: [], certificates: [] });
   const [adminVipMembers, setAdminVipMembers] = useState<any[]>([]);
   const [adminProjects, setAdminProjects] = useState<any[]>([]);
+  const [adminInvoicesList, setAdminInvoicesList] = useState<any[]>([]);
+  const [adminTransactionsList, setAdminTransactionsList] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [selectedProjectDetail, setSelectedProjectDetail] = useState<any>(null);
   const [projectImageUploading, setProjectImageUploading] = useState(false);
@@ -3671,6 +3725,8 @@ export default function App() {
     }
     setSelectedPiece(null);
     setShowRegistryInModal(false);
+    setPurchaseClientSecret(null);
+    setPurchaseItemId(null);
   };
 
   const setupWebSocket = () => {
@@ -3741,11 +3797,13 @@ export default function App() {
     if (!user) return;
     setListLoading(true);
     try {
-      const [piecesRes, auctionsRes, vaultRes, payRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
+      const [piecesRes, auctionsRes, vaultRes, payRes, invRes, txnRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
         fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`),
         fetch(`/api/auctions?userId=${user.id}`),
         fetch(`/api/vault/${user.id}`),
         fetch(`/api/payments/${user.id}`),
+        fetch('/api/invoices', { credentials: 'include' }),
+        fetch('/api/transactions', { credentials: 'include' }),
         fetch(`/api/notifications/${user.id}`),
         fetch('/api/drops', { credentials: 'include' }),
         fetch('/api/resale/marketplace'),
@@ -3760,6 +3818,8 @@ export default function App() {
       if (auctionsRes.ok) setAuctions(await auctionsRes.json());
       if (vaultRes.ok) setVaultData(await vaultRes.json());
       if (payRes.ok) setPayments(await payRes.json());
+      if (invRes.ok) { try { setInvoicesList(await invRes.json()); } catch { setInvoicesList([]); } } else setInvoicesList([]);
+      if (txnRes.ok) { try { setTransactionsList(await txnRes.json()); } catch { setTransactionsList([]); } } else setTransactionsList([]);
       if (notifRes.ok) setNotifications(await notifRes.json());
       if (dropsRes.ok) setDropsList(await dropsRes.json());
       if (addrRes.ok) setUserAddresses(await addrRes.json());
@@ -3867,7 +3927,7 @@ export default function App() {
     }
   }, [user?.role, adminTab]);
   useEffect(() => {
-    if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy' || adminTab === 'projects' || adminTab === 'documents' || adminTab === 'contract-generator')) {
+    if (user?.role === UserRole.ADMIN && (adminTab === 'intelligence' || adminTab === 'legacy' || adminTab === 'projects' || adminTab === 'documents' || adminTab === 'contract-generator' || adminTab === 'payments')) {
       if (adminTab === 'intelligence') {
         Promise.all([
           fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }),
@@ -3887,6 +3947,14 @@ export default function App() {
         if (adminTab === 'contract-generator') {
           fetch('/api/admin/projects', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminProjects));
         }
+      } else if (adminTab === 'payments') {
+        Promise.all([
+          fetch('/api/admin/invoices', { credentials: 'include' }),
+          fetch('/api/admin/transactions', { credentials: 'include' })
+        ]).then(([invRes, txnRes]) => {
+          if (invRes.ok) invRes.json().then(setAdminInvoicesList);
+          if (txnRes.ok) txnRes.json().then(setAdminTransactionsList);
+        });
       }
     }
   }, [user?.role, adminTab]);
@@ -3935,7 +4003,7 @@ export default function App() {
         const myBidsRes = await fetch(`/api/auctions/my-bids?userId=${user.id}`);
         if (myBidsRes.ok) setMyBids(await myBidsRes.json());
 
-        if (user.role === UserRole.INVESTOR) {
+      if (user.role === UserRole.INVESTOR) {
           const [analyticsRes, myReqsRes, offersRes, portfolioRes, assetsRes, mySharesRes, fracDocsRes] = await Promise.all([
             fetch('/api/investor/analytics'),
             fetch(`/api/investor/my-requests?userId=${user.id}`),
@@ -3944,8 +4012,8 @@ export default function App() {
             fetch('/api/fractional-assets', { credentials: 'include' }),
             fetch('/api/fractional-assets/my-shares', { credentials: 'include' }),
             fetch('/api/investor/fractional-documents', { credentials: 'include' })
-          ]);
-          if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
+        ]);
+        if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
           if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
           if (offersRes.ok) setFractionalOffers(await offersRes.json());
           if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
@@ -3966,8 +4034,8 @@ export default function App() {
           if (fracDocsRes.ok) setFractionalDocuments(await fracDocsRes.json());
         }
         fetch('/api/atelier-moments').then(r => r.ok ? r.json() : []).then(setAtelierMoments).catch(() => {});
-      } catch (e) {
-        console.error("Fetch error", e);
+    } catch (e) {
+      console.error("Fetch error", e);
       } finally {
         setListLoading(false);
       }
@@ -4452,11 +4520,11 @@ export default function App() {
         fetchData();
       } else {
         try {
-          const err = await res.json();
+        const err = await res.json();
           notifyUser(err.error || t('errors.piece_create_failed'), 'error');
         } catch {
           notifyUser(t('errors.piece_create_failed'), 'error');
-        }
+      }
       }
     } catch (_err) {
       notifyUser(t('errors.piece_create_failed'), 'error');
@@ -4603,7 +4671,7 @@ export default function App() {
     // Hochwertiger Hintergrund
     doc.setFillColor(253, 252, 250);
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
-
+    
     doc.setFontSize(38);
     doc.setTextColor(250, 249, 247);
     doc.setFont("times", "italic");
@@ -4671,7 +4739,7 @@ export default function App() {
       doc.setTextColor(20, 20, 20);
       doc.text(displayTitle, margin, currentY + 6, { maxWidth: textWidth });
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
+        doc.setFontSize(8);
       doc.setTextColor(90, 90, 90);
       doc.text(`Seriennummer: ${piece.serial_id || '—'}`, margin, currentY + 12);
       const blockH = 28;
@@ -4680,12 +4748,12 @@ export default function App() {
       doc.rect(margin, currentY, textWidth, blockH, 'F');
       doc.setDrawColor(235, 228, 218);
       doc.rect(margin, currentY, textWidth, blockH, 'D');
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(6);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6);
       doc.setTextColor(180, 140, 60);
       doc.text("SPEZIFIKATION", margin + 4, currentY + 7);
       doc.text("BEWERTUNG", margin + textWidth / 2 + 4, currentY + 7);
-      doc.setFont("helvetica", "normal");
+        doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(50, 50, 50);
       doc.text((piece.materials && piece.materials.length > 1) ? piece.materials : '—', margin + 4, currentY + 14);
@@ -5801,7 +5869,7 @@ export default function App() {
                       </span>
                     );
                   })()}
-                </div>
+              </div>
                 {(() => {
                   const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
                   if (isAdmin) return <p className="text-[10px] uppercase tracking-widest text-amber-500">{t('identity.system_role_administrator') || 'Administrator'}</p>;
@@ -6051,7 +6119,7 @@ export default function App() {
                 {(user.role === 'vip' || user.role === UserRole.VIP || (user as any).is_vip) && (
                   <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30"><Diamond className="w-2.5 h-2.5" /> VIP</span>
                 )}
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -6469,10 +6537,10 @@ export default function App() {
 
             {view === 'private_gallery' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-                <div className="space-y-2">
+                  <div className="space-y-2">
                   <h3 className="text-3xl font-serif italic">{t('view.private_gallery') || 'Private Gallery'}</h3>
                   <p className="text-zinc-500">Exclusive jewelry and collector-only creations.</p>
-                </div>
+                  </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {privateGalleryPieces.length === 0 ? (
                     <p className="text-zinc-500 col-span-full">{t('marketplace.no_pieces') || 'No pieces in the private gallery at the moment.'}</p>
@@ -6556,9 +6624,9 @@ export default function App() {
                       {filterMasterpieces(masterpieces, 'available').map(piece => {
                         const isOwnPiece = user && piece.current_owner_id === user.id;
                         return (
-                          <PieceCard 
-                            key={piece.id} 
-                            piece={piece} 
+                    <PieceCard 
+                      key={piece.id} 
+                      piece={piece} 
                             t={t}
                             priceLabel={getPiecePriceDisplay(piece, user).label}
                             isFavorite={user ? favoriteIds.includes(piece.id) : false}
@@ -6568,12 +6636,12 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                            onViewDetails={(p) => {
-                              setSelectedPiece(p);
-                              if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                            }}
+                      onViewDetails={(p) => {
+                        setSelectedPiece(p);
+                        if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                      }} 
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
-                          />
+                    />
                         );
                       })}
                       {filterMasterpieces(masterpieces, 'available').length === 0 && (
@@ -6939,7 +7007,9 @@ export default function App() {
                   <TabButton active={vaultTab === 'documents'} label={t('vault.documents') || 'Documents'} onClick={() => setVaultTab('documents')} icon={FileText} />
                   <TabButton active={vaultTab === 'certs'} label={t('certificates')} onClick={() => setVaultTab('certs')} icon={ShieldCheck} />
                   <TabButton active={vaultTab === 'contracts'} label={t('contracts')} onClick={() => setVaultTab('contracts')} icon={FileText} />
-                  <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => setVaultTab('payments')} icon={CreditCard} />
+                  <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => { setVaultTab('payments'); if (!stripePk) fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={CreditCard} />
+                  <TabButton active={vaultTab === 'wallet'} label={t('wallet.title') || 'Wallet'} onClick={() => { setVaultTab('wallet'); if (user?.id) fetch(`/api/wallet/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setWalletData) : null); fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={Wallet} />
+                  <TabButton active={vaultTab === 'invoices'} label={t('invoices.title') || 'Invoices'} onClick={() => { setVaultTab('invoices'); fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : setInvoicesList([])).catch(() => setInvoicesList([])); fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={Receipt} />
                   <TabButton active={vaultTab === 'auctions'} label={t('my_bids')} onClick={() => setVaultTab('auctions')} icon={Gavel} />
                   <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
                   <TabButton active={vaultTab === 'service'} label={t('service')} onClick={() => setVaultTab('service')} icon={Wrench} />
@@ -7072,7 +7142,7 @@ export default function App() {
                               <div>
                                 <p className="font-medium text-zinc-200">{t('certificates')} · {cert.cert_id}</p>
                                 <p className="text-xs text-zinc-500">{new Date(cert.created_at!).toLocaleDateString()}</p>
-                              </div>
+                      </div>
                             </div>
                             <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
                           </Card>
@@ -7269,39 +7339,281 @@ export default function App() {
                     </Card>
                   )}
                   {vaultTab === 'payments' && (
-                    <div className="space-y-4">
-                      {payments.map(pay => (
-                        <Card key={pay.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${pay.status === 'paid' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                              <CreditCard className="w-6 h-6" />
+                    <div className="space-y-6">
+                      {invoicePayClientSecret && stripePk ? (
+                        <Card className="p-6">
+                          <h4 className="font-medium text-zinc-200 mb-4">{t('invoices.pay_now') || 'Pay now'}</h4>
+                          <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: invoicePayClientSecret }}>
+                            <WalletDepositForm
+                              t={t}
+                              onCancel={() => { setInvoicePayClientSecret(null); setInvoicePayId(null); }}
+                              onSuccess={() => {
+                                setInvoicePayClientSecret(null);
+                                setInvoicePayId(null);
+                                fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : null);
+                                fetch('/api/transactions', { credentials: 'include' }).then(r => r.ok ? r.json().then(setTransactionsList) : null);
+                                fetch(`/api/payments/${user?.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setPayments) : null);
+                                notifyUser(t('invoices.pay_success') || 'Payment successful.', 'success');
+                              }}
+                            />
+                          </Elements>
+                        </Card>
+                      ) : null}
+                      {payments.length > 0 && (
+                        <div>
+                          <h4 className="text-xs uppercase tracking-widest text-zinc-500 font-medium mb-2">{t('payments.orders') || 'Orders & payments'}</h4>
+                          <div className="space-y-3">
+                            {payments.map(pay => (
+                              <Card key={pay.id} className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${pay.status === 'paid' ? 'bg-emerald-500/10 text-emerald-500' : pay.status === 'failed' || pay.status === 'rejected' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                    <CreditCard className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium text-zinc-200">{pay.reference}</h4>
+                                    <p className="text-xs text-zinc-500">{pay.type === 'deposit' ? t('deposit') : t('full_payment')} • {new Date(pay.created_at).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right space-y-2">
+                                  <p className="text-lg font-bold text-zinc-100">{pay.amount.toLocaleString()} €</p>
+                                  <Badge variant={pay.status === 'paid' ? 'emerald' : pay.status === 'failed' || pay.status === 'rejected' ? 'red' : 'amber'}>{pay.status}</Badge>
+                                </div>
+                                {pay.status === 'pending' && (
+                                  <div className="ml-8 p-4 bg-zinc-900 rounded-xl border border-zinc-800 max-w-xs relative">
+                                    {vaultData.contracts.some(c => c.masterpiece_id === pay.masterpiece_id && c.status === 'draft') ? (
+                                      <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-10 rounded-xl">
+                                        <Lock className="w-5 h-5 text-amber-500 mb-2" />
+                                        <p className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">{t('signature_required')}</p>
+                                        <p className="text-[8px] text-zinc-600 mt-1">Sign the agreement in the Contracts tab to unlock payment instructions.</p>
+                                      </div>
+                                    ) : null}
+                                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Payment Instructions</p>
+                                    <p className="text-xs text-zinc-300 font-mono break-all">IBAN: {pay.iban}</p>
+                                    <p className="text-xs text-zinc-300 font-mono">REF: {pay.reference}</p>
+                                  </div>
+                                )}
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {invoicesList.filter((inv: any) => inv.status === 'pending' || inv.status === 'awaiting_payment').length > 0 && (
+                        <div>
+                          <h4 className="text-xs uppercase tracking-widest text-amber-500/90 font-medium mb-2">{t('invoices.awaiting_payment') || 'Awaiting payment'}</h4>
+                          <div className="space-y-3">
+                            {invoicesList.filter((inv: any) => inv.status === 'pending' || inv.status === 'awaiting_payment').map((inv: any) => (
+                              <Card key={inv.id} className="p-4 flex flex-wrap items-center justify-between gap-4">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center"><Receipt className="w-6 h-6 text-amber-500/80" /></div>
+                                  <div>
+                                    <p className="font-medium text-zinc-200">{t('invoices.type_' + inv.type) || inv.type} {inv.project_id != null ? `#${inv.project_id}` : ''}</p>
+                                    <p className="text-xs text-zinc-500">{new Date(inv.created_at).toLocaleDateString()}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <p className="text-lg font-bold text-zinc-100">{(Number(inv.amount) / 100).toLocaleString('de-DE')} €</p>
+                                  <Button disabled={invoicePayLoading || !stripePk} onClick={async () => {
+                                    setInvoicePayLoading(true);
+                                    try {
+                                      const r = await fetch('/api/invoices/pay', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: inv.id }) });
+                                      const data = await r.json().catch(() => ({}));
+                                      if (!r.ok) { notifyUser(data.error || t('invoices.pay_failed') || 'Payment failed', 'error'); return; }
+                                      setInvoicePayClientSecret(data.client_secret);
+                                      setInvoicePayId(inv.id);
+                                    } finally { setInvoicePayLoading(false); }
+                                    }}>{t('invoices.pay_now') || 'Pay now'}</Button>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div>
+                        <h4 className="text-xs uppercase tracking-widest text-zinc-500 font-medium mb-2">{t('payments.history') || 'Payment history'}</h4>
+                        {transactionsList.length === 0 && payments.filter(p => p.status === 'paid').length === 0 ? (
+                          <EmptyState icon={CreditCard} text={t('payments.no_history') || 'No payment history.'} />
+                        ) : (
+                          <div className="space-y-3">
+                            {transactionsList.map((tx: any) => (
+                              <Card key={tx.id} className="p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${tx.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-500' : tx.status === 'REFUNDED' ? 'bg-zinc-500/10 text-zinc-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                                    <CreditCard className="w-6 h-6" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-zinc-200">{tx.invoice_id != null ? (t('invoices.invoice') || 'Invoice') + ' #' + tx.invoice_id : t('payments.payment') || 'Payment'}</p>
+                                    <p className="text-xs text-zinc-500">{new Date(tx.created_at).toLocaleDateString('de-DE')}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-lg font-bold text-zinc-100">{(Number(tx.amount) / 100).toLocaleString('de-DE')} €</p>
+                                  <Badge variant={tx.status === 'PAID' ? 'emerald' : tx.status === 'REFUNDED' ? 'zinc' : 'amber'}>{tx.status}</Badge>
+                                </div>
+                              </Card>
+                            ))}
+                            {payments.filter(p => p.status === 'paid').map(pay => (
+                              <Card key={'legacy-' + pay.id} className="p-4 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center"><CreditCard className="w-6 h-6 text-emerald-500" /></div>
+                                  <div>
+                                    <p className="font-medium text-zinc-200">{pay.reference}</p>
+                                    <p className="text-xs text-zinc-500">{new Date(pay.created_at).toLocaleDateString('de-DE')}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-lg font-bold text-zinc-100">{pay.amount.toLocaleString('de-DE')} €</p>
+                                  <Badge variant="emerald">paid</Badge>
+                                </div>
+                              </Card>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {vaultTab === 'wallet' && (
+                    <div className="space-y-6">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('wallet.title') || 'Auction Wallet'}</p>
+                      <p className="text-sm text-zinc-400">{t('wallet.description') || 'Deposit funds to place bids in auctions. Amounts are stored in cents.'}</p>
+                      {walletData != null && (
+                        <Card className="p-6 border-amber-500/20 bg-amber-500/5">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('wallet.balance') || 'Balance'}</p>
+                              <p className="text-2xl font-bold text-zinc-100">{(walletData.wallet_balance / 100).toLocaleString('de-DE')} €</p>
                             </div>
                             <div>
-                              <h4 className="font-medium text-zinc-200">{pay.reference}</h4>
-                              <p className="text-xs text-zinc-500">{pay.type === 'deposit' ? t('deposit') : t('full_payment')} • {new Date(pay.created_at).toLocaleDateString()}</p>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('wallet.locked') || 'Locked'}</p>
+                              <p className="text-2xl font-bold text-amber-500/90">{(walletData.wallet_locked / 100).toLocaleString('de-DE')} €</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('wallet.available') || 'Available'}</p>
+                              <p className="text-2xl font-bold text-emerald-500/90">{(walletData.available / 100).toLocaleString('de-DE')} €</p>
                             </div>
                           </div>
-                          <div className="text-right space-y-2">
-                            <p className="text-lg font-bold text-zinc-100">{pay.amount.toLocaleString()} €</p>
-                            <Badge variant={pay.status === 'paid' ? 'emerald' : 'amber'}>{pay.status}</Badge>
-                          </div>
-                          {pay.status === 'pending' && (
-                            <div className="ml-8 p-4 bg-zinc-900 rounded-xl border border-zinc-800 max-w-xs relative">
-                              {vaultData.contracts.some(c => c.masterpiece_id === pay.masterpiece_id && c.status === 'draft') ? (
-                                <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-10 rounded-xl">
-                                  <Lock className="w-5 h-5 text-amber-500 mb-2" />
-                                  <p className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">{t('signature_required')}</p>
-                                  <p className="text-[8px] text-zinc-600 mt-1">Sign the agreement in the Contracts tab to unlock payment instructions.</p>
+                        </Card>
+                      )}
+                      {!depositClientSecret && (
+                        <Card className="p-6">
+                          <h4 className="font-medium text-zinc-200 mb-4">{t('wallet.deposit_funds') || 'Deposit Funds'}</h4>
+                          {!stripePk ? (
+                            <p className="text-sm text-zinc-500">{t('wallet.deposits_not_configured') || 'Deposits are not configured. Contact support.'}</p>
+                          ) : (
+                            <>
+                              <p className="text-xs text-zinc-500 mb-4">{t('wallet.test_card') || 'Test mode: use card 4242 4242 4242 4242'}</p>
+                              <div className="flex flex-wrap gap-4 items-end">
+                                <div className="min-w-[140px]">
+                                  <label className="block text-xs text-zinc-500 mb-1">{t('wallet.amount_eur') || 'Amount (€)'}</label>
+                                  <input type="number" min="1" step="0.01" placeholder="10.00" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200" onChange={(e) => setDepositAmountCents(Math.round(parseFloat(e.target.value || '0') * 100))} />
                                 </div>
-                              ) : null}
-                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Payment Instructions</p>
-                              <p className="text-xs text-zinc-300 font-mono break-all">IBAN: {pay.iban}</p>
-                              <p className="text-xs text-zinc-300 font-mono">REF: {pay.reference}</p>
-                            </div>
+                                <Button disabled={depositLoading || (depositAmountCents ?? 0) < 100} onClick={async () => {
+                                  if (!user?.id || (depositAmountCents ?? 0) < 100) return;
+                                  setDepositError(null); setDepositLoading(true);
+                                  try {
+                                    const r = await fetch('/api/wallet/deposit', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: depositAmountCents }) });
+                                    const data = await r.json().catch(() => ({}));
+                                    if (!r.ok) { setDepositError(data.error || 'Deposit failed'); return; }
+                                    setDepositClientSecret(data.client_secret);
+                                  } finally { setDepositLoading(false); }
+                                }}>{depositLoading ? (t('common.loading') || '...') : (t('wallet.continue_to_payment') || 'Continue to payment')}</Button>
+                              </div>
+                              {depositError && <p className="text-sm text-red-400 mt-2">{depositError}</p>}
+                            </>
                           )}
                         </Card>
-                      ))}
-                      {payments.length === 0 && <EmptyState icon={CreditCard} text="No payment history." />}
+                      )}
+                      {depositClientSecret && stripePk && (
+                        <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: depositClientSecret }}>
+                          <WalletDepositForm
+                            t={t}
+                            onCancel={() => { setDepositClientSecret(null); setDepositAmountCents(null); }}
+                            onSuccess={() => {
+                              setDepositClientSecret(null);
+                              setDepositAmountCents(null);
+                              if (user?.id) fetch(`/api/wallet/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setWalletData) : null);
+                              notifyUser(t('wallet.deposit_success') || 'Deposit successful.', 'success');
+                            }}
+                          />
+                        </Elements>
+                      )}
+                    </div>
+                  )}
+                  {vaultTab === 'invoices' && (
+                    <div className="space-y-6">
+                      <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('invoices.title') || 'Invoices'}</p>
+                      <p className="text-sm text-zinc-400">{t('invoices.description') || 'Payment requests for made-to-order projects. Pay when the platform sends you an invoice.'}</p>
+                      {invoicePayClientSecret && stripePk ? (
+                        <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: invoicePayClientSecret }}>
+                          <WalletDepositForm
+                            t={t}
+                            onCancel={() => { setInvoicePayClientSecret(null); setInvoicePayId(null); }}
+                            onSuccess={() => {
+                              setInvoicePayClientSecret(null);
+                              setInvoicePayId(null);
+                              fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : null);
+                              notifyUser(t('invoices.pay_success') || 'Payment successful.', 'success');
+                            }}
+                          />
+                        </Elements>
+                      ) : (
+                        <>
+                          <div>
+                            <h4 className="text-xs uppercase tracking-widest text-amber-500/90 font-medium mb-2">{t('invoices.pending') || 'Pending'}</h4>
+                            {invoicesList.filter((inv: any) => inv.status === 'pending' || inv.status === 'awaiting_payment').length === 0 ? (
+                              <p className="text-sm text-zinc-500">{t('invoices.no_pending') || 'No pending invoices.'}</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {invoicesList.filter((inv: any) => inv.status === 'pending' || inv.status === 'awaiting_payment').map((inv: any) => (
+                                  <Card key={inv.id} className="p-4 flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center"><Receipt className="w-6 h-6 text-amber-500/80" /></div>
+                                      <div>
+                                        <p className="font-medium text-zinc-200">{t('invoices.type_' + inv.type) || inv.type} {inv.project_id != null ? `#${inv.project_id}` : ''}</p>
+                                        <p className="text-xs text-zinc-500">{new Date(inv.created_at).toLocaleDateString()}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <p className="text-lg font-bold text-zinc-100">{(Number(inv.amount) / 100).toLocaleString('de-DE')} €</p>
+                                      <Button disabled={invoicePayLoading || !stripePk} onClick={async () => {
+                                        setInvoicePayLoading(true);
+                                        try {
+                                          const r = await fetch('/api/invoices/pay', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: inv.id }) });
+                                          const data = await r.json().catch(() => ({}));
+                                          if (!r.ok) { notifyUser(data.error || t('invoices.pay_failed') || 'Payment failed', 'error'); return; }
+                                          setInvoicePayClientSecret(data.client_secret);
+                                          setInvoicePayId(inv.id);
+                                        } finally { setInvoicePayLoading(false); }
+                                      }}>{t('invoices.pay_now') || 'Pay now'}</Button>
+                                    </div>
+                                  </Card>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-xs uppercase tracking-widest text-emerald-500/90 font-medium mb-2">{t('invoices.paid') || 'Paid'}</h4>
+                            {invoicesList.filter((inv: any) => inv.status === 'paid').length === 0 ? (
+                              <p className="text-sm text-zinc-500">{t('invoices.no_paid') || 'No paid invoices yet.'}</p>
+                            ) : (
+                              <div className="space-y-3">
+                                {invoicesList.filter((inv: any) => inv.status === 'paid').map((inv: any) => (
+                                  <Card key={inv.id} className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center"><CheckCircle className="w-6 h-6 text-emerald-500/80" /></div>
+                                      <div>
+                                        <p className="font-medium text-zinc-200">{t('invoices.type_' + inv.type) || inv.type} {inv.project_id != null ? `#${inv.project_id}` : ''}</p>
+                                        <p className="text-xs text-zinc-500">{new Date(inv.created_at).toLocaleDateString()}</p>
+                                      </div>
+                                    </div>
+                                    <p className="text-lg font-bold text-zinc-100">{(Number(inv.amount) / 100).toLocaleString('de-DE')} €</p>
+                                    <Badge variant="emerald">{t('invoices.paid') || 'Paid'}</Badge>
+                                  </Card>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                   {vaultTab === 'auctions' && (
@@ -7932,7 +8244,7 @@ export default function App() {
                           <Card key={asset.id} className="p-6 border-amber-500/20 bg-zinc-900/50 overflow-hidden cursor-pointer" hoverGlow onClick={() => setSelectedAssetDetailId(asset.id)}>
                             <div className="aspect-[4/3] rounded-xl bg-zinc-800 mb-4 overflow-hidden">
                               {asset.image_url ? <img src={asset.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-600"><Package className="w-16 h-16" /></div>}
-                            </div>
+                </div>
                             {asset.asset_code && <p className="text-[10px] uppercase tracking-widest text-amber-500/80 mb-1">{asset.asset_code}</p>}
                             <h4 className="font-serif italic text-zinc-100 text-lg mb-1">{asset.title}</h4>
                             <div className="flex flex-wrap gap-2 mb-3">
@@ -8544,9 +8856,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -8895,7 +9207,7 @@ export default function App() {
                                         <Plus className="w-6 h-6 rotate-45" />
                                       </button>
                                       {idx === 0 && <span className="absolute bottom-0 left-0 right-0 bg-amber-600/90 text-[10px] text-center text-white font-bold">Hauptbild</span>}
-                                    </div>
+                            </div>
                                   ))}
                                 </div>
                               ) : (
@@ -10409,6 +10721,61 @@ export default function App() {
                   </section>
                   )}
 
+                  {(adminTab === 'payments') && (
+                  <section className="space-y-6 lg:col-span-2">
+                    <h3 className="text-xl font-serif italic">{t('admin.payments_invoices') || 'Payments & Invoices'}</h3>
+                    <p className="text-sm text-zinc-500">{t('admin.payments_invoices_desc') || 'All invoices and transactions. Mark as paid or refund where applicable.'}</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <Card className="p-4">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">{t('admin.all_invoices') || 'All invoices'}</h4>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {adminInvoicesList.map((inv: any) => (
+                            <div key={inv.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-200">#{inv.id} · user {inv.user_id} · {(Number(inv.amount) / 100).toLocaleString('de-DE')} €</p>
+                                <p className="text-[10px] text-zinc-500">{inv.type} · {inv.status}</p>
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                {(inv.status === 'pending' || inv.status === 'awaiting_payment') && (
+                                  <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                                    const r = await fetch(`/api/admin/invoices/${inv.id}`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'paid' }) });
+                                    if (r.ok) { notifyUser(t('admin.marked_paid') || 'Marked as paid', 'success'); Promise.all([fetch('/api/admin/invoices', { credentials: 'include' }), fetch('/api/admin/transactions', { credentials: 'include' })]).then(([a, b]) => { a.ok && a.json().then(setAdminInvoicesList); b.ok && b.json().then(setAdminTransactionsList); }); }
+                                    else { const d = await r.json().catch(() => ({})); notifyUser(d.error || 'Failed', 'error'); }
+                                  }}>{t('admin.mark_paid') || 'Mark paid'}</Button>
+                                )}
+                                {inv.status === 'paid' && (
+                                  <Button variant="outline" size="sm" className="text-xs text-red-400 border-red-500/40" onClick={async () => {
+                                    if (!confirm(t('admin.refund_confirm') || 'Refund this payment via Stripe?')) return;
+                                    const r = await fetch(`/api/admin/invoices/${inv.id}/refund`, { method: 'POST', credentials: 'include' });
+                                    if (r.ok) { notifyUser(t('admin.refunded') || 'Refunded', 'success'); Promise.all([fetch('/api/admin/invoices', { credentials: 'include' }), fetch('/api/admin/transactions', { credentials: 'include' })]).then(([a, b]) => { a.ok && a.json().then(setAdminInvoicesList); b.ok && b.json().then(setAdminTransactionsList); }); }
+                                    else { const d = await r.json().catch(() => ({})); notifyUser(d.error || 'Refund failed', 'error'); }
+                                  }}>{t('admin.refund') || 'Refund'}</Button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                          {adminInvoicesList.length === 0 && <p className="text-zinc-500 text-xs italic">{t('admin.no_invoices') || 'No invoices'}</p>}
+                        </div>
+                      </Card>
+                      <Card className="p-4">
+                        <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-3">{t('admin.all_transactions') || 'All transactions'}</h4>
+                        <div className="space-y-2 max-h-96 overflow-y-auto">
+                          {adminTransactionsList.map((tx: any) => (
+                            <div key={tx.id} className="flex items-center justify-between gap-2 py-2 border-b border-zinc-800/50">
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-200">{(Number(tx.amount) / 100).toLocaleString('de-DE')} € · user {tx.user_id}</p>
+                                <p className="text-[10px] text-zinc-500">{tx.invoice_id != null ? 'Invoice #' + tx.invoice_id : '—'} · {new Date(tx.created_at).toLocaleDateString('de-DE')}</p>
+                              </div>
+                              <Badge variant={tx.status === 'PAID' ? 'emerald' : tx.status === 'REFUNDED' ? 'zinc' : 'amber'}>{tx.status}</Badge>
+                            </div>
+                          ))}
+                          {adminTransactionsList.length === 0 && <p className="text-zinc-500 text-xs italic">{t('admin.no_transactions') || 'No transactions'}</p>}
+                        </div>
+                      </Card>
+                    </div>
+                  </section>
+                  )}
+
                   {(adminTab === 'contract-generator') && (
                   <section className="space-y-6 lg:col-span-2">
                     <h3 className="text-xl font-serif italic">Vertragsgenerator</h3>
@@ -11524,9 +11891,9 @@ export default function App() {
                               </div>
                             </>
                           )}
-                          <div className="absolute top-6 left-6">
+                    <div className="absolute top-6 left-6">
                             <Badge variant="amber">{getRarityLabel(selectedPiece.rarity)}</Badge>
-                          </div>
+                    </div>
                         </>
                       );
                     })()}
@@ -11709,6 +12076,25 @@ export default function App() {
                             return null;
                           })()}
                           {!getPiecePriceDisplay(selectedPiece, user).showNegotiation && !getPiecePriceDisplay(selectedPiece, user).showInquiry && (
+                        <>
+                          {purchaseClientSecret && purchaseItemId === selectedPiece.id && stripePk ? (
+                            <div className="space-y-4">
+                              <p className="text-sm text-zinc-400">{t('purchase.complete_payment') || 'Complete payment to purchase this piece.'}</p>
+                              <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: purchaseClientSecret }}>
+                                <WalletDepositForm
+                                  t={t}
+                                  onCancel={() => { setPurchaseClientSecret(null); setPurchaseItemId(null); }}
+                                  onSuccess={() => {
+                                    setPurchaseClientSecret(null);
+                                    setPurchaseItemId(null);
+                                    closePieceDetail();
+                                    fetchData();
+                                    notifyUser(t('purchase.success') || 'Purchase successful.', 'success');
+                                  }}
+                                />
+                              </Elements>
+                            </div>
+                          ) : (
                             <>
                               <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
                                 <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
@@ -11726,11 +12112,38 @@ export default function App() {
                                   <option value="vault_storage">{t('delivery.vault_storage')}</option>
                                 </select>
                               </div>
+                              <Button
+                                className="w-full py-4 text-base"
+                                disabled={purchaseLoading || !(Number(selectedPiece.valuation ?? (selectedPiece as any).purchase_price) >= 0.01)}
+                                onClick={async () => {
+                                  if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; }
+                                  if (!stripePk) {
+                                    const cfg = await fetch('/api/stripe/config').then(r => r.ok ? r.json() : null);
+                                    if (cfg?.publishableKey) setStripePk(cfg.publishableKey);
+                                  }
+                                  setPurchaseLoading(true);
+                                  try {
+                                    const r = await fetch('/api/purchase', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_id: selectedPiece.id }) });
+                                    const data = await r.json().catch(() => ({}));
+                                    if (r.ok && data.client_secret) {
+                                      setPurchaseClientSecret(data.client_secret);
+                                      setPurchaseItemId(selectedPiece.id);
+                                    } else {
+                                      notifyUser((data as any).error || t('errors.generic'), 'error');
+                                    }
+                                  } finally { setPurchaseLoading(false); }
+                                  }
+                                }
+                              >
+                                <CreditCard className="w-5 h-5" /> {t('purchase.buy_now') || 'Buy now'}
+                              </Button>
                               <Button className="w-full py-4 text-base" onClick={() => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
                                 <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
                               </Button>
                             </>
                           )}
+                        </>
+                      )}
                         </>
                       )}
                       <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
@@ -12330,6 +12743,31 @@ const InvestorActionButton = ({ icon: Icon, title, description, onClick }: any) 
   </button>
 );
 
+function WalletDepositForm({ onSuccess, onCancel, t }: { onSuccess: () => void; onCancel: () => void; t: (k: string) => string }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [confirming, setConfirming] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <Card className="p-6">
+      <h4 className="font-medium text-zinc-200 mb-4">{t('wallet.complete_payment') || 'Complete payment'}</h4>
+      <PaymentElement options={{ layout: 'tabs' }} />
+      {err && <p className="text-sm text-red-400 mt-2">{err}</p>}
+      <div className="flex gap-2 mt-4">
+        <Button variant="outline" onClick={onCancel}>{t('common.cancel') || 'Cancel'}</Button>
+        <Button disabled={!stripe || !elements || confirming} onClick={async () => {
+          if (!stripe || !elements) return;
+          setErr(null); setConfirming(true);
+          const { error } = await stripe.confirmPayment({ elements, confirmParams: { return_url: window.location.href } });
+          setConfirming(false);
+          if (error) setErr(error.message || 'Payment failed');
+          else onSuccess();
+        }}>{confirming ? (t('common.loading') || '...') : (t('wallet.pay') || 'Pay')}</Button>
+      </div>
+    </Card>
+  );
+}
+
 const EmptyState = ({ icon: Icon, text, subtitle }: any) => (
   <div className="col-span-full py-24 text-center border border-dashed border-zinc-800/80 rounded-3xl bg-zinc-950/30">
     <div className="w-16 h-16 rounded-2xl bg-zinc-900/80 border border-zinc-800 flex items-center justify-center mx-auto mb-6">
@@ -12493,7 +12931,7 @@ const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpd
           {(workflow as any).production_priority === 'high' && (
             <span className="text-[9px] font-bold uppercase tracking-widest px-2 py-1 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">VIP ORDER — PRIORITY</span>
           )}
-          <Badge variant="amber" className="bg-amber-500/10 text-amber-500 border-amber-500/20">{workflow.status}</Badge>
+        <Badge variant="amber" className="bg-amber-500/10 text-amber-500 border-amber-500/20">{workflow.status}</Badge>
         </div>
       </div>
       <div className="space-y-4">

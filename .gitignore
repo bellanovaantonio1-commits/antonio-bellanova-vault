@@ -13,3 +13,11 @@ vault.db-journal
 vault.db-wal
 backups/
 uploads/import/
+
+
+```env
+MYSQL_HOST=91.58.236.84
+MYSQL_USER=bellanova_admin
+MYSQL_PASSWORD=BellanovaSecureVault!2026
+MYSQL_DATABASE=bellanova_vault
+```
