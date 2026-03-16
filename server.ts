@@ -7148,7 +7148,7 @@ app.get("/api/admin/intelligence/scarcity-heatmap", async (req, res) => {
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const pieces = await (await db.prepare("SELECT id, title, serial_id, valuation, status, category FROM masterpieces")).all() as any[];
   const maxViews = Math.max(1, (await (await db.prepare("SELECT MAX(c) as m FROM (SELECT masterpiece_id, COUNT(*) as c FROM asset_views GROUP BY masterpiece_id)")).get() as { m: number })?.m ?? 1);
-  const heatmap = pieces.map(p => {
+  const heatmap = await Promise.all(pieces.map(async (p) => {
     const views = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
     const wishlist = (await (await db.prepare("SELECT COUNT(*) as c FROM user_favorites WHERE masterpiece_id = ?")).get(p.id) as { c: number })?.c ?? 0;
     const duration = (await (await db.prepare("SELECT COALESCE(SUM(duration_seconds),0) as s FROM asset_views WHERE masterpiece_id = ?")).get(p.id) as { s: number })?.s ?? 0;
@@ -7170,7 +7170,7 @@ app.get("/api/admin/intelligence/scarcity-heatmap", async (req, res) => {
       scarcity_intensity_score: scarcityIntensity,
       interest_level: interestLevel,
     };
-  });
+  }));
   res.json(heatmap);
 });
 
