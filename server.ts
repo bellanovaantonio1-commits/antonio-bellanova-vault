@@ -7123,7 +7123,7 @@ app.get("/api/admin/intelligence/advisor-analytics/export", async (req, res) => 
   const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const advisors = await (await db.prepare("SELECT p.id as profile_id, p.user_id, u.name, u.email FROM advisor_profiles p JOIN users u ON u.id = p.user_id WHERE p.status = 'activated'")).all() as any[];
-  const rows = advisors.map((a: any) => {
+  const rows = await Promise.all(advisors.map(async (a: any) => {
     const commissions = await (await db.prepare("SELECT status, SUM(commission_amount) as total FROM advisor_commissions WHERE advisor_id = ? GROUP BY status")).all(a.profile_id) as { status: string; total: number }[];
     const paid = commissions.find((r: any) => r.status === 'paid_out')?.total ?? 0;
     const pending = commissions.find((r: any) => r.status === 'pending' || r.status === 'confirmed')?.total ?? 0;
@@ -7132,7 +7132,7 @@ app.get("/api/admin/intelligence/advisor-analytics/export", async (req, res) => 
     const conversionRate = referralsCount > 0 ? Math.round((dealsCount / referralsCount) * 10000) / 100 : 0;
     const avgDeal = dealsCount > 0 ? (await (await db.prepare("SELECT AVG(sale_amount) as avg FROM advisor_commissions WHERE advisor_id = ?")).get(a.profile_id) as { avg: number })?.avg ?? 0 : 0;
     return { advisor_name: a.name, advisor_email: a.email, total_revenue: paid + pending, commission_paid: paid, commission_pending: pending, conversion_rate_pct: conversionRate, deals_count: dealsCount, avg_deal_size: Math.round(avgDeal * 100) / 100 };
-  });
+  }));
   const headers = ['advisor_name', 'advisor_email', 'total_revenue', 'commission_paid', 'commission_pending', 'conversion_rate_pct', 'deals_count', 'avg_deal_size'];
   const escape = (v: any) => (v == null ? '' : String(v).replace(/"/g, '""'));
   const csv = [headers.join(','), ...rows.map((r: any) => headers.map(h => `"${escape(r[h])}"`).join(','))].join('\n');
