@@ -118,6 +118,27 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
         console.error("[Stripe] Webhook: failed to create order:", e);
         return res.status(500).send("Failed to create order");
       }
+    } else if ((paymentType === "order_deposit" || paymentType === "order_final") && db) {
+      const paymentId = metadata.payment_id ? Number(metadata.payment_id) : null;
+      if (!paymentId) {
+        console.log("[Order Payment] Webhook: missing payment_id in metadata");
+      } else {
+        try {
+          const pay = await (await db.prepare("SELECT id, user_id, masterpiece_id, type, amount, status FROM payments WHERE id = ?")).get(paymentId) as { id: number; user_id: number; amount: number; status: string } | undefined;
+          const expectedCents = pay ? Math.round(Number(pay.amount) * 100) : 0;
+          if (!pay || (pay.status !== 'pending' && pay.status !== 'awaiting_deposit' && pay.status !== 'awaiting_payment')) {
+            console.log("[Order Payment] Ignored: payment_id=" + paymentId + " status=" + pay?.status);
+          } else if (amountCents > 0 && expectedCents > 0 && amountCents === expectedCents) {
+            await (await db.prepare("UPDATE payments SET status = 'paid', stripe_payment_intent_id = ? WHERE id = ?")).run(paymentIntent.id, paymentId);
+            console.log("[Order Payment] Success: payment_id=" + paymentId + " type=" + paymentType + " amount_cents=" + amountCents);
+          } else {
+            console.warn("[Order Payment] Amount mismatch: payment_id=" + paymentId + " expected_cents=" + expectedCents + " received=" + amountCents);
+          }
+        } catch (e) {
+          console.error("[Stripe] Webhook: failed to update order payment:", e);
+          return res.status(500).send("Failed to update payment");
+        }
+      }
     } else if (!paymentType || paymentType === "wallet") {
       if (userId && amountCents > 0 && db) {
         try {
@@ -1746,6 +1767,7 @@ try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_balance INTEG
 try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_locked INTEGER DEFAULT 0")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE payments ADD COLUMN reminder_sent_at DATETIME")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE payments ADD COLUMN manual_note TEXT")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE payments ADD COLUMN stripe_payment_intent_id TEXT")).run(); } catch (_) {}
 await db.exec(`
   CREATE TABLE IF NOT EXISTS user_tags (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -3557,6 +3579,12 @@ app.post("/api/admin/masterpieces/:id/delete", async (req, res) => {
       await (await tx.prepare("DELETE FROM insurance_policies WHERE masterpiece_id = ?")).run(mid);
       await (await tx.prepare("DELETE FROM resale_negotiations WHERE masterpiece_id = ?")).run(mid);
       await (await tx.prepare("DELETE FROM fractional_availability WHERE masterpiece_id = ?")).run(mid);
+      const fractionalAssets = await (await tx.prepare("SELECT id FROM fractional_assets WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
+      const fractionalAssetIds = fractionalAssets.map(a => a.id);
+      if (fractionalAssetIds.length > 0) {
+        await (await tx.prepare("DELETE FROM asset_shares WHERE asset_id IN (" + fractionalAssetIds.join(",") + ")")).run();
+        await (await tx.prepare("DELETE FROM fractional_assets WHERE id IN (" + fractionalAssetIds.join(",") + ")")).run();
+      }
       await (await tx.prepare("DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?")).run(mid);
       await (await tx.prepare("DELETE FROM user_favorites WHERE masterpiece_id = ?")).run(mid);
       await (await tx.prepare("DELETE FROM investor_requests WHERE masterpiece_id = ?")).run(mid);
@@ -4312,6 +4340,45 @@ app.post("/api/wallet/deposit", requireAuth, async (req, res) => {
 app.get("/api/payments/:userId", async (req, res) => {
   const payments = await (await db.prepare("SELECT * FROM payments WHERE user_id = ?")).all(req.params.userId);
   res.json(payments);
+});
+
+/** Client: create Stripe PaymentIntent for a deposit or final payment (order). Returns client_secret for Stripe Elements. */
+app.post("/api/payments/pay", async (req, res) => {
+  const userId = (req as any).userId;
+  if (userId == null) return res.status(401).json({ error: "Not signed in" });
+  const paymentId = Number(req.body?.payment_id);
+  if (!paymentId) return res.status(400).json({ error: "Missing payment_id" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
+  const row = await (await db.prepare("SELECT id, user_id, masterpiece_id, type, amount, status FROM payments WHERE id = ?")).get(paymentId) as { user_id: number; type: string; amount: number; status: string } | undefined;
+  if (!row) return res.status(404).json({ error: "Payment not found" });
+  if (row.user_id !== userId) return res.status(403).json({ error: "You can only pay your own payments" });
+  const allowedStatuses = ["pending", "awaiting_deposit", "awaiting_payment"];
+  if (!allowedStatuses.includes(row.status)) return res.status(400).json({ error: "This payment is not awaiting payment" });
+  const amountEur = Number(row.amount) || 0;
+  if (amountEur < 0.01) return res.status(400).json({ error: "Invalid payment amount" });
+  const amountCents = Math.round(amountEur * 100);
+  if (amountCents < 100) return res.status(400).json({ error: "Minimum charge is 1.00 EUR" });
+  try {
+    const stripe = getStripe();
+    const paymentType = row.type === "deposit" ? "order_deposit" : "order_final";
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: "eur",
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        payment_type: paymentType,
+        payment_id: String(paymentId),
+        user_id: String(userId),
+        masterpiece_id: String(row.masterpiece_id || ""),
+      },
+    });
+    console.log("[Payment] Pay intent created: payment_id=" + paymentId + " type=" + row.type + " amount_cents=" + amountCents);
+    res.json({ client_secret: paymentIntent.client_secret, payment_id: paymentId });
+  } catch (e: any) {
+    console.error("[Payment] Stripe error:", e?.message || e);
+    res.status(500).json({ error: e?.message || "Could not create payment" });
+  }
 });
 
 /** Public Stripe publishable key for frontend (no auth required so client can load Stripe.js). */

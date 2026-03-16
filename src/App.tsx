@@ -167,6 +167,15 @@ const TRANSLATIONS: any = {
     "payments.history": "Zahlungshistorie",
     "payments.no_history": "Keine Zahlungshistorie.",
     "payments.payment": "Zahlung",
+    "payments.pay_with_card": "Jetzt mit Karte zahlen",
+    "payments.pay_success": "Zahlung erfolgreich.",
+    "payments.pay_failed": "Zahlung fehlgeschlagen",
+    "payments.sign_contract_first": "Bitte zuerst den Vertrag im Tab Verträge unterzeichnen.",
+    "payments.bank_transfer": "Oder per Überweisung zahlen",
+    "payments.open_payments_hint": "Sie haben",
+    "payments.open_payments_label": "offene Zahlung(en).",
+    "payments.pay_now_in_vault": "Jetzt zahlen",
+    "payments.tab_hint": "Anzahlungen und Schlusszahlungen können Sie hier per Karte (Stripe) oder per Überweisung begleichen.",
     "invoices.awaiting_payment": "Zahlung ausstehend",
     "invoices.invoice": "Rechnung",
     my_bids: "Meine Gebote",
@@ -1476,6 +1485,15 @@ const TRANSLATIONS: any = {
     "payments.history": "Payment history",
     "payments.no_history": "No payment history.",
     "payments.payment": "Payment",
+    "payments.pay_with_card": "Pay with card",
+    "payments.pay_success": "Payment successful.",
+    "payments.pay_failed": "Payment failed",
+    "payments.sign_contract_first": "Sign the agreement in the Contracts tab first.",
+    "payments.bank_transfer": "Or pay by bank transfer",
+    "payments.open_payments_hint": "You have",
+    "payments.open_payments_label": "outstanding payment(s).",
+    "payments.pay_now_in_vault": "Pay now",
+    "payments.tab_hint": "You can pay deposits and final payments here by card (Stripe) or by bank transfer.",
     "invoices.awaiting_payment": "Awaiting payment",
     "invoices.invoice": "Invoice",
     "my_bids": "My bids",
@@ -2928,6 +2946,9 @@ export default function App() {
   const [invoicePayClientSecret, setInvoicePayClientSecret] = useState<string | null>(null);
   const [invoicePayId, setInvoicePayId] = useState<number | null>(null);
   const [invoicePayLoading, setInvoicePayLoading] = useState(false);
+  const [orderPayClientSecret, setOrderPayClientSecret] = useState<string | null>(null);
+  const [orderPayId, setOrderPayId] = useState<number | null>(null);
+  const [orderPayLoading, setOrderPayLoading] = useState(false);
   const [purchaseClientSecret, setPurchaseClientSecret] = useState<string | null>(null);
   const [purchaseItemId, setPurchaseItemId] = useState<number | null>(null);
   const [purchaseLoading, setPurchaseLoading] = useState(false);
@@ -7002,6 +7023,21 @@ export default function App() {
                     </Button>
                   </div>
                 )}
+                {(() => {
+                  const unpaidOrders = payments.filter((p: any) => ['pending', 'awaiting_deposit', 'awaiting_payment'].includes(p.status)).length;
+                  const unpaidInvoices = invoicesList.filter((inv: any) => inv.status === 'pending' || inv.status === 'awaiting_payment').length;
+                  const totalUnpaid = unpaidOrders + unpaidInvoices;
+                  return totalUnpaid > 0 ? (
+                    <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between flex-wrap gap-3">
+                      <p className="text-sm text-emerald-200">
+                        {t('payments.open_payments_hint') || 'Sie haben'} {totalUnpaid} {t('payments.open_payments_label') || 'offene Zahlung(en).'}
+                      </p>
+                      <Button variant="primary" className="text-xs" onClick={() => { setVaultTab('payments'); if (!stripePk) fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }}>
+                        {t('payments.pay_now_in_vault') || 'Jetzt zahlen'}
+                      </Button>
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   <TabButton active={vaultTab === 'pieces'} label={t('my_pieces')} onClick={() => setVaultTab('pieces')} icon={Award} />
                   <TabButton active={vaultTab === 'documents'} label={t('vault.documents') || 'Documents'} onClick={() => setVaultTab('documents')} icon={FileText} />
@@ -7340,7 +7376,25 @@ export default function App() {
                   )}
                   {vaultTab === 'payments' && (
                     <div className="space-y-6">
-                      {invoicePayClientSecret && stripePk ? (
+                      <p className="text-sm text-zinc-400">{t('payments.tab_hint') || 'Anzahlungen und Schlusszahlungen können Sie hier per Karte (Stripe) oder per Überweisung begleichen.'}</p>
+                      {orderPayClientSecret && stripePk ? (
+                        <Card className="p-6">
+                          <h4 className="font-medium text-zinc-200 mb-4">{t('payments.pay_with_card') || 'Pay with card'}</h4>
+                          <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: orderPayClientSecret }}>
+                            <WalletDepositForm
+                              t={t}
+                              onCancel={() => { setOrderPayClientSecret(null); setOrderPayId(null); }}
+                              onSuccess={() => {
+                                setOrderPayClientSecret(null);
+                                setOrderPayId(null);
+                                fetch(`/api/payments/${user?.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setPayments) : null);
+                                fetch('/api/transactions', { credentials: 'include' }).then(r => r.ok ? r.json().then(setTransactionsList) : null);
+                                notifyUser(t('payments.pay_success') || 'Payment successful.', 'success');
+                              }}
+                            />
+                          </Elements>
+                        </Card>
+                      ) : invoicePayClientSecret && stripePk ? (
                         <Card className="p-6">
                           <h4 className="font-medium text-zinc-200 mb-4">{t('invoices.pay_now') || 'Pay now'}</h4>
                           <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: invoicePayClientSecret }}>
@@ -7363,8 +7417,11 @@ export default function App() {
                         <div>
                           <h4 className="text-xs uppercase tracking-widest text-zinc-500 font-medium mb-2">{t('payments.orders') || 'Orders & payments'}</h4>
                           <div className="space-y-3">
-                            {payments.map(pay => (
-                              <Card key={pay.id} className="flex items-center justify-between">
+                            {payments.map(pay => {
+                              const isAwaiting = pay.status === 'pending' || pay.status === 'awaiting_deposit' || pay.status === 'awaiting_payment';
+                              const contractLocked = vaultData.contracts.some((c: any) => c.masterpiece_id === pay.masterpiece_id && c.status === 'draft');
+                              return (
+                              <Card key={pay.id} className="flex flex-wrap items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
                                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${pay.status === 'paid' ? 'bg-emerald-500/10 text-emerald-500' : pay.status === 'failed' || pay.status === 'rejected' ? 'bg-red-500/10 text-red-500' : 'bg-amber-500/10 text-amber-500'}`}>
                                     <CreditCard className="w-6 h-6" />
@@ -7374,26 +7431,41 @@ export default function App() {
                                     <p className="text-xs text-zinc-500">{pay.type === 'deposit' ? t('deposit') : t('full_payment')} • {new Date(pay.created_at).toLocaleDateString()}</p>
                                   </div>
                                 </div>
-                                <div className="text-right space-y-2">
+                                <div className="text-right space-y-2 flex items-center gap-3">
                                   <p className="text-lg font-bold text-zinc-100">{pay.amount.toLocaleString()} €</p>
                                   <Badge variant={pay.status === 'paid' ? 'emerald' : pay.status === 'failed' || pay.status === 'rejected' ? 'red' : 'amber'}>{pay.status}</Badge>
+                                  {isAwaiting && (
+                                    <Button disabled={orderPayLoading || !stripePk || contractLocked} onClick={async () => {
+                                      setOrderPayLoading(true);
+                                      try {
+                                        const r = await fetch('/api/payments/pay', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ payment_id: pay.id }) });
+                                        const data = await r.json().catch(() => ({}));
+                                        if (!r.ok) { notifyUser(data.error || t('payments.pay_failed') || 'Payment failed', 'error'); return; }
+                                        setOrderPayClientSecret(data.client_secret);
+                                        setOrderPayId(pay.id);
+                                      } finally { setOrderPayLoading(false); }
+                                    }}>{t('payments.pay_with_card') || 'Pay with card'}</Button>
+                                  )}
                                 </div>
-                                {pay.status === 'pending' && (
-                                  <div className="ml-8 p-4 bg-zinc-900 rounded-xl border border-zinc-800 max-w-xs relative">
-                                    {vaultData.contracts.some(c => c.masterpiece_id === pay.masterpiece_id && c.status === 'draft') ? (
-                                      <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-10 rounded-xl">
+                                {isAwaiting && (
+                                  <div className="w-full ml-0 mt-2 p-4 bg-zinc-900 rounded-xl border border-zinc-800 max-w-md relative">
+                                    {contractLocked ? (
+                                      <div className="flex flex-col items-center justify-center p-4 text-center">
                                         <Lock className="w-5 h-5 text-amber-500 mb-2" />
                                         <p className="text-[10px] uppercase tracking-widest text-zinc-400 font-bold">{t('signature_required')}</p>
-                                        <p className="text-[8px] text-zinc-600 mt-1">Sign the agreement in the Contracts tab to unlock payment instructions.</p>
+                                        <p className="text-[8px] text-zinc-600 mt-1">{t('payments.sign_contract_first') || 'Sign the agreement in the Contracts tab to unlock payment.'}</p>
                                       </div>
-                                    ) : null}
-                                    <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">Payment Instructions</p>
-                                    <p className="text-xs text-zinc-300 font-mono break-all">IBAN: {pay.iban}</p>
-                                    <p className="text-xs text-zinc-300 font-mono">REF: {pay.reference}</p>
+                                    ) : (
+                                      <>
+                                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{t('payments.bank_transfer') || 'Or pay by bank transfer'}</p>
+                                        <p className="text-xs text-zinc-300 font-mono break-all">IBAN: {pay.iban}</p>
+                                        <p className="text-xs text-zinc-300 font-mono">REF: {pay.reference}</p>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                               </Card>
-                            ))}
+                            );})}
                           </div>
                         </div>
                       )}

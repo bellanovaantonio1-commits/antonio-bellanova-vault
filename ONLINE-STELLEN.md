@@ -157,7 +157,56 @@ docker run -p 3000:3000 --env-file .env bellanova-vault
 
 ---
 
-## 7. Kurzreferenz Befehle
+## 7. Online aktualisieren
+
+Wenn Sie Änderungen am Code haben und die **live laufende Plattform** aktualisieren wollen:
+
+### Auf eigenem Server (VPS / IONOS) mit Git
+
+```bash
+# 1. Ins Projektverzeichnis wechseln
+cd /pfad/zu/antonio-bellanova-masterpiece-platform
+
+# 2. Neueste Änderungen holen (falls Sie mit Git arbeiten)
+git pull
+
+# 3. Abhängigkeiten prüfen (nach pull oft nötig)
+npm install --legacy-peer-deps
+
+# 4. Neu bauen
+npm run build
+
+# 5. Server neu starten
+# Mit PM2:
+pm2 restart vault
+
+# Ohne PM2 (Prozess stoppen, dann):
+npm run start
+```
+
+### Mit PM2 (empfohlen für dauerhaften Betrieb)
+
+```bash
+npm run build
+pm2 restart vault
+```
+
+`vault` ist der Name, den Sie bei `pm2 start ... --name vault` vergeben haben.
+
+### Bei Railway / Render / Fly.io
+
+- **Git-basiert:** Einfach **pushen** (z. B. `git push origin main`). Das Hosting baut und startet automatisch neu.
+- **Manuell:** Im Dashboard „Redeploy“ oder „Deploy latest“ auslösen.
+
+### Wichtig beim Aktualisieren
+
+- **.env** nicht überschreiben – Ihre Zugangsdaten (Stripe, DB, SMTP) bleiben unverändert.
+- **Datenbank:** Bei Schema-Änderungen legt der Server neue Tabellen/Spalten beim Start oft selbst an (CREATE TABLE IF NOT EXISTS, ALTER TABLE). SQLite-Datei `vault.db` bleibt erhalten.
+- Kurze Downtime: Beim Neustart ist die Seite meist wenige Sekunden nicht erreichbar.
+
+---
+
+## 8. Kurzreferenz Befehle
 
 | Aktion | Befehl |
 |--------|--------|
@@ -165,5 +214,6 @@ docker run -p 3000:3000 --env-file .env bellanova-vault
 | Produktions-Build | `npm run build` |
 | Produktion starten | `npm run start` |
 | Build + Start | `npm run start:prod` |
+| Online aktualisieren (mit PM2) | `npm run build` → `pm2 restart vault` |
 
 Die Plattform ist erreichbar unter: **http://localhost:PORT** (lokal) bzw. **https://IHRE-DOMAIN** (mit Proxy/SSL).
