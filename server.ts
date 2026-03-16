@@ -8032,12 +8032,12 @@ app.get("/api/private-clients/conversations/:id/messages", requireAuth, async (r
     WHERE m.conversation_id = ?
     ORDER BY m.created_at ASC
   `)).all(conv.id) as any[];
-  const withProduct = rows.map((m: any) => {
+  const withProduct = await Promise.all(rows.map(async (m: any) => {
     if (m.product_share_masterpiece_id) {
       m.product_share = await (await db.prepare("SELECT id, title, description, image_url, serial_id FROM masterpieces WHERE id = ?")).get(m.product_share_masterpiece_id);
     }
     return m;
-  });
+  }));
   res.json(withProduct);
 });
 
@@ -8235,14 +8235,14 @@ app.get("/api/private-clients/my-production", requireAuth, async (req, res) => {
   if (!userId) return res.json({ pieces: [] });
   const defaultStageNames = ['Design bestätigt', 'Steinbeschaffung', 'Steinschliff', 'Fassung', 'Politur', 'Qualitätskontrolle', 'Abgeschlossen'];
   const pieces = await (await db.prepare("SELECT id, title, serial_id, image_url FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
-  const result = pieces.map((p: any) => {
+  const result = await Promise.all(pieces.map(async (p: any) => {
     const stages = await (await db.prepare("SELECT * FROM production_progress WHERE masterpiece_id = ? ORDER BY step_index ASC")).all(p.id) as any[];
     const merged = defaultStageNames.map((name, i) => {
       const s = stages.find((st: any) => st.step_index === i) || stages[i];
       return s ? { step_index: i, step_name: s.step_name || name, status: s.status || 'pending' } : { step_index: i, step_name: name, status: 'pending' };
     });
     return { ...p, stages: stages.length ? stages : merged };
-  });
+  }));
   res.json({ pieces: result });
 });
 
@@ -8546,10 +8546,10 @@ app.get("/api/events", requireAuth, async (req, res) => {
   const userId = getSessionUserId(req)!;
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   const events = await (await db.prepare("SELECT * FROM private_events WHERE status = 'upcoming' AND event_date > datetime('now') ORDER BY event_date ASC")).all() as any[];
-  const withInvite = events.map((e: any) => {
+  const withInvite = await Promise.all(events.map(async (e: any) => {
     const inv = await (await db.prepare("SELECT * FROM event_invitations WHERE event_id = ? AND client_id = ?")).get(e.id, userId) as any;
     return { ...e, invitation_status: inv?.status ?? null };
-  });
+  }));
   if (isAdminUser(user)) return res.json(withInvite);
   const allowed = withInvite.filter((e: any) => e.invitation_status != null || e.min_vip_tier === 0);
   res.json(allowed);
@@ -8639,7 +8639,7 @@ app.get("/api/admin/collector-intelligence/:clientId", requireAuth, requireAdmin
 
 app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, async (req, res) => {
   const clients = await (await db.prepare("SELECT id, name, email, collector_level FROM users WHERE role NOT IN ('admin', 'super_admin')")).all() as any[];
-  const list = clients.map((u: any) => {
+  const list = await Promise.all(clients.map(async (u: any) => {
     const purchases = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(u.id) as { c: number; total: number };
     const collectionValue = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as v FROM masterpieces WHERE current_owner_id = ?")).get(u.id) as { v: number };
     const profile = await (await db.prepare("SELECT favorite_gemstones FROM collector_profiles WHERE user_id = ?")).get(u.id) as { favorite_gemstones: string | null } | undefined;
@@ -8653,7 +8653,7 @@ app.get("/api/admin/collector-intelligence", requireAuth, requireAdmin, async (r
       favorite_gemstone: profile?.favorite_gemstones || null,
       vip_level: u.collector_level || 'collector'
     };
-  });
+  }));
   list.sort((a: any, b: any) => (b.collection_value || 0) - (a.collection_value || 0));
   res.json(list);
 });
