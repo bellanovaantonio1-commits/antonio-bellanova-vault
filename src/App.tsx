@@ -9073,9 +9073,18 @@ export default function App() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                       {editingPiece && (
                         <section className="space-y-6 lg:col-span-2">
-                          <div className="flex justify-between items-center">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                             <h3 className="text-2xl font-serif italic">{t('admin.edit_piece')}: {editingPiece.title}</h3>
-                            <Button variant="ghost" className="text-zinc-500" onClick={() => setEditingPiece(null)}>{t('cancel')}</Button>
+                            <div className="flex flex-wrap gap-3 justify-end">
+                              <Button variant="ghost" className="text-zinc-500" onClick={() => setEditingPiece(null)}>{t('cancel')}</Button>
+                              <Button
+                                variant="danger"
+                                className="text-sm"
+                                onClick={() => setDeletePieceConfirm({ piece: editingPiece, password: '', error: '' })}
+                              >
+                                Stück endgültig aus System entfernen
+                              </Button>
+                            </div>
                           </div>
                           <Card className="space-y-4 p-6">
                             <div className="grid grid-cols-2 gap-4">
