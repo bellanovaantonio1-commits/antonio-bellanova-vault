@@ -7727,13 +7727,13 @@ app.get("/api/collector/prestige-score", async (req, res) => {
 app.get("/api/collector/leaderboard", requireAuth, requireAdmin, async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 100);
   const clients = await (await db.prepare("SELECT id, name, email, collector_level FROM users WHERE role != 'admin' AND role != 'super_admin'")).all() as any[];
-  const rows = clients.map((u: any) => {
+  const rows = await Promise.all(clients.map(async (u: any) => {
     const pieces = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?")).get(u.id) as any;
     const payments = await (await db.prepare("SELECT COUNT(*) as c FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(u.id) as any;
     const levelBonus: Record<string, number> = { legacy_collector: 80, grand_collector: 60, private_collector: 40, vip: 25, collector: 10 };
     const prestige = Math.min((payments?.c ?? 0) * 15, 100) + Math.min(Math.floor((pieces?.total ?? 0) / 10000), 150) + (levelBonus[u.collector_level || 'collector'] ?? 10);
     return { user_id: u.id, name: u.name, collector_level: u.collector_level, collection_value: pieces?.total ?? 0, purchase_count: payments?.c ?? 0, prestige_score: prestige };
-  });
+  }));
   rows.sort((a: any, b: any) => (b.prestige_score - a.prestige_score) || (b.collection_value - a.collection_value));
   res.json(rows.slice(0, limit));
 });
