@@ -9078,14 +9078,14 @@ app.post("/api/admin/fractional/execute-exit", async (req, res) => {
 });
 
 // --- Fractional Assets (Production / Vault) ---
-function getAssetSharesSold(assetId: number): number {
+async function getAssetSharesSold(assetId: number): Promise<number> {
   const row = await (await db.prepare("SELECT COALESCE(SUM(num_shares), 0) as sold FROM asset_shares WHERE asset_id = ?")).get(assetId) as { sold: number };
   return row?.sold ?? 0;
 }
-function updateAssetStatusFromProgress(assetId: number) {
+async function updateAssetStatusFromProgress(assetId: number) {
   const asset = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(assetId) as any;
   if (!asset) return;
-  const sold = getAssetSharesSold(assetId);
+  const sold = await getAssetSharesSold(assetId);
   const total = asset.total_shares || 100;
   const threshold = asset.production_threshold_pct ?? 60;
   const fundingPct = total ? (sold / total) * 100 : 0;
@@ -9142,8 +9142,8 @@ table{width:100%;border-collapse:collapse;} td{padding:8px 0;border-bottom:1px s
 
 app.get("/api/fractional-assets", async (req, res) => {
   const rows = await (await db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC")).all() as any[];
-  const out = rows.map(a => {
-    const sold = getAssetSharesSold(a.id);
+  const out = await Promise.all(rows.map(async (a: any) => {
+    const sold = await getAssetSharesSold(a.id);
     const total = a.total_shares || 100;
     const remaining = Math.max(0, total - sold);
     const totalValue = (a.total_value != null && a.total_value > 0) ? a.total_value : (total * (a.share_price || 0));
@@ -9160,14 +9160,14 @@ app.get("/api/fractional-assets", async (req, res) => {
       total_asset_value: totalValue,
       financing_pct: financingPct
     };
-  });
+  }));
   res.json(out);
 });
 
 app.get("/api/fractional-assets/:id", async (req, res) => {
   const a = await (await db.prepare("SELECT * FROM fractional_assets WHERE id = ?")).get(req.params.id) as any;
   if (!a) return res.status(404).json({ error: "Asset not found" });
-  const sold = getAssetSharesSold(a.id);
+  const sold = await getAssetSharesSold(a.id);
   const total = a.total_shares || 100;
   const remaining = Math.max(0, total - sold);
   const totalValue = (a.total_value != null && a.total_value > 0) ? a.total_value : (total * (a.share_price || 0));
@@ -9341,7 +9341,7 @@ app.post("/api/fractional-assets/:id/buy", async (req, res) => {
     const approval = await (await db.prepare("SELECT status FROM fractional_investor_approvals WHERE asset_id = ? AND user_id = ?")).get(assetId, userId) as { status: string } | undefined;
     if (!approval || approval.status !== 'approved') return res.status(403).json({ error: "Investor approval required. Please request access." });
   }
-  const sold = getAssetSharesSold(assetId);
+  const sold = await getAssetSharesSold(assetId);
   const remaining = (asset.total_shares || 100) - sold;
   if (numShares > remaining) return res.status(400).json({ error: "Not enough shares available" });
   const sharePrice = asset.share_price || 0;
@@ -9353,7 +9353,7 @@ app.post("/api/fractional-assets/:id/buy", async (req, res) => {
   } else {
     await (await db.prepare("INSERT INTO asset_shares (asset_id, user_id, num_shares, purchase_price, purchase_date) VALUES (?, ?, ?, ?, ?)")).run(assetId, userId, numShares, purchasePrice, purchaseDate);
   }
-  updateAssetStatusFromProgress(assetId);
+  await updateAssetStatusFromProgress(assetId);
 
   const assetCode = (asset.asset_code || generateAssetCode(assetId)) as string;
   const totalShares = asset.total_shares || 100;
@@ -9397,14 +9397,14 @@ app.get("/api/admin/fractional-assets", async (req, res) => {
   const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const rows = await (await db.prepare("SELECT * FROM fractional_assets ORDER BY updated_at DESC")).all() as any[];
-  const out = rows.map(a => {
-    const sold = getAssetSharesSold(a.id);
+  const out = await Promise.all(rows.map(async (a: any) => {
+    const sold = await getAssetSharesSold(a.id);
     const total = a.total_shares || 100;
     const remaining = Math.max(0, total - sold);
     const totalValue = total * (a.share_price || 0);
     const financingPct = total ? (sold / total) * 100 : 0;
     return { ...a, shares_sold: sold, shares_remaining: remaining, total_asset_value: totalValue, financing_pct: financingPct };
-  });
+  }));
   res.json(out);
 });
 
