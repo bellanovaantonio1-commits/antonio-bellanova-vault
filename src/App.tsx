@@ -993,6 +993,7 @@ const TRANSLATIONS: any = {
     "auth.forgot_password": "Passwort vergessen",
     "auth.forgot_password_link": "Passwort vergessen?",
     "auth.continue_as_guest": "Als Gast fortfahren",
+    "guest.concierge_register_required": "Bitte registrieren Sie sich, um den Concierge-Service zu nutzen.",
     "auth.or": "oder",
     "auth.preferred_language": "Bevorzugte Sprache",
     "auth.reset_invalid_token": "Kein gültiger Token. Nutzen Sie „Passwort vergessen“, um einen neuen Link zu erhalten.",
@@ -1794,6 +1795,7 @@ const TRANSLATIONS: any = {
     "auth.forgot_password": "Forgot password",
     "auth.forgot_password_link": "Forgot password?",
     "auth.continue_as_guest": "Continue as Guest",
+    "guest.concierge_register_required": "Please register to use the concierge service.",
     "auth.or": "or",
     "auth.preferred_language": "Preferred language",
     "auth.reset_invalid_token": "Invalid token. Use \"Forgot password\" to get a new link.",
@@ -5679,6 +5681,14 @@ export default function App() {
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
   const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
+  const handleNavViewChange = (viewKey: string) => {
+    if (isGuest && viewKey === 'concierge') {
+      notifyUser(t('guest.concierge_register_required') || 'Please register to use the concierge service.', 'error');
+      setView('register');
+      return;
+    }
+    setView(viewKey as any);
+  };
   const navItems = isGuest ? [
     navItem('world', Globe, 'World'),
     navItem('marketplace', ShoppingBag, t('marketplace')),
@@ -5716,7 +5726,7 @@ export default function App() {
         </div>
         <div className="flex-1 px-4 space-y-2">
           {navItems.map(({ viewKey, Icon, label }) => (
-            <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => setView(viewKey as any)} />
+            <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => handleNavViewChange(viewKey)} />
           ))}
         </div>
         <div className="p-4 border-t border-zinc-900">
@@ -5746,7 +5756,7 @@ export default function App() {
               </div>
               <div className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
                 {navItems.map(({ viewKey, Icon, label }) => (
-                  <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => { setView(viewKey as any); closeDrawer(); }} />
+                  <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => { handleNavViewChange(viewKey); closeDrawer(); }} />
                 ))}
               </div>
               <div className="p-4 border-t border-zinc-900">
