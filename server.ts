@@ -2832,6 +2832,8 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "GET", path: "/api/auth/link" },
   { method: "GET", path: "/api/maintenance" },
   { method: "GET", path: "/api/resale/marketplace" },
+  /** Publishable key only (+ flags); required for Stripe.js before login and for ops checks without session. */
+  { method: "GET", path: "/api/stripe/config" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
