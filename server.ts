@@ -5451,7 +5451,7 @@ app.get("/api/admin/sales", async (req, res) => {
 });
 
 // Admin: bank config (simple key-value store)
-await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
+// (table created during server startup after db initialization)
 app.get("/api/admin/bank-config", async (req, res) => {
   const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get();
   res.json(row ? JSON.parse(row.value) : {});
@@ -10076,6 +10076,8 @@ Respond in a highly sophisticated, professional, helpful tone. Elegant purchase 
 async function startServer() {
   db = await initDb();
   await runSchema(db);
+  // Ensure optional key-value config table exists (used by maintenance/bank config endpoints).
+  await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
   await seedAdmin();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
