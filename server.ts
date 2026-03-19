@@ -139,11 +139,22 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
           return res.status(500).send("Failed to update payment");
         }
       }
-    } else if (!paymentType || paymentType === "wallet") {
+    } else if (paymentType === "wallet" || !paymentType) {
       if (userId && amountCents > 0 && db) {
         try {
-          await (await db.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")).run(amountCents, userId);
-          console.log("[Wallet] Payment success: user_id=" + userId + " amount_cents=" + amountCents + " (wallet_balance credited)");
+          const piId = paymentIntent.id;
+          const insertSql = db.isMySQL
+            ? "INSERT IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)"
+            : "INSERT OR IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)";
+          await db.transaction(async (tx) => {
+            const ins = await (await tx.prepare(insertSql)).run(piId, userId, amountCents);
+            if (!ins.changes) {
+              console.log("[Wallet] Webhook duplicate ignored: payment_intent=" + piId);
+              return;
+            }
+            await (await tx.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")).run(amountCents, userId);
+            console.log("[Wallet] Payment success: user_id=" + userId + " amount_cents=" + amountCents + " (wallet_balance credited)");
+          });
         } catch (e) {
           console.error("[Stripe] Webhook: failed to update wallet_balance:", e);
           return res.status(500).send("Failed to credit wallet");
@@ -1387,6 +1398,13 @@ await db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(user_id) REFERENCES users(id),
     FOREIGN KEY(invoice_id) REFERENCES invoices(id)
+  );
+  CREATE TABLE IF NOT EXISTS stripe_wallet_credits (
+    stripe_payment_intent_id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
   );
   CREATE TABLE IF NOT EXISTS admin_client_notes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4370,7 +4388,7 @@ app.post("/api/wallet/deposit", requireAuth, async (req, res) => {
       amount: amountCents,
       currency: "eur",
       automatic_payment_methods: { enabled: true },
-      metadata: { user_id: String(sessionUserId) },
+      metadata: { user_id: String(sessionUserId), payment_type: "wallet" },
     });
     console.log("[Wallet] Deposit intent created: user_id=" + sessionUserId + " amount_cents=" + amountCents + " payment_intent=" + paymentIntent.id);
     res.json({ client_secret: paymentIntent.client_secret, amount_cents: amountCents });
@@ -4427,8 +4445,16 @@ app.post("/api/payments/pay", async (req, res) => {
 
 /** Public Stripe publishable key for frontend (no auth required so client can load Stripe.js). */
 app.get("/api/stripe/config", (_req, res) => {
-  const key = process.env.STRIPE_PUBLIC_KEY || process.env.STRIPE_PUBLISHABLE_KEY;
-  res.json({ publishableKey: key || "" });
+  const pk = String(process.env.STRIPE_PUBLIC_KEY || process.env.STRIPE_PUBLISHABLE_KEY || "").trim();
+  const sk = String(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
+  const wh = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
+  res.json({
+    publishableKey: pk,
+    stripePublishableConfigured: !!pk,
+    stripeSecretConfigured: !!sk,
+    stripeWebhookConfigured: !!wh,
+    walletDepositsConfigured: !!pk && !!sk,
+  });
 });
 
 // --- Invoices (made-to-order / payment requests) ---

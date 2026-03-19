@@ -178,6 +178,24 @@ const TRANSLATIONS: any = {
     "payments.tab_hint": "Anzahlungen und Schlusszahlungen können Sie hier per Karte (Stripe) oder per Überweisung begleichen.",
     "invoices.awaiting_payment": "Zahlung ausstehend",
     "invoices.invoice": "Rechnung",
+    "wallet.title": "Wallet / Auktions-Guthaben",
+    "wallet.description": "Guthaben aufladen, um in Auktionen zu bieten. Beträge werden in Cent gespeichert (intern), angezeigt in Euro.",
+    "wallet.balance": "Guthaben",
+    "wallet.locked": "Gesperrt",
+    "wallet.available": "Verfügbar",
+    "wallet.deposit_funds": "Guthaben aufladen",
+    "wallet.deposits_not_configured": "Online-Aufladung ist derzeit nicht möglich (Zahlungen nicht eingerichtet). Bitte kontaktieren Sie das Atelier.",
+    "wallet.stripe_pk_hint_admin": "Admin: In der Server-.env STRIPE_PUBLISHABLE_KEY und STRIPE_SECRET_KEY setzen (zusammenpassendes Test- oder Live-Paar), danach Build und pm2 restart.",
+    "wallet.stripe_sk_hint_admin": "Admin: Der öffentliche Stripe-Key ist gesetzt, aber STRIPE_SECRET_KEY fehlt — Aufladung kann nicht gestartet werden.",
+    "wallet.stripe_webhook_hint_admin": "Admin: Webhook payment_intent.succeeded auf …/api/stripe/webhook einrichten und STRIPE_WEBHOOK_SECRET setzen, sonst wird das Guthaben nach Zahlung nicht gutgeschrieben.",
+    "wallet.config_loading": "Zahlungs-Konfiguration wird geladen…",
+    "wallet.test_card": "Testmodus: Karte 4242 4242 4242 4242 (beliebiges zukünftiges Ablaufdatum, beliebige CVC).",
+    "wallet.amount_eur": "Betrag (€)",
+    "wallet.quick_amounts": "Schnellwahl",
+    "wallet.continue_to_payment": "Weiter zur Zahlung",
+    "wallet.deposit_success": "Guthaben erfolgreich aufgeladen.",
+    "wallet.complete_payment": "Zahlung abschließen",
+    "wallet.pay": "Bezahlen",
     my_bids: "Meine Gebote",
     resale: "Wiederverkauf",
     vip: "VIP",
@@ -1495,6 +1513,24 @@ const TRANSLATIONS: any = {
     "payments.tab_hint": "You can pay deposits and final payments here by card (Stripe) or by bank transfer.",
     "invoices.awaiting_payment": "Awaiting payment",
     "invoices.invoice": "Invoice",
+    "wallet.title": "Wallet / Auction credit",
+    "wallet.description": "Top up credit to bid in auctions. Amounts are stored in cents internally, shown in EUR.",
+    "wallet.balance": "Balance",
+    "wallet.locked": "Locked",
+    "wallet.available": "Available",
+    "wallet.deposit_funds": "Top up credit",
+    "wallet.deposits_not_configured": "Online top-up is not available (payments not configured). Please contact the atelier.",
+    "wallet.stripe_pk_hint_admin": "Admin: Set STRIPE_PUBLISHABLE_KEY and STRIPE_SECRET_KEY in the server .env (matching test or live keys), then rebuild and restart pm2.",
+    "wallet.stripe_sk_hint_admin": "Admin: Publishable key is set but STRIPE_SECRET_KEY is missing — top-up cannot be started.",
+    "wallet.stripe_webhook_hint_admin": "Admin: Add webhook payment_intent.succeeded to …/api/stripe/webhook and set STRIPE_WEBHOOK_SECRET or credit will not apply after payment.",
+    "wallet.config_loading": "Loading payment configuration…",
+    "wallet.test_card": "Test mode: card 4242 4242 4242 4242 (any future expiry, any CVC).",
+    "wallet.amount_eur": "Amount (€)",
+    "wallet.quick_amounts": "Quick amounts",
+    "wallet.continue_to_payment": "Continue to payment",
+    "wallet.deposit_success": "Credit added successfully.",
+    "wallet.complete_payment": "Complete payment",
+    "wallet.pay": "Pay",
     "my_bids": "My bids",
     "resale": "Resale",
     "vault.no_certs": "No certificates issued yet.",
@@ -2937,6 +2973,25 @@ export default function App() {
   const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'settings'>('pieces');
   const [walletData, setWalletData] = useState<{ wallet_balance: number; wallet_locked: number; available: number } | null>(null);
   const [stripePk, setStripePk] = useState<string | null>(null);
+  /** Loaded from GET /api/stripe/config (null = not fetched yet for this navigation). */
+  const [stripeWalletMeta, setStripeWalletMeta] = useState<{
+    walletDepositsConfigured: boolean;
+    stripeWebhookConfigured: boolean;
+    stripePublishableConfigured: boolean;
+    stripeSecretConfigured: boolean;
+  } | null>(null);
+
+  const applyStripeConfigResponse = useCallback((c: any) => {
+    const raw = c && typeof c === 'object' ? c : {};
+    const pk = String(raw.publishableKey || '').trim() || null;
+    setStripePk(pk);
+    setStripeWalletMeta({
+      walletDepositsConfigured: !!raw.walletDepositsConfigured,
+      stripeWebhookConfigured: !!raw.stripeWebhookConfigured,
+      stripePublishableConfigured: !!raw.stripePublishableConfigured,
+      stripeSecretConfigured: !!raw.stripeSecretConfigured,
+    });
+  }, []);
   const [depositClientSecret, setDepositClientSecret] = useState<string | null>(null);
   const [depositAmountCents, setDepositAmountCents] = useState<number | null>(null);
   const [depositLoading, setDepositLoading] = useState(false);
@@ -7063,7 +7118,7 @@ export default function App() {
                       <p className="text-sm text-emerald-200">
                         {t('payments.open_payments_hint') || 'Sie haben'} {totalUnpaid} {t('payments.open_payments_label') || 'offene Zahlung(en).'}
                       </p>
-                      <Button variant="primary" className="text-xs" onClick={() => { setVaultTab('payments'); if (!stripePk) fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }}>
+                      <Button variant="primary" className="text-xs" onClick={() => { setVaultTab('payments'); fetch('/api/stripe/config').then(r => r.ok ? r.json().then(applyStripeConfigResponse) : applyStripeConfigResponse({})); }}>
                         {t('payments.pay_now_in_vault') || 'Jetzt zahlen'}
                       </Button>
                     </div>
@@ -7074,9 +7129,9 @@ export default function App() {
                   <TabButton active={vaultTab === 'documents'} label={t('vault.documents') || 'Documents'} onClick={() => setVaultTab('documents')} icon={FileText} />
                   <TabButton active={vaultTab === 'certs'} label={t('certificates')} onClick={() => setVaultTab('certs')} icon={ShieldCheck} />
                   <TabButton active={vaultTab === 'contracts'} label={t('contracts')} onClick={() => setVaultTab('contracts')} icon={FileText} />
-                  <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => { setVaultTab('payments'); if (!stripePk) fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={CreditCard} />
-                  <TabButton active={vaultTab === 'wallet'} label={t('wallet.title') || 'Wallet'} onClick={() => { setVaultTab('wallet'); if (user?.id) fetch(`/api/wallet/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setWalletData) : null); fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={Wallet} />
-                  <TabButton active={vaultTab === 'invoices'} label={t('invoices.title') || 'Invoices'} onClick={() => { setVaultTab('invoices'); fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : setInvoicesList([])).catch(() => setInvoicesList([])); fetch('/api/stripe/config').then(r => r.ok ? r.json().then((c: any) => setStripePk(c.publishableKey || null)) : null); }} icon={Receipt} />
+                  <TabButton active={vaultTab === 'payments'} label={t('payments')} onClick={() => { setVaultTab('payments'); fetch('/api/stripe/config').then(r => r.ok ? r.json().then(applyStripeConfigResponse) : applyStripeConfigResponse({})); }} icon={CreditCard} />
+                  <TabButton active={vaultTab === 'wallet'} label={t('wallet.title') || 'Wallet'} onClick={() => { setVaultTab('wallet'); setStripeWalletMeta(null); if (user?.id) fetch(`/api/wallet/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then(setWalletData) : null); fetch('/api/stripe/config').then(r => r.ok ? r.json().then(applyStripeConfigResponse) : applyStripeConfigResponse({})); }} icon={Wallet} />
+                  <TabButton active={vaultTab === 'invoices'} label={t('invoices.title') || 'Invoices'} onClick={() => { setVaultTab('invoices'); fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : setInvoicesList([])).catch(() => setInvoicesList([])); fetch('/api/stripe/config').then(r => r.ok ? r.json().then(applyStripeConfigResponse) : applyStripeConfigResponse({})); }} icon={Receipt} />
                   <TabButton active={vaultTab === 'auctions'} label={t('my_bids')} onClick={() => setVaultTab('auctions')} icon={Gavel} />
                   <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
                   <TabButton active={vaultTab === 'service'} label={t('service')} onClick={() => setVaultTab('service')} icon={Wrench} />
@@ -7599,14 +7654,46 @@ export default function App() {
                       {!depositClientSecret && (
                         <Card className="p-6">
                           <h4 className="font-medium text-zinc-200 mb-4">{t('wallet.deposit_funds') || 'Deposit Funds'}</h4>
-                          {!stripePk ? (
-                            <p className="text-sm text-zinc-500">{t('wallet.deposits_not_configured') || 'Deposits are not configured. Contact support.'}</p>
+                          {stripeWalletMeta === null ? (
+                            <p className="text-sm text-zinc-500">{t('wallet.config_loading')}</p>
+                          ) : !stripeWalletMeta.stripePublishableConfigured ? (
+                            <div className="space-y-2">
+                              <p className="text-sm text-zinc-500">{t('wallet.deposits_not_configured')}</p>
+                              {(user?.role === UserRole.ADMIN || user?.role === 'super_admin') && (
+                                <p className="text-xs text-amber-500/90">{t('wallet.stripe_pk_hint_admin')}</p>
+                              )}
+                            </div>
+                          ) : !stripeWalletMeta.stripeSecretConfigured ? (
+                            <div className="space-y-2">
+                              <p className="text-sm text-zinc-500">{t('wallet.deposits_not_configured')}</p>
+                              {(user?.role === UserRole.ADMIN || user?.role === 'super_admin') && (
+                                <p className="text-xs text-amber-500/90">{t('wallet.stripe_sk_hint_admin')}</p>
+                              )}
+                            </div>
                           ) : (
                             <>
-                              <p className="text-xs text-zinc-500 mb-4">{t('wallet.test_card') || 'Test mode: use card 4242 4242 4242 4242'}</p>
+                              {(user?.role === UserRole.ADMIN || user?.role === 'super_admin') && !stripeWalletMeta.stripeWebhookConfigured && (
+                                <p className="text-xs text-amber-600/90 mb-3">{t('wallet.stripe_webhook_hint_admin')}</p>
+                              )}
+                              <p className="text-xs text-zinc-500 mb-4">{t('wallet.test_card')}</p>
+                              <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{t('wallet.quick_amounts')}</p>
+                              <div className="flex flex-wrap gap-2 mb-4">
+                                {[25, 50, 100, 250, 500].map((eur) => (
+                                  <Button
+                                    key={eur}
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    onClick={() => setDepositAmountCents(eur * 100)}
+                                  >
+                                    {eur} €
+                                  </Button>
+                                ))}
+                              </div>
                               <div className="flex flex-wrap gap-4 items-end">
                                 <div className="min-w-[140px]">
-                                  <label className="block text-xs text-zinc-500 mb-1">{t('wallet.amount_eur') || 'Amount (€)'}</label>
+                                  <label className="block text-xs text-zinc-500 mb-1">{t('wallet.amount_eur')}</label>
                                   <input type="number" min="1" step="0.01" placeholder="10.00" className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-zinc-200" onChange={(e) => setDepositAmountCents(Math.round(parseFloat(e.target.value || '0') * 100))} />
                                 </div>
                                 <Button disabled={depositLoading || (depositAmountCents ?? 0) < 100} onClick={async () => {
@@ -7615,11 +7702,14 @@ export default function App() {
                                   try {
                                     const r = await fetch('/api/wallet/deposit', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: depositAmountCents }) });
                                     const data = await r.json().catch(() => ({}));
-                                    if (!r.ok) { setDepositError(data.error || 'Deposit failed'); return; }
-                                    setDepositClientSecret(data.client_secret);
+                                    if (!r.ok) { setDepositError((data as any).error || 'Deposit failed'); return; }
+                                    setDepositClientSecret((data as any).client_secret);
                                   } finally { setDepositLoading(false); }
-                                }}>{depositLoading ? (t('common.loading') || '...') : (t('wallet.continue_to_payment') || 'Continue to payment')}</Button>
+                                }}>{depositLoading ? (t('common.loading') || '...') : (t('wallet.continue_to_payment'))}</Button>
                               </div>
+                              {(depositAmountCents ?? 0) >= 100 && (
+                                <p className="text-xs text-zinc-500 mt-2">{(depositAmountCents! / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</p>
+                              )}
                               {depositError && <p className="text-sm text-red-400 mt-2">{depositError}</p>}
                             </>
                           )}
@@ -12280,7 +12370,7 @@ export default function App() {
                                   if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; }
                                   if (!stripePk) {
                                     const cfg = await fetch('/api/stripe/config').then(r => r.ok ? r.json() : null);
-                                    if (cfg?.publishableKey) setStripePk(cfg.publishableKey);
+                                    applyStripeConfigResponse(cfg || {});
                                   }
                                   setPurchaseLoading(true);
                                   try {
