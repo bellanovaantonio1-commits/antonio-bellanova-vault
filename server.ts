@@ -3365,20 +3365,25 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, async (req, res, ne
       VALUES (?, ?, 'jewelry', ?, ?, ?, ?, ?, 'available', ?, ?)
     `));
     for (const p of products) {
-      const existing = await (await db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?")).get(p.serial_id);
-      if (existing) {
-        skipped.push({ serial_id: p.serial_id, reason: 'Seriennummer bereits vorhanden' });
-        continue;
-      }
-      const hide_price = p.pricing_mode === 'price_on_request' ? 1 : 0;
-      const result = await insStmt.run(p.title, p.serial_id, p.description, p.materials, p.gemstones, p.valuation, p.rarity, p.pricing_mode, hide_price);
-      const id = Number(result.lastInsertRowid);
-      inserted.push({ id, title: p.title, serial_id: p.serial_id });
       try {
-        if (p.description) fillDescriptionTranslations(id, p.description, 'de');
-        await updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
-        await calculateRarityScore(id);
-      } catch (_) {}
+        const existing = await (await db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?")).get(p.serial_id);
+        if (existing) {
+          skipped.push({ serial_id: p.serial_id, reason: 'Seriennummer bereits vorhanden' });
+          continue;
+        }
+        const hide_price = p.pricing_mode === 'price_on_request' ? 1 : 0;
+        const safeValuation = p.valuation != null && Number.isFinite(Number(p.valuation)) ? Number(p.valuation) : null;
+        const result = await insStmt.run(p.title, p.serial_id, p.description, p.materials, p.gemstones, safeValuation, p.rarity, p.pricing_mode, hide_price);
+        const id = Number(result.lastInsertRowid);
+        inserted.push({ id, title: p.title, serial_id: p.serial_id });
+        try {
+          if (p.description) fillDescriptionTranslations(id, p.description, 'de');
+          await updateProvenance(id, 'creation', `Aus PDF-Import: "${p.title}" (${p.serial_id})`);
+          await calculateRarityScore(id);
+        } catch (_) {}
+      } catch (e: any) {
+        skipped.push({ serial_id: p.serial_id || 'unbekannt', reason: e?.message || 'Datensatz konnte nicht importiert werden' });
+      }
     }
     try { await logAudit(userId!, 'PDF_IMPORT', String(inserted.length), `Importiert: ${inserted.length}, Übersprungen: ${skipped.length}`); } catch (_) {}
     res.json({ success: true, inserted: inserted.length, skipped: skipped.length, parsed: products.length, details: { inserted, skipped } });
