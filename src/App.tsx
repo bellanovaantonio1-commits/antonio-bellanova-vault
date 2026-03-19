@@ -3137,6 +3137,8 @@ export default function App() {
   const [pdfImportLoading, setPdfImportLoading] = useState(false);
   const [pdfImportDragOver, setPdfImportDragOver] = useState(false);
   const pdfImportInputRef = useRef<HTMLInputElement>(null);
+  const [marketplaceRestoreLoading, setMarketplaceRestoreLoading] = useState(false);
+  const marketplaceRestoreInputRef = useRef<HTMLInputElement>(null);
   const [adminDocFormType, setAdminDocFormType] = useState<'contract' | 'invoice' | 'certificate'>('contract');
   const [adminDocSubType, setAdminDocSubType] = useState<string>('purchase_agreement');
   const [adminDocuments, setAdminDocuments] = useState<{ vault_documents: any[]; contracts: any[]; certificates: any[] }>({ vault_documents: [], contracts: [], certificates: [] });
@@ -3811,6 +3813,27 @@ export default function App() {
       notifyUser('Import fehlgeschlagen', 'error');
     } finally {
       setPdfImportLoading(false);
+    }
+  };
+
+  const doMarketplaceRestore = async (file: File) => {
+    setMarketplaceRestoreLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('overwrite_existing', 'false');
+      const res = await fetch('/api/admin/marketplace/restore', { method: 'POST', body: fd, credentials: 'include' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        notifyUser(data.error || 'Marketplace-Restore fehlgeschlagen', 'error');
+        return;
+      }
+      notifyUser(`Restore abgeschlossen: ${data.inserted ?? 0} eingefügt, ${data.updated ?? 0} aktualisiert, ${data.skipped ?? 0} übersprungen`, 'success');
+      await fetchData();
+    } catch (_err) {
+      notifyUser('Marketplace-Restore fehlgeschlagen', 'error');
+    } finally {
+      setMarketplaceRestoreLoading(false);
     }
   };
 
@@ -9075,6 +9098,55 @@ export default function App() {
                         <p className="text-zinc-500 text-sm mb-2">PDF hier ablegen oder</p>
                         <Button variant="outline" size="sm" disabled={pdfImportLoading} onClick={() => pdfImportInputRef.current?.click()}>
                           {pdfImportLoading ? 'Importiere…' : 'PDF auswählen'}
+                        </Button>
+                      </div>
+                    </Card>
+                    <Card className="p-6 border-zinc-800/80 bg-zinc-900/40 lg:col-span-2">
+                      <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400 mb-2">Marktplatz Backup & Restore (1-Klick)</h4>
+                      <p className="text-xs text-zinc-500 mb-4">Lade den kompletten Marktplatz als JSON herunter und spiele ihn bei Bedarf mit einem Klick wieder ein. So kannst du entfernte Produkte schnell wiederherstellen.</p>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              const r = await fetch('/api/admin/marketplace/backup', { credentials: 'include' });
+                              if (!r.ok) {
+                                const e = await r.json().catch(() => ({}));
+                                throw new Error(e.error || 'Backup fehlgeschlagen');
+                              }
+                              const blob = await r.blob();
+                              const a = document.createElement('a');
+                              a.href = URL.createObjectURL(blob);
+                              a.download = `antonio-bellanova-marketplace-backup-${new Date().toISOString().slice(0, 10)}.json`;
+                              a.click();
+                              URL.revokeObjectURL(a.href);
+                              notifyUser('Marketplace-Backup heruntergeladen', 'success');
+                            } catch (err) {
+                              notifyUser(err instanceof Error ? err.message : 'Backup fehlgeschlagen', 'error');
+                            }
+                          }}
+                        >
+                          Backup JSON herunterladen
+                        </Button>
+                        <input
+                          ref={marketplaceRestoreInputRef}
+                          type="file"
+                          accept=".json,application/json,text/json"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) doMarketplaceRestore(f);
+                            e.target.value = '';
+                          }}
+                        />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={marketplaceRestoreLoading}
+                          onClick={() => marketplaceRestoreInputRef.current?.click()}
+                        >
+                          {marketplaceRestoreLoading ? 'Restore läuft…' : 'Backup JSON wieder einfügen'}
                         </Button>
                       </div>
                     </Card>
