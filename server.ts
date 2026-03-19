@@ -209,6 +209,15 @@ const pdfUpload = multer({
     else cb(new Error('Nur PDF-Dateien erlaubt'));
   }
 });
+const jsonUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okMime = file.mimetype === 'application/json' || file.mimetype === 'text/json' || file.mimetype === 'application/octet-stream';
+    if (okMime || /\.json$/i.test(file.originalname || '')) cb(null, true);
+    else cb(new Error('Nur JSON-Dateien erlaubt'));
+  }
+});
 
 // --- Database Initialization (run in startServer via runSchema) ---
 async function runSchema(db: DbInterface) {
@@ -6068,6 +6077,126 @@ app.get("/api/admin/inventory/export", async (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="antonio-bellanova-inventory.csv"');
   res.send('\uFEFF' + csv);
+});
+
+// Admin: full marketplace backup (JSON) and restore
+app.get("/api/admin/marketplace/backup", requireAuth, requireAdmin, async (_req, res) => {
+  const rows = await (await db.prepare("SELECT * FROM masterpieces ORDER BY id")).all() as any[];
+  const payload = {
+    type: "marketplace_backup",
+    version: 1,
+    exported_at: new Date().toISOString(),
+    count: rows.length,
+    items: rows,
+  };
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=\"antonio-bellanova-marketplace-backup-${new Date().toISOString().slice(0,10)}.json\"`);
+  res.send(JSON.stringify(payload, null, 2));
+});
+
+app.post("/api/admin/marketplace/restore", requireAuth, requireAdmin, async (req, res, next) => {
+  jsonUpload.single("file")(req, res, (err: any) => {
+    if (err) return res.status(400).json({ error: err.message || "Nur JSON-Dateien erlaubt" });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const overwriteExisting = req.body?.overwrite_existing === true || req.body?.overwrite_existing === "true" || req.body?.overwrite_existing === "1";
+    let parsed: any = null;
+    const file = (req as any).file;
+    if (file?.buffer) {
+      parsed = JSON.parse(file.buffer.toString("utf-8"));
+    } else if (req.body?.items) {
+      parsed = typeof req.body.items === "string" ? JSON.parse(req.body.items) : { items: req.body.items };
+    } else if (req.body && Object.keys(req.body).length) {
+      parsed = req.body;
+    }
+    if (!parsed) return res.status(400).json({ error: "Keine Backup-Daten gefunden" });
+
+    const items = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [];
+    if (!items.length) return res.status(400).json({ error: "Backup enthält keine Einträge" });
+
+    const insertStmt = await (await db.prepare(`
+      INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `));
+    const updateStmt = await (await db.prepare(`
+      UPDATE masterpieces
+      SET title = ?, category = ?, description = ?, materials = ?, gemstones = ?, valuation = ?, rarity = ?,
+          production_time = ?, cert_data = ?, deposit_pct = ?, image_url = ?, status = ?, pricing_mode = ?, hide_price = ?,
+          price_visibility_rules = ?, image_urls = ?, description_i18n = ?, materials_i18n = ?, gemstones_i18n = ?, private_gallery = ?
+      WHERE serial_id = ?
+    `));
+
+    const inserted: string[] = [];
+    const updated: string[] = [];
+    const skipped: { serial_id: string; reason: string }[] = [];
+
+    for (const raw of items) {
+      try {
+        const serial_id = String(raw?.serial_id || "").trim();
+        const title = String(raw?.title || "").trim();
+        if (!serial_id || !title) {
+          skipped.push({ serial_id: serial_id || "unbekannt", reason: "Seriennummer oder Titel fehlt" });
+          continue;
+        }
+        const existing = await (await db.prepare("SELECT id FROM masterpieces WHERE serial_id = ?")).get(serial_id) as { id: number } | undefined;
+        if (existing && !overwriteExisting) {
+          skipped.push({ serial_id, reason: "Bereits vorhanden (ohne Überschreiben)" });
+          continue;
+        }
+
+        const category = String(raw?.category || "jewelry");
+        const description = raw?.description != null ? String(raw.description) : "";
+        const materials = raw?.materials != null ? String(raw.materials) : "";
+        const gemstones = raw?.gemstones != null ? String(raw.gemstones) : "";
+        const valuation = raw?.valuation != null && Number.isFinite(Number(raw.valuation)) ? Number(raw.valuation) : null;
+        const rarity = raw?.rarity != null ? String(raw.rarity) : "Unique";
+        const production_time = raw?.production_time != null ? String(raw.production_time) : "";
+        const cert_data = raw?.cert_data != null ? String(raw.cert_data) : "";
+        const deposit_pct = raw?.deposit_pct != null && Number.isFinite(Number(raw.deposit_pct)) ? Number(raw.deposit_pct) : 10;
+        const image_url = raw?.image_url != null ? String(raw.image_url) : "";
+        const status = raw?.status != null ? String(raw.status) : "available";
+        const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(String(raw?.pricing_mode || 'fixed')) ? String(raw.pricing_mode) : "fixed";
+        const hide_price = pricing_mode === "hidden" ? 1 : Number(raw?.hide_price ? 1 : 0);
+        const price_visibility_rules = raw?.price_visibility_rules != null ? String(raw.price_visibility_rules) : "";
+        const image_urls = raw?.image_urls != null ? (typeof raw.image_urls === "string" ? raw.image_urls : JSON.stringify(raw.image_urls)) : "";
+        const description_i18n = raw?.description_i18n != null ? (typeof raw.description_i18n === "string" ? raw.description_i18n : JSON.stringify(raw.description_i18n)) : "";
+        const materials_i18n = raw?.materials_i18n != null ? (typeof raw.materials_i18n === "string" ? raw.materials_i18n : JSON.stringify(raw.materials_i18n)) : "";
+        const gemstones_i18n = raw?.gemstones_i18n != null ? (typeof raw.gemstones_i18n === "string" ? raw.gemstones_i18n : JSON.stringify(raw.gemstones_i18n)) : "";
+        const private_gallery = raw?.private_gallery ? 1 : 0;
+
+        if (!existing) {
+          const ins = await insertStmt.run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url);
+          const id = Number(ins.lastInsertRowid);
+          try {
+            await (await db.prepare("UPDATE masterpieces SET status = ?, pricing_mode = ?, hide_price = ?, price_visibility_rules = ?, image_urls = ?, description_i18n = ?, materials_i18n = ?, gemstones_i18n = ?, private_gallery = ? WHERE id = ?"))
+              .run(status, pricing_mode, hide_price, price_visibility_rules, image_urls, description_i18n, materials_i18n, gemstones_i18n, private_gallery, id);
+          } catch (_) {}
+          inserted.push(serial_id);
+        } else {
+          await updateStmt.run(
+            title, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url,
+            status, pricing_mode, hide_price, price_visibility_rules, image_urls, description_i18n, materials_i18n, gemstones_i18n, private_gallery, serial_id
+          );
+          updated.push(serial_id);
+        }
+      } catch (e: any) {
+        skipped.push({ serial_id: String(raw?.serial_id || "unbekannt"), reason: e?.message || "Restore-Fehler" });
+      }
+    }
+
+    res.json({
+      success: true,
+      inserted: inserted.length,
+      updated: updated.length,
+      skipped: skipped.length,
+      details: { inserted, updated, skipped },
+    });
+  } catch (e: any) {
+    console.error("[admin/marketplace/restore]", e);
+    res.status(500).json({ error: e?.message || "Marketplace Restore fehlgeschlagen" });
+  }
 });
 
 // Admin CEO: auction export CSV
