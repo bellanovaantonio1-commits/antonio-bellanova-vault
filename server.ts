@@ -9729,7 +9729,7 @@ async function commAudit(action: string, userId: number, threadId?: number, mess
   } catch (_) {}
 }
 
-function canAccessThread(thread: any, userId: number, userRole: string, isAdmin: boolean): boolean {
+async function canAccessThread(thread: any, userId: number, userRole: string, isAdmin: boolean): Promise<boolean> {
   if (isAdmin) return true;
   if (thread.type === 'black_direct' && thread.user_id === userId) return true;
   if (thread.user_id === userId) return true;
@@ -9779,7 +9779,10 @@ app.get("/api/communication/threads", async (req, res) => {
     for (const t of assetThreads) {
       if (!merged.find((x: any) => x.id === t.id)) merged.push(t);
     }
-    rows = merged.filter((t: any) => canAccessThread(t, userId, user.role, isAdmin));
+    const allowed = await Promise.all(
+      merged.map(async (t: any) => (await canAccessThread(t, userId, user.role, isAdmin)) ? t : null)
+    );
+    rows = allowed.filter(Boolean) as any[];
   }
   res.json(rows);
 });
@@ -9813,7 +9816,7 @@ app.get("/api/communication/threads/:id/messages", async (req, res) => {
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   const thread = await (await db.prepare("SELECT * FROM chat_threads WHERE id = ?")).get(threadId);
   if (!thread) return res.status(404).json({ error: "Thread not found" });
-  if (!canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  if (!(await canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin'))) return res.status(403).json({ error: "Forbidden" });
   const limit = Math.min(Number(req.query.limit) || 50, 100);
   const before = req.query.before as string | undefined;
   let sql = "SELECT * FROM chat_messages WHERE thread_id = ? AND is_moderated = 0";
@@ -9844,7 +9847,7 @@ app.post("/api/communication/threads/:id/messages", async (req, res) => {
   if (!checkMessageRateLimit(userId)) return res.status(429).json({ error: "Too many messages" });
   const thread = await (await db.prepare("SELECT * FROM chat_threads WHERE id = ?")).get(threadId);
   if (!thread) return res.status(404).json({ error: "Thread not found" });
-  if (!canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  if (!(await canAccessThread(thread, userId, user.role, user.role === 'admin' || user.role === 'super_admin'))) return res.status(403).json({ error: "Forbidden" });
   const result = await (await db.prepare(`
     INSERT INTO chat_messages (thread_id, sender_id, content, content_lang, asset_ref, is_system, is_moderated)
     VALUES (?, ?, ?, ?, ?, 0, 0)
