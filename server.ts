@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -16,6 +16,11 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+/** Load .env from project root (next to server.ts), not only process.cwd() — fixes PM2/npm when cwd differs. */
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 const BCRYPT_ROUNDS = 10;
 function hashPassword(plain: string): string {
   return bcrypt.hashSync(plain, BCRYPT_ROUNDS);
@@ -31,9 +36,6 @@ async function upgradePasswordIfNeeded(userId: number, plain: string): Promise<v
   if (!user?.password || user.password.startsWith("$2")) return;
   await (await db.prepare("UPDATE users SET password = ? WHERE id = ?")).run(hashPassword(plain), userId);
 }
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set("trust proxy", 1);
