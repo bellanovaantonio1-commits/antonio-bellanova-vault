@@ -9988,7 +9988,7 @@ app.post("/api/analytics/design-request", async (req, res) => {
   res.json({ success: true });
 });
 
-function buildSalesContext(userId: number): Record<string, unknown> {
+async function buildSalesContext(userId: number): Promise<Record<string, unknown>> {
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return {};
 
@@ -10032,7 +10032,7 @@ app.get("/api/ai/sales-context/:userId", async (req, res) => {
   if (!requestingUser || (requestingUser as any).role !== 'admin' && (requestingUser as any).role !== 'super_admin') {
     return res.status(403).json({ error: "Admin only" });
   }
-  res.json(buildSalesContext(userId));
+  res.json(await buildSalesContext(userId));
 });
 
 app.post("/api/concierge/ai", async (req, res) => {
@@ -10040,7 +10040,7 @@ app.post("/api/concierge/ai", async (req, res) => {
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Unauthorized" });
   const pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE current_owner_id = ?")).all(userId) as any[];
-  const salesContext = injectedContext && typeof injectedContext === 'object' ? injectedContext : buildSalesContext(userId);
+  const salesContext = injectedContext && typeof injectedContext === 'object' ? injectedContext : await buildSalesContext(userId);
 
   const systemPrompt = `You are the AI Concierge for Antonio Bellanova Vault, a luxury atelier platform. Elegant, calm, Maison tone. No slang, no emojis.
 
