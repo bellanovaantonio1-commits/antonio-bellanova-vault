@@ -3242,55 +3242,89 @@ app.post("/api/admin/assign-piece", async (req, res) => {
 
 function parseMarktplatzPdfText(text: string): { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] {
   const products: { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string }[] = [];
+  const seenSerials = new Set<string>();
   const nl = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
+  const normalizeNum = (raw: string): number | null => {
+    const cleaned = String(raw || '').replace(/[^\d.,]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const extractField = (block: string, labels: string[]): string => {
+    for (const label of labels) {
+      const re = new RegExp(`${label}\\s*:\\s*([^\\n]+)`, 'i');
+      const m = block.match(re);
+      if (m?.[1]) return m[1].trim();
+    }
+    return '';
+  };
+
+  const parsePrice = (block: string): { valuation: number | null; pricing_mode: string } => {
+    if (/preis\s+auf\s+anfrage|price\s+on\s+request|poa/i.test(block)) return { valuation: null, pricing_mode: 'price_on_request' };
+
+    const fixedHint = /festpreis|fixpreis|fixed\s*price/i.test(block);
+    const startingHint = /(^|\W)ab(\W|$)|ab\s*preis|starting\s*from|from\s+\d/i.test(block);
+
+    const m = block.match(/(?:€\s*|eur\s*)?(\d{1,3}(?:[.\s]\d{3})*(?:,\d+)?|\d+(?:,\d+)?)\s*(?:€|eur)?/i);
+    const valuation = m?.[1] ? normalizeNum(m[1]) : null;
+
+    if (startingHint && valuation != null) return { valuation, pricing_mode: 'starting_from' };
+    if (fixedHint && valuation != null) return { valuation, pricing_mode: 'fixed' };
+    if (valuation != null) return { valuation, pricing_mode: 'fixed' };
+    return { valuation: null, pricing_mode: 'price_on_request' };
+  };
+
+  const isNoiseLine = (line: string) =>
+    /^--\s*\d+\s+of\s+\d+\s*--$/i.test(line) ||
+    /^Antonio\s/i.test(line) ||
+    /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(line) ||
+    /^seite\s+\d+/i.test(line) ||
+    line.length < 2;
+
   function extractFromBlock(block: string, prevLines: string): { title: string; serial_id: string; valuation: number | null; pricing_mode: string; description: string; materials: string; gemstones: string; rarity: string } | null {
-    const sn = block.match(/Seriennummer:\s*([A-Za-z0-9\-\.\/]+)/i);
-    if (!sn) return null;
+    const sn = block.match(/(?:seriennummer|seriennr\.?|serial(?:\s*number)?|sn)\s*:\s*([A-Za-z0-9\-._\/]+)/i);
+    if (!sn?.[1]) return null;
     const serial_id = sn[1].trim();
-    const lines = prevLines.trim().split('\n').map(s => s.trim()).filter(Boolean);
-    const skipLine = (line: string) => /^--\s*\d+\s+of\s+\d+\s*--$/.test(line) || /^Antonio\s/i.test(line) || /^\d{1,2}\.\d{1,2}\.\d{4}$/.test(line) || line.length < 2;
-    const titleCandidates = lines.filter(l => !skipLine(l));
-    const title = titleCandidates.length > 0 ? titleCandidates[titleCandidates.length - 1] : '';
+    if (!serial_id) return null;
+
+    let title = extractField(block, ['Titel', 'Title', 'Produkt', 'Schmuckstueck', 'Schmuckstück']);
+    if (!title) {
+      const lines = prevLines.trim().split('\n').map(s => s.trim()).filter(Boolean);
+      const titleCandidates = lines.filter(l => !isNoiseLine(l));
+      title = titleCandidates.length > 0 ? titleCandidates[titleCandidates.length - 1] : '';
+    }
     if (!title || title.length < 2) return null;
 
-    const mat = block.match(/Materialien:\s*([^\n]+)/i);
-    const gem = block.match(/Edelsteine:\s*([^\n]+)/i);
-    const materials = mat ? mat[1].trim() : '';
-    const gemstones = gem ? gem[1].trim() : '';
+    const materials = extractField(block, ['Materialien', 'Material', 'Metall', 'Materials']);
+    const gemstones = extractField(block, ['Edelsteine', 'Edelstein', 'Steine', 'Gemstones', 'Gems']);
 
-    let valuation: number | null = null;
-    let pricing_mode = 'price_on_request';
-    const priceAb = block.match(/Ab\s+([\d.,]+)\s*€/);
-    if (priceAb) {
-      const numStr = priceAb[1].replace(/\./g, '').replace(',', '.');
-      valuation = parseFloat(numStr) || null;
-      pricing_mode = 'starting_from';
-    } else if (/Preis auf Anfrage/i.test(block)) {
-      pricing_mode = 'price_on_request';
-    }
+    const { valuation, pricing_mode } = parsePrice(block);
 
-    const descMatch = block.match(/Beschreibung:\s*\n?([\s\S]*?)(?=\s*Materialien:|\s*Edelsteine:|$)/i);
+    const descMatch = block.match(/(?:Beschreibung|Description)\s*:\s*\n?([\s\S]*?)(?=\s*(?:Materialien|Material|Metall|Edelsteine|Edelstein|Steine|Gemstones|Seltenheit|Rarity)\s*:|$)/i);
     const description = descMatch ? descMatch[1].trim().replace(/\s+/g, ' ').slice(0, 2000) : '';
 
-    const rarityMatch = block.match(/Seltenheit:\s*([^\n]+)/i);
+    const rarityMatch = block.match(/(?:Seltenheit|Rarity)\s*:\s*([^\n]+)/i);
     const rarity = rarityMatch ? rarityMatch[1].trim() : 'Unique';
 
     return { title, serial_id, valuation, pricing_mode, description, materials, gemstones, rarity };
   }
 
-  const parts = nl.split(/(?=Seriennummer:)/i);
+  const parts = nl.split(/(?=(?:Seriennummer|Seriennr\.?|Serial(?:\s*Number)?|SN)\s*:)/i);
   for (let i = 1; i < parts.length; i++) {
     const prevLines = parts[i - 1];
     const block = parts[i];
     if (!block || block.trim().length < 5) continue;
     const p = extractFromBlock(block, prevLines);
-    if (p && p.serial_id && p.title) products.push(p);
+    if (p && p.serial_id && p.title && !seenSerials.has(p.serial_id)) {
+      seenSerials.add(p.serial_id);
+      products.push(p);
+    }
   }
 
   if (products.length > 0) return products;
 
-  const regex = /([^\n]+)\nSeriennummer:\s*([^\n]+)\n(Ab\s+[\d.,]+\s*€|Preis auf Anfrage)\nSeltenheit:\s*([^\n]+)\nBeschreibung:\s*\n([\s\S]*?)\nMaterialien:\s*([^\n]+)\nEdelsteine:\s*([^\n]+)/gi;
+  const regex = /([^\n]+)\n(?:Seriennummer|Seriennr\.?|Serial(?:\s*Number)?|SN)\s*:\s*([^\n]+)\n([^\n]*(?:€|eur|Ab|Festpreis|Preis auf Anfrage)[^\n]*)\n(?:Seltenheit|Rarity)\s*:\s*([^\n]+)\n(?:Beschreibung|Description)\s*:\s*\n([\s\S]*?)\n(?:Materialien|Material|Materials)\s*:\s*([^\n]+)\n(?:Edelsteine|Edelstein|Gemstones|Gems)\s*:\s*([^\n]+)/gi;
   let m;
   while ((m = regex.exec(nl)) !== null) {
     const title = m[1].trim();
@@ -3300,14 +3334,10 @@ function parseMarktplatzPdfText(text: string): { title: string; serial_id: strin
     const description = m[5].trim().replace(/\n+/g, ' ');
     const materials = m[6].trim();
     const gemstones = m[7].trim();
-    if (/^\d|^--|^Antonio|^\d+\.\d+\.\d+/.test(title)) continue;
-    let valuation: number | null = null;
-    let pricing_mode = 'price_on_request';
-    const priceMatch = priceStr.match(/Ab\s+([\d.,]+)\s*€/);
-    if (priceMatch) {
-      valuation = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'));
-      pricing_mode = 'starting_from';
-    }
+    if (!title || !serial_id || /^\d|^--|^Antonio|^\d+\.\d+\.\d+/.test(title)) continue;
+    if (seenSerials.has(serial_id)) continue;
+    const { valuation, pricing_mode } = parsePrice(priceStr);
+    seenSerials.add(serial_id);
     products.push({ title, serial_id, valuation, pricing_mode, description, materials, gemstones, rarity });
   }
   return products;
