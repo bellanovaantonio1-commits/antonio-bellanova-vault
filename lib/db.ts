@@ -63,15 +63,30 @@ export async function initDb(): Promise<DbInterface> {
 }
 
 /**
- * MySQL rejects DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT). SQLite allows it.
- * Rewrite enum-like TEXT columns to VARCHAR so shared DDL in server.ts works on both.
+ * MySQL DDL fixes for SQLite-oriented schema in server.ts:
+ * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
+ * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
+ * - Remaining TEXT columns → LONGTEXT (unbounded strings; no DEFAULT left on them).
  */
 function mysqlDdlCompat(sql: string): string {
-  return sql
-    .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
-    // MySQL: no DEFAULT on TEXT/BLOB; allow flexible whitespace in shared DDL
-    .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
-    .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT");
+  return (
+    sql
+      .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
+      // Keys / uniqueness (must be VARCHAR, not TEXT/LONGTEXT)
+      .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
+      .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
+      .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
+      // DEFAULT on blob types
+      .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
+      .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
+      // Composite UNIQUE / PRIMARY KEY on these SQLite TEXT columns
+      .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
+      .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
+      .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(512) NOT NULL")
+      .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(512)")
+      // All other TEXT columns → LONGTEXT (safe for long content; not used in indexes above)
+      .replace(/\bTEXT\b/gi, "LONGTEXT")
+  );
 }
 
 function createSQLiteAdapter(): DbInterface {
