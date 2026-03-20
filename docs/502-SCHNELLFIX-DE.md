@@ -40,6 +40,8 @@ Stelle sicher, dass im Projekt eine **`.env`** liegt (mit `PORT=3000`, falls du 
 
 ```bash
 sudo grep -r proxy_pass /etc/nginx/sites-enabled/
+# oft auch:
+sudo grep -r 'server_name\|proxy_pass' /etc/nginx/
 ```
 
 `proxy_pass` muss zeigen auf **`http://127.0.0.1:3000`** (oder exakt den Wert von `PORT` in `.env` / PM2).
@@ -74,5 +76,8 @@ sudo nginx -t && sudo systemctl reload nginx
 | Cloud SQL nicht erreichbar | `MYSQL_*` in `.env`, Firewall / Authorized networks |
 
 ---
+
+**Komplette Prüfliste (MySQL, PM2, Nginx):** [VAULT-DEPLOY-CHECKLIST-DE.md](./VAULT-DEPLOY-CHECKLIST-DE.md)  
+**Diagnose-Skript:** `bash scripts/check-vault-deploy.sh` (im Projektordner auf dem Server)
 
 Mehr Details: [DEPLOYMENT_NGINX.md](./DEPLOYMENT_NGINX.md)
