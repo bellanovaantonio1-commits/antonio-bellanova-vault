@@ -68,6 +68,28 @@ export async function initDb(): Promise<DbInterface> {
  * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
  * - Remaining TEXT columns → LONGTEXT (unbounded strings; no DEFAULT left on them).
  */
+/**
+ * After splitting SQL on `;`, a segment can start with `-- section title` followed by real DDL.
+ * The old filter `!startsWith("--")` dropped the entire segment, skipping e.g. CREATE chat_threads.
+ */
+function stripLeadingLineComments(sql: string): string {
+  const lines = sql.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const t = lines[i].trim();
+    if (t === "") {
+      i++;
+      continue;
+    }
+    if (t.startsWith("--")) {
+      i++;
+      continue;
+    }
+    break;
+  }
+  return lines.slice(i).join("\n").trim();
+}
+
 function mysqlDdlCompat(sql: string): string {
   return (
     sql
@@ -162,8 +184,8 @@ function createMySQLAdapter(): DbInterface {
       const mysqlSql = mysqlDdlCompat(sql);
       const statements = mysqlSql
         .split(";")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith("--"));
+        .map((s) => stripLeadingLineComments(s.trim()))
+        .filter((s) => s.length > 0);
       const conn = await pool.getConnection();
       try {
         for (const stmt of statements) {
