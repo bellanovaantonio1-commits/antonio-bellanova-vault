@@ -1852,7 +1852,7 @@ await db.exec(`
   CREATE TABLE IF NOT EXISTS number_sequences (
     seq_key TEXT NOT NULL,
     seq_year INTEGER NOT NULL,
-    seq_type TEXT,
+    seq_type TEXT NOT NULL DEFAULT '',
     last_value INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (seq_key, seq_year, seq_type)
   );

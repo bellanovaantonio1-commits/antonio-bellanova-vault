@@ -103,26 +103,36 @@ function mysqlBacktickKeyColumnName(sql: string): string {
 }
 
 /**
+ * MySQL 8+ reserves LAST_VALUE (window function); unquoted column `last_value` breaks the parser.
+ */
+function mysqlBacktickLastValueColumnName(sql: string): string {
+  // MySQL 8: LAST_VALUE is reserved; qualify `tbl.last_value` unchanged (lookbehind skips `.` and `` ` ``).
+  return sql.replace(/(?<![.`])\blast_value\b(?![`])/g, "`last_value`");
+}
+
+/**
  * MySQL DDL / DML fixes for SQLite-oriented schema in server.ts:
  * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
  * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
  * - Remaining TEXT columns → LONGTEXT.
- * - Backtick reserved column name `key`.
+ * - Backtick reserved column names: key, last_value.
  */
 function mysqlDdlCompat(sql: string): string {
   return mysqlBacktickKeyColumnName(
-    sql
-      .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
-      .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
-      .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
-      .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
-      .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
-      .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
-      .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
-      .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
-      .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(512) NOT NULL")
-      .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(512)")
-      .replace(/\bTEXT\b/gi, "LONGTEXT"),
+    mysqlBacktickLastValueColumnName(
+      sql
+        .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
+        .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
+        .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
+        .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
+        .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
+        .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
+        .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
+        .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
+        .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(512) NOT NULL")
+        .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(512)")
+        .replace(/\bTEXT\b/gi, "LONGTEXT"),
+    ),
   );
 }
 
