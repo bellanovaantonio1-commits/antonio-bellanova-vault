@@ -1934,6 +1934,24 @@ async function nextProjectSerialId(): Promise<string> {
   return `AB-${year}-${String(nextVal).padStart(4, '0')}`;
 }
 
+/** Legacy / Cloud SQL: `users` may predate columns (CREATE IF NOT EXISTS does not alter tables). */
+async function ensureUsersCoreColumns(d: DbInterface) {
+  const stmts = d.isMySQL
+    ? [
+        "ALTER TABLE users ADD COLUMN `password` LONGTEXT",
+        "ALTER TABLE users ADD COLUMN username VARCHAR(512)",
+      ]
+    : [
+        "ALTER TABLE users ADD COLUMN password TEXT",
+        "ALTER TABLE users ADD COLUMN username TEXT",
+      ];
+  for (const sql of stmts) {
+    try {
+      await (await d.prepare(sql)).run();
+    } catch (_) {}
+  }
+}
+
 async function seedAdmin() {
   const adminEmail = "admin@bellanova.com";
   const adminUsername = "admin";
@@ -10272,6 +10290,7 @@ async function startServer() {
   await runSchema(db);
   // Ensure optional key-value config table exists (used by maintenance/bank config endpoints).
   await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
+  await ensureUsersCoreColumns(db);
   await seedAdmin();
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
