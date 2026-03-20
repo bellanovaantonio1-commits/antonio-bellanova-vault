@@ -1934,16 +1934,39 @@ async function nextProjectSerialId(): Promise<string> {
   return `AB-${year}-${String(nextVal).padStart(4, '0')}`;
 }
 
-/** Legacy / Cloud SQL: `users` may predate columns (CREATE IF NOT EXISTS does not alter tables). */
+/**
+ * Legacy / Cloud SQL: `users` can exist with an old subset of columns (CREATE IF NOT EXISTS never upgrades).
+ * Adds the same fields as the initial CREATE in runSchema so seedAdmin + app routes work.
+ */
 async function ensureUsersCoreColumns(d: DbInterface) {
   const stmts = d.isMySQL
     ? [
         "ALTER TABLE users ADD COLUMN `password` LONGTEXT",
         "ALTER TABLE users ADD COLUMN username VARCHAR(512)",
+        "ALTER TABLE users ADD COLUMN name LONGTEXT",
+        "ALTER TABLE users ADD COLUMN address LONGTEXT",
+        "ALTER TABLE users ADD COLUMN `role` VARCHAR(512) DEFAULT 'collector'",
+        "ALTER TABLE users ADD COLUMN `status` VARCHAR(512) DEFAULT 'pending'",
+        "ALTER TABLE users ADD COLUMN language VARCHAR(512) DEFAULT 'de'",
+        "ALTER TABLE users ADD COLUMN is_vip INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN account_type VARCHAR(512) DEFAULT 'private'",
+        "ALTER TABLE users ADD COLUMN business_data LONGTEXT",
+        "ALTER TABLE users ADD COLUMN reputation_score INTEGER DEFAULT 100",
+        "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
       ]
     : [
         "ALTER TABLE users ADD COLUMN password TEXT",
         "ALTER TABLE users ADD COLUMN username TEXT",
+        "ALTER TABLE users ADD COLUMN name TEXT",
+        "ALTER TABLE users ADD COLUMN address TEXT",
+        "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'collector'",
+        "ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'pending'",
+        "ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'de'",
+        "ALTER TABLE users ADD COLUMN is_vip INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN account_type TEXT DEFAULT 'private'",
+        "ALTER TABLE users ADD COLUMN business_data TEXT",
+        "ALTER TABLE users ADD COLUMN reputation_score INTEGER DEFAULT 100",
+        "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
       ];
   for (const sql of stmts) {
     try {

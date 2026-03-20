@@ -110,6 +110,16 @@ function mysqlBacktickLastValueColumnName(sql: string): string {
   return sql.replace(/(?<![.`])\blast_value\b(?![`])/g, "`last_value`");
 }
 
+/** MySQL 8 reserves ROLE; STATUS can clash — seedAdmin users INSERT/UPDATE. */
+function mysqlBacktickUsersReservedColumns(sql: string): string {
+  return sql
+    .replace(/\(email, username, password, name, role, status\)/gi, "(email, username, password, name, `role`, `status`)")
+    .replace(
+      /UPDATE users SET password = \?, status = 'approved', username = \? WHERE id = \?/gi,
+      "UPDATE users SET password = ?, `status` = 'approved', username = ? WHERE id = ?",
+    );
+}
+
 /**
  * MySQL DDL / DML fixes for SQLite-oriented schema in server.ts:
  * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
@@ -119,7 +129,8 @@ function mysqlBacktickLastValueColumnName(sql: string): string {
  */
 function mysqlDdlCompat(sql: string): string {
   return mysqlBacktickKeyColumnName(
-    mysqlBacktickLastValueColumnName(
+    mysqlBacktickUsersReservedColumns(
+      mysqlBacktickLastValueColumnName(
       sql
         .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
         .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
@@ -133,6 +144,7 @@ function mysqlDdlCompat(sql: string): string {
         .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(191) NOT NULL")
         .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(191)")
         .replace(/\bTEXT\b/gi, "LONGTEXT"),
+    ),
     ),
   );
 }
