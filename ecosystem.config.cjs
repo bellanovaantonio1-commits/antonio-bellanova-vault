@@ -11,7 +11,8 @@ module.exports = {
       script: "npm",
       args: "run start",
       interpreter: "none",
-      env: { NODE_ENV: "production" },
+      // PORT muss mit Nginx proxy_pass übereinstimmen (Standard 3000, siehe docs/DEPLOYMENT_NGINX.md)
+      env: { NODE_ENV: "production", PORT: "3000" },
       instances: 1,
       autorestart: true,
       watch: false,
