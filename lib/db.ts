@@ -90,7 +90,8 @@ function stripLeadingLineComments(sql: string): string {
  */
 function mysqlBacktickKeyColumnName(sql: string): string {
   return sql
-    .replace(/(?m)^(\s+)key(\s+VARCHAR|\s+LONGTEXT|\s+INTEGER|\s+REAL|\s+DATETIME)\b/gi, "$1`key`$2")
+    // `m` flag: ^ matches start of each line (JS has no (?m) inline modifier like PCRE)
+    .replace(/^(\s+)key(\s+VARCHAR|\s+LONGTEXT|\s+INTEGER|\s+REAL|\s+DATETIME)\b/gim, "$1`key`$2")
     .replace(/,(\s*)key(\s+VARCHAR|\s+LONGTEXT|\s+INTEGER|\s+REAL|\s+DATETIME)\b/gi, ",$1`key`$2")
     .replace(/\(\s*key\s*,/gi, "(`key`,")
     .replace(/\(\s*key\s+VARCHAR/gi, "(`key` VARCHAR")
