@@ -52,6 +52,45 @@ function getStripe(): Stripe {
   return new Stripe(key);
 }
 
+/**
+ * Idempotent wallet credit for a succeeded PaymentIntent (same rules as webhook wallet branch).
+ * Returns skipped if metadata indicates invoice / purchase / order payment, or missing user/amount.
+ */
+async function creditWalletFromSucceededPaymentIntent(paymentIntent: Stripe.PaymentIntent): Promise<"credited" | "duplicate" | "skipped"> {
+  const amountCents = paymentIntent.amount ?? 0;
+  const metadata = paymentIntent.metadata || {};
+  const paymentType = metadata.payment_type;
+  const userIdRaw = metadata.user_id ?? metadata.userId;
+  const userId = userIdRaw != null ? Number(userIdRaw) : null;
+
+  if (paymentType === "invoice" && metadata.invoice_id) return "skipped";
+  if (paymentType === "purchase" && userId && metadata.masterpiece_id) return "skipped";
+  if (paymentType === "order_deposit" || paymentType === "order_final") return "skipped";
+  if (!(paymentType === "wallet" || !paymentType)) return "skipped";
+  if (!userId || amountCents <= 0 || !db) return "skipped";
+
+  const piId = paymentIntent.id;
+  const insertSql = db.isMySQL
+    ? "INSERT IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)"
+    : "INSERT OR IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)";
+  let didCredit = false;
+  await db.transaction(async (tx) => {
+    const ins = await (await tx.prepare(insertSql)).run(piId, userId, amountCents);
+    if (!ins.changes) {
+      console.log("[Wallet] Duplicate ignored: payment_intent=" + piId);
+      return;
+    }
+    // Also store a user-visible transaction record (wallet deposits appear in payment history).
+    // Note: `transactions` table has no explicit `type` column in this repo, so we mark it as PAID.
+    await (await tx.prepare("INSERT INTO transactions (user_id, invoice_id, amount, status, stripe_payment_intent_id) VALUES (?, NULL, ?, 'PAID', ?)")).run(userId, amountCents, piId);
+    await (await tx.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")).run(amountCents, userId);
+    didCredit = true;
+    console.log("[Wallet] Payment success: user_id=" + userId + " amount_cents=" + amountCents + " (wallet_balance credited)");
+    console.log("[Wallet] User balance updated: user_id=" + userId + " delta_cents=" + amountCents + " pi=" + piId);
+  });
+  return didCredit ? "credited" : "duplicate";
+}
+
 // Stripe webhook must receive raw body for signature verification (register before express.json)
 app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: express.Request, res: express.Response) => {
   const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
@@ -73,11 +112,13 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
   }
   if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as Stripe.PaymentIntent;
+    console.log("[Stripe] Webhook received: payment_intent.succeeded pi=" + paymentIntent.id);
     const amountCents = paymentIntent.amount ?? 0;
     const metadata = paymentIntent.metadata || {};
     const paymentType = metadata.payment_type;
     const invoiceId = metadata.invoice_id ? Number(metadata.invoice_id) : null;
-    const userId = metadata.user_id ? Number(metadata.user_id) : null;
+    const userIdRaw = metadata.user_id ?? metadata.userId;
+    const userId = userIdRaw != null ? Number(userIdRaw) : null;
     const masterpieceId = metadata.masterpiece_id ? Number(metadata.masterpiece_id) : null;
     if (paymentType === "invoice" && invoiceId && db) {
       try {
@@ -144,19 +185,8 @@ app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async
     } else if (paymentType === "wallet" || !paymentType) {
       if (userId && amountCents > 0 && db) {
         try {
-          const piId = paymentIntent.id;
-          const insertSql = db.isMySQL
-            ? "INSERT IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)"
-            : "INSERT OR IGNORE INTO stripe_wallet_credits (stripe_payment_intent_id, user_id, amount_cents) VALUES (?, ?, ?)";
-          await db.transaction(async (tx) => {
-            const ins = await (await tx.prepare(insertSql)).run(piId, userId, amountCents);
-            if (!ins.changes) {
-              console.log("[Wallet] Webhook duplicate ignored: payment_intent=" + piId);
-              return;
-            }
-            await (await tx.prepare("UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?")).run(amountCents, userId);
-            console.log("[Wallet] Payment success: user_id=" + userId + " amount_cents=" + amountCents + " (wallet_balance credited)");
-          });
+          const result = await creditWalletFromSucceededPaymentIntent(paymentIntent);
+          console.log("[Wallet] Webhook credit result=" + result + " pi=" + paymentIntent.id);
         } catch (e) {
           console.error("[Stripe] Webhook: failed to update wallet_balance:", e);
           return res.status(500).send("Failed to credit wallet");
@@ -4439,13 +4469,46 @@ app.post("/api/wallet/deposit", requireAuth, async (req, res) => {
       amount: amountCents,
       currency: "eur",
       automatic_payment_methods: { enabled: true },
-      metadata: { user_id: String(sessionUserId), payment_type: "wallet" },
+      metadata: { user_id: String(sessionUserId), userId: String(sessionUserId), payment_type: "wallet" },
     });
     console.log("[Wallet] Deposit intent created: user_id=" + sessionUserId + " amount_cents=" + amountCents + " payment_intent=" + paymentIntent.id);
     res.json({ client_secret: paymentIntent.client_secret, amount_cents: amountCents });
   } catch (e: any) {
     console.error("[Wallet] Deposit Stripe error:", e?.message || e);
     res.status(500).json({ error: e?.message || "Could not create payment" });
+  }
+});
+
+/**
+ * After Stripe redirect, credit wallet if the webhook has not run yet (no STRIPE_WEBHOOK_SECRET, local dev, etc.).
+ * Idempotent: same as webhook INSERT IGNORE + balance update.
+ */
+app.post("/api/wallet/confirm-deposit", requireAuth, async (req, res) => {
+  const sessionUserId = getSessionUserId(req);
+  if (sessionUserId === null || sessionUserId === 0) return res.status(401).json({ error: "Not signed in" });
+  const piId = String(req.body?.payment_intent || req.body?.payment_intent_id || "").trim();
+  if (!piId || !piId.startsWith("pi_")) return res.status(400).json({ error: "Invalid payment_intent" });
+  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  if (!stripeKey) return res.status(503).json({ error: "Wallet deposits are not configured" });
+  try {
+    const stripe = getStripe();
+    const pi = await stripe.paymentIntents.retrieve(piId);
+    if (pi.status !== "succeeded") {
+      return res.status(200).json({ credited: false, status: pi.status, message: "Payment not completed yet" });
+    }
+    const metaUserRaw = pi.metadata?.user_id ?? pi.metadata?.userId;
+    const metaUser = metaUserRaw != null ? Number(metaUserRaw) : null;
+    if (!metaUser || metaUser !== sessionUserId) {
+      return res.status(403).json({ error: "This payment does not belong to your account" });
+    }
+    const result = await creditWalletFromSucceededPaymentIntent(pi);
+    if (result === "skipped") {
+      return res.status(400).json({ error: "This payment is not a wallet deposit" });
+    }
+    return res.json({ credited: result === "credited", already_credited: result === "duplicate" });
+  } catch (e: any) {
+    console.error("[Wallet] confirm-deposit:", e?.message || e);
+    res.status(500).json({ error: e?.message || "Could not confirm deposit" });
   }
 });
 

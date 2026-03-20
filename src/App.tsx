@@ -194,6 +194,8 @@ const TRANSLATIONS: any = {
     "wallet.quick_amounts": "Schnellwahl",
     "wallet.continue_to_payment": "Weiter zur Zahlung",
     "wallet.deposit_success": "Guthaben erfolgreich aufgeladen.",
+    "wallet.deposit_pending": "Zahlung bei Stripe noch nicht abgeschlossen. Bitte Seite in Kürze neu laden.",
+    "wallet.deposit_sync_error": "Guthaben konnte nicht synchronisiert werden.",
     "wallet.complete_payment": "Zahlung abschließen",
     "wallet.pay": "Bezahlen",
     my_bids: "Meine Gebote",
@@ -1529,6 +1531,8 @@ const TRANSLATIONS: any = {
     "wallet.quick_amounts": "Quick amounts",
     "wallet.continue_to_payment": "Continue to payment",
     "wallet.deposit_success": "Credit added successfully.",
+    "wallet.deposit_pending": "Payment not complete at Stripe yet. Refresh the page in a moment.",
+    "wallet.deposit_sync_error": "Could not sync wallet balance.",
     "wallet.complete_payment": "Complete payment",
     "wallet.pay": "Pay",
     "my_bids": "My bids",
@@ -2996,6 +3000,8 @@ export default function App() {
   const [depositAmountCents, setDepositAmountCents] = useState<number | null>(null);
   const [depositLoading, setDepositLoading] = useState(false);
   const [depositError, setDepositError] = useState<string | null>(null);
+  /** Avoid double POST /api/wallet/confirm-deposit (Strict Mode / re-renders). */
+  const walletReturnSyncRef = useRef<Set<string>>(new Set());
   const [invoicesList, setInvoicesList] = useState<{ id: number; user_id: number; project_id: number | null; amount: number; status: string; type: string; created_at: string }[]>([]);
   const [transactionsList, setTransactionsList] = useState<{ id: number; user_id: number; invoice_id: number | null; amount: number; status: string; stripe_payment_intent_id: string | null; created_at: string }[]>([]);
   const [invoicePayClientSecret, setInvoicePayClientSecret] = useState<string | null>(null);
@@ -3841,6 +3847,73 @@ export default function App() {
     setToast({ msg, type });
     toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
   };
+
+  /** After Stripe redirects with ?payment_intent=…, credit wallet if webhook did not run (dev / missing STRIPE_WEBHOOK_SECRET). */
+  useEffect(() => {
+    if (!user?.id || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const pi = params.get('payment_intent');
+    const isPaymentSuccess = paymentStatus === 'success';
+    if ((!pi || !pi.startsWith('pi_')) && !isPaymentSuccess) return;
+    if (isPaymentSuccess) setVaultTab('wallet');
+    if (pi && walletReturnSyncRef.current.has(pi)) return;
+    if (pi && pi.startsWith('pi_')) walletReturnSyncRef.current.add(pi);
+    let cancelled = false;
+    const stripStripeReturnParams = () => {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('payment_intent');
+      u.searchParams.delete('payment_intent_client_secret');
+      u.searchParams.delete('redirect_status');
+      u.searchParams.delete('payment');
+      const qs = u.searchParams.toString();
+      window.history.replaceState({}, '', u.pathname + (qs ? `?${qs}` : '') + u.hash);
+    };
+    const refreshWallet = () => {
+      fetch(`/api/wallet/${user.id}`, { credentials: 'include' }).then(r => (r.ok ? r.json().then(setWalletData) : null)).catch(() => {});
+    };
+    // If we only have ?payment=success (without payment_intent), still refresh the wallet.
+    if (!pi || !pi.startsWith('pi_')) {
+      stripStripeReturnParams();
+      refreshWallet();
+      return;
+    }
+    (async () => {
+      try {
+        const r = await fetch('/api/wallet/confirm-deposit', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payment_intent: pi }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (cancelled) return;
+        stripStripeReturnParams();
+        if (r.ok && (data as { credited?: boolean }).credited) {
+          notifyUser(t('wallet.deposit_success') || 'Deposit successful.', 'success');
+          refreshWallet();
+        } else if (r.ok && (data as { already_credited?: boolean }).already_credited) {
+          refreshWallet();
+        } else if (r.ok && (data as { status?: string }).status && (data as { status?: string }).status !== 'succeeded') {
+          notifyUser(t('wallet.deposit_pending') || 'Payment pending.', 'error');
+          refreshWallet();
+        } else if (!r.ok) {
+          notifyUser((data as { error?: string }).error || t('wallet.deposit_sync_error') || 'Sync failed', 'error');
+          refreshWallet();
+        } else {
+          refreshWallet();
+        }
+      } catch {
+        if (!cancelled) {
+          stripStripeReturnParams();
+          notifyUser(t('wallet.deposit_sync_error') || 'Sync failed', 'error');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // Intentionally only when session user id appears (Stripe return after login).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- notifyUser/t would retrigger every render
+  }, [user?.id]);
 
   const doPdfImport = async (file: File) => {
     setPdfImportLoading(true);
@@ -13009,7 +13082,9 @@ function WalletDepositForm({ onSuccess, onCancel, t }: { onSuccess: () => void; 
         <Button disabled={!stripe || !elements || confirming} onClick={async () => {
           if (!stripe || !elements) return;
           setErr(null); setConfirming(true);
-          const { error } = await stripe.confirmPayment({ elements, confirmParams: { return_url: window.location.href } });
+          // Redirect to a dedicated URL so the app can refresh the wallet after Stripe finishes.
+          const returnUrl = `${window.location.origin}/vault?payment=success`;
+          const { error } = await stripe.confirmPayment({ elements, confirmParams: { return_url: returnUrl } });
           setConfirming(false);
           if (error) setErr(error.message || 'Payment failed');
           else onSuccess();
