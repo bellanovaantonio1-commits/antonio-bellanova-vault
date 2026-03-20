@@ -63,12 +63,6 @@ export async function initDb(): Promise<DbInterface> {
 }
 
 /**
- * MySQL DDL fixes for SQLite-oriented schema in server.ts:
- * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
- * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
- * - Remaining TEXT columns → LONGTEXT (unbounded strings; no DEFAULT left on them).
- */
-/**
  * After splitting SQL on `;`, a segment can start with `-- section title` followed by real DDL.
  * The old filter `!startsWith("--")` dropped the entire segment, skipping e.g. CREATE chat_threads.
  */
@@ -90,24 +84,44 @@ function stripLeadingLineComments(sql: string): string {
   return lines.slice(i).join("\n").trim();
 }
 
+/**
+ * MySQL reserves `KEY`; a column named `key` must be quoted (email_templates, admin_config).
+ * Use targeted patterns so we do not break `seq_key`, FOREIGN KEY, PRIMARY KEY, etc.
+ */
+function mysqlBacktickKeyColumnName(sql: string): string {
+  return sql
+    .replace(/(?m)^(\s+)key(\s+VARCHAR|\s+LONGTEXT|\s+INTEGER|\s+REAL|\s+DATETIME)\b/gi, "$1`key`$2")
+    .replace(/,(\s*)key(\s+VARCHAR|\s+LONGTEXT|\s+INTEGER|\s+REAL|\s+DATETIME)\b/gi, ",$1`key`$2")
+    .replace(/\(\s*key\s*,/gi, "(`key`,")
+    .replace(/\(\s*key\s+VARCHAR/gi, "(`key` VARCHAR")
+    .replace(/\bWHERE\s+key(\s*=)/gi, "WHERE `key`$1")
+    .replace(/\bORDER\s+BY\s+key\b/gi, "ORDER BY `key`")
+    .replace(/\bON\s+CONFLICT\s*\(\s*key\s*\)/gi, "ON CONFLICT(`key`)")
+    .replace(/\bSET\s+key(\s*=)/gi, "SET `key`$1")
+    .replace(/\bkey\s*=\s*\?/g, "`key` = ?");
+}
+
+/**
+ * MySQL DDL / DML fixes for SQLite-oriented schema in server.ts:
+ * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
+ * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
+ * - Remaining TEXT columns → LONGTEXT.
+ * - Backtick reserved column name `key`.
+ */
 function mysqlDdlCompat(sql: string): string {
-  return (
+  return mysqlBacktickKeyColumnName(
     sql
       .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
-      // Keys / uniqueness (must be VARCHAR, not TEXT/LONGTEXT)
       .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
       .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
       .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
-      // DEFAULT on blob types
       .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
       .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
-      // Composite UNIQUE / PRIMARY KEY on these SQLite TEXT columns
       .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
       .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
       .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(512) NOT NULL")
       .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(512)")
-      // All other TEXT columns → LONGTEXT (safe for long content; not used in indexes above)
-      .replace(/\bTEXT\b/gi, "LONGTEXT")
+      .replace(/\bTEXT\b/gi, "LONGTEXT"),
   );
 }
 
