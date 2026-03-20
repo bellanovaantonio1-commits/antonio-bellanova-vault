@@ -62,6 +62,18 @@ export async function initDb(): Promise<DbInterface> {
   return createSQLiteAdapter();
 }
 
+/**
+ * MySQL rejects DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT). SQLite allows it.
+ * Rewrite enum-like TEXT columns to VARCHAR so shared DDL in server.ts works on both.
+ */
+function mysqlDdlCompat(sql: string): string {
+  return sql
+    .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
+    // MySQL: no DEFAULT on TEXT/BLOB; allow flexible whitespace in shared DDL
+    .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
+    .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT");
+}
+
 function createSQLiteAdapter(): DbInterface {
   const sqlite = getSqliteDb();
   const adapter: DbInterface = {
@@ -103,9 +115,10 @@ function createSQLiteAdapter(): DbInterface {
 }
 
 function createMySQLTxStatement(conn: any, sql: string): DbStatement {
+  const q = mysqlDdlCompat(sql);
   return {
     async run(...args: any[]) {
-      const [result] = await conn.execute(sql, args);
+      const [result] = await conn.execute(q, args);
       const r = result as any;
       return {
         lastInsertRowid: r?.insertId ?? 0,
@@ -113,12 +126,12 @@ function createMySQLTxStatement(conn: any, sql: string): DbStatement {
       };
     },
     async get(...args: any[]) {
-      const [rows] = await conn.execute(sql, args);
+      const [rows] = await conn.execute(q, args);
       const arr = Array.isArray(rows) ? rows : (rows as any);
       return arr?.[0] ?? null;
     },
     async all(...args: any[]) {
-      const [rows] = await conn.execute(sql, args);
+      const [rows] = await conn.execute(q, args);
       return Array.isArray(rows) ? rows : (rows as any) ?? [];
     },
   };
@@ -131,7 +144,7 @@ function createMySQLAdapter(): DbInterface {
   const baseAdapter: DbInterface = {
     isMySQL: true,
     async exec(sql: string): Promise<void> {
-      const mysqlSql = sql.replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT");
+      const mysqlSql = mysqlDdlCompat(sql);
       const statements = mysqlSql
         .split(";")
         .map((s) => s.trim())
@@ -146,11 +159,12 @@ function createMySQLAdapter(): DbInterface {
       }
     },
     prepare(sql: string): DbStatement {
+      const q = mysqlDdlCompat(sql);
       return {
         async run(...args: any[]) {
           const conn = await pool.getConnection();
           try {
-            const [result] = await conn.execute(sql, args);
+            const [result] = await conn.execute(q, args);
             const r = result as any;
             return {
               lastInsertRowid: r?.insertId ?? 0,
@@ -163,7 +177,7 @@ function createMySQLAdapter(): DbInterface {
         async get(...args: any[]) {
           const conn = await pool.getConnection();
           try {
-            const [rows] = await conn.execute(sql, args);
+            const [rows] = await conn.execute(q, args);
             const arr = Array.isArray(rows) ? rows : (rows as any);
             return arr?.[0] ?? null;
           } finally {
@@ -173,7 +187,7 @@ function createMySQLAdapter(): DbInterface {
         async all(...args: any[]) {
           const conn = await pool.getConnection();
           try {
-            const [rows] = await conn.execute(sql, args);
+            const [rows] = await conn.execute(q, args);
             return Array.isArray(rows) ? rows : (rows as any) ?? [];
           } finally {
             conn.release();
@@ -186,7 +200,7 @@ function createMySQLAdapter(): DbInterface {
       const txAdapter: DbInterface = {
         isMySQL: true,
         exec(sql: string): Promise<void> {
-          const mysqlSql = sql.replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT");
+          const mysqlSql = mysqlDdlCompat(sql);
           return conn.query(mysqlSql).then(() => {});
         },
         prepare(sql: string): DbStatement {
