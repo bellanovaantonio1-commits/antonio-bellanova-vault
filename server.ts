@@ -1943,7 +1943,7 @@ async function ensureUsersCoreColumns(d: DbInterface) {
     ? [
         "ALTER TABLE users ADD COLUMN `password` LONGTEXT",
         "ALTER TABLE users ADD COLUMN username VARCHAR(512)",
-        "ALTER TABLE users ADD COLUMN name LONGTEXT",
+        "ALTER TABLE users ADD COLUMN `name` LONGTEXT",
         "ALTER TABLE users ADD COLUMN address LONGTEXT",
         "ALTER TABLE users ADD COLUMN `role` VARCHAR(512) DEFAULT 'collector'",
         "ALTER TABLE users ADD COLUMN `status` VARCHAR(512) DEFAULT 'pending'",
@@ -1971,7 +1971,13 @@ async function ensureUsersCoreColumns(d: DbInterface) {
   for (const sql of stmts) {
     try {
       await (await d.prepare(sql)).run();
-    } catch (_) {}
+    } catch (e: any) {
+      const msg = String(e?.message || e);
+      // Erwartbar, wenn Spalte schon existiert
+      if (!/duplicate column|already exists/i.test(msg)) {
+        console.warn("[ensureUsersCoreColumns]", msg, "|", sql.slice(0, 120));
+      }
+    }
   }
 }
 

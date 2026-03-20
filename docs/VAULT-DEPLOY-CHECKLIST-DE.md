@@ -27,9 +27,13 @@ Datei **`/opt/antonio-bellanova-vault/.env`** (oder dein Pfad) – Inhalt **nie*
 
 ## B) Code & Build auf dem Server
 
+**Wichtig:** Ohne **`git pull`** läuft oft noch alter Stand. In den PM2-Logs: Wenn **`server.ts:1960`** bei `seedAdmin` steht, passt die Zeilennummer oft **nicht** zum aktuellen Repo (`seedAdmin` liegt weiter unten) → **Code nicht aktualisiert**.
+
 ```bash
 cd /opt/antonio-bellanova-vault
+git fetch origin && git status
 git pull origin main
+git log -1 --oneline   # neuster Commit sichtbar?
 npm ci
 npm run build
 ```

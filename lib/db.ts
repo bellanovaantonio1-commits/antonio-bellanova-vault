@@ -110,10 +110,13 @@ function mysqlBacktickLastValueColumnName(sql: string): string {
   return sql.replace(/(?<![.`])\blast_value\b(?![`])/g, "`last_value`");
 }
 
-/** MySQL 8 reserves ROLE; STATUS can clash — seedAdmin users INSERT/UPDATE. */
+/** MySQL 8: ROLE reserved; backtick name/role/status in seedAdmin column lists. */
 function mysqlBacktickUsersReservedColumns(sql: string): string {
   return sql
-    .replace(/\(email, username, password, name, role, status\)/gi, "(email, username, password, name, `role`, `status`)")
+    .replace(
+      /\(email, username, password, name, role, status\)/gi,
+      "(email, username, password, `name`, `role`, `status`)",
+    )
     .replace(
       /UPDATE users SET password = \?, status = 'approved', username = \? WHERE id = \?/gi,
       "UPDATE users SET password = ?, `status` = 'approved', username = ? WHERE id = ?",
