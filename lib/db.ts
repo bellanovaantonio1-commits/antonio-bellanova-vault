@@ -129,8 +129,9 @@ function mysqlDdlCompat(sql: string): string {
         .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
         .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
         .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
-        .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(512) NOT NULL")
-        .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(512)")
+        // Short strings; composite PK (seq_key, seq_year, seq_type) must stay under InnoDB 3072-byte index limit (utf8mb4).
+        .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(191) NOT NULL")
+        .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(191)")
         .replace(/\bTEXT\b/gi, "LONGTEXT"),
     ),
   );
