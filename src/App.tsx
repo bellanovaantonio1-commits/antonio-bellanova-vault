@@ -199,6 +199,7 @@ const TRANSLATIONS: any = {
     "wallet.stripe_webhook_hint_admin": "Admin: Webhook payment_intent.succeeded auf …/api/stripe/webhook einrichten und STRIPE_WEBHOOK_SECRET setzen, sonst wird das Guthaben nach Zahlung nicht gutgeschrieben.",
     "wallet.config_loading": "Zahlungs-Konfiguration wird geladen…",
     "wallet.test_card": "Testmodus: Karte 4242 4242 4242 4242 (beliebiges zukünftiges Ablaufdatum, beliebige CVC).",
+    "wallet.live_notice": "Live-Zahlungen: Es werden echte Karten belastet. Keine Testkarten (z. B. 4242…) verwenden.",
     "wallet.amount_eur": "Betrag (€)",
     "wallet.quick_amounts": "Schnellwahl",
     "wallet.continue_to_payment": "Weiter zur Zahlung",
@@ -1543,6 +1544,7 @@ const TRANSLATIONS: any = {
     "wallet.stripe_webhook_hint_admin": "Admin: Add webhook payment_intent.succeeded to …/api/stripe/webhook and set STRIPE_WEBHOOK_SECRET or credit will not apply after payment.",
     "wallet.config_loading": "Loading payment configuration…",
     "wallet.test_card": "Test mode: card 4242 4242 4242 4242 (any future expiry, any CVC).",
+    "wallet.live_notice": "Live payments: real cards will be charged. Do not use test card numbers (e.g. 4242…).",
     "wallet.amount_eur": "Amount (€)",
     "wallet.quick_amounts": "Quick amounts",
     "wallet.continue_to_payment": "Continue to payment",
@@ -7954,7 +7956,12 @@ export default function App() {
                               {(user?.role === UserRole.ADMIN || user?.role === 'super_admin') && !stripeWalletMeta.stripeWebhookConfigured && (
                                 <p className="text-xs text-amber-600/90 mb-3">{t('wallet.stripe_webhook_hint_admin')}</p>
                               )}
-                              <p className="text-xs text-zinc-500 mb-4">{t('wallet.test_card')}</p>
+                              {stripePk?.startsWith('pk_test_') && (
+                                <p className="text-xs text-zinc-500 mb-4">{t('wallet.test_card')}</p>
+                              )}
+                              {stripePk?.startsWith('pk_live_') && (
+                                <p className="text-xs text-amber-500/80 mb-4">{t('wallet.live_notice')}</p>
+                              )}
                               <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-2">{t('wallet.quick_amounts')}</p>
                               <div className="flex flex-wrap gap-2 mb-4">
                                 {[25, 50, 100, 250, 500].map((eur) => (
