@@ -3149,28 +3149,35 @@ app.get("/api/resale/marketplace", async (req, res) => {
 });
 
 app.get("/api/masterpieces", async (req, res) => {
-  await expirePrivateViewing();
-  const search = (req.query.search as string)?.trim();
-  const userId = req.query.userId ? Number(req.query.userId) : null;
-  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
-  const isVip = user ? isVipActive(user) : false;
-  let pieces: any[];
-  if (search && search.length >= 2) {
-    const term = "%" + search + "%";
-    pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE title LIKE ? OR serial_id LIKE ? OR category LIKE ? OR materials LIKE ?")).all(term, term, term, term);
-  } else {
-    pieces = await (await db.prepare("SELECT * FROM masterpieces")).all();
+  try {
+    await expirePrivateViewing();
+    const search = (req.query.search as string)?.trim();
+    const userId = req.query.userId ? Number(req.query.userId) : null;
+    const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+    const isVip = user ? isVipActive(user) : false;
+    let pieces: any[];
+    if (search && search.length >= 2) {
+      const term = "%" + search + "%";
+      pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE title LIKE ? OR serial_id LIKE ? OR category LIKE ? OR materials LIKE ?")).all(term, term, term, term);
+    } else {
+      pieces = await (await db.prepare("SELECT * FROM masterpieces")).all();
+    }
+    const now = Date.now();
+    pieces = pieces.filter((p: any) => {
+      if (Number(p.private_gallery) === 1 && !canAccessPrivateGallery(user)) return false;
+      if (!p.product_release_date) return true;
+      const release = new Date(p.product_release_date).getTime();
+      // Invalid / zero dates from MySQL etc. must not hide all pieces from the API.
+      if (!Number.isFinite(release)) return true;
+      const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
+      if (isVip && p.vip_early_access) return now >= vipRelease;
+      return now >= release;
+    });
+    res.json(pieces);
+  } catch (e: any) {
+    console.error("[GET /api/masterpieces]", e?.message || e);
+    res.status(500).json({ error: "Could not load masterpieces" });
   }
-  const now = Date.now();
-  pieces = pieces.filter((p: any) => {
-    if (p.private_gallery === 1 && !canAccessPrivateGallery(user)) return false;
-    if (!p.product_release_date) return true;
-    const release = new Date(p.product_release_date).getTime();
-    const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
-    if (isVip && p.vip_early_access) return now >= vipRelease;
-    return now >= release;
-  });
-  res.json(pieces);
 });
 
 // Extended search: q, category, minPrice, maxPrice, rarity, sort (newest | price_asc | price_desc | title)
@@ -3186,7 +3193,6 @@ app.get("/api/search", async (req, res) => {
   let pieces: any[] = await (await db.prepare("SELECT * FROM masterpieces")).all();
 
   if (q && q.length >= 1) {
-    const term = "%" + q + "%";
     pieces = pieces.filter((p: any) =>
       (p.title && String(p.title).toLowerCase().includes(q.toLowerCase())) ||
       (p.serial_id && String(p.serial_id).toLowerCase().includes(q.toLowerCase())) ||
@@ -10296,6 +10302,13 @@ async function startServer() {
     console.log(`Antonio Bellanova Vault running at http://localhost:${PORT} (NODE_ENV=${process.env.NODE_ENV || "development"})`);
   });
 }
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
 
 startServer().catch((err) => {
   console.error("Server start failed:", err);

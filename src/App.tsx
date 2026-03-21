@@ -818,6 +818,7 @@ const TRANSLATIONS: any = {
     "errors.piece_create_failed": "Meisterwerk konnte nicht erstellt werden.",
     "errors.delete_failed": "Löschen fehlgeschlagen.",
     "errors.generic": "Ein Fehler ist aufgetreten.",
+    "errors.load_failed": "Server vorübergehend nicht erreichbar. Bitte Seite erneut laden.",
     "admin.bank_config_saved": "Bank-Konfiguration gespeichert.",
     "admin.bank_config_title": "Bank-Konfiguration",
     "admin.maintenance_mode": "Wartungsmodus",
@@ -1652,6 +1653,7 @@ const TRANSLATIONS: any = {
     "errors.piece_create_failed": "Failed to create masterpiece.",
     "errors.delete_failed": "Delete failed.",
     "errors.generic": "Something went wrong.",
+    "errors.load_failed": "Server temporarily unavailable. Please refresh the page.",
     "admin.bank_config_saved": "Bank configuration saved.",
     "admin.bank_config_title": "Bank configuration",
     "admin.maintenance_mode": "Maintenance mode",
@@ -3235,12 +3237,26 @@ export default function App() {
 
   const filterMasterpieces = (list: Masterpiece[], statusFilter?: string) => {
     let out = Array.isArray(list) ? list : [];
-    if (statusFilter) out = out.filter(p => p.status === statusFilter);
+    // DB/MySQL may leave status NULL; treat as "available" for Marktplatz
+    if (statusFilter === 'available') {
+      out = out.filter(p => !p.status || String(p.status).trim() === '' || p.status === 'available');
+    } else if (statusFilter) {
+      out = out.filter(p => p.status === statusFilter);
+    }
     if (filterSearch.trim()) {
       const q = filterSearch.trim().toLowerCase();
       out = out.filter(p => (p.title?.toLowerCase().includes(q)) || (p.serial_id?.toLowerCase().includes(q)) || (p.category?.toLowerCase().includes(q)));
     }
-    if (filterRarity) out = out.filter(p => p.rarity === filterRarity);
+    if (filterRarity) {
+      const r = filterRarity.trim();
+      const raritySynonyms: Record<string, string[]> = {
+        Unikat: ['Unikat', 'Unique', 'unique'],
+        Limitiert: ['Limitiert', 'Limited', 'limited'],
+        Selten: ['Selten', 'Rare', 'rare'],
+      };
+      const allowed = raritySynonyms[r] || [r];
+      out = out.filter(p => allowed.includes(p.rarity || ''));
+    }
     if (filterMarketScope === 'favorites' && user) out = out.filter(p => favoriteIds.includes(p.id));
     if (filterMarketScope === 'recent' && user) out = out.filter(p => recentlyViewedIds.includes(p.id));
     if (sortMarket === 'price_asc') out = [...out].sort((a, b) => (Number(a.valuation) || 0) - (Number(b.valuation) || 0));
@@ -3970,22 +3986,30 @@ export default function App() {
     setListLoading(true);
     try {
       const [piecesRes, auctionsRes, vaultRes, payRes, invRes, txnRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
-        fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`),
-        fetch(`/api/auctions?userId=${user.id}`),
-        fetch(`/api/vault/${user.id}`),
-        fetch(`/api/payments/${user.id}`),
+        fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`, { credentials: 'include' }),
+        fetch(`/api/auctions?userId=${user.id}`, { credentials: 'include' }),
+        fetch(`/api/vault/${user.id}`, { credentials: 'include' }),
+        fetch(`/api/payments/${user.id}`, { credentials: 'include' }),
         fetch('/api/invoices', { credentials: 'include' }),
         fetch('/api/transactions', { credentials: 'include' }),
-        fetch(`/api/notifications/${user.id}`),
+        fetch(`/api/notifications/${user.id}`, { credentials: 'include' }),
         fetch('/api/drops', { credentials: 'include' }),
-        fetch('/api/resale/marketplace'),
+        fetch('/api/resale/marketplace', { credentials: 'include' }),
         fetch('/api/me/addresses', { credentials: 'include' }),
         fetch('/api/me/notification-settings', { credentials: 'include' }),
         fetch('/api/vip/membership-status', { credentials: 'include' }),
         fetch(`/api/private-offers?userId=${user.id}`, { credentials: 'include' })
       ]);
 
-      if (piecesRes.ok) setMasterpieces(await piecesRes.json());
+      if (piecesRes.ok) {
+        try {
+          setMasterpieces(await piecesRes.json());
+        } catch {
+          /* keep previous list */
+        }
+      } else if (piecesRes.status === 502 || piecesRes.status === 503 || piecesRes.status === 504) {
+        notifyUser(t('errors.load_failed') || 'Server vorübergehend nicht erreichbar. Bitte Seite erneut laden.', 'error');
+      }
       if (resaleRes.ok) setResalePieces(await resaleRes.json());
       if (auctionsRes.ok) setAuctions(await auctionsRes.json());
       if (vaultRes.ok) setVaultData(await vaultRes.json());

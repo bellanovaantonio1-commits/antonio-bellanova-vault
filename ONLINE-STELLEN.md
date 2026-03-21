@@ -122,6 +122,8 @@ server {
 
 Danach auf HTTPS umstellen und Port 3000 nur lokal erreichbar lassen.
 
+**502 Bad Gateway (Nginx):** Der Proxy erreicht Node nicht oder die App antwortet nicht rechtzeitig. Auf dem Server prüfen: `pm2 status` / `pm2 logs vault --lines 80`, lokal `curl -sS http://127.0.0.1:3000/api/health`. Wenn `errored` oder kein Listen auf Port 3000: nach `git pull` immer `npm ci --legacy-peer-deps`, `npm run build`, `pm2 restart vault --update-env`.
+
 ### B) Railway / Render / Fly.io
 
 1. Projekt per Git verbinden.
