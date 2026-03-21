@@ -27,7 +27,7 @@
   "view.admin": "Management",
   "view.portfolio": "Portfolio",
   "sign_out": "Sign out",
-  "marketplace.subtitle": "Exquisite pieces available for immediate acquisition.",
+  "marketplace.subtitle": "Exclusive made-to-order and limited pieces — acquisition by request; invoicing follows after confirmation.",
   "marketplace.filter_placeholder": "Search (title, serial, category)",
   "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
   "marketplace.pdf_modal_title": "Marketplace as PDF",
@@ -70,5 +70,12 @@
   "invoices.type_custom_order": "Custom order",
   "purchase.buy_now": "Buy now",
   "purchase.complete_payment": "Complete payment to purchase this piece.",
-  "purchase.success": "Purchase successful."
+  "purchase.success": "Purchase successful.",
+  "purchase.made_to_order_hint": "Made-to-order: purchase by request. You will receive an invoice at a later stage.",
+  "dashboard.collector_ranking": "Collector ranking",
+  "dashboard.collector_ranking_hint": "Top collectors by collection value and prestige.",
+  "dashboard.collector_ranking_empty": "No collector data yet.",
+  "dashboard.collector_ranking_by_value": "By collection value",
+  "dashboard.collector_ranking_by_prestige": "By prestige score",
+  "dashboard.collector_ranking_by_purchases": "By total purchases"
 }

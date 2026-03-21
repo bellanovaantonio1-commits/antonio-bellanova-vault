@@ -27,7 +27,7 @@
   "view.admin": "Verwaltung",
   "view.portfolio": "Portfolio",
   "sign_out": "Abmelden",
-  "marketplace.subtitle": "Exquisite Stücke für den sofortigen Erwerb.",
+  "marketplace.subtitle": "Exklusive Maßanfertigungen und limitierte Stücke — Erwerb auf Anfrage, Rechnung folgt nach Absprache.",
   "marketplace.filter_placeholder": "Suche (Titel, Serial, Kategorie)",
   "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
   "marketplace.pdf_modal_title": "Marktplatz als PDF",
@@ -70,5 +70,12 @@
   "invoices.type_custom_order": "Sonderanfertigung",
   "purchase.buy_now": "Jetzt kaufen",
   "purchase.complete_payment": "Zahlung abschließen, um dieses Stück zu erwerben.",
-  "purchase.success": "Kauf erfolgreich."
+  "purchase.success": "Kauf erfolgreich.",
+  "purchase.made_to_order_hint": "Maßanfertigung: Der Erwerb erfolgt auf Anfrage. Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.",
+  "dashboard.collector_ranking": "Sammler-Ranking",
+  "dashboard.collector_ranking_hint": "Top-Sammler nach Sammlungswert und Prestige.",
+  "dashboard.collector_ranking_empty": "Noch keine Sammler-Daten.",
+  "dashboard.collector_ranking_by_value": "Nach Sammlungswert",
+  "dashboard.collector_ranking_by_prestige": "Nach Prestige-Score",
+  "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe"
 }

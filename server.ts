@@ -4476,8 +4476,9 @@ app.post("/api/wallet/confirm-deposit", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "This payment does not belong to your account" });
     }
     const result = await creditWalletFromSucceededPaymentIntent(db, pi);
+    /** Invoice / order / direct purchase returns here — avoid error toast when Stripe appends ?payment_intent= to return URL. */
     if (result === "skipped") {
-      return res.status(400).json({ error: "This payment is not a wallet deposit" });
+      return res.json({ credited: false, not_wallet_deposit: true });
     }
     return res.json({ credited: result === "credited", already_credited: result === "duplicate" });
   } catch (e: any) {
@@ -10356,6 +10357,15 @@ async function startServer() {
   await runSchema(db);
   try {
     await (await db.prepare(db.isMySQL ? "ALTER TABLE transactions ADD COLUMN `type` TEXT" : "ALTER TABLE transactions ADD COLUMN type TEXT")).run();
+  } catch (_) {
+    /* duplicate column */
+  }
+  try {
+    await (
+      await db.prepare(
+        db.isMySQL ? "ALTER TABLE transactions ADD COLUMN invoice_id INT NULL" : "ALTER TABLE transactions ADD COLUMN invoice_id INTEGER"
+      )
+    ).run();
   } catch (_) {
     /* duplicate column */
   }

@@ -891,8 +891,12 @@ const TRANSLATIONS: any = {
     "dashboard.active_pieces": "ACTIVE PIECES",
     "dashboard.collection_value_short": "Collection Value",
     "dashboard.prestige_score": "Collector Prestige Score",
-    "dashboard.collector_ranking": "Collector Ranking",
-    "dashboard.collector_ranking_hint": "Top collectors by collection value and prestige.",
+    "dashboard.collector_ranking": "Sammler-Ranking",
+    "dashboard.collector_ranking_hint": "Top-Sammler nach Sammlungswert und Prestige.",
+    "dashboard.collector_ranking_empty": "Noch keine Sammler-Daten.",
+    "dashboard.collector_ranking_by_value": "Nach Sammlungswert",
+    "dashboard.collector_ranking_by_prestige": "Nach Prestige-Score",
+    "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe",
     "dashboard.activity_center": "Aktivität",
     "dashboard.activity_center_desc": "Wichtige Meldungen und Aktionen für Sie.",
     "activity.contract_ready": "Vertrag zur Unterzeichnung bereit",
@@ -1748,6 +1752,12 @@ const TRANSLATIONS: any = {
     "dashboard.remove_favorite": "Remove from favorites",
     "dashboard.active_orders": "Active Orders",
     "dashboard.registry_entries": "Registry Entries",
+    "dashboard.collector_ranking": "Collector ranking",
+    "dashboard.collector_ranking_hint": "Top collectors by collection value and prestige.",
+    "dashboard.collector_ranking_empty": "No collector data yet.",
+    "dashboard.collector_ranking_by_value": "By collection value",
+    "dashboard.collector_ranking_by_prestige": "By prestige score",
+    "dashboard.collector_ranking_by_purchases": "By total purchases",
     "registry.performance_title": "Registry & Performance",
     "registry.ownership_timeline": "Ownership Timeline",
     "registry.service_log": "Service History",
@@ -3012,9 +3022,6 @@ export default function App() {
   const [orderPayClientSecret, setOrderPayClientSecret] = useState<string | null>(null);
   const [orderPayId, setOrderPayId] = useState<number | null>(null);
   const [orderPayLoading, setOrderPayLoading] = useState(false);
-  const [purchaseClientSecret, setPurchaseClientSecret] = useState<string | null>(null);
-  const [purchaseItemId, setPurchaseItemId] = useState<number | null>(null);
-  const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [clientLegacyRequests, setClientLegacyRequests] = useState<any[]>([]);
   const [legacyForm, setLegacyForm] = useState({ beneficiary_name: '', beneficiary_contact: '', transfer_protocol: '' });
   const [collectorPreferences, setCollectorPreferences] = useState<{ favorite_gemstones?: string; preferred_metals?: string; design_style?: string; budget_range?: string; collection_type?: string; collection_focus?: string }>({});
@@ -3909,6 +3916,9 @@ export default function App() {
           notifyUser(t('wallet.deposit_success') || 'Deposit successful.', 'success');
           refreshWallet();
         } else if (r.ok && (data as { already_credited?: boolean }).already_credited) {
+          refreshWallet();
+        } else if (r.ok && (data as { not_wallet_deposit?: boolean }).not_wallet_deposit) {
+          /* Rechnung / Bestellung / anderer PaymentIntent — keine Wallet-Gutschrift, kein Fehler-Toast */
           refreshWallet();
         } else if (r.ok && (data as { status?: string }).status && (data as { status?: string }).status !== 'succeeded') {
           notifyUser(t('wallet.deposit_pending') || 'Payment pending.', 'error');
@@ -12445,71 +12455,28 @@ export default function App() {
                           })()}
                           {!getPiecePriceDisplay(selectedPiece, user).showNegotiation && !getPiecePriceDisplay(selectedPiece, user).showInquiry && (
                         <>
-                          {purchaseClientSecret && purchaseItemId === selectedPiece.id && stripePk ? (
-                            <div className="space-y-4">
-                              <p className="text-sm text-zinc-400">{t('purchase.complete_payment') || 'Complete payment to purchase this piece.'}</p>
-                              <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: purchaseClientSecret }}>
-                                <WalletDepositForm
-                                  t={t}
-                                  onCancel={() => { setPurchaseClientSecret(null); setPurchaseItemId(null); }}
-                                  onSuccess={() => {
-                                    setPurchaseClientSecret(null);
-                                    setPurchaseItemId(null);
-                                    closePieceDetail();
-                                    fetchData();
-                                    notifyUser(t('purchase.success') || 'Purchase successful.', 'success');
-                                  }}
-                                />
-                              </Elements>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
-                                <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
-                                  {t('legal_notice')}
-                                </p>
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
-                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
-                                  <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
-                                  <option value="armored_courier">{t('delivery.armored_courier')}</option>
-                                  <option value="private_jet">{t('delivery.private_jet')}</option>
-                                  <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
-                                  <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
-                                  <option value="vault_storage">{t('delivery.vault_storage')}</option>
-                                </select>
-                              </div>
-                              <Button
-                                className="w-full py-4 text-base"
-                                disabled={purchaseLoading || !(Number(selectedPiece.valuation ?? (selectedPiece as any).purchase_price) >= 0.01)}
-                                onClick={async () => {
-                                  if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; }
-                                  if (!stripePk) {
-                                    const cfg = await fetch('/api/stripe/config').then(r => r.ok ? r.json() : null);
-                                    applyStripeConfigResponse(cfg || {});
-                                  }
-                                  setPurchaseLoading(true);
-                                  try {
-                                    const r = await fetch('/api/purchase', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item_id: selectedPiece.id }) });
-                                    const data = await r.json().catch(() => ({}));
-                                    if (r.ok && data.client_secret) {
-                                      setPurchaseClientSecret(data.client_secret);
-                                      setPurchaseItemId(selectedPiece.id);
-                                    } else {
-                                      notifyUser((data as any).error || t('errors.generic'), 'error');
-                                    }
-                                  } finally { setPurchaseLoading(false); }
-                                  }
-                                }
-                              >
-                                <CreditCard className="w-5 h-5" /> {t('purchase.buy_now') || 'Buy now'}
-                              </Button>
-                              <Button className="w-full py-4 text-base" onClick={() => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
-                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
-                              </Button>
-                            </>
-                          )}
+                          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
+                            <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
+                              {t('legal_notice')}
+                            </p>
+                          </div>
+                          <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
+                            {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
+                          </p>
+                          <div className="space-y-2">
+                            <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
+                            <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
+                              <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
+                              <option value="armored_courier">{t('delivery.armored_courier')}</option>
+                              <option value="private_jet">{t('delivery.private_jet')}</option>
+                              <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
+                              <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
+                              <option value="vault_storage">{t('delivery.vault_storage')}</option>
+                            </select>
+                          </div>
+                          <Button className="w-full py-4 text-base" onClick={() => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                            <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
+                          </Button>
                         </>
                       )}
                         </>
