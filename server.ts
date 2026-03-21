@@ -2703,6 +2703,39 @@ function requireRoleOneOf(allowedRoles: string[]) {
 /** Guest sessions use session=0; no user row in DB. */
 const GUEST_USER_ID = 0;
 
+/**
+ * Neu registrierte Nutzer sollen nicht mit id 1, 2, 3 … erscheinen.
+ * Setzt SQLite sqlite_sequence bzw. MySQL AUTO_INCREMENT so, dass die nächste INSERT-ID
+ * mindestens MIN_USER_ID ist (Standard 247), ohne bestehende Zeilen zu ändern.
+ * Gast bleibt session-only (keine users-Zeile, id 0).
+ */
+async function ensureUserIdSequenceMin(db: DbInterface): Promise<void> {
+  const parsed = Math.floor(Number(process.env.MIN_USER_ID ?? process.env.USER_ID_START ?? "247"));
+  const minNextId = Number.isFinite(parsed) && parsed >= 2 ? parsed : 247;
+  try {
+    const row = (await (await db.prepare("SELECT COALESCE(MAX(id), 0) AS m FROM users")).get()) as { m: number };
+    const maxId = Number(row?.m) || 0;
+    const nextAuto = Math.max(minNextId, maxId + 1);
+
+    if (db.isMySQL) {
+      await db.exec(`ALTER TABLE users AUTO_INCREMENT = ${nextAuto}`);
+      console.log(`[users] AUTO_INCREMENT nächste id ≥ ${nextAuto} (MIN_USER_ID=${minNextId}, max(id)=${maxId})`);
+      return;
+    }
+
+    const targetSeq = nextAuto - 1;
+    const seqRow = (await (await db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'users'")).get()) as
+      | { seq: number }
+      | undefined;
+    const currentSeq = Number(seqRow?.seq) || 0;
+    const newSeq = Math.max(currentSeq, targetSeq);
+    await (await db.prepare("INSERT OR REPLACE INTO sqlite_sequence (name, seq) VALUES ('users', ?)")).run(newSeq);
+    console.log(`[users] sqlite_sequence users.seq=${newSeq} (nächste id ${newSeq + 1}, MIN_USER_ID=${minNextId}, max(id)=${maxId})`);
+  } catch (e) {
+    console.warn("[ensureUserIdSequenceMin]", (e as Error)?.message || e);
+  }
+}
+
 function getSessionUserId(req: express.Request): number | null {
   const cookie = req.headers.cookie;
   if (!cookie) return null;
@@ -10442,6 +10475,7 @@ async function startServer() {
   await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
   await ensureUsersCoreColumns(db);
   await seedAdmin();
+  await ensureUserIdSequenceMin(db);
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
