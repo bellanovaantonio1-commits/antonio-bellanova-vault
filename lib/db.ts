@@ -124,6 +124,54 @@ function mysqlBacktickUsersReservedColumns(sql: string): string {
 }
 
 /**
+ * SQLite UPSERT uses ON CONFLICT … DO UPDATE; MySQL needs ON DUPLICATE KEY UPDATE (same composite/primary key).
+ * Applied only when MYSQL_* is used; keeps server.ts SQL portable for SQLite locally.
+ */
+function mysqlConvertOnConflictToDuplicateKey(sql: string): string {
+  let s = sql;
+  // number_sequences (nextContractRef, nextCertRef, etc.)
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*seq_key\s*,\s*seq_year\s*,\s*seq_type\s*\)\s+DO\s+UPDATE\s+SET\s+last_value\s*=\s*excluded\.last_value/gi,
+    "ON DUPLICATE KEY UPDATE `last_value` = VALUES(`last_value`)",
+  );
+  // admin_config (key is PK)
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*`key`\s*\)\s+DO\s+UPDATE\s+SET\s+value\s*=\s*excluded\.value/gi,
+    "ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+  );
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*key\s*\)\s+DO\s+UPDATE\s+SET\s+value\s*=\s*excluded\.value/gi,
+    "ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)",
+  );
+  // collector_profiles
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*user_id\s*\)\s+DO\s+UPDATE\s+SET\s+bio\s*=\s*excluded\.bio\s*,\s*visibility\s*=\s*excluded\.visibility/gi,
+    "ON DUPLICATE KEY UPDATE bio = VALUES(bio), visibility = VALUES(visibility)",
+  );
+  // production_progress (multiline)
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*masterpiece_id\s*,\s*step_index\s*\)\s+DO\s+UPDATE\s+SET\s+status\s*=\s*excluded\.status\s*,\s*notes\s*=\s*excluded\.notes\s*,\s*media_url\s*=\s*excluded\.media_url\s*,\s*staff_id\s*=\s*excluded\.staff_id\s*,\s*timestamp\s*=\s*CURRENT_TIMESTAMP/gis,
+    "ON DUPLICATE KEY UPDATE status = VALUES(status), notes = VALUES(notes), media_url = VALUES(media_url), staff_id = VALUES(staff_id), timestamp = CURRENT_TIMESTAMP",
+  );
+  // delivery_details
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*masterpiece_id\s*\)\s+DO\s+UPDATE\s+SET\s+courier_name\s*=\s*excluded\.courier_name\s*,\s*tracking_number\s*=\s*excluded\.tracking_number\s*,\s*scheduled_at\s*=\s*excluded\.scheduled_at\s*,\s*status\s*=\s*excluded\.status/gis,
+    "ON DUPLICATE KEY UPDATE courier_name = VALUES(courier_name), tracking_number = VALUES(tracking_number), scheduled_at = VALUES(scheduled_at), status = VALUES(status)",
+  );
+  // shipping_orchestration
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*masterpiece_id\s*\)\s+DO\s+UPDATE\s+SET\s+status\s*=\s*excluded\.status\s*,\s*courier\s*=\s*excluded\.courier\s*,\s*tracking_number\s*=\s*excluded\.tracking_number\s*,\s*insurance_value\s*=\s*excluded\.insurance_value\s*,\s*white_glove\s*=\s*excluded\.white_glove\s*,\s*custody_log\s*=\s*excluded\.custody_log/gis,
+    "ON DUPLICATE KEY UPDATE status = VALUES(status), courier = VALUES(courier), tracking_number = VALUES(tracking_number), insurance_value = VALUES(insurance_value), white_glove = VALUES(white_glove), custody_log = VALUES(custody_log)",
+  );
+  // event_rsvps
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*event_id\s*,\s*user_id\s*\)\s+DO\s+UPDATE\s+SET\s+status\s*=\s*excluded\.status/gi,
+    "ON DUPLICATE KEY UPDATE status = VALUES(status)",
+  );
+  return s;
+}
+
+/**
  * MySQL DDL / DML fixes for SQLite-oriented schema in server.ts:
  * - No DEFAULT on TEXT/BLOB (ER_BLOB_CANT_HAVE_DEFAULT).
  * - No UNIQUE/PRIMARY KEY on TEXT without key length (ER_BLOB_KEY_WITHOUT_LENGTH).
@@ -131,7 +179,7 @@ function mysqlBacktickUsersReservedColumns(sql: string): string {
  * - Backtick reserved column names: key, last_value.
  */
 function mysqlDdlCompat(sql: string): string {
-  return mysqlBacktickKeyColumnName(
+  const afterBasic = mysqlBacktickKeyColumnName(
     mysqlBacktickUsersReservedColumns(
       mysqlBacktickLastValueColumnName(
       sql
@@ -150,6 +198,7 @@ function mysqlDdlCompat(sql: string): string {
     ),
     ),
   );
+  return mysqlConvertOnConflictToDuplicateKey(afterBasic);
 }
 
 function createSQLiteAdapter(): DbInterface {
