@@ -230,7 +230,8 @@ const TRANSLATIONS: any = {
     rarity: "Seltenheit",
     description: "Beschreibung",
     close: "Schließen",
-    legal_notice: "Durch Fortfahren müssen Sie die vertraglichen Dokumente zu diesem Stück prüfen und unterzeichnen.",
+    legal_notice:
+      "Im nächsten Schritt sehen Sie eine Übersicht Ihrer gewünschten Details und den weiteren Ablauf für Ihre persönliche Maßanfertigung. Bitte prüfen Sie alles in Ruhe und bestätigen Sie zum Fortfahren.",
     sign_contract: "Vertrag unterzeichnen",
     typed_signature: "Getippte Unterschrift",
     draw_signature: "Gezeichnete Unterschrift",
@@ -1065,7 +1066,8 @@ const TRANSLATIONS: any = {
     rarity: "Rarity",
     description: "Description",
     close: "Close",
-    legal_notice: "By proceeding, you must review and sign the contractual documents related to this piece.",
+    legal_notice:
+      "Next, you'll see a summary of the details you've chosen and what happens next for your made-to-order piece. Please review everything and confirm to continue.",
     sign_contract: "Sign Contract",
     typed_signature: "Typed Signature",
     draw_signature: "Draw Signature",
