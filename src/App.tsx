@@ -4643,6 +4643,7 @@ export default function App() {
       const gemstones_i18n = gemstonesBuilt ? { de: gemstonesBuilt.de, en: gemstonesBuilt.en, it: gemstonesBuilt.it } : ([newPiece.gemstones, (newPiece as any).gemstones_en, (newPiece as any).gemstones_it].some(Boolean) ? { de: newPiece.gemstones || undefined, en: (newPiece as any).gemstones_en?.trim() || undefined, it: (newPiece as any).gemstones_it?.trim() || undefined } : undefined);
       const res = await fetch('/api/admin/masterpieces', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: newPiece.title,

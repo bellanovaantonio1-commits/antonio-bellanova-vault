@@ -2566,24 +2566,31 @@ async function calculateRarityScore(masterpieceId: number) {
   const rarityMap: Record<string, number> = { 'Unique': 40, 'Limited': 25, 'Rare': 15, 'Standard': 5 };
   score += rarityMap[piece.rarity] || 0;
 
-  // 2. Materials & Gemstones (0-20)
-  if (piece.materials.toLowerCase().includes('gold') || piece.materials.toLowerCase().includes('platinum')) score += 10;
-  if (piece.gemstones.split(',').length > 3) score += 10;
+  // 2. Materials & Gemstones (0-20) — materials/gemstones may be null/empty in DB
+  const matStr = piece.materials != null ? String(piece.materials).toLowerCase() : '';
+  if (matStr.includes('gold') || matStr.includes('platinum')) score += 10;
+  const gemStr = piece.gemstones != null ? String(piece.gemstones) : '';
+  const gemParts = gemStr.split(',').map((s: string) => s.trim()).filter(Boolean);
+  if (gemParts.length > 3) score += 10;
 
-  // 3. Provenance Depth (0-20)
-  const provenanceCount = await (await db.prepare("SELECT COUNT(*) as count FROM provenance_timeline WHERE masterpiece_id = ?")).get(masterpieceId).count;
+  // 3. Provenance Depth (0-20) — .get() returns a Promise; must await before reading .count
+  const provRow = await (await db.prepare("SELECT COUNT(*) as count FROM provenance_timeline WHERE masterpiece_id = ?")).get(masterpieceId) as { count?: number } | undefined;
+  const provenanceCount = Number(provRow?.count ?? 0);
   score += Math.min(provenanceCount * 2, 20);
 
   // 4. Service History (0-10)
-  const serviceCount = await (await db.prepare("SELECT COUNT(*) as count FROM service_history WHERE masterpiece_id = ?")).get(masterpieceId).count;
+  const serviceRow = await (await db.prepare("SELECT COUNT(*) as count FROM service_history WHERE masterpiece_id = ?")).get(masterpieceId) as { count?: number } | undefined;
+  const serviceCount = Number(serviceRow?.count ?? 0);
   score += Math.min(serviceCount * 2, 10);
 
   // 5. Auction Demand (0-10)
-  const bidCount = await (await db.prepare("SELECT COUNT(*) as count FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(masterpieceId).count;
+  const bidRow = await (await db.prepare("SELECT COUNT(*) as count FROM bids b JOIN auctions a ON b.auction_id = a.id WHERE a.masterpiece_id = ?")).get(masterpieceId) as { count?: number } | undefined;
+  const bidCount = Number(bidRow?.count ?? 0);
   score += Math.min(bidCount, 10);
 
-  await (await db.prepare("UPDATE masterpieces SET rarity_score = ? WHERE id = ?")).run(score, masterpieceId);
-  return score;
+  const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0;
+  await (await db.prepare("UPDATE masterpieces SET rarity_score = ? WHERE id = ?")).run(safeScore, masterpieceId);
+  return safeScore;
 }
 
 // --- API Routes ---
@@ -3396,15 +3403,26 @@ app.post("/api/admin/masterpieces", async (req, res) => {
     broadcast({ type: 'MASTERPIECE_CREATED', id });
     if (description && typeof description === 'string') fillDescriptionTranslations(id, description, (req as any).body?.description_lang || 'de');
     // Initial Provenance
-    await updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
-    await calculateRarityScore(id);
+    try {
+      await updateProvenance(id, 'creation', `Masterpiece "${title}" created at Antonio Bellanova Atelier.`);
+    } catch (pe: any) {
+      console.error("[admin/masterpieces] updateProvenance failed:", pe?.message || pe);
+    }
+    try {
+      await calculateRarityScore(id);
+    } catch (rs: any) {
+      console.error("[admin/masterpieces] calculateRarityScore failed:", rs?.message || rs);
+    }
 
     res.json({ id });
   } catch (e: any) {
-    if (e.message.includes("UNIQUE constraint failed: masterpieces.serial_id")) {
+    console.error("[admin/masterpieces] create failed:", e?.message || e);
+    if (e.message && String(e.message).includes("UNIQUE constraint failed: masterpieces.serial_id")) {
+      res.status(400).json({ error: "Serial ID already exists. Each masterpiece must have a unique identifier." });
+    } else if (e.code === "ER_DUP_ENTRY" || (e.message && String(e.message).includes("Duplicate entry"))) {
       res.status(400).json({ error: "Serial ID already exists. Each masterpiece must have a unique identifier." });
     } else {
-      res.status(500).json({ error: "Internal server error" });
+      res.status(500).json({ error: e?.message || "Internal server error" });
     }
   }
 });
