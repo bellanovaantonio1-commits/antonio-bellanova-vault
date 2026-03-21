@@ -10358,6 +10358,17 @@ async function startServer() {
   } catch (_) {
     /* duplicate column */
   }
+  try {
+    await (
+      await db.prepare(
+        db.isMySQL
+          ? "ALTER TABLE transactions ADD COLUMN `stripe_payment_intent_id` VARCHAR(255) NULL"
+          : "ALTER TABLE transactions ADD COLUMN stripe_payment_intent_id TEXT"
+      )
+    ).run();
+  } catch (_) {
+    /* duplicate column */
+  }
   // Ensure optional key-value config table exists (used by maintenance/bank config endpoints).
   await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
   await ensureUsersCoreColumns(db);
