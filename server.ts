@@ -3580,57 +3580,141 @@ app.post("/api/admin/masterpieces/:id/delete", async (req, res) => {
   const piece = await (await db.prepare("SELECT id, title, serial_id FROM masterpieces WHERE id = ?")).get(masterpieceId) as { id: number; title: string; serial_id: string } | undefined;
   if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
   try {
-    await db.transaction(async (tx) => {
-      const mid = masterpieceId;
-      const resaleIds = await (await tx.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
-      const resaleIdList = resaleIds.map(r => r.id);
+    const mid = masterpieceId;
+    /** MySQL/ältere DBs: fehlende Spalten oder Tabellen nicht den ganzen Löschvorgang abbrechen lassen. */
+    const safeDel = async (label: string, sql: string, ...params: any[]) => {
+      try {
+        await (await db.prepare(sql)).run(...params);
+      } catch (e: any) {
+        const m = String(e?.message || e || "");
+        if (/Unknown column|no such column/i.test(m)) {
+          console.warn("[masterpiece delete] skip " + label + ":", m);
+          return;
+        }
+        if (/doesn't exist|no such table|Table .* doesn't exist/i.test(m)) {
+          console.warn("[masterpiece delete] skip " + label + ":", m);
+          return;
+        }
+        throw e;
+      }
+    };
+    const safeAll = async (label: string, sql: string, ...params: any[]): Promise<{ id: number }[]> => {
+      try {
+        return (await (await db.prepare(sql)).all(...params)) as { id: number }[];
+      } catch (e: any) {
+        const m = String(e?.message || e || "");
+        if (/Unknown column|no such column/i.test(m) || /doesn't exist|no such table|Table .* doesn't exist/i.test(m)) {
+          console.warn("[masterpiece delete] skip query " + label + ":", m);
+          return [];
+        }
+        throw e;
+      }
+    };
+
+    if (db.isMySQL) {
+      try {
+        await (await db.prepare("SET FOREIGN_KEY_CHECKS=0")).run();
+      } catch (_) {}
+    }
+
+    try {
+      const resaleIds = await safeAll("resale_listings_ids", "SELECT id FROM resale_listings WHERE masterpiece_id = ?", mid);
+      const resaleIdList = resaleIds.map((r) => r.id);
       if (resaleIdList.length > 0) {
-        await (await tx.prepare("DELETE FROM maison_buyback_offers WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")")).run();
-        await (await tx.prepare("DELETE FROM resale_audit_log WHERE resale_listing_id IN (" + resaleIdList.join(",") + ")")).run();
+        const inR = resaleIdList.join(",");
+        await safeDel("maison_buyback_offers", `DELETE FROM maison_buyback_offers WHERE resale_listing_id IN (${inR})`);
+        await safeDel("resale_audit_log", `DELETE FROM resale_audit_log WHERE resale_listing_id IN (${inR})`);
       }
-      await (await tx.prepare("DELETE FROM resale_listings WHERE masterpiece_id = ?")).run(mid);
-      const auctionIds = await (await tx.prepare("SELECT id FROM auctions WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
-      const aidList = auctionIds.map(a => a.id);
-      if (aidList.length > 0) await (await tx.prepare("DELETE FROM bids WHERE auction_id IN (" + aidList.join(",") + ")")).run();
-      await (await tx.prepare("DELETE FROM auctions WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM ownership_history WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM payments WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM contracts WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM escrow_transactions WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM certificates WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM purchase_workflow WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM provenance_timeline WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM service_history WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM waitlist WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM reservations WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM fractional_shares WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM fractional_transfers WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM production_progress WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM delivery_details WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM atelier_moments WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM shipping_orchestration WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM insurance_policies WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM resale_negotiations WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM fractional_availability WHERE masterpiece_id = ?")).run(mid);
-      const fractionalAssets = await (await tx.prepare("SELECT id FROM fractional_assets WHERE masterpiece_id = ?")).all(mid) as { id: number }[];
-      const fractionalAssetIds = fractionalAssets.map(a => a.id);
+      await safeDel("resale_listings", "DELETE FROM resale_listings WHERE masterpiece_id = ?", mid);
+
+      const auctionIds = await safeAll("auctions_ids", "SELECT id FROM auctions WHERE masterpiece_id = ?", mid);
+      const aidList = auctionIds.map((a) => a.id);
+      if (aidList.length > 0) {
+        const inA = aidList.join(",");
+        await safeDel("auction_chat_participants", `DELETE FROM auction_chat_participants WHERE auction_id IN (${inA})`);
+        await safeDel("auction_invitations", `DELETE FROM auction_invitations WHERE auction_id IN (${inA})`);
+        await safeDel("bids", `DELETE FROM bids WHERE auction_id IN (${inA})`);
+      }
+      await safeDel("auctions", "DELETE FROM auctions WHERE masterpiece_id = ?", mid);
+
+      await safeDel("private_messages", "DELETE FROM private_messages WHERE negotiation_id IN (SELECT id FROM resale_negotiations WHERE masterpiece_id = ?)", mid);
+      await safeDel("resale_negotiations", "DELETE FROM resale_negotiations WHERE masterpiece_id = ?", mid);
+
+      await safeDel("ownership_history", "DELETE FROM ownership_history WHERE masterpiece_id = ?", mid);
+      await safeDel("payments", "DELETE FROM payments WHERE masterpiece_id = ?", mid);
+      await safeDel("contracts", "DELETE FROM contracts WHERE masterpiece_id = ?", mid);
+      await safeDel("escrow_transactions", "DELETE FROM escrow_transactions WHERE masterpiece_id = ?", mid);
+      await safeDel("certificates", "DELETE FROM certificates WHERE masterpiece_id = ?", mid);
+      await safeDel("purchase_workflow", "DELETE FROM purchase_workflow WHERE masterpiece_id = ?", mid);
+      await safeDel("provenance_timeline", "DELETE FROM provenance_timeline WHERE masterpiece_id = ?", mid);
+      await safeDel("service_history", "DELETE FROM service_history WHERE masterpiece_id = ?", mid);
+      await safeDel("waitlist", "DELETE FROM waitlist WHERE masterpiece_id = ?", mid);
+      await safeDel("reservations", "DELETE FROM reservations WHERE masterpiece_id = ?", mid);
+      await safeDel("fractional_shares", "DELETE FROM fractional_shares WHERE masterpiece_id = ?", mid);
+      await safeDel("fractional_transfers", "DELETE FROM fractional_transfers WHERE masterpiece_id = ?", mid);
+      await safeDel("production_progress", "DELETE FROM production_progress WHERE masterpiece_id = ?", mid);
+      await safeDel("delivery_details", "DELETE FROM delivery_details WHERE masterpiece_id = ?", mid);
+      await safeDel("atelier_moments", "DELETE FROM atelier_moments WHERE masterpiece_id = ?", mid);
+      await safeDel("shipping_orchestration", "DELETE FROM shipping_orchestration WHERE masterpiece_id = ?", mid);
+      await safeDel("insurance_policies", "DELETE FROM insurance_policies WHERE masterpiece_id = ?", mid);
+      await safeDel("fractional_availability", "DELETE FROM fractional_availability WHERE masterpiece_id = ?", mid);
+
+      const fractionalAssets = await safeAll("fractional_assets_ids", "SELECT id FROM fractional_assets WHERE masterpiece_id = ?", mid);
+      const fractionalAssetIds = fractionalAssets.map((a) => a.id);
       if (fractionalAssetIds.length > 0) {
-        await (await tx.prepare("DELETE FROM asset_shares WHERE asset_id IN (" + fractionalAssetIds.join(",") + ")")).run();
-        await (await tx.prepare("DELETE FROM fractional_assets WHERE id IN (" + fractionalAssetIds.join(",") + ")")).run();
+        const inF = fractionalAssetIds.join(",");
+        await safeDel("fractional_investor_approvals", `DELETE FROM fractional_investor_approvals WHERE asset_id IN (${inF})`);
+        await safeDel("fractional_asset_sale_payouts", `DELETE FROM fractional_asset_sale_payouts WHERE asset_id IN (${inF})`);
+        await safeDel("fractional_asset_contracts", `DELETE FROM fractional_asset_contracts WHERE asset_id IN (${inF})`);
+        await safeDel("asset_shares", `DELETE FROM asset_shares WHERE asset_id IN (${inF})`);
+        await safeDel("fractional_assets", `DELETE FROM fractional_assets WHERE id IN (${inF})`);
       }
-      await (await tx.prepare("DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM user_favorites WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM investor_requests WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM revenue_ledger WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM investor_view_logs WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM service_requests WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM concierge_requests WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM vault_requests WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM asset_views WHERE masterpiece_id = ?")).run(mid);
-      await (await tx.prepare("DELETE FROM design_requests WHERE masterpiece_id = ?")).run(mid);
-      try { await (await tx.prepare("DELETE FROM chat_threads WHERE masterpiece_id = ?")).run(mid); } catch (_) {}
-      await (await tx.prepare("DELETE FROM masterpieces WHERE id = ?")).run(mid);
-    });
+
+      await safeDel("appointments", "DELETE FROM appointments WHERE request_id IN (SELECT id FROM investor_requests WHERE masterpiece_id = ?)", mid);
+      await safeDel("user_portfolio_hidden", "DELETE FROM user_portfolio_hidden WHERE masterpiece_id = ?", mid);
+      await safeDel("user_favorites", "DELETE FROM user_favorites WHERE masterpiece_id = ?", mid);
+      await safeDel("investor_requests", "DELETE FROM investor_requests WHERE masterpiece_id = ?", mid);
+      await safeDel("revenue_ledger", "DELETE FROM revenue_ledger WHERE masterpiece_id = ?", mid);
+      await safeDel("investor_view_logs", "DELETE FROM investor_view_logs WHERE masterpiece_id = ?", mid);
+      await safeDel("service_requests", "DELETE FROM service_requests WHERE masterpiece_id = ?", mid);
+      await safeDel("concierge_requests", "DELETE FROM concierge_requests WHERE masterpiece_id = ?", mid);
+      await safeDel("vault_requests", "DELETE FROM vault_requests WHERE masterpiece_id = ?", mid);
+      await safeDel("asset_views", "DELETE FROM asset_views WHERE masterpiece_id = ?", mid);
+      await safeDel("design_requests", "DELETE FROM design_requests WHERE masterpiece_id = ?", mid);
+
+      const slotRows = await safeAll("private_viewing_slots_ids", "SELECT id FROM private_viewing_slots WHERE masterpiece_id = ?", mid);
+      for (const s of slotRows) {
+        await safeDel("private_viewing_allowlist", "DELETE FROM private_viewing_allowlist WHERE slot_id = ?", s.id);
+      }
+      await safeDel("private_viewing_slots", "DELETE FROM private_viewing_slots WHERE masterpiece_id = ?", mid);
+
+      const threadRows = await safeAll("chat_threads_ids", "SELECT id FROM chat_threads WHERE masterpiece_id = ?", mid);
+      for (const th of threadRows) {
+        await safeDel("chat_messages", "DELETE FROM chat_messages WHERE thread_id = ?", th.id);
+        await safeDel("investor_hub_write_access", "DELETE FROM investor_hub_write_access WHERE thread_id = ?", th.id);
+        await safeDel("communication_audit_log", "DELETE FROM communication_audit_log WHERE thread_id = ?", th.id);
+      }
+      await safeDel("chat_threads", "DELETE FROM chat_threads WHERE masterpiece_id = ?", mid);
+
+      await safeDel("drop_pieces", "DELETE FROM drop_pieces WHERE masterpiece_id = ?", mid);
+      await safeDel("private_offers", "DELETE FROM private_offers WHERE masterpiece_id = ?", mid);
+      await safeDel("private_terms_requests", "DELETE FROM private_terms_requests WHERE masterpiece_id = ?", mid);
+      await safeDel("masterpiece_status_history", "DELETE FROM masterpiece_status_history WHERE masterpiece_id = ?", mid);
+      await safeDel("asset_insurance", "DELETE FROM asset_insurance WHERE masterpiece_id = ?", mid);
+      await safeDel("collaborations", "DELETE FROM collaborations WHERE masterpiece_id = ?", mid);
+      await safeDel("orders", "DELETE FROM orders WHERE masterpiece_id = ?", mid);
+      await safeDel("vault_projects", "DELETE FROM vault_projects WHERE masterpiece_id = ?", mid);
+      await safeDel("deal_rooms", "DELETE FROM deal_rooms WHERE masterpiece_id = ?", mid);
+
+      await safeDel("masterpieces", "DELETE FROM masterpieces WHERE id = ?", mid);
+    } finally {
+      if (db.isMySQL) {
+        try {
+          await (await db.prepare("SET FOREIGN_KEY_CHECKS=1")).run();
+        } catch (_) {}
+      }
+    }
+
     broadcast({ type: "MASTERPIECE_DELETED", id: masterpieceId });
     res.json({ success: true, message: "Stück wurde dauerhaft aus dem System entfernt." });
   } catch (e: any) {
