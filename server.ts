@@ -48,9 +48,15 @@ let db: DbInterface;
 /** Wired after `sendMail` is defined (see bottom of mail section). */
 let stripeWebhookSendMail: StripeWebhookSendMail | null = null;
 
+/** Trimmed secret from env (whitespace/newlines in .env break Stripe otherwise). */
+function getStripeSecretKey(): string {
+  const raw = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  return raw != null && String(raw).length > 0 ? String(raw).trim() : "";
+}
+
 /** Stripe client (uses STRIPE_SECRET_KEY). Test mode when key starts with sk_test_. */
 function getStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  const key = getStripeSecretKey();
   if (!key) throw new Error("STRIPE_SECRET_KEY not set");
   return new Stripe(key);
 }
@@ -4493,8 +4499,7 @@ app.get("/api/wallet/:userId", requireAuth, async (req, res) => {
 app.post("/api/wallet/deposit", requireAuth, async (req, res) => {
   const sessionUserId = getSessionUserId(req);
   if (sessionUserId === null || sessionUserId === 0) return res.status(401).json({ error: "Not signed in" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Wallet deposits are not configured" });
+  if (!getStripeSecretKey()) return res.status(503).json({ error: "Wallet deposits are not configured" });
   const amountCents = Math.floor(Number(req.body?.amount) || 0);
   if (amountCents < 100) return res.status(400).json({ error: "Minimum deposit is 1.00 (100 cents)" });
   const maxCents = 99999999;
@@ -4524,8 +4529,7 @@ app.post("/api/wallet/confirm-deposit", requireAuth, async (req, res) => {
   if (sessionUserId === null || sessionUserId === 0) return res.status(401).json({ error: "Not signed in" });
   const piId = String(req.body?.payment_intent || req.body?.payment_intent_id || "").trim();
   if (!piId || !piId.startsWith("pi_")) return res.status(400).json({ error: "Invalid payment_intent" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Wallet deposits are not configured" });
+  if (!getStripeSecretKey()) return res.status(503).json({ error: "Wallet deposits are not configured" });
   try {
     const stripe = getStripe();
     const pi = await stripe.paymentIntents.retrieve(piId);
@@ -4561,8 +4565,7 @@ app.post("/api/payments/pay", async (req, res) => {
   if (userId == null) return res.status(401).json({ error: "Not signed in" });
   const paymentId = Number(req.body?.payment_id);
   if (!paymentId) return res.status(400).json({ error: "Missing payment_id" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
+  if (!getStripeSecretKey()) return res.status(503).json({ error: "Payments are not configured" });
   const row = await (await db.prepare("SELECT id, user_id, masterpiece_id, type, amount, status FROM payments WHERE id = ?")).get(paymentId) as { user_id: number; type: string; amount: number; status: string } | undefined;
   if (!row) return res.status(404).json({ error: "Payment not found" });
   if (row.user_id !== userId) return res.status(403).json({ error: "You can only pay your own payments" });
@@ -4597,7 +4600,7 @@ app.post("/api/payments/pay", async (req, res) => {
 /** Public Stripe publishable key for frontend (no auth required so client can load Stripe.js). */
 app.get("/api/stripe/config", (_req, res) => {
   const pk = String(process.env.STRIPE_PUBLIC_KEY || process.env.STRIPE_PUBLISHABLE_KEY || "").trim();
-  const sk = String(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
+  const sk = getStripeSecretKey();
   const wh = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
   res.json({
     publishableKey: pk,
@@ -4672,8 +4675,7 @@ app.post("/api/invoices/pay", async (req, res) => {
   if (userId == null) return res.status(401).json({ error: "Not signed in" });
   const invoiceId = Number(req.body?.invoice_id);
   if (!invoiceId) return res.status(400).json({ error: "Missing invoice_id" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
+  if (!getStripeSecretKey()) return res.status(503).json({ error: "Payments are not configured" });
   const row = await (await db.prepare("SELECT * FROM invoices WHERE id = ?")).get(invoiceId) as { user_id: number; status: string; amount: number } | undefined;
   if (!row) return res.status(404).json({ error: "Invoice not found" });
   if (row.user_id !== userId) return res.status(403).json({ error: "You can only pay your own invoice" });
@@ -4742,8 +4744,7 @@ app.patch("/api/admin/invoices/:id", requireAuth, requireAdmin, async (req, res)
 app.post("/api/admin/invoices/:id/refund", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "Invalid invoice id" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Stripe not configured" });
+  if (!getStripeSecretKey()) return res.status(503).json({ error: "Stripe not configured" });
   const txn = await (await db.prepare("SELECT * FROM transactions WHERE invoice_id = ? AND status = 'PAID' ORDER BY created_at DESC LIMIT 1")).get(id) as { id: number; stripe_payment_intent_id: string | null } | undefined;
   if (!txn?.stripe_payment_intent_id) return res.status(400).json({ error: "No Stripe payment found for this invoice" });
   try {

@@ -60,8 +60,8 @@ export async function creditWalletFromSucceededPaymentIntent(
  */
 export function registerStripeWebhookRawRoute(app: Express, deps: StripeWebhookDeps): void {
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req: Request, res: Response) => {
-    const stripeSecret = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    const stripeSecret = String(process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET || "").trim();
+    const webhookSecret = String(process.env.STRIPE_WEBHOOK_SECRET || "").trim();
     if (!stripeSecret || !webhookSecret) {
       console.warn("[Stripe] Webhook: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET not set");
       return res.status(500).send("Webhook not configured");
