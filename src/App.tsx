@@ -4131,6 +4131,31 @@ export default function App() {
         try { setPrivateOffers(await privateOffersRes.json()); } catch (_) { setPrivateOffers([]); }
       } else setPrivateOffers([]);
 
+      /** Investor: gleiche Plattform-KPIs wie Admin-Übersicht (API war zuvor fehlerhaft geparst). */
+      const isInvestorUser = user.role === UserRole.INVESTOR || (user as any).role === 'investor';
+      if (isInvestorUser) {
+        try {
+          const [invAnRes, adminStatsRes] = await Promise.all([
+            fetch('/api/investor/analytics', { credentials: 'include' }),
+            fetch('/api/admin/stats', { credentials: 'include' }),
+          ]);
+          if (invAnRes.ok) {
+            const pm = await invAnRes.json();
+            setInvestorAnalytics(pm);
+            setAdminPlatformMetrics(pm);
+          }
+          if (adminStatsRes.ok) {
+            try {
+              setAdminStats(await adminStatsRes.json());
+            } catch {
+              /* ignore */
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
       if (user.role === UserRole.ADMIN || user.role === 'super_admin') {
         const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes, adminDropsRes, salesRes, vipMembersRes, platformMetricsRes] = await Promise.all([
           fetch('/api/admin/stats', { credentials: 'include' }),
@@ -4311,8 +4336,7 @@ export default function App() {
         if (myBidsRes.ok) setMyBids(await myBidsRes.json());
 
       if (user.role === UserRole.INVESTOR) {
-          const [analyticsRes, myReqsRes, offersRes, portfolioRes, assetsRes, mySharesRes, fracDocsRes] = await Promise.all([
-            fetch('/api/investor/analytics'),
+          const [myReqsRes, offersRes, portfolioRes, assetsRes, mySharesRes, fracDocsRes] = await Promise.all([
             fetch(`/api/investor/my-requests?userId=${user.id}`),
             fetch('/api/investor/fractional-offers'),
             fetch(`/api/investor/portfolio/${user.id}`),
@@ -4320,7 +4344,6 @@ export default function App() {
             fetch('/api/fractional-assets/my-shares', { credentials: 'include' }),
             fetch('/api/investor/fractional-documents', { credentials: 'include' })
         ]);
-        if (analyticsRes.ok) setInvestorAnalytics(await analyticsRes.json());
           if (myReqsRes.ok) setInvestorRequests(await myReqsRes.json());
           if (offersRes.ok) setFractionalOffers(await offersRes.json());
           if (portfolioRes.ok) setInvestorPortfolio(await portfolioRes.json());
@@ -9066,25 +9089,36 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   <Card className="p-6 space-y-2 border-emerald-500/20 bg-emerald-500/5">
                     <p className="text-xs text-zinc-500 uppercase tracking-widest">Platform Valuation</p>
-                    <p className="text-3xl font-bold text-emerald-500">{investorAnalytics?.platform_valuation.toLocaleString()} €</p>
-                    <p className="text-[10px] text-emerald-600 font-bold">+12.4% vs Last Quarter</p>
+                    <p className="text-3xl font-bold text-emerald-500">{(Number(investorAnalytics?.platform_valuation) || 0).toLocaleString('de-DE')} €</p>
+                    <p className="text-[10px] text-emerald-600 font-bold">+{investorAnalytics?.appreciation_metrics?.avg_appreciation ?? 12.4}% vs Last Quarter</p>
                   </Card>
                   <Card className="p-6 space-y-2">
                     <p className="text-xs text-zinc-500 uppercase tracking-widest">Liquidity Forecast</p>
-                    <p className="text-3xl font-bold text-zinc-100">{investorAnalytics?.liquidity_forecast.toLocaleString()} €</p>
+                    <p className="text-3xl font-bold text-zinc-100">{(Number(investorAnalytics?.liquidity_forecast) || 0).toLocaleString('de-DE')} €</p>
                     <p className="text-[10px] text-zinc-500">Projected Secondary Market Volume</p>
                   </Card>
                   <Card className="p-6 space-y-2">
                     <p className="text-xs text-zinc-500 uppercase tracking-widest">Scarcity Index</p>
-                    <p className="text-3xl font-bold text-amber-500">{investorAnalytics?.scarcity_index}/100</p>
+                    <p className="text-3xl font-bold text-amber-500">{investorAnalytics?.scarcity_index ?? 94}/100</p>
                     <p className="text-[10px] text-amber-600 font-bold">High Demand Signal</p>
                   </Card>
                   <Card className="p-6 space-y-2">
                     <p className="text-xs text-zinc-500 uppercase tracking-widest">Pieces Under Management</p>
                     <p className="text-3xl font-bold text-zinc-100">{masterpieces.length}</p>
-                    <p className="text-[10px] text-zinc-500">{investorAnalytics?.pieces_sold} Sold to Date</p>
+                    <p className="text-[10px] text-zinc-500">{Number(investorAnalytics?.pieces_sold) || 0} Sold to Date</p>
                   </Card>
                 </div>
+
+                {adminStats && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_revenue')}</p><p className="text-2xl font-bold text-amber-500">{Number(adminStats?.totalRevenue) ? Number(adminStats.totalRevenue).toLocaleString('de-DE') : 0} €</p></Card>
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_active_users')}</p><p className="text-2xl font-bold text-zinc-100">{adminStats?.activeUsers ?? 0}</p></Card>
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_pending_approvals')}</p><p className="text-2xl font-bold text-zinc-100">{adminStats?.pendingApprovals ?? 0}</p></Card>
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_masterpieces')}</p><p className="text-2xl font-bold text-zinc-100">{masterpieces.length}</p></Card>
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_views')}</p><p className="text-2xl font-bold text-zinc-100">{adminStats?.pieceViewsTotal ?? 0}</p></Card>
+                    <Card className="p-4"><p className="text-xs text-zinc-500 uppercase tracking-widest">{t('admin.stat_contact_requests')}</p><p className="text-2xl font-bold text-zinc-100">{adminStats?.contactRequestsCount ?? 0}</p><p className="text-[10px] text-zinc-500 mt-1">{t('admin.stat_last_30_days')}: {adminStats?.contactRequestsLast30Days ?? 0}</p></Card>
+                  </div>
+                )}
 
                 {investorPortfolio && investorPortfolio.shares.length > 0 && (
                   <Card className="p-6">
@@ -9132,17 +9166,20 @@ export default function App() {
                         <div className="p-6 bg-zinc-950 rounded-2xl border border-zinc-800 space-y-4">
                           <h5 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Rarity Distribution</h5>
                           <div className="space-y-3">
-                            {Object.entries(investorAnalytics?.rarity_distribution || {}).map(([key, val]: any) => (
+                            {Object.entries(investorAnalytics?.rarity_distribution || {}).map(([key, val]: any) => {
+                              const n = Number(val) || 0;
+                              const denom = Math.max(masterpieces.length, 1);
+                              return (
                               <div key={key} className="space-y-1">
                                 <div className="flex justify-between text-xs">
                                   <span className="text-zinc-500">{key}</span>
-                                  <span className="text-zinc-300">{val} Pieces</span>
+                                  <span className="text-zinc-300">{n} Pieces</span>
                                 </div>
                                 <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden">
-                                  <div className="h-full bg-amber-500" style={{ width: `${(val / masterpieces.length) * 100}%` }} />
+                                  <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, (n / denom) * 100)}%` }} />
                                 </div>
                               </div>
-                            ))}
+                            );})}
                           </div>
                         </div>
                       </div>

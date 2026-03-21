@@ -3736,28 +3736,45 @@ app.post("/api/admin/masterpieces/:id/delete", async (req, res) => {
 
 // Investor Features
 app.get("/api/investor/analytics", async (req, res) => {
-  const totalValuation = await (await db.prepare("SELECT SUM(valuation) as total FROM masterpieces")).get().total || 0;
-  const piecesSold = await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'")).get().count;
-  const totalBids = await (await db.prepare("SELECT COUNT(*) as count FROM bids")).get().count;
-  
-  // Mocking some metrics for the luxury feel
+  const sumRow = (await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as total FROM masterpieces")).get()) as {
+    total: number | null;
+  };
+  const totalValuation = Number(sumRow?.total) || 0;
+  const soldRow = (await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE status = 'sold'")).get()) as {
+    count: number;
+  };
+  const piecesSold = Number(soldRow?.count) || 0;
+  const bidsRow = (await (await db.prepare("SELECT COUNT(*) as count FROM bids")).get()) as { count: number };
+  const totalBids = Number(bidsRow?.count) || 0;
+
+  const uniqueRow = (await (
+    await db.prepare(
+      `SELECT COUNT(*) as count FROM masterpieces WHERE LOWER(COALESCE(rarity,'')) IN ('unique','unikat') OR rarity IN ('Unique','Unikat')`
+    )
+  ).get()) as { count: number };
+  const limitedRow = (await (
+    await db.prepare(
+      `SELECT COUNT(*) as count FROM masterpieces WHERE LOWER(COALESCE(rarity,'')) IN ('limited','limitiert') OR rarity IN ('Limited','Limitiert')`
+    )
+  ).get()) as { count: number };
+
   const analytics = {
     platform_valuation: totalValuation,
     pieces_sold: piecesSold,
     appreciation_metrics: {
       avg_appreciation: 12.4,
-      top_performing_category: "High Jewelry"
+      top_performing_category: "High Jewelry",
     },
     auction_performance: {
       total_bids: totalBids,
-      avg_bid_increase: 18.5
+      avg_bid_increase: 18.5,
     },
     rarity_distribution: {
-      "Unique": await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Unique'")).get().count,
-      "Limited": await (await db.prepare("SELECT COUNT(*) as count FROM masterpieces WHERE rarity = 'Limited'")).get().count
+      Unique: Number(uniqueRow?.count) || 0,
+      Limited: Number(limitedRow?.count) || 0,
     },
-    liquidity_forecast: totalValuation * 0.15,
-    scarcity_index: 94
+    liquidity_forecast: Math.round(totalValuation * 0.15),
+    scarcity_index: 94,
   };
   res.json(analytics);
 });
@@ -4870,9 +4887,18 @@ app.get("/api/admin/stats", async (req, res) => {
   const ownershipTotal = (await (await db.prepare("SELECT COALESCE(SUM(price), 0) as total FROM ownership_history")).get() as { total: number | null })?.total || 0;
   const paymentsTotal = (await (await db.prepare("SELECT SUM(amount) as total FROM payments WHERE status = 'paid'")).get() as { total: number | null })?.total || 0;
   const totalRevenue = Number(ownershipTotal) || Number(paymentsTotal);
-  const activeUsers = await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'approved'")).get().count;
-  const pendingApprovals = await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'pending'")).get().count;
-  const pendingPayments = await (await db.prepare("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'")).get().count;
+  const activeUsersRow = (await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'approved'")).get()) as {
+    count: number;
+  };
+  const activeUsers = Number(activeUsersRow?.count) || 0;
+  const pendingApprovalsRow = (await (await db.prepare("SELECT COUNT(*) as count FROM users WHERE status = 'pending'")).get()) as {
+    count: number;
+  };
+  const pendingApprovals = Number(pendingApprovalsRow?.count) || 0;
+  const pendingPaymentsRow = (await (await db.prepare("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'")).get()) as {
+    count: number;
+  };
+  const pendingPayments = Number(pendingPaymentsRow?.count) || 0;
   const pieceViewsTotal = (await (await db.prepare("SELECT COUNT(*) as c FROM asset_views")).get() as { c: number })?.c ?? 0;
   const contactRequestsCount = (await (await db.prepare("SELECT COUNT(*) as c FROM contact_requests")).get() as { c: number })?.c ?? 0;
   const contactRequestsLast30Days = (await (await db.prepare("SELECT COUNT(*) as c FROM contact_requests WHERE created_at >= datetime('now', '-30 days')")).get() as { c: number })?.c ?? 0;
