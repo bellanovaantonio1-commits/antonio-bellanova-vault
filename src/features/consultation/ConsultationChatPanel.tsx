@@ -12,6 +12,24 @@ export type ConsultationChatPanelProps = {
   currentUserId: number;
   onClose: () => void;
   notify: Notify;
+  /** Incremented on WebSocket CONSULTATION_* events to reload thread without waiting for poll. */
+  refreshKey?: number;
+  /** Optional UI strings (defaults English). */
+  strings?: Partial<{
+    proposalsHeading: string;
+    acceptProposal: string;
+    declineProposal: string;
+    depositInfo: string;
+    noMessages: string;
+    proposalDeclinedToast: string;
+    closeThread: string;
+    confirmCloseThread: string;
+    conversationClosedBanner: string;
+    threadClosedSuccess: string;
+    reopenThread: string;
+    confirmReopenThread: string;
+    threadReopenedSuccess: string;
+  }>;
 };
 
 async function readJson(res: Response) {
@@ -30,7 +48,26 @@ export function ConsultationChatPanel({
   currentUserId,
   onClose,
   notify,
+  refreshKey = 0,
+  strings: stringsProp,
 }: ConsultationChatPanelProps) {
+  const str = {
+    proposalsHeading: "Proposals",
+    acceptProposal: "Accept proposal",
+    declineProposal: "Decline",
+    depositInfo: "Deposit next step (info)",
+    noMessages: "No messages yet.",
+    proposalDeclinedToast: "Proposal declined",
+    closeThread: "Close thread",
+    confirmCloseThread: "Close this consultation thread? You can still read the history.",
+    conversationClosedBanner: "This thread is closed — messaging is disabled.",
+    threadClosedSuccess: "Thread closed.",
+    reopenThread: "Reopen thread",
+    confirmReopenThread: "Reopen this thread? You can send messages again.",
+    threadReopenedSuccess: "Thread reopened.",
+    ...stringsProp,
+  };
+  const [convStatus, setConvStatus] = useState<string>("open");
   const [messages, setMessages] = useState<ConsultationMessageRow[]>([]);
   const [proposals, setProposals] = useState<ConsultationProposalRow[]>([]);
   const [draft, setDraft] = useState("");
@@ -41,10 +78,15 @@ export function ConsultationChatPanel({
 
   const load = useCallback(async () => {
     try {
-      const [mRes, pRes] = await Promise.all([
+      const [cRes, mRes, pRes] = await Promise.all([
+        fetch(`/api/consultation/conversations/${conversationId}`, { credentials: "include" }),
         fetch(`/api/consultation/conversations/${conversationId}/messages`, { credentials: "include" }),
         fetch(`/api/consultation/conversations/${conversationId}/proposals`, { credentials: "include" }),
       ]);
+      if (cRes.ok) {
+        const c = await cRes.json();
+        setConvStatus(String(c?.status || "open"));
+      }
       if (mRes.ok) setMessages(await mRes.json());
       if (pRes.ok) setProposals(await pRes.json());
     } catch {
@@ -57,6 +99,10 @@ export function ConsultationChatPanel({
     const t = setInterval(load, 12000);
     return () => clearInterval(t);
   }, [load]);
+
+  useEffect(() => {
+    if (refreshKey > 0) load();
+  }, [refreshKey, load]);
 
   const send = async () => {
     const body = draft.trim();
@@ -118,6 +164,25 @@ export function ConsultationChatPanel({
     }
   };
 
+  const declineProposal = async (id: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/consultation/proposals/${id}/decline`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Decline failed", "error");
+        return;
+      }
+      notify(str.proposalDeclinedToast, "success");
+      load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const acceptProposal = async (id: number) => {
     setLoading(true);
     try {
@@ -159,6 +224,50 @@ export function ConsultationChatPanel({
     }
   };
 
+  const closeThread = async () => {
+    if (typeof window !== "undefined" && !window.confirm(str.confirmCloseThread)) return;
+    setLoading(true);
+    try {
+      const url =
+        mode === "admin"
+          ? `/api/admin/consultation/conversations/${conversationId}/close`
+          : `/api/consultation/conversations/${conversationId}/close`;
+      const res = await fetch(url, { method: "POST", credentials: "include" });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Close failed", "error");
+        return;
+      }
+      setConvStatus("closed");
+      notify(str.threadClosedSuccess, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reopenThread = async () => {
+    if (typeof window !== "undefined" && !window.confirm(str.confirmReopenThread)) return;
+    setLoading(true);
+    try {
+      const url =
+        mode === "admin"
+          ? `/api/admin/consultation/conversations/${conversationId}/reopen`
+          : `/api/consultation/conversations/${conversationId}/reopen`;
+      const res = await fetch(url, { method: "POST", credentials: "include" });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Reopen failed", "error");
+        return;
+      }
+      setConvStatus("open");
+      notify(str.threadReopenedSuccess, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 sm:p-6">
       <button
@@ -168,25 +277,52 @@ export function ConsultationChatPanel({
         onClick={onClose}
       />
       <div className="relative w-full max-w-lg max-h-[85vh] flex flex-col bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/95">
-          <div>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-900/95 gap-2">
+          <div className="min-w-0 flex-1">
             <p className="text-xs uppercase tracking-widest text-amber-600/90">Concierge</p>
-            <p className="text-sm font-medium text-zinc-100 truncate max-w-[240px]">
+            <p className="text-sm font-medium text-zinc-100 truncate max-w-[200px] sm:max-w-[240px]">
               {title || `Conversation #${conversationId}`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            {convStatus === "open" ? (
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void closeThread()}
+                className="text-[10px] uppercase tracking-wider px-2 py-1.5 rounded-lg text-zinc-400 border border-zinc-700 hover:text-amber-500/90 hover:border-amber-600/40 disabled:opacity-50"
+              >
+                {str.closeThread}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void reopenThread()}
+                className="text-[10px] uppercase tracking-wider px-2 py-1.5 rounded-lg text-emerald-500/90 border border-emerald-600/40 hover:bg-emerald-600/10 disabled:opacity-50"
+              >
+                {str.reopenThread}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
+
+        {convStatus !== "open" && (
+          <div className="px-3 py-2 bg-zinc-800/90 border-b border-zinc-700 text-[11px] text-zinc-400 text-center">
+            {str.conversationClosedBanner}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
           {messages.length === 0 && (
-            <p className="text-xs text-zinc-500 text-center py-6 italic">No messages yet.</p>
+            <p className="text-xs text-zinc-500 text-center py-6 italic">{str.noMessages}</p>
           )}
           {messages.map((m) => {
             const mine = Number(m.sender_id) === Number(currentUserId);
@@ -216,7 +352,7 @@ export function ConsultationChatPanel({
 
         {proposals.length > 0 && (
           <div className="border-t border-zinc-800 px-3 py-2 max-h-40 overflow-y-auto space-y-2 bg-zinc-950/50">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-500">Proposals</p>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500">{str.proposalsHeading}</p>
             {proposals.map((p) => (
               <div
                 key={p.id}
@@ -230,24 +366,34 @@ export function ConsultationChatPanel({
                   </p>
                 )}
                 <p className="text-[10px] text-zinc-500 mt-1">Status: {p.status}</p>
-                {mode === "client" && p.status === "sent" && (
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => acceptProposal(p.id)}
-                    className="mt-2 w-full min-h-[40px] rounded-full text-xs font-medium bg-amber-600/20 text-amber-400 border border-amber-600/40 hover:bg-amber-600/30 disabled:opacity-50"
-                  >
-                    Accept proposal
-                  </button>
+                {mode === "client" && convStatus === "open" && p.status === "sent" && (
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => acceptProposal(p.id)}
+                      className="flex-1 min-h-[40px] rounded-full text-xs font-medium bg-amber-600/20 text-amber-400 border border-amber-600/40 hover:bg-amber-600/30 disabled:opacity-50"
+                    >
+                      {str.acceptProposal}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => declineProposal(p.id)}
+                      className="flex-1 min-h-[40px] rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-600 hover:bg-zinc-700 disabled:opacity-50"
+                    >
+                      {str.declineProposal}
+                    </button>
+                  </div>
                 )}
-                {mode === "client" && p.status === "accepted" && (
+                {mode === "client" && convStatus === "open" && p.status === "accepted" && (
                   <button
                     type="button"
                     disabled={loading}
                     onClick={() => requestDepositInfo(p.id)}
                     className="mt-2 w-full min-h-[40px] rounded-full text-xs font-medium bg-zinc-800 text-zinc-300 border border-zinc-600 hover:bg-zinc-700 disabled:opacity-50"
                   >
-                    Deposit next step (info)
+                    {str.depositInfo}
                   </button>
                 )}
               </div>
@@ -255,7 +401,7 @@ export function ConsultationChatPanel({
           </div>
         )}
 
-        {mode === "admin" && (
+        {mode === "admin" && convStatus === "open" && (
           <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/40">
             <p className="text-[10px] uppercase tracking-widest text-zinc-500">New proposal</p>
             <input
@@ -287,28 +433,30 @@ export function ConsultationChatPanel({
           </div>
         )}
 
-        <div className="flex gap-2 p-3 border-t border-zinc-800 bg-zinc-900/95">
-          <input
-            className="flex-1 bg-zinc-950 border border-zinc-700 rounded-full px-4 py-2 text-sm text-zinc-200 focus:outline-none focus:border-amber-600/50"
-            placeholder="Message…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-          />
-          <button
-            type="button"
-            disabled={loading || !draft.trim()}
-            onClick={send}
-            className="min-h-[44px] min-w-[44px] rounded-full bg-amber-600 text-white flex items-center justify-center disabled:opacity-50"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
+        {convStatus === "open" && (
+          <div className="flex gap-2 p-3 border-t border-zinc-800 bg-zinc-900/95">
+            <input
+              className="flex-1 bg-zinc-950 border border-zinc-700 rounded-full px-4 py-2 text-sm text-zinc-200 focus:outline-none focus:border-amber-600/50"
+              placeholder="Message…"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
+            />
+            <button
+              type="button"
+              disabled={loading || !draft.trim()}
+              onClick={send}
+              className="min-h-[44px] min-w-[44px] rounded-full bg-amber-600 text-white flex items-center justify-center disabled:opacity-50"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

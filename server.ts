@@ -4429,7 +4429,112 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
   res.json({ success: true });
 });
 
-registerConsultationRoutes(app, { db, broadcast, logAudit });
+function consultationEmailNotificationsEnabled(): boolean {
+  const v = String(process.env.CONSULTATION_EMAIL_NOTIFICATIONS ?? "").trim().toLowerCase();
+  return v === "true" || v === "1" || v === "yes";
+}
+
+/** Optional SMTP emails for consultation events (opt-in via CONSULTATION_EMAIL_NOTIFICATIONS). */
+async function sendConsultationClientEmail(
+  clientUserId: number,
+  subjectDe: string,
+  subjectEn: string,
+  bodyDe: string,
+  bodyEn: string
+): Promise<void> {
+  if (!consultationEmailNotificationsEnabled()) return;
+  try {
+    const u = (await (await db.prepare("SELECT email, name, notification_prefs, language FROM users WHERE id = ?")).get(clientUserId)) as {
+      email?: string;
+      name?: string;
+      language?: string;
+      notification_prefs?: string | null;
+    } | undefined;
+    if (!u?.email || !shouldSendEmailToUser(u)) return;
+    const useEn = String(u.language || "de").toLowerCase().startsWith("en");
+    const subject = useEn ? subjectEn : subjectDe;
+    const salDe = u.name ? `Guten Tag ${u.name},\n\n` : "Guten Tag,\n\n";
+    const salEn = u.name ? `Hello ${u.name},\n\n` : "Hello,\n\n";
+    const body = (useEn ? salEn : salDe) + (useEn ? bodyEn : bodyDe);
+    await sendMail(String(u.email).trim(), subject, body).catch(() => {});
+  } catch (_) {}
+}
+
+registerConsultationRoutes(app, {
+  db,
+  broadcast,
+  logAudit,
+  consultationNotify: {
+    onAdminRepliedToClient: async (clientUserId, conversationId) => {
+      try {
+        await createActivityNotification(
+          clientUserId,
+          "new_message",
+          `consultation:${conversationId}`,
+          "New message from the Atelier in your Concierge consultation. Open Vault → Concierge & bespoke."
+        );
+      } catch (_) {}
+      await sendConsultationClientEmail(
+        clientUserId,
+        "Antonio Bellanova – Nachricht zu Ihrer Beratung",
+        "Antonio Bellanova – Message about your consultation",
+        `Sie haben eine neue Nachricht zu Ihrer Concierge-Beratung (Thread #${conversationId}). Bitte öffnen Sie Ihren Tresor unter „Concierge & Maßanfertigung“.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
+        `You have a new message in your Concierge consultation (thread #${conversationId}). Please open your Vault under “Concierge & bespoke”.\n\nKind regards\nAntonio Bellanova Atelier`
+      );
+    },
+    onProposalSentToClient: async (clientUserId, conversationId, proposalTitle) => {
+      try {
+        await createActivityNotification(
+          clientUserId,
+          "new_offer",
+          `consultation:${conversationId}`,
+          `New proposal: ${proposalTitle}`
+        );
+      } catch (_) {}
+      await sendConsultationClientEmail(
+        clientUserId,
+        "Antonio Bellanova – Neues Angebot",
+        "Antonio Bellanova – New proposal",
+        `Zu Ihrer Beratung liegt ein neues Angebot vor: „${proposalTitle}“. Bitte prüfen Sie es im Tresor unter „Concierge & Maßanfertigung“ (Thread #${conversationId}).\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
+        `A new proposal is available for your consultation: “${proposalTitle}”. Please review it in your Vault under “Concierge & bespoke” (thread #${conversationId}).\n\nKind regards\nAntonio Bellanova Atelier`
+      );
+    },
+    onConsultationClosedByAdmin: async (clientUserId, conversationId) => {
+      try {
+        await createActivityNotification(
+          clientUserId,
+          "new_message",
+          `consultation:${conversationId}`,
+          "The Atelier closed your Concierge consultation thread. You can still read the history in your Vault."
+        );
+      } catch (_) {}
+      await sendConsultationClientEmail(
+        clientUserId,
+        "Antonio Bellanova – Beratungs-Thread geschlossen",
+        "Antonio Bellanova – Consultation thread closed",
+        `Ihr Beratungs-Thread (#${conversationId}) wurde durch das Atelier geschlossen. Sie können den Verlauf weiterhin im Tresor einsehen.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
+        `Your consultation thread (#${conversationId}) was closed by the Atelier. You can still read the history in your Vault.\n\nKind regards\nAntonio Bellanova Atelier`
+      );
+    },
+    onConsultationReopenedByAdmin: async (clientUserId, conversationId) => {
+      try {
+        await createActivityNotification(
+          clientUserId,
+          "new_message",
+          `consultation:${conversationId}`,
+          "The Atelier reopened your Concierge consultation — you can send messages again."
+        );
+      } catch (_) {}
+      await sendConsultationClientEmail(
+        clientUserId,
+        "Antonio Bellanova – Beratung wieder geöffnet",
+        "Antonio Bellanova – Consultation reopened",
+        `Ihr Beratungs-Thread (#${conversationId}) wurde wieder geöffnet. Sie können erneut Nachrichten senden — bitte Tresor „Concierge & Maßanfertigung“ öffnen.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
+        `Your consultation thread (#${conversationId}) has been reopened. You can send messages again — please open your Vault under “Concierge & bespoke”.\n\nKind regards\nAntonio Bellanova Atelier`
+      );
+    },
+  },
+});
 
 // --- NFT Minting Service (Mock) ---
 async function mintNFT(masterpieceId: number, ownerId: number): Promise<string> {

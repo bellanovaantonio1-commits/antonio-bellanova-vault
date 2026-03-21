@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
+import { VaultConsultationList } from './features/consultation/VaultConsultationList';
 import { isConsultationUiAllowed } from './features/consultation/consultationConfig';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -170,6 +171,25 @@ const TRANSLATIONS: any = {
     featured: "Ausgewählte Meisterwerke",
     request_acquisition: "Erwerb anfragen",
     consultation_speak_concierge: "Mit dem Concierge sprechen",
+    "vault.consultation_tab": "Concierge & Maßanfertigung",
+    consultation_vault_hint: "Ihre laufenden Beratungen zu Maßanfertigungen. Öffnen Sie einen Thread, um zu schreiben oder Angebote zu sehen.",
+    consultation_vault_threads: "Aktive Beratungen",
+    consultation_vault_empty: "Noch keine Beratungen. Starten Sie eine über den Marktplatz: „Mit dem Concierge sprechen“.",
+    consultation_vault_updated: "Aktualisiert:",
+    consultation_vault_piece: "Beratung",
+    consultation_proposals_heading: "Angebote",
+    consultation_accept: "Annehmen",
+    consultation_decline: "Ablehnen",
+    consultation_deposit_info: "Nächster Schritt: Anzahlung (Info)",
+    consultation_no_messages: "Noch keine Nachrichten.",
+    consultation_proposal_declined: "Angebot abgelehnt",
+    consultation_close_thread: "Thread schließen",
+    consultation_confirm_close: "Diesen Beratungs-Thread schließen? Der Verlauf bleibt lesbar.",
+    consultation_closed_banner: "Dieser Thread ist geschlossen — keine neuen Nachrichten.",
+    consultation_thread_closed_ok: "Thread geschlossen.",
+    consultation_reopen_thread: "Thread wieder öffnen",
+    consultation_confirm_reopen: "Diesen Thread wieder öffnen? Sie können wieder Nachrichten senden.",
+    consultation_thread_reopened_ok: "Thread wieder geöffnet.",
     reserved: "Reserviert",
     sold: "Verkauft",
     resale_pending: "Wiederverkauf ausstehend",
@@ -1104,6 +1124,25 @@ const TRANSLATIONS: any = {
     featured: "Featured Masterpieces",
     request_acquisition: "Request Acquisition",
     consultation_speak_concierge: "Speak with Concierge",
+    "vault.consultation_tab": "Concierge & bespoke",
+    consultation_vault_hint: "Your ongoing made-to-order consultations. Open a thread to message or review offers.",
+    consultation_vault_threads: "Active consultations",
+    consultation_vault_empty: "No consultations yet. Start one from the marketplace: “Speak with Concierge”.",
+    consultation_vault_updated: "Updated:",
+    consultation_vault_piece: "Consultation",
+    consultation_proposals_heading: "Proposals",
+    consultation_accept: "Accept",
+    consultation_decline: "Decline",
+    consultation_deposit_info: "Next step: deposit (info)",
+    consultation_no_messages: "No messages yet.",
+    consultation_proposal_declined: "Proposal declined",
+    consultation_close_thread: "Close thread",
+    consultation_confirm_close: "Close this consultation thread? You can still read the history.",
+    consultation_closed_banner: "This thread is closed — messaging is disabled.",
+    consultation_thread_closed_ok: "Thread closed.",
+    consultation_reopen_thread: "Reopen thread",
+    consultation_confirm_reopen: "Reopen this thread? You can send messages again.",
+    consultation_thread_reopened_ok: "Thread reopened.",
     reserved: "Reserved",
     sold: "Sold",
     resale_pending: "Resale Pending",
@@ -1981,6 +2020,25 @@ const TRANSLATIONS: any = {
     featured: "Capolavori in Primo Piano",
     request_acquisition: "Richiedi Acquisizione",
     consultation_speak_concierge: "Parla con il Concierge",
+    "vault.consultation_tab": "Concierge & su misura",
+    consultation_vault_hint: "Le tue consultazioni per pezzi su misura. Apri un thread per scrivere o vedere le proposte.",
+    consultation_vault_threads: "Consultazioni attive",
+    consultation_vault_empty: "Nessuna consultazione. Inizia dal marketplace: «Parla con il Concierge».",
+    consultation_vault_updated: "Aggiornato:",
+    consultation_vault_piece: "Consultazione",
+    consultation_proposals_heading: "Proposte",
+    consultation_accept: "Accetta",
+    consultation_decline: "Rifiuta",
+    consultation_deposit_info: "Prossimo passo: acconto (info)",
+    consultation_no_messages: "Nessun messaggio.",
+    consultation_proposal_declined: "Proposta rifiutata",
+    consultation_close_thread: "Chiudi conversazione",
+    consultation_confirm_close: "Chiudere questo thread? Lo storico resta consultabile.",
+    consultation_closed_banner: "Thread chiuso — non è possibile inviare messaggi.",
+    consultation_thread_closed_ok: "Thread chiuso.",
+    consultation_reopen_thread: "Riapri conversazione",
+    consultation_confirm_reopen: "Riaprire questo thread? Potrai inviare di nuovo messaggi.",
+    consultation_thread_reopened_ok: "Thread riaperto.",
     reserved: "Riservato",
     sold: "Venduto",
     resale_pending: "Rivendita in Sospeso",
@@ -3223,7 +3281,7 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'vault_requests' | 'settings'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'vault_requests' | 'consultation' | 'settings'>('pieces');
   const [walletData, setWalletData] = useState<{ wallet_balance: number; wallet_locked: number; available: number } | null>(null);
   const [stripePk, setStripePk] = useState<string | null>(null);
   /** Loaded from GET /api/stripe/config (null = not fetched yet for this navigation). */
@@ -3318,6 +3376,11 @@ export default function App() {
     title?: string;
     mode: 'client' | 'admin';
   } | null>(null);
+  const [consultationWsTick, setConsultationWsTick] = useState(0);
+  const consultationPanelRef = useRef<typeof consultationPanel>(null);
+  consultationPanelRef.current = consultationPanel;
+  const userRefForWs = useRef(user);
+  userRefForWs.current = user;
   const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
   const [adminServiceRequests, setAdminServiceRequests] = useState<any[]>([]);
   const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
@@ -4171,6 +4234,11 @@ export default function App() {
           next.push({ id: 0, admin_id: data.adminId, status: data.status, updated_at: new Date().toISOString() });
           return next;
         });
+      } else if (String(data.type || '').startsWith('CONSULTATION_')) {
+        const u = userRefForWs.current;
+        if (u && !isGuestSessionUser(u)) {
+          setConsultationWsTick((n) => n + 1);
+        }
       } else {
         fetchData(); // Refresh on other updates
       }
@@ -6836,7 +6904,7 @@ export default function App() {
                 {(user.role === 'vip' || user.role === UserRole.VIP || (user as any).is_vip) && (
                   <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30"><Diamond className="w-2.5 h-2.5" /> VIP</span>
                 )}
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'consultation' ? (t('vault.consultation_tab') || 'Concierge') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -7760,6 +7828,9 @@ export default function App() {
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
                   <TabButton active={vaultTab === 'legacy'} label={t('vault.legacy') || 'Legacy'} onClick={() => { setVaultTab('legacy'); fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientLegacyRequests)); }} icon={BookOpen} />
                   <TabButton active={vaultTab === 'vault_requests'} label={t('vault.vault_requests_tab') || 'Tresor-Anfragen'} onClick={() => { setVaultTab('vault_requests'); fetch('/api/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientVaultRequests)).catch(() => setClientVaultRequests([])); }} icon={ClipboardList} />
+                  {showConsultationUi && (
+                    <TabButton active={vaultTab === 'consultation'} label={t('vault.consultation_tab') || 'Concierge'} onClick={() => setVaultTab('consultation')} icon={Sparkles} />
+                  )}
                   <TabButton active={vaultTab === 'settings'} label={t('vault.settings') || 'Settings'} onClick={() => { setVaultTab('settings'); if (user?.id) fetch(`/api/collector/preferences?userId=${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then((d: any) => setCollectorPreferences({ favorite_gemstones: d.favorite_gemstones ?? '', preferred_metals: d.preferred_metals ?? '', design_style: d.design_style ?? '', budget_range: d.budget_range ?? '', collection_type: d.collection_type ?? '', collection_focus: d.collection_focus ?? '' })) : null); }} icon={UserIcon} />
                 </div>
 
@@ -8513,6 +8584,31 @@ export default function App() {
                           </Card>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {vaultTab === 'consultation' && showConsultationUi && (
+                    <div className="space-y-6">
+                      <Card className="p-6 border-amber-500/20 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                            <Sparkles className="w-5 h-5 text-amber-500/90" />
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-serif italic text-zinc-100">{t('vault.consultation_tab')}</h4>
+                            <p className="text-xs text-zinc-500 mt-0.5">{t('consultation_vault_hint')}</p>
+                          </div>
+                        </div>
+                        <VaultConsultationList
+                          refreshKey={consultationWsTick}
+                          onOpenThread={(id, title) => setConsultationPanel({ id, title, mode: 'client' })}
+                          labels={{
+                            title: t('consultation_vault_threads'),
+                            empty: t('consultation_vault_empty'),
+                            updated: t('consultation_vault_updated'),
+                            piece: t('consultation_vault_piece'),
+                          }}
+                        />
+                      </Card>
                     </div>
                   )}
                   {vaultTab === 'legacy' && (
@@ -10320,7 +10416,10 @@ export default function App() {
                     <h3 className="text-xl font-serif italic">{t('admin.pending_purchases')}</h3>
                     <div className="space-y-4">
                       {masterpieces.filter(p => p.status === 'reserved').map(piece => {
-                        const contract = adminContracts.find(c => c.masterpiece_id === piece.id && c.type === 'deposit');
+                        const contract = adminContracts.find(
+                          (c: { masterpiece_id?: number; type?: string }) =>
+                            c.masterpiece_id === piece.id && (c.type === 'deposit' || c.type === 'deposit_resale')
+                        );
                         return (
                           <Card key={piece.id} className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
@@ -10338,7 +10437,7 @@ export default function App() {
                               </div>
                             </div>
                             <div className="flex gap-2">
-                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract || contract.status !== 'signed'}>{t('admin.approve')}</Button>
+                              <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract}>{t('admin.approve')}</Button>
                               <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, false, user.id)}>{t('admin.reject')}</Button>
                             </div>
                           </Card>
@@ -10349,6 +10448,7 @@ export default function App() {
                     {showConsultationUi && (
                       <div className="pt-6 border-t border-zinc-800/80">
                         <AdminConsultationSection
+                          refreshKey={consultationWsTick}
                           onOpenConversation={(id, title) => setConsultationPanel({ id, title, mode: 'admin' })}
                         />
                       </div>
@@ -13220,6 +13320,22 @@ export default function App() {
             mode={consultationPanel.mode}
             title={consultationPanel.title}
             currentUserId={user.id}
+            refreshKey={consultationWsTick}
+            strings={{
+              proposalsHeading: t('consultation_proposals_heading'),
+              acceptProposal: t('consultation_accept'),
+              declineProposal: t('consultation_decline'),
+              depositInfo: t('consultation_deposit_info'),
+              noMessages: t('consultation_no_messages'),
+              proposalDeclinedToast: t('consultation_proposal_declined'),
+              closeThread: t('consultation_close_thread'),
+              confirmCloseThread: t('consultation_confirm_close'),
+              conversationClosedBanner: t('consultation_closed_banner'),
+              threadClosedSuccess: t('consultation_thread_closed_ok'),
+              reopenThread: t('consultation_reopen_thread'),
+              confirmReopenThread: t('consultation_confirm_reopen'),
+              threadReopenedSuccess: t('consultation_thread_reopened_ok'),
+            }}
             onClose={() => setConsultationPanel(null)}
             notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
           />

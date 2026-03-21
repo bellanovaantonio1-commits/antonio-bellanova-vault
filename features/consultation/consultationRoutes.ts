@@ -4,6 +4,20 @@
  */
 import type { Application, Request, Response } from "express";
 import type { DbInterface } from "../../lib/db.js";
+import { createUserOrIpRateLimiter } from "../../lib/rateLimit.js";
+
+/** Chat messages — per user (or IP if misconfigured). */
+const consultationChatPostLimiter = createUserOrIpRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 120,
+  keyPrefix: ":consult:msg",
+});
+/** Creates, proposals, close/reopen, accept/decline, etc. */
+const consultationMutatePostLimiter = createUserOrIpRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  keyPrefix: ":consult:mut",
+});
 
 export function isConsultationFlowEnabled(): boolean {
   const v = String(process.env.ENABLE_CONSULTATION_FLOW ?? "").trim().toLowerCase();
@@ -18,14 +32,26 @@ function isAdminUser(user: { role?: string } | null | undefined): boolean {
   return user?.role === "admin" || user?.role === "super_admin";
 }
 
+export type ConsultationNotifyHooks = {
+  /** In-app notification when the atelier replies in the consultation thread */
+  onAdminRepliedToClient?: (clientUserId: number, conversationId: number) => void | Promise<void>;
+  /** In-app notification when a formal proposal is sent */
+  onProposalSentToClient?: (clientUserId: number, conversationId: number, proposalTitle: string) => void | Promise<void>;
+  /** When staff closes the thread (client can still read history) */
+  onConsultationClosedByAdmin?: (clientUserId: number, conversationId: number) => void | Promise<void>;
+  /** When staff reopens a closed thread */
+  onConsultationReopenedByAdmin?: (clientUserId: number, conversationId: number) => void | Promise<void>;
+};
+
 type ConsultationDeps = {
   db: DbInterface;
   broadcast?: (data: Record<string, unknown>) => void;
   logAudit?: (adminId: number, action: string, targetId: string, details: string) => Promise<void> | void;
+  consultationNotify?: ConsultationNotifyHooks;
 };
 
 export function registerConsultationRoutes(app: Application, deps: ConsultationDeps): void {
-  const { db, broadcast, logAudit } = deps;
+  const { db, broadcast, logAudit, consultationNotify } = deps;
 
   app.get("/api/consultation/enabled", (_req: Request, res: Response) => {
     res.json({
@@ -63,18 +89,29 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.get("/api/admin/consultation/conversations", gate, async (_req: Request, res: Response) => {
+  app.get("/api/admin/consultation/conversations", gate, async (req: Request, res: Response) => {
     try {
-      const rows = await (
-        await db.prepare(
-          `SELECT c.*, u.name AS client_name, u.email AS client_email,
+      const raw = String(req.query?.status ?? "all").toLowerCase();
+      const statusFilter = raw === "open" || raw === "closed" ? raw : "all";
+      const sql =
+        statusFilter === "all"
+          ? `SELECT c.*, u.name AS client_name, u.email AS client_email,
             m.title AS masterpiece_title
            FROM consultation_conversations c
            LEFT JOIN users u ON u.id = c.user_id
            LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
            ORDER BY c.updated_at DESC LIMIT 200`
-        )
-      ).all();
+          : `SELECT c.*, u.name AS client_name, u.email AS client_email,
+            m.title AS masterpiece_title
+           FROM consultation_conversations c
+           LEFT JOIN users u ON u.id = c.user_id
+           LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
+           WHERE c.status = ?
+           ORDER BY c.updated_at DESC LIMIT 200`;
+      const rows =
+        statusFilter === "all"
+          ? await (await db.prepare(sql)).all()
+          : await (await db.prepare(sql)).all(statusFilter);
       res.json(rows);
     } catch (e: any) {
       console.error("[admin/consultation/conversations]", e);
@@ -82,7 +119,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.post("/api/consultation/conversations", gate, async (req: Request, res: Response) => {
+  app.post("/api/consultation/conversations", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const userId = (req as any).userId as number;
     const user = (req as any).user;
     if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
@@ -158,7 +195,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.post("/api/consultation/conversations/:id/messages", gate, async (req: Request, res: Response) => {
+  app.post("/api/consultation/conversations/:id/messages", gate, consultationChatPostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -186,6 +223,46 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
+  app.post("/api/consultation/conversations/:id/close", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const userId = (req as any).userId as number;
+    const user = (req as any).user;
+    if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    if (isAdminUser(user)) return res.status(403).json({ error: "Use POST /api/admin/consultation/conversations/:id/close" });
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation already closed" });
+      await (await db.prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      broadcast?.({ type: "CONSULTATION_CONVERSATION_CLOSED", conversationId: id });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post("/api/consultation/conversations/:id/reopen", gate, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const userId = (req as any).userId as number;
+    const user = (req as any).user;
+    if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    if (isAdminUser(user)) return res.status(403).json({ error: "Use POST /api/admin/consultation/conversations/:id/reopen" });
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      if (conv.status === "open") return res.status(400).json({ error: "Conversation is already open" });
+      await (await db.prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      broadcast?.({ type: "CONSULTATION_CONVERSATION_REOPENED", conversationId: id });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
   app.get("/api/consultation/conversations/:id/proposals", gate, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid id" });
@@ -202,7 +279,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.post("/api/consultation/proposals/:proposalId/accept", gate, async (req: Request, res: Response) => {
+  app.post("/api/consultation/proposals/:proposalId/accept", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const proposalId = Number(req.params.proposalId);
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -215,6 +292,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (proposal.status !== "sent") return res.status(400).json({ error: "Proposal cannot be accepted in current state" });
       const conv = await loadConversation(Number(proposal.conversation_id));
       if (!conv || Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       await (
         await db.prepare(
           `UPDATE consultation_proposals SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -228,11 +306,38 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
+  app.post("/api/consultation/proposals/:proposalId/decline", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const proposalId = Number(req.params.proposalId);
+    const userId = (req as any).userId as number;
+    const user = (req as any).user;
+    if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    if (isAdminUser(user)) return res.status(403).json({ error: "Admins cannot decline on behalf of client" });
+    if (!proposalId) return res.status(400).json({ error: "Invalid proposal" });
+    try {
+      const proposal = (await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
+      if (!proposal) return res.status(404).json({ error: "Proposal not found" });
+      if (proposal.status !== "sent") return res.status(400).json({ error: "Proposal cannot be declined in current state" });
+      const conv = await loadConversation(Number(proposal.conversation_id));
+      if (!conv || Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+      await (
+        await db.prepare(
+          `UPDATE consultation_proposals SET status = 'declined', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        )
+      ).run(proposalId);
+      const updated = await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
+      broadcast?.({ type: "CONSULTATION_PROPOSAL_DECLINED", proposalId, conversationId: proposal.conversation_id });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
   /**
    * Optional hook after proposal acceptance — does not create payments or contracts.
    * Integrators can listen for this response or use masterpiece_id for existing deposit flows.
    */
-  app.post("/api/consultation/proposals/:proposalId/request-deposit", gate, async (req: Request, res: Response) => {
+  app.post("/api/consultation/proposals/:proposalId/request-deposit", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const proposalId = Number(req.params.proposalId);
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -261,7 +366,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
   });
 
   // --- Admin (global /api middleware already enforces admin for /api/admin/*) ---
-  app.post("/api/admin/consultation/conversations/:id/messages", gate, async (req: Request, res: Response) => {
+  app.post("/api/admin/consultation/conversations/:id/messages", gate, consultationChatPostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const adminId = (req as any).userId as number;
     const body = req.body?.body != null ? String(req.body.body).trim() : "";
@@ -280,13 +385,16 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       await logAudit?.(adminId, "CONSULTATION_MESSAGE", String(id), `Admin reply in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid, fromAdmin: true });
+      try {
+        await consultationNotify?.onAdminRepliedToClient?.(Number(conv.user_id), id);
+      } catch (_) {}
       res.json(msg);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });
 
-  app.post("/api/admin/consultation/proposals", gate, async (req: Request, res: Response) => {
+  app.post("/api/admin/consultation/proposals", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const adminId = (req as any).userId as number;
     const conversation_id = Number(req.body?.conversation_id);
     const title = req.body?.title != null ? String(req.body.title).slice(0, 300) : "";
@@ -297,6 +405,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     try {
       const conv = await loadConversation(conversation_id);
       if (!conv) return res.status(404).json({ error: "Conversation not found" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
         await db.prepare(
           `INSERT INTO consultation_proposals
@@ -308,7 +417,50 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const row = await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(pid);
       await logAudit?.(adminId, "CONSULTATION_PROPOSAL", String(pid), `Sent proposal "${title}" for conversation ${conversation_id}`);
       broadcast?.({ type: "CONSULTATION_PROPOSAL_SENT", proposalId: pid, conversationId: conversation_id });
+      try {
+        await consultationNotify?.onProposalSentToClient?.(Number(conv.user_id), conversation_id, title);
+      } catch (_) {}
       res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post("/api/admin/consultation/conversations/:id/close", gate, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminId = (req as any).userId as number;
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation already closed" });
+      await (await db.prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await logAudit?.(adminId, "CONSULTATION_CLOSE", String(id), `Closed consultation ${id} for user ${conv.user_id}`);
+      broadcast?.({ type: "CONSULTATION_CONVERSATION_CLOSED", conversationId: id });
+      try {
+        await consultationNotify?.onConsultationClosedByAdmin?.(Number(conv.user_id), id);
+      } catch (_) {}
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post("/api/admin/consultation/conversations/:id/reopen", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminId = (req as any).userId as number;
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (conv.status === "open") return res.status(400).json({ error: "Conversation is already open" });
+      await (await db.prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await logAudit?.(adminId, "CONSULTATION_REOPEN", String(id), `Reopened consultation ${id} for user ${conv.user_id}`);
+      broadcast?.({ type: "CONSULTATION_CONVERSATION_REOPENED", conversationId: id });
+      try {
+        await consultationNotify?.onConsultationReopenedByAdmin?.(Number(conv.user_id), id);
+      } catch (_) {}
+      res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ error: e?.message || "Failed" });
     }

@@ -3,9 +3,11 @@ import type { ConsultationConversationRow } from "../chat/types";
 
 type Props = {
   onOpenConversation: (id: number, title: string) => void;
+  /** Bumps when server broadcasts CONSULTATION_* over WebSocket. */
+  refreshKey?: number;
 };
 
-export function AdminConsultationSection({ onOpenConversation }: Props) {
+export function AdminConsultationSection({ onOpenConversation, refreshKey = 0 }: Props) {
   const [rows, setRows] = useState<ConsultationConversationRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
@@ -28,6 +30,10 @@ export function AdminConsultationSection({ onOpenConversation }: Props) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (refreshKey > 0) load();
+  }, [refreshKey, load]);
 
   if (err && rows.length === 0) {
     return (
