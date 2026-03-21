@@ -27,7 +27,7 @@
   "view.admin": "Gestión",
   "view.portfolio": "Cartera",
   "sign_out": "Cerrar sesión",
-  "marketplace.subtitle": "Piezas exquisitas disponibles para adquisición inmediata.",
+  "marketplace.subtitle": "Piezas exclusivas bajo pedido y ediciones limitadas: adquisición previa solicitud; facturación tras confirmación.",
   "marketplace.filter_placeholder": "Buscar (título, serie, categoría)",
   "marketplace.no_pieces": "No hay obras maestras disponibles actualmente en el mercado.",
   "marketplace.pdf_modal_title": "Mercado en PDF",
@@ -42,5 +42,6 @@
   "filter.recent_only": "Solo vistos recientemente",
   "trust.secured_by": "Protegido por Antonio Bellanova",
   "trust.ssl_encrypted": "Cifrado SSL",
-  "trust.dsgvo_compliant": "Conforme RGPD"
+  "trust.dsgvo_compliant": "Conforme RGPD",
+  "purchase.made_to_order_hint": "Bajo pedido: la adquisición es previa solicitud; recibirá la factura más adelante."
 }

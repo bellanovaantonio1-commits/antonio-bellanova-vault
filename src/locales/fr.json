@@ -27,7 +27,7 @@
   "view.admin": "Gestion",
   "view.portfolio": "Portefeuille",
   "sign_out": "Déconnexion",
-  "marketplace.subtitle": "Pièces exquises disponibles pour acquisition immédiate.",
+  "marketplace.subtitle": "Pièces sur mesure et éditions limitées — acquisition sur demande ; facturation après confirmation.",
   "marketplace.filter_placeholder": "Rechercher (titre, n° série, catégorie)",
   "marketplace.no_pieces": "Aucun chef-d'œuvre actuellement disponible sur le marché.",
   "marketplace.pdf_modal_title": "Marché en PDF",
@@ -42,5 +42,6 @@
   "filter.recent_only": "Vus récemment uniquement",
   "trust.secured_by": "Sécurisé par Antonio Bellanova",
   "trust.ssl_encrypted": "Chiffrement SSL",
-  "trust.dsgvo_compliant": "Conforme RGPD"
+  "trust.dsgvo_compliant": "Conforme RGPD",
+  "purchase.made_to_order_hint": "Sur mesure : acquisition sur demande ; la facture vous sera envoyée ultérieurement."
 }

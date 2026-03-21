@@ -27,7 +27,7 @@
   "view.admin": "الإدارة",
   "view.portfolio": "المحفظة",
   "sign_out": "تسجيل الخروج",
-  "marketplace.subtitle": "قطع فاخرة متاحة للاقتناء الفوري.",
+  "marketplace.subtitle": "قطع حصرية حسب الطلب ومحدودة — الاقتناء بالطلب؛ الفاتورة لاحقاً بعد التأكيد.",
   "marketplace.filter_placeholder": "بحث (عنوان، مسلسل، فئة)",
   "marketplace.no_pieces": "لا توجد تحف متاحة حالياً في السوق.",
   "marketplace.pdf_modal_title": "السوق كـ PDF",
@@ -42,5 +42,6 @@
   "filter.recent_only": "المشاهدة مؤخراً فقط",
   "trust.secured_by": "مؤمن من أنطونيو بيلانوفا",
   "trust.ssl_encrypted": "تشفير SSL",
-  "trust.dsgvo_compliant": "متوافق مع اللائحة العامة"
+  "trust.dsgvo_compliant": "متوافق مع اللائحة العامة",
+  "purchase.made_to_order_hint": "حسب الطلب: الشراء بالطلب؛ تصلكم الفاتورة لاحقاً."
 }

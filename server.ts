@@ -4594,36 +4594,14 @@ app.post("/api/invoices/create", requireAuth, requireAdmin, async (req, res) => 
   }
 });
 
-// --- Direct purchases (Stripe PaymentIntent → order on success) ---
-/** Create Stripe PaymentIntent for direct purchase of a masterpiece. On payment_intent.succeeded webhook, order is created and masterpiece marked sold. */
+// --- Direct purchases (disabled: made-to-order; use acquisition request + invoice flow) ---
+/** Previously: Stripe PaymentIntent for instant buy. Disabled — align with UI (no „Jetzt kaufen“). Webhook still handles legacy succeeded intents if any. */
 app.post("/api/purchase", async (req, res) => {
-  const userId = (req as any).userId;
-  if (userId == null) return res.status(401).json({ error: "Not signed in" });
-  const itemId = Number(req.body?.item_id ?? req.body?.masterpiece_id);
-  if (!itemId) return res.status(400).json({ error: "Missing item_id or masterpiece_id" });
-  const stripeKey = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
-  if (!stripeKey) return res.status(503).json({ error: "Payments are not configured" });
-  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(itemId) as { id: number; status: string; valuation?: number; purchase_price?: number } | undefined;
-  if (!piece) return res.status(404).json({ error: "Item not found" });
-  if (piece.status !== "available") return res.status(400).json({ error: "Item is not available for purchase" });
-  const amountEur = Number(piece.valuation ?? piece.purchase_price ?? 0);
-  if (amountEur <= 0) return res.status(400).json({ error: "Item has no valid price" });
-  const amountCents = Math.round(amountEur * 100);
-  if (amountCents < 100) return res.status(400).json({ error: "Minimum charge is 1.00 EUR" });
-  try {
-    const stripe = getStripe();
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: "eur",
-      automatic_payment_methods: { enabled: true },
-      metadata: { payment_type: "purchase", user_id: String(userId), masterpiece_id: String(itemId) },
-    });
-    console.log("[Purchase] Intent created: masterpiece_id=" + itemId + " user_id=" + userId + " amount_cents=" + amountCents);
-    res.json({ client_secret: paymentIntent.client_secret, item_id: itemId, amount_cents: amountCents });
-  } catch (e: any) {
-    console.error("[Purchase] Stripe error:", e?.message || e);
-    res.status(500).json({ error: e?.message || "Could not create payment" });
-  }
+  return res.status(410).json({
+    error:
+      "Instant checkout is disabled. Pieces are made-to-order — use acquisition request; invoicing follows later.",
+    code: "PURCHASE_DISABLED",
+  });
 });
 
 /** Client: create Stripe PaymentIntent for an invoice and return client_secret (only invoice owner can pay). */

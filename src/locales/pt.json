@@ -27,7 +27,7 @@
   "view.admin": "Gestão",
   "view.portfolio": "Portfólio",
   "sign_out": "Sair",
-  "marketplace.subtitle": "Peças requintadas disponíveis para aquisição imediata.",
+  "marketplace.subtitle": "Peças exclusivas sob encomenda e edições limitadas — aquisição mediante pedido; faturação após confirmação.",
   "marketplace.filter_placeholder": "Pesquisar (título, série, categoria)",
   "marketplace.no_pieces": "Nenhuma obra disponível atualmente no mercado.",
   "marketplace.pdf_modal_title": "Mercado em PDF",
@@ -42,5 +42,6 @@
   "filter.recent_only": "Só vistos recentemente",
   "trust.secured_by": "Protegido por Antonio Bellanova",
   "trust.ssl_encrypted": "Encriptação SSL",
-  "trust.dsgvo_compliant": "Conformidade RGPD"
+  "trust.dsgvo_compliant": "Conformidade RGPD",
+  "purchase.made_to_order_hint": "Sob encomenda: a aquisição é mediante pedido; receberá a fatura mais tarde."
 }
