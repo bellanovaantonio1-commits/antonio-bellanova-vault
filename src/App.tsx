@@ -3985,8 +3985,37 @@ export default function App() {
     if (!user) return;
     setListLoading(true);
     try {
-      const [piecesRes, auctionsRes, vaultRes, payRes, invRes, txnRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
-        fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`, { credentials: 'include' }),
+      // Meisterstücke zuerst; listLoading endet gleich danach — nicht erst nach Vault/Admin (sonst ewige Skeletons bei hängenden APIs).
+      try {
+        const ac = new AbortController();
+        const to = window.setTimeout(() => ac.abort(), 25000);
+        try {
+          const piecesRes = await fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`, {
+            credentials: 'include',
+            signal: ac.signal,
+          });
+          if (piecesRes.ok) {
+            try {
+              const data = await piecesRes.json();
+              if (Array.isArray(data)) setMasterpieces(data);
+            } catch {
+              /* keep previous list */
+            }
+          } else if (piecesRes.status === 502 || piecesRes.status === 503 || piecesRes.status === 504) {
+            notifyUser(t('errors.load_failed') || 'Server vorübergehend nicht erreichbar. Bitte Seite erneut laden.', 'error');
+          }
+        } finally {
+          window.clearTimeout(to);
+        }
+      } catch {
+        /* Netzwerkfehler / Timeout */
+      }
+    } finally {
+      setListLoading(false);
+    }
+
+    try {
+      const [auctionsRes, vaultRes, payRes, invRes, txnRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
         fetch(`/api/auctions?userId=${user.id}`, { credentials: 'include' }),
         fetch(`/api/vault/${user.id}`, { credentials: 'include' }),
         fetch(`/api/payments/${user.id}`, { credentials: 'include' }),
@@ -4000,16 +4029,6 @@ export default function App() {
         fetch('/api/vip/membership-status', { credentials: 'include' }),
         fetch(`/api/private-offers?userId=${user.id}`, { credentials: 'include' })
       ]);
-
-      if (piecesRes.ok) {
-        try {
-          setMasterpieces(await piecesRes.json());
-        } catch {
-          /* keep previous list */
-        }
-      } else if (piecesRes.status === 502 || piecesRes.status === 503 || piecesRes.status === 504) {
-        notifyUser(t('errors.load_failed') || 'Server vorübergehend nicht erreichbar. Bitte Seite erneut laden.', 'error');
-      }
       if (resaleRes.ok) setResalePieces(await resaleRes.json());
       if (auctionsRes.ok) setAuctions(await auctionsRes.json());
       if (vaultRes.ok) setVaultData(await vaultRes.json());
@@ -4027,7 +4046,7 @@ export default function App() {
         try { setPrivateOffers(await privateOffersRes.json()); } catch (_) { setPrivateOffers([]); }
       } else setPrivateOffers([]);
 
-      if (user.role === UserRole.ADMIN) {
+      if (user.role === UserRole.ADMIN || user.role === 'super_admin') {
         const [statsRes, usersRes, contractsRes, invReqRes, resaleListingsRes, appointmentsRes, auditRes, revenueRes, cashflowRes, resaleRevRes, bankRes, gdprRes, fracOffersRes, serviceReqRes, contactReqRes, adminDropsRes, salesRes, vipMembersRes, platformMetricsRes] = await Promise.all([
           fetch('/api/admin/stats', { credentials: 'include' }),
           fetch('/api/admin/users', { credentials: 'include' }),
@@ -4104,9 +4123,9 @@ export default function App() {
           if (prRes.ok) setAdminProjects(await prRes.json());
         }
       }
-
-      setListLoading(false);
-    } catch (_) { setListLoading(false); }
+    } catch (_) {
+      /* einzelne APIs können fehlschlagen */
+    }
   };
 
   useEffect(() => {
