@@ -46,8 +46,12 @@ import {
   X,
   Wallet,
   Receipt,
-  ClipboardList
+  ClipboardList,
+  Sparkles
 } from 'lucide-react';
+import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
+import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
+import { isConsultationUiAllowed } from './features/consultation/consultationConfig';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -165,6 +169,7 @@ const TRANSLATIONS: any = {
     membership: "Mitgliedschaftsstatus",
     featured: "Ausgewählte Meisterwerke",
     request_acquisition: "Erwerb anfragen",
+    consultation_speak_concierge: "Mit dem Concierge sprechen",
     reserved: "Reserviert",
     sold: "Verkauft",
     resale_pending: "Wiederverkauf ausstehend",
@@ -1098,6 +1103,7 @@ const TRANSLATIONS: any = {
     membership: "Membership Status",
     featured: "Featured Masterpieces",
     request_acquisition: "Request Acquisition",
+    consultation_speak_concierge: "Speak with Concierge",
     reserved: "Reserved",
     sold: "Sold",
     resale_pending: "Resale Pending",
@@ -1974,6 +1980,7 @@ const TRANSLATIONS: any = {
     membership: "Stato Membro",
     featured: "Capolavori in Primo Piano",
     request_acquisition: "Richiedi Acquisizione",
+    consultation_speak_concierge: "Parla con il Concierge",
     reserved: "Riservato",
     sold: "Venduto",
     resale_pending: "Rivendita in Sospeso",
@@ -3305,6 +3312,12 @@ export default function App() {
   const [adminBankConfig, setAdminBankConfig] = useState<any>({});
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [showMaintenanceAfterLoginAttempt, setShowMaintenanceAfterLoginAttempt] = useState<boolean>(false);
+  const [consultationServerEnabled, setConsultationServerEnabled] = useState(false);
+  const [consultationPanel, setConsultationPanel] = useState<{
+    id: number;
+    title?: string;
+    mode: 'client' | 'admin';
+  } | null>(null);
   const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
   const [adminServiceRequests, setAdminServiceRequests] = useState<any[]>([]);
   const [userAppointments, setUserAppointments] = useState<Appointment[]>([]);
@@ -4171,6 +4184,13 @@ export default function App() {
     setToast({ msg, type });
     toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
   };
+
+  useEffect(() => {
+    fetch('/api/consultation/enabled')
+      .then((r) => (r.ok ? r.json() : { enabled: false }))
+      .then((d) => setConsultationServerEnabled(!!d?.enabled))
+      .catch(() => setConsultationServerEnabled(false));
+  }, []);
 
   /** After Stripe redirects with ?payment_intent=…, credit wallet if webhook did not run (dev / missing STRIPE_WEBHOOK_SECRET). */
   useEffect(() => {
@@ -5202,6 +5222,35 @@ export default function App() {
         if (res.status === 403 && data.code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
         else notifyUser(data.error || res.statusText || t('errors.generic'), 'error');
       }
+    } catch {
+      notifyUser(t('errors.network') || t('errors.generic'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showConsultationUi = isConsultationUiAllowed(consultationServerEnabled);
+
+  const openConsultationForPiece = async (piece: Masterpiece) => {
+    if (!user || isGuestSessionUser(user)) {
+      setShowAccountRequiredModal(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/consultation/conversations', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ masterpiece_id: piece.id, subject: piece.title }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403 && (data as { code?: string }).code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else notifyUser((data as { error?: string }).error || t('errors.generic'), 'error');
+        return;
+      }
+      setConsultationPanel({ id: Number((data as { id?: number }).id), title: piece.title, mode: 'client' });
     } catch {
       notifyUser(t('errors.network') || t('errors.generic'), 'error');
     } finally {
@@ -7192,6 +7241,8 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                         } : undefined}
                         onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                        consultationFlowEnabled={showConsultationUi}
+                        onConsultation={openConsultationForPiece}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
                           if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 2);
@@ -7226,6 +7277,8 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id)));
                         } : undefined}
                         onBuy={user ? () => handleBuy(piece.id) : undefined}
+                        consultationFlowEnabled={showConsultationUi}
+                        onConsultation={openConsultationForPiece}
                         onViewDetails={(p) => setSelectedPiece(p)}
                       />
                     ))
@@ -7308,6 +7361,8 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                            consultationFlowEnabled={showConsultationUi}
+                            onConsultation={openConsultationForPiece}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
                         if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
@@ -7362,6 +7417,8 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                            consultationFlowEnabled={showConsultationUi}
+                            onConsultation={openConsultationForPiece}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
                           />
@@ -10289,6 +10346,13 @@ export default function App() {
                       })}
                       {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
                     </div>
+                    {showConsultationUi && (
+                      <div className="pt-6 border-t border-zinc-800/80">
+                        <AdminConsultationSection
+                          onOpenConversation={(id, title) => setConsultationPanel({ id, title, mode: 'admin' })}
+                        />
+                      </div>
+                    )}
                   </section>
                   )}
                   {(adminTab === 'overview') && (
@@ -12986,6 +13050,11 @@ export default function App() {
                       )}
                         </>
                       )}
+                      {showConsultationUi && selectedPiece.status === 'available' && (
+                        <Button variant="outline" className="w-full py-3 text-base border-amber-600/40" onClick={async () => { await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
+                          <Sparkles className="w-5 h-5" /> {t('consultation_speak_concierge')}
+                        </Button>
+                      )}
                       <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
                         <MessageCircle className="w-4 h-4" /> Concierge: Zu diesem Stück anfragen
                       </Button>
@@ -13144,6 +13213,17 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {consultationPanel && user && !isGuestSessionUser(user) && (
+          <ConsultationChatPanel
+            conversationId={consultationPanel.id}
+            mode={consultationPanel.mode}
+            title={consultationPanel.title}
+            currentUserId={user.id}
+            onClose={() => setConsultationPanel(null)}
+            notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
+          />
+        )}
 
         {/* Signature / Accept Contract Modal */}
         <AnimatePresence mode="wait">
@@ -13365,7 +13445,7 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string }) => (
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, consultationFlowEnabled, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, consultationFlowEnabled?: boolean, onConsultation?: (p: Masterpiece) => void }) => (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
       <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
@@ -13405,6 +13485,11 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       {!hideAction && piece.status === 'available' && onBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
           <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Request Acquisition'}
+        </Button>
+      )}
+      {!hideAction && piece.status === 'available' && consultationFlowEnabled && onConsultation && (
+        <Button variant="ghost" className="w-full py-2 text-xs mt-2 border border-amber-600/25 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation(piece)}>
+          <Sparkles className="w-4 h-4" /> {t ? t('consultation_speak_concierge') : 'Speak with Concierge'}
         </Button>
       )}
       {extraAction}

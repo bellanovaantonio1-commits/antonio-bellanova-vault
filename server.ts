@@ -16,6 +16,7 @@ import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
 import { validateServerEnv } from "./lib/validateEnv.js";
+import { registerConsultationRoutes } from "./features/consultation/consultationRoutes.js";
 import { createIpRateLimiter } from "./lib/rateLimit.js";
 import {
   parseSessionUserIdFromCookieHeader,
@@ -1802,6 +1803,46 @@ await db.exec(`
     PRIMARY KEY (seq_key, seq_year, seq_type)
   );
 `);
+
+  // Isolated made-to-order consultation flow (optional; gated by ENABLE_CONSULTATION_FLOW)
+  await db.exec(`
+  CREATE TABLE IF NOT EXISTS consultation_conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    masterpiece_id INTEGER,
+    status TEXT DEFAULT 'open',
+    subject TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id)
+  );
+  CREATE TABLE IF NOT EXISTS consultation_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(conversation_id) REFERENCES consultation_conversations(id),
+    FOREIGN KEY(sender_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS consultation_proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    title TEXT,
+    description TEXT,
+    amount_eur REAL,
+    currency TEXT DEFAULT 'EUR',
+    status TEXT DEFAULT 'draft',
+    metadata TEXT,
+    created_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    accepted_at DATETIME,
+    FOREIGN KEY(conversation_id) REFERENCES consultation_conversations(id),
+    FOREIGN KEY(created_by) REFERENCES users(id)
+  );
+`);
 }
 
 async function nextProductSerial(category: string): Promise<string> {
@@ -2949,6 +2990,8 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "GET", path: "/api/resale/marketplace" },
   /** Publishable key only (+ flags); required for Stripe.js before login and for ops checks without session. */
   { method: "GET", path: "/api/stripe/config" },
+  /** Optional consultation flow: feature flag check without session. */
+  { method: "GET", path: "/api/consultation/enabled" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -2980,6 +3023,7 @@ function isGuestRestrictedPath(path: string, method: string): boolean {
   if (path.match(/^\/api\/appointments\/\d+\/respond$/) && method === "PATCH") return true;
   if (path.startsWith("/api/invoices")) return true;
   if (path === "/api/purchase" && method === "POST") return true;
+  if (path.startsWith("/api/consultation") && path !== "/api/consultation/enabled") return true;
   return false;
 }
 
@@ -4384,6 +4428,8 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
   broadcast({ type: 'PURCHASE_REVIEWED', id: masterpieceId, approved: approve });
   res.json({ success: true });
 });
+
+registerConsultationRoutes(app, { db, broadcast, logAudit });
 
 // --- NFT Minting Service (Mock) ---
 async function mintNFT(masterpieceId: number, ownerId: number): Promise<string> {
