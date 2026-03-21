@@ -82,6 +82,15 @@ const LANGUAGES = [
 ];
 const PLATFORM_LANGUAGES = LANGUAGES.filter(l => ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar'].includes(l.code));
 
+/** Guest session uses user id 0 — `!user.id` / `user?.id ?` must not treat 0 as missing. */
+function isGuestSessionUser(u: { id?: number; role?: string; is_guest?: boolean } | null | undefined): boolean {
+  if (!u) return false;
+  if (u.is_guest) return true;
+  if (u.role === 'guest' || u.role === UserRole.GUEST) return true;
+  if (u.id === 0) return true;
+  return false;
+}
+
 type OptionI18n = { id: string; de: string; en: string; it: string };
 const MATERIAL_OPTIONS: OptionI18n[] = [
   { id: 'gold', de: 'Gold', en: 'Gold', it: 'Oro' },
@@ -3816,8 +3825,15 @@ export default function App() {
   }, [selectedChatThread?.id, user]);
 
   useEffect(() => {
-    if (user) fetch(`/api/analytics/favorites?userId=${user.id}`).then(r => r.json()).then(setFavoriteIds).catch(() => {});
-  }, [user?.id]);
+    if (!user || isGuestSessionUser(user)) {
+      setFavoriteIds([]);
+      return;
+    }
+    fetch(`/api/analytics/favorites?userId=${user.id}`)
+      .then((r) => r.json())
+      .then(setFavoriteIds)
+      .catch(() => {});
+  }, [user?.id, user?.role]);
   const prevViewRef = useRef<string | null>(null);
   useEffect(() => {
     if (prevViewRef.current !== 'admin' && view === 'admin') setAdminAtelierMoments([...atelierMoments]);
@@ -3840,7 +3856,7 @@ export default function App() {
     const pieceId = selectedPiece?.id;
     if (pieceId && user) assetViewStartRef.current = Date.now();
     return () => {
-      if (user?.id && pieceId && assetViewStartRef.current) {
+      if (user != null && typeof user.id === 'number' && pieceId && assetViewStartRef.current) {
         const durationSeconds = Math.round((Date.now() - assetViewStartRef.current) / 1000);
         fetch('/api/analytics/asset-view', {
           method: 'POST',
@@ -3905,7 +3921,7 @@ export default function App() {
 
   /** After Stripe redirects with ?payment_intent=…, credit wallet if webhook did not run (dev / missing STRIPE_WEBHOOK_SECRET). */
   useEffect(() => {
-    if (!user?.id || typeof window === 'undefined') return;
+    if (!user || typeof user.id !== 'number' || isGuestSessionUser(user) || typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get('payment');
     const pi = params.get('payment_intent');
@@ -3971,7 +3987,7 @@ export default function App() {
     return () => { cancelled = true; };
     // Intentionally only when session user id appears (Stripe return after login).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- notifyUser/t would retrigger every render
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   const doPdfImport = async (file: File) => {
     setPdfImportLoading(true);
@@ -4025,6 +4041,7 @@ export default function App() {
 
   const fetchData = async () => {
     if (!user) return;
+    const guest = isGuestSessionUser(user);
     setListLoading(true);
     try {
       // Meisterstücke zuerst; listLoading endet gleich danach — nicht erst nach Vault/Admin (sonst ewige Skeletons bei hängenden APIs).
@@ -4032,7 +4049,9 @@ export default function App() {
         const ac = new AbortController();
         const to = window.setTimeout(() => ac.abort(), 25000);
         try {
-          const piecesRes = await fetch(`/api/masterpieces${user?.id ? `?userId=${user.id}` : ''}`, {
+          const masterpiecesQs =
+            user != null && typeof user.id === 'number' && !Number.isNaN(user.id) ? `?userId=${user.id}` : '';
+          const piecesRes = await fetch(`/api/masterpieces${masterpiecesQs}`, {
             credentials: 'include',
             signal: ac.signal,
           });
@@ -4057,6 +4076,27 @@ export default function App() {
     }
 
     try {
+      if (guest) {
+        const [auctionsRes, dropsRes, resaleRes] = await Promise.all([
+          fetch(`/api/auctions?userId=${user.id}`, { credentials: 'include' }),
+          fetch('/api/drops', { credentials: 'include' }),
+          fetch('/api/resale/marketplace', { credentials: 'include' }),
+        ]);
+        if (auctionsRes.ok) setAuctions(await auctionsRes.json());
+        if (dropsRes.ok) setDropsList(await dropsRes.json());
+        if (resaleRes.ok) setResalePieces(await resaleRes.json());
+        setVaultData({ pieces: [], certs: [], contracts: [] });
+        setPayments([]);
+        setInvoicesList([]);
+        setTransactionsList([]);
+        setNotifications([]);
+        setUserAddresses([]);
+        setUserNotificationSettings({ notify_email: false, notify_marketing: false });
+        setVipMembershipStatus(null);
+        setPrivateOffers([]);
+        return;
+      }
+
       const [auctionsRes, vaultRes, payRes, invRes, txnRes, notifRes, dropsRes, resaleRes, addrRes, notifPrefRes, vipStatusRes, privateOffersRes] = await Promise.all([
         fetch(`/api/auctions?userId=${user.id}`, { credentials: 'include' }),
         fetch(`/api/vault/${user.id}`, { credentials: 'include' }),
@@ -4227,7 +4267,14 @@ export default function App() {
   }, [selectedProjectId, user?.role]);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user || typeof user.id !== 'number') return;
+    if (isGuestSessionUser(user)) {
+      fetch('/api/atelier-moments')
+        .then((r) => (r.ok ? r.json() : []))
+        .then(setAtelierMoments)
+        .catch(() => {});
+      return;
+    }
     (async () => {
       try {
         if (user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR) {
@@ -6860,7 +6907,7 @@ export default function App() {
             )}
 
             {(view === 'marketplace' || view === 'world') && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+              <motion.div key={view === 'world' ? 'world' : 'marketplace'} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
                 <div className="flex justify-between items-end flex-wrap gap-4">
                   <div className="space-y-2">
                     <h3 className="text-3xl font-serif italic">{view === 'world' ? 'World' : t('marketplace')}</h3>

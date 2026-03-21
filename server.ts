@@ -2710,6 +2710,11 @@ function getSessionUserId(req: express.Request): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Guest uses id 0 — never use `if (!userId)` after getSessionUserId (0 is valid). */
+function noSessionUserId(userId: number | null | undefined): boolean {
+  return userId === null || userId === undefined;
+}
+
 /** Minimal user object for guest session (read-only; not in DB). */
 function getGuestUserPayload(): Record<string, any> {
   return {
@@ -2884,14 +2889,14 @@ app.get("/api/me", async (req, res) => {
 
 app.get("/api/me/addresses", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
   const rows = await (await db.prepare("SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_default_billing DESC, is_default_shipping DESC, id")).all(userId);
   res.json(rows);
 });
 
 app.post("/api/me/addresses", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
   const { label, street, city, postal_code, country, is_default_shipping, is_default_billing } = req.body || {};
   if (!label || typeof label !== "string" || !label.trim()) return res.status(400).json({ error: "label erforderlich." });
   if (is_default_shipping) await (await db.prepare("UPDATE user_addresses SET is_default_shipping = 0 WHERE user_id = ?")).run(userId);
@@ -2906,7 +2911,7 @@ app.post("/api/me/addresses", async (req, res) => {
 
 app.patch("/api/me/addresses/:id", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
   const id = Number(req.params.id);
   const row = await (await db.prepare("SELECT * FROM user_addresses WHERE id = ? AND user_id = ?")).get(id, userId);
   if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
@@ -2931,7 +2936,7 @@ app.patch("/api/me/addresses/:id", async (req, res) => {
 
 app.delete("/api/me/addresses/:id", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
   const id = Number(req.params.id);
   const row = await (await db.prepare("SELECT id FROM user_addresses WHERE id = ? AND user_id = ?")).get(id, userId);
   if (!row) return res.status(404).json({ error: "Adresse nicht gefunden." });
@@ -2941,7 +2946,10 @@ app.delete("/api/me/addresses/:id", async (req, res) => {
 
 app.get("/api/me/notification-settings", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
+  if (userId === GUEST_USER_ID) {
+    return res.json({ notify_email: false, notify_marketing: false });
+  }
   const user = await (await db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?")).get(userId) as any;
   if (!user) return res.status(401).json({ error: "Invalid session" });
   res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
@@ -2949,7 +2957,7 @@ app.get("/api/me/notification-settings", async (req, res) => {
 
 app.patch("/api/me/notification-settings", async (req, res) => {
   const userId = getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
   const { notify_email, notify_marketing } = req.body || {};
   const updates: string[] = [];
   const vals: any[] = [];
@@ -3152,8 +3160,12 @@ app.get("/api/masterpieces", async (req, res) => {
   try {
     await expirePrivateViewing();
     const search = (req.query.search as string)?.trim();
-    const userId = req.query.userId ? Number(req.query.userId) : null;
-    const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+    const userId =
+      req.query.userId !== undefined && req.query.userId !== "" ? Number(req.query.userId as string) : null;
+    const user =
+      userId !== null && !Number.isNaN(userId)
+        ? ((await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any)
+        : null;
     const isVip = user ? isVipActive(user) : false;
     let pieces: any[];
     if (search && search.length >= 2) {
@@ -4800,8 +4812,13 @@ app.get("/api/vault/:userId", async (req, res) => {
   const requesterId = getSessionUserId(req);
   const target = await (await db.prepare("SELECT id, private_portfolio_visibility FROM users WHERE id = ?")).get(userId) as any;
   if (target?.private_portfolio_visibility === 1 && String(requesterId) !== String(userId)) {
-    const requester = requesterId ? await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(requesterId) as any : null;
-    if (!requester || (requester.role !== 'admin' && requester.role !== 'super_admin'))
+    const requester =
+      noSessionUserId(requesterId)
+        ? null
+        : requesterId === GUEST_USER_ID
+          ? { role: "guest" }
+          : ((await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(requesterId)) as any);
+    if (!requester || (requester.role !== "admin" && requester.role !== "super_admin"))
       return res.status(403).json({ error: "Portfolio is private." });
   }
   await enforceVipExpiry(Number(userId));
@@ -7877,8 +7894,13 @@ app.post("/api/admin/reserve", async (req, res) => {
 
 // Private Gallery — only for VIP and above
 app.get("/api/private-gallery", async (req, res) => {
-  const userId = req.query.userId ? Number(req.query.userId) : getSessionUserId(req);
-  const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+  const raw = req.query.userId;
+  const userId =
+    raw !== undefined && String(raw).trim() !== "" ? Number(raw) : getSessionUserId(req);
+  const user =
+    userId !== null && !Number.isNaN(userId) && userId !== GUEST_USER_ID
+      ? ((await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any)
+      : null;
   if (!canAccessPrivateGallery(user)) return res.json([]);
   const pieces = await (await db.prepare("SELECT * FROM masterpieces WHERE private_gallery = 1 AND (status = 'available' OR status = 'reserved_vip' OR status = 'reserved_client')")).all();
   res.json(pieces);
@@ -7897,8 +7919,10 @@ app.post("/api/admin/private-offers", requireAuth, requireAdmin, async (req, res
 });
 
 app.get("/api/private-offers", async (req, res) => {
-  const userId = Number(req.query.userId) || getSessionUserId(req);
-  if (!userId) return res.json([]);
+  const raw = req.query.userId;
+  const userId =
+    raw !== undefined && String(raw).trim() !== "" ? Number(raw) : getSessionUserId(req);
+  if (userId === null || userId === undefined || Number.isNaN(userId)) return res.json([]);
   const now = new Date().toISOString();
   const rows = await (await db.prepare(`
     SELECT po.*, m.title, m.serial_id, m.image_url, m.valuation
@@ -7942,8 +7966,23 @@ app.get("/api/masterpieces/:id/ownership-chain", async (req, res) => {
 
 // Collector profile preferences
 app.get("/api/collector/preferences", async (req, res) => {
-  const userId = Number(req.query.userId) || getSessionUserId(req);
-  if (!userId) return res.status(401).json({ error: "Not signed in" });
+  const raw = req.query.userId;
+  const userId =
+    raw !== undefined && String(raw).trim() !== "" ? Number(raw) : getSessionUserId(req);
+  if (userId === null || userId === undefined || Number.isNaN(userId)) {
+    return res.status(401).json({ error: "Not signed in" });
+  }
+  if (userId === GUEST_USER_ID) {
+    return res.json({
+      user_id: 0,
+      favorite_gemstones: null,
+      preferred_metals: null,
+      design_style: null,
+      budget_range: null,
+      collection_type: null,
+      collection_focus: null,
+    });
+  }
   const row = await (await db.prepare("SELECT user_id, favorite_gemstones, preferred_metals, design_style, budget_range, collection_type, collection_focus FROM collector_profiles WHERE user_id = ?")).get(userId);
   res.json(row || { user_id: userId, favorite_gemstones: null, preferred_metals: null, design_style: null, budget_range: null, collection_type: null, collection_focus: null });
 });
@@ -7965,8 +8004,12 @@ app.patch("/api/collector/preferences", async (req, res) => {
 
 // Section 12: Collector Prestige Score
 app.get("/api/collector/prestige-score", async (req, res) => {
-  const userId = Number(req.query.userId) || getSessionUserId(req);
-  if (!userId) return res.json({ prestige_score: 0 });
+  const raw = req.query.userId;
+  const userId =
+    raw !== undefined && String(raw).trim() !== "" ? Number(raw) : getSessionUserId(req);
+  if (userId === null || userId === undefined || Number.isNaN(userId) || userId === GUEST_USER_ID) {
+    return res.json({ prestige_score: 0 });
+  }
   const payments = await (await db.prepare("SELECT COUNT(*) as c, COALESCE(SUM(amount), 0) as total FROM payments WHERE user_id = ? AND status IN ('paid', 'completed')")).get(userId) as any;
   const pieces = await (await db.prepare("SELECT COALESCE(SUM(valuation), 0) as total FROM masterpieces WHERE current_owner_id = ?")).get(userId) as any;
   const user = await (await db.prepare("SELECT collector_level FROM users WHERE id = ?")).get(userId) as any;
