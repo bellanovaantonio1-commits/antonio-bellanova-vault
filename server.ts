@@ -24,7 +24,7 @@ import {
   DEFAULT_SESSION_MAX_AGE_SEC,
   warnIfProductionSessionSecretMissing,
 } from "./lib/sessionCookie.js";
-import { authenticator } from "otplib";
+import { generateSecret, generateURI, verifySync } from "otplib";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 
@@ -1878,7 +1878,10 @@ async function nextProjectSerialId(): Promise<string> {
  * Adds the same fields as the initial CREATE in runSchema so seedAdmin + app routes work.
  */
 async function ensureUsersCoreColumns(d: DbInterface) {
-  /** Cloud SQL: blind ALTER can fail silently in edge cases; ensure each column via INFORMATION_SCHEMA. */
+  /**
+   * Cloud SQL: INFORMATION_SCHEMA is sometimes restricted or unreliable here.
+   * Probe with `SELECT \`col\` FROM users LIMIT 0` — MySQL errno 1054 = column missing, then ALTER.
+   */
   if (d.isMySQL) {
     const additions: { col: string; ddl: string }[] = [
       { col: "password", ddl: "`password` LONGTEXT" },
@@ -1896,19 +1899,26 @@ async function ensureUsersCoreColumns(d: DbInterface) {
       { col: "two_fa_enabled", ddl: "two_fa_enabled INT DEFAULT 0" },
       { col: "two_fa_secret", ddl: "two_fa_secret TEXT" },
     ];
+    async function mysqlUsersHasColumn(colName: string): Promise<boolean> {
+      const safe = colName.replace(/[^a-zA-Z0-9_]/g, "");
+      if (safe !== colName) return true;
+      try {
+        await (await d.prepare(`SELECT \`${safe}\` FROM users LIMIT 0`)).get();
+        return true;
+      } catch (e: any) {
+        if (e?.errno === 1054 || /Unknown column/i.test(String(e?.message || e))) return false;
+        console.warn("[ensureUsersCoreColumns mysql] probe", safe, String(e?.message || e));
+        return false;
+      }
+    }
     for (const { col, ddl } of additions) {
       try {
-        const row = (await (
-          await d.prepare(
-            `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?`
-          )
-        ).get(col)) as { c: number };
-        if (Number(row?.c) > 0) continue;
+        if (await mysqlUsersHasColumn(col)) continue;
         await (await d.prepare(`ALTER TABLE users ADD COLUMN ${ddl}`)).run();
       } catch (e: any) {
         const msg = String(e?.message || e);
         if (!/duplicate column|Duplicate column name|already exists/i.test(msg)) {
-          console.warn("[ensureUsersCoreColumns mysql]", col, msg);
+          console.warn("[ensureUsersCoreColumns mysql] ALTER", col, msg);
         }
       }
     }
@@ -3002,7 +3012,7 @@ app.post("/api/login", loginRateLimiter, async (req, res) => {
       if (!totpToken) {
         return res.status(401).json({ error: "Two-factor authentication code required", needs2fa: true });
       }
-      if (!authenticator.verify({ token: totpToken, secret: user.two_fa_secret })) {
+      if (!verifySync({ token: totpToken, secret: user.two_fa_secret }).valid) {
         try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run(user.id, ip, userAgent); } catch (_) {}
         return res.status(401).json({ error: "Invalid two-factor code", needs2fa: true });
       }
@@ -3106,10 +3116,10 @@ app.post("/api/me/2fa/setup", async (req, res) => {
     | { id: number; email?: string; username?: string; role?: string }
     | undefined;
   if (!user || (user.role !== "admin" && user.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
-  const secret = authenticator.generateSecret();
+  const secret = generateSecret();
   await (await db.prepare("UPDATE users SET two_fa_secret = ?, two_fa_enabled = 0 WHERE id = ?")).run(secret, userId);
   const accountLabel = (user.email || user.username || "admin").toString();
-  const otpauthUrl = authenticator.keyuri(accountLabel, "AntonioBellanovaVault", secret);
+  const otpauthUrl = generateURI({ issuer: "AntonioBellanovaVault", label: accountLabel, secret });
   res.json({ secret, otpauthUrl });
 });
 
@@ -3120,7 +3130,7 @@ app.post("/api/me/2fa/enable", async (req, res) => {
   if (!user || (user.role !== "admin" && user.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
   if (!user.two_fa_secret) return res.status(400).json({ error: "Run 2FA setup first" });
   const code = String(req.body?.code ?? req.body?.totp ?? "").replace(/\s/g, "");
-  if (!code || !authenticator.verify({ token: code, secret: user.two_fa_secret })) {
+  if (!code || !verifySync({ token: code, secret: user.two_fa_secret }).valid) {
     return res.status(400).json({ error: "Invalid authenticator code" });
   }
   await (await db.prepare("UPDATE users SET two_fa_enabled = 1 WHERE id = ?")).run(userId);
@@ -3137,7 +3147,7 @@ app.post("/api/me/2fa/disable", async (req, res) => {
   const totpEnabled = Number(user.two_fa_enabled) === 1 && user.two_fa_secret;
   if (totpEnabled) {
     const code = String(req.body?.code ?? req.body?.totp ?? "").replace(/\s/g, "");
-    if (!code || !authenticator.verify({ token: code, secret: user.two_fa_secret })) {
+    if (!code || !verifySync({ token: code, secret: user.two_fa_secret }).valid) {
       return res.status(400).json({ error: "Invalid authenticator code" });
     }
   }
