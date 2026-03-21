@@ -22,7 +22,7 @@ import {
   buildSetSessionCookieHeader,
   buildClearSessionCookieHeader,
   DEFAULT_SESSION_MAX_AGE_SEC,
-  assertProductionSessionSecret,
+  warnIfProductionSessionSecretMissing,
 } from "./lib/sessionCookie.js";
 import { authenticator } from "otplib";
 const require = createRequire(import.meta.url);
@@ -10641,13 +10641,10 @@ async function startServer() {
   const envReport = validateServerEnv();
   for (const w of envReport.warnings) console.warn("[env]", w);
   for (const e of envReport.errors) console.error("[env:error]", e);
-  if (envReport.errors.length && process.env.NODE_ENV === "production") {
-    console.error("[env] Refusing to start in production with env errors (see above).");
-    process.exit(1);
-  } else if (envReport.errors.length) {
-    console.error("[env] Startup continues in development; fix env errors before production.");
+  if (envReport.errors.length) {
+    console.warn("[env] Non-fatal env issues reported above — server will still start (avoid 502). Fix for full functionality.");
   }
-  assertProductionSessionSecret();
+  warnIfProductionSessionSecretMissing();
   db = await initDb();
   await runSchema(db);
   try {

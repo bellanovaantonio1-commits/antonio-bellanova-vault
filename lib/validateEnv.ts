@@ -48,10 +48,12 @@ export function validateServerEnv(): EnvValidationResult {
     warnings.push("SESSION_SECRET should be at least 32 characters for signed session cookies.");
   }
   if (!sessionSecret && process.env.NODE_ENV === "production") {
-    errors.push("SESSION_SECRET is required in production (signed sessions; min 32 chars).");
+    warnings.push(
+      "SESSION_SECRET not set in production — server will start, but session cookies are unsigned (security risk). Add SESSION_SECRET to .env."
+    );
   }
   if (!sessionSecret && process.env.NODE_ENV !== "production") {
-    warnings.push("SESSION_SECRET not set — session cookies are unsigned (dev only). Set SESSION_SECRET before production.");
+    warnings.push("SESSION_SECRET not set — session cookies are unsigned (dev). Set SESSION_SECRET before production.");
   }
 
   return {

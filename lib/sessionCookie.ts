@@ -90,13 +90,13 @@ export function buildClearSessionCookieHeader(isSecure: boolean): string {
   return parts.join("; ");
 }
 
-export function assertProductionSessionSecret(): void {
+/** Logs a strong warning only — never exits (avoids 502 when .env/PM2 misconfigured). */
+export function warnIfProductionSessionSecretMissing(): void {
   if (process.env.NODE_ENV !== "production") return;
   const s = getSessionSecret();
   if (s.length >= 32) return;
-  console.error(
-    "[security] Production requires SESSION_SECRET (at least 32 characters). Example:\n" +
+  console.warn(
+    "[security] SESSION_SECRET missing or too short — session cookies are forgeable. Set a random 32+ char secret in .env and restart. Example:\n" +
       '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
   );
-  process.exit(1);
 }

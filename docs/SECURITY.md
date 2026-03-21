@@ -4,7 +4,7 @@
 
 ## Was diese App serverseitig macht
 
-- **Signierte Session-Cookies** (`SESSION_SECRET`): Ohne gültige Signatur wird `session` nicht akzeptiert (Produktion: Secret zwingend, siehe Start-Check).
+- **Signierte Session-Cookies** (`SESSION_SECRET`): Wenn gesetzt (≥32 Zeichen), sind Cookies signiert. Fehlt das Secret, startet der Server trotzdem (Warnung im Log) — Cookies sind dann unsigniert wie früher.
 - **HTTP-Security-Header** (Helmet): u. a. `X-Content-Type-Options`, `X-Frame-Options`, HSTS in passenden Setups — **CSP ist absichtlich deaktiviert**, damit SPA/Stripe nicht brechen (optional später pro Route schärfen).
 - **Rate-Limits** (in-memory, pro IP): Login, Registrierung, Passwort vergessen, Reset, Kontaktformular.
 - **Kleinere JSON-Body-Limits** (Standard `5mb`) gegen trivialen DoS; große Dateien über **Multer** mit eigenem Limit.
