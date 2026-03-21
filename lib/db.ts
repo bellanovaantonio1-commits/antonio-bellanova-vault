@@ -129,9 +129,9 @@ function mysqlBacktickUsersReservedColumns(sql: string): string {
  */
 function mysqlConvertOnConflictToDuplicateKey(sql: string): string {
   let s = sql;
-  // number_sequences (nextContractRef, nextCertRef, etc.)
+  // number_sequences (nextContractRef, nextCertRef, etc.) — allow `last_value` if already backticked
   s = s.replace(
-    /\bON\s+CONFLICT\s*\(\s*seq_key\s*,\s*seq_year\s*,\s*seq_type\s*\)\s+DO\s+UPDATE\s+SET\s+last_value\s*=\s*excluded\.last_value/gi,
+    /\bON\s+CONFLICT\s*\(\s*seq_key\s*,\s*seq_year\s*,\s*seq_type\s*\)\s+DO\s+UPDATE\s+SET\s+`?last_value`?\s*=\s*excluded\.`?last_value`?/gi,
     "ON DUPLICATE KEY UPDATE `last_value` = VALUES(`last_value`)",
   );
   // admin_config (key is PK)
@@ -179,26 +179,27 @@ function mysqlConvertOnConflictToDuplicateKey(sql: string): string {
  * - Backtick reserved column names: key, last_value.
  */
 function mysqlDdlCompat(sql: string): string {
-  const afterBasic = mysqlBacktickKeyColumnName(
-    mysqlBacktickUsersReservedColumns(
-      mysqlBacktickLastValueColumnName(
-      sql
-        .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
-        .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
-        .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
-        .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
-        .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
-        .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
-        .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
-        .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
-        // Short strings; composite PK (seq_key, seq_year, seq_type) must stay under InnoDB 3072-byte index limit (utf8mb4).
-        .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(191) NOT NULL")
-        .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(191)")
-        .replace(/\bTEXT\b/gi, "LONGTEXT"),
-    ),
-    ),
+  // Type / engine tweaks first (no column backticks yet).
+  const base = sql
+    .replace(/\bAUTOINCREMENT\b/gi, "AUTO_INCREMENT")
+    .replace(/\bTEXT\s+NOT\s+NULL\s+UNIQUE\b/gi, "VARCHAR(512) NOT NULL UNIQUE")
+    .replace(/\bTEXT\s+PRIMARY\s+KEY\b/gi, "VARCHAR(512) PRIMARY KEY")
+    .replace(/\bTEXT\s+UNIQUE\b/gi, "VARCHAR(512) UNIQUE")
+    .replace(/\bTEXT\s+NOT\s+NULL\s+DEFAULT\b/gi, "VARCHAR(512) NOT NULL DEFAULT")
+    .replace(/\bTEXT\s+DEFAULT\b/gi, "VARCHAR(512) DEFAULT")
+    .replace(/\broom_type\s+TEXT\s+NOT\s+NULL\b/gi, "room_type VARCHAR(512) NOT NULL")
+    .replace(/\btag\s+TEXT\s+NOT\s+NULL\b/gi, "tag VARCHAR(512) NOT NULL")
+    // Short strings; composite PK (seq_key, seq_year, seq_type) must stay under InnoDB 3072-byte index limit (utf8mb4).
+    .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(191) NOT NULL")
+    .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(191)")
+    .replace(/\bTEXT\b/gi, "LONGTEXT");
+
+  // SQLite ON CONFLICT must become MySQL ON DUPLICATE *before* last_value backticks break the matcher.
+  const afterUpsert = mysqlConvertOnConflictToDuplicateKey(base);
+
+  return mysqlBacktickKeyColumnName(
+    mysqlBacktickUsersReservedColumns(mysqlBacktickLastValueColumnName(afterUpsert)),
   );
-  return mysqlConvertOnConflictToDuplicateKey(afterBasic);
 }
 
 function createSQLiteAdapter(): DbInterface {
