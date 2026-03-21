@@ -5187,14 +5187,23 @@ export default function App() {
         body: JSON.stringify({ userId: user.id, masterpieceId: pieceId, delivery_option: delivery_option || null }),
         credentials: 'include'
       });
-      const data = await res.json().catch(() => ({}));
+      let data: { error?: string; code?: string } = {};
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const text = await res.text().catch(() => '');
+        if (text) data = { error: text.slice(0, 200) };
+      }
       if (res.ok) {
         notifyUser(t('marketplace.request_sent'), 'success');
         fetchData();
       } else {
-        if (res.status === 403 && (data as any).code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
-        else notifyUser(data.error || t('errors.generic'), 'error');
+        if (res.status === 403 && data.code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else notifyUser(data.error || res.statusText || t('errors.generic'), 'error');
       }
+    } catch {
+      notifyUser(t('errors.network') || t('errors.generic'), 'error');
     } finally {
       setLoading(false);
     }
@@ -12970,7 +12979,7 @@ export default function App() {
                               <option value="vault_storage">{t('delivery.vault_storage')}</option>
                             </select>
                           </div>
-                          <Button className="w-full py-4 text-base" onClick={() => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                          <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
                             <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
                           </Button>
                         </>
@@ -13395,7 +13404,7 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       </div>
       {!hideAction && piece.status === 'available' && onBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
-          <ShoppingBag className="w-4 h-4" /> Request Acquisition
+          <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Request Acquisition'}
         </Button>
       )}
       {extraAction}

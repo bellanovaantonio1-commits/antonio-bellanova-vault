@@ -2378,7 +2378,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
   const version = options.version || 1;
   const docRef = options.docRef || `${type.substring(0, 3).toUpperCase()}-${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
-  const clientRef = options.clientRef || `CL-${user.id}-${(user.name || '').substring(0, 3).toUpperCase()}`;
+  const clientRef = options.clientRef || `CL-${user?.id ?? '—'}-${((user?.name || '') as string).substring(0, 3).toUpperCase() || 'XXX'}`;
   const serialNumber = (piece && piece.serial_id) ? piece.serial_id : 'AB-VAULT-000';
   const jurisdiction = options.jurisdiction || 'Federal Republic of Germany';
   const isCertificate = type.toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('CERTIFICATE') || (options.title || '').toUpperCase().includes('ECHTHEIT') || (options.title || '').toUpperCase().includes('AUTENTICITÀ');
@@ -4191,60 +4191,99 @@ app.get("/api/investor/view-logs", async (req, res) => {
   res.json(logs);
 });
 app.post("/api/marketplace/buy", async (req, res) => {
-  const { userId, masterpieceId, delivery_option } = req.body;
-  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId) as any;
-  if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
-  if (piece.status !== 'available') return res.status(400).json({ error: "Stück ist nicht verfügbar." });
-  await logMasterpieceStatusChange(masterpieceId, 'reserved', null);
-  await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(masterpieceId);
+  try {
+    const sessionUid = getSessionUserId(req);
+    if (noSessionUserId(sessionUid) || sessionUid === GUEST_USER_ID) {
+      return res.status(403).json({ error: "Bitte mit einem vollständigen Konto anmelden.", code: "GUEST_RESTRICTED" });
+    }
+    const { userId, masterpieceId, delivery_option } = req.body || {};
+    const uid = Number(userId);
+    const mid = Number(masterpieceId);
+    if (!uid || !mid || Number.isNaN(uid) || Number.isNaN(mid)) {
+      return res.status(400).json({ error: "userId und masterpieceId sind erforderlich." });
+    }
+    if (Number(sessionUid) !== uid) {
+      return res.status(403).json({ error: "Die Anfrage stimmt nicht mit Ihrer Sitzung überein." });
+    }
 
-  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
-  const depositAmount = (piece.valuation * (piece.deposit_pct || 10)) / 100;
-  const meta = JSON.stringify({ delivery_option: delivery_option || null, is_resale: false });
-  const listing = await (await db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status = 'curated_marketplace'")).get(masterpieceId) as { id: number } | undefined;
-  const isResale = !!listing;
+    const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(uid) as any;
+    if (!user) {
+      return res.status(404).json({ error: "Benutzer nicht gefunden." });
+    }
+    if (user.status && user.status !== "approved") {
+      return res.status(403).json({ error: "Ihr Konto ist noch nicht freigeschaltet." });
+    }
 
-  if (isResale) {
-    const docRef = await nextContractRef('deposit');
-    const L: ContractLang = OFFICIAL_CONTRACT_LANG;
-    const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
-    if (resaleT) {
-      const vars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, buyerName: user.name || '—', buyerAddress: user.address || '—', depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
-      const content = applyContractVars(resaleT.body, vars);
-      const html = generateLuxuryDocument(resaleT.title, content, user, piece, { docRef, title: resaleT.title, lang: L });
-      const metaResale = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      const rr = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, metaResale);
-      createActivityNotification(userId, 'new_contract', String(rr.lastInsertRowid), 'Contract ready for signature');
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid) as any;
+    if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+    if (piece.status !== "available") {
+      return res.status(400).json({ error: "Stück ist nicht verfügbar." });
+    }
+
+    const valuation = Number(piece.valuation) || 0;
+    const depositPct = Number(piece.deposit_pct) || 10;
+    const depositAmount = (valuation * depositPct) / 100;
+    const meta = JSON.stringify({ delivery_option: delivery_option || null, is_resale: false });
+    const listing = await (await db.prepare("SELECT id FROM resale_listings WHERE masterpiece_id = ? AND status = 'curated_marketplace'")).get(mid) as { id: number } | undefined;
+    const isResale = !!listing;
+
+    const safeUser = user || { id: uid, name: "—", address: "" };
+
+    if (isResale) {
+      const docRef = await nextContractRef("deposit");
+      const L: ContractLang = OFFICIAL_CONTRACT_LANG;
+      const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
+      if (resaleT) {
+        const vars = {
+          piece: { ...piece, valuation: valuation.toLocaleString("en-GB") },
+          buyerName: safeUser.name || "—",
+          buyerAddress: safeUser.address || "—",
+          depositAmount: depositAmount.toLocaleString("en-GB"),
+          depositPct,
+        };
+        const content = applyContractVars(resaleT.body, vars);
+        const html = generateLuxuryDocument(resaleT.title, content, safeUser, piece, { docRef, title: resaleT.title, lang: L });
+        const metaResale = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
+        const rr = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(uid, mid, docRef, html, metaResale);
+        createActivityNotification(uid, "new_contract", String(rr.lastInsertRowid), "Contract ready for signature");
+      } else {
+        const docRef = "DEP-RSL-" + Date.now();
+        const content = `Deposit Agreement – Resale – ${piece.title} (${piece.serial_id}). Purchase price: ${valuation} EUR. Deposit: ${depositAmount} EUR. Private sale via Antonio Bellanova Vault. Governing law: Germany. Jurisdiction: Cologne.`;
+        const html = generateLuxuryDocument("Deposit Agreement – Resale", content, safeUser, piece, { docRef, title: "Deposit Agreement – Resale", lang: OFFICIAL_CONTRACT_LANG });
+        const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
+        const rrf = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(uid, mid, docRef, html, metaResaleFallback);
+        createActivityNotification(uid, "new_contract", String(rrf.lastInsertRowid), "Contract ready for signature");
+      }
     } else {
-      const docRef = 'DEP-RSL-' + Date.now();
-      const content = `Deposit Agreement – Resale – ${piece.title} (${piece.serial_id}). Purchase price: ${piece.valuation} EUR. Deposit: ${depositAmount} EUR. Private sale via Antonio Bellanova Vault. Governing law: Germany. Jurisdiction: Cologne.`;
-      const html = generateLuxuryDocument("Deposit Agreement – Resale", content, user, piece, { docRef, title: "Deposit Agreement – Resale", lang: OFFICIAL_CONTRACT_LANG });
-      const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
-      const rrf = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, metaResaleFallback);
-      createActivityNotification(userId, 'new_contract', String(rrf.lastInsertRowid), 'Contract ready for signature');
+      const docRef = await nextContractRef("deposit");
+      const depositT = CONTRACT_BODIES_EN.deposit;
+      const depositVars = {
+        piece: { ...piece, valuation: valuation.toLocaleString("en-GB") },
+        user: safeUser,
+        depositAmount: depositAmount.toLocaleString("en-GB"),
+        depositPct,
+      };
+      const depositBody = applyContractVars(depositT.body, depositVars);
+      const html = generateLuxuryDocument(depositT.title, depositBody, safeUser, piece, { docRef, title: depositT.title, lang: OFFICIAL_CONTRACT_LANG });
+      try {
+        const rd = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit', ?, ?, 'draft', ?)")).run(uid, mid, docRef, html, meta);
+        createActivityNotification(uid, "new_contract", String(rd.lastInsertRowid), "Contract ready for signature");
+      } catch (insErr: any) {
+        console.warn("[marketplace/buy] insert with metadata failed, retry without metadata:", insErr?.message || insErr);
+        const rd2 = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(uid, mid, docRef, html);
+        createActivityNotification(uid, "new_contract", String(rd2.lastInsertRowid), "Contract ready for signature");
+      }
     }
-  } else {
-    const docRef = await nextContractRef('deposit');
-    const depositT = CONTRACT_BODIES_EN.deposit;
-    const depositVars = {
-      piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() },
-      user,
-      depositAmount: depositAmount.toLocaleString(),
-      depositPct: piece.deposit_pct || 10,
-    };
-    const depositBody = applyContractVars(depositT.body, depositVars);
-    const html = generateLuxuryDocument(depositT.title, depositBody, user, piece, { docRef, title: depositT.title, lang: OFFICIAL_CONTRACT_LANG });
-    try {
-      const rd = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, meta);
-      createActivityNotification(userId, 'new_contract', String(rd.lastInsertRowid), 'Contract ready for signature');
-    } catch (_) {
-      const rd2 = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(userId, masterpieceId, docRef, html);
-      createActivityNotification(userId, 'new_contract', String(rd2.lastInsertRowid), 'Contract ready for signature');
-    }
+
+    await logMasterpieceStatusChange(mid, "reserved", uid);
+    await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(mid);
+
+    broadcast({ type: "MASTERPIECE_RESERVED", id: mid });
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[marketplace/buy]", err);
+    return res.status(500).json({ error: err?.message || "Erwerbsanfrage fehlgeschlagen." });
   }
-  
-  broadcast({ type: 'MASTERPIECE_RESERVED', id: masterpieceId });
-  res.json({ success: true });
 });
 
 app.post("/api/admin/approve-purchase", async (req, res) => {

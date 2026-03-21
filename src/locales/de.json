@@ -1,4 +1,5 @@
 {
+  "errors.network": "Netzwerkfehler. Bitte Verbindung prüfen und erneut versuchen.",
   "messages": "Nachrichten",
   "my_rooms": "Meine Räume",
   "documents": "Dokumente",
