@@ -10347,6 +10347,17 @@ async function startServer() {
   } catch (_) {
     /* duplicate column */
   }
+  try {
+    await (
+      await db.prepare(
+        db.isMySQL
+          ? "ALTER TABLE transactions ADD COLUMN `status` VARCHAR(32) DEFAULT 'PAID'"
+          : "ALTER TABLE transactions ADD COLUMN status TEXT DEFAULT 'PAID'"
+      )
+    ).run();
+  } catch (_) {
+    /* duplicate column */
+  }
   // Ensure optional key-value config table exists (used by maintenance/bank config endpoints).
   await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
   await ensureUsersCoreColumns(db);

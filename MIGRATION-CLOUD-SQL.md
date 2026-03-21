@@ -51,7 +51,7 @@ Der Server (`server.ts`) nutzt die Datenbank heute an **über 100 Stellen** **sy
 
 3. **Schema:** Beim ersten Start mit MySQL werden alle Tabellen per `runSchema(db)` angelegt (sobald diese Funktion wie oben eingebaut ist).
 
-4. **Spalten-Nachzug (automatisch):** Beim Serverstart versucht die App `ALTER TABLE transactions` um fehlende Spalten zu ergänzen (u. a. `` `type` ``, `invoice_id`). Ältere Cloud-SQL-Backups ohne diese Spalten verursachen sonst Fehler wie *Unknown column 'invoice_id' in 'field list'*.
+4. **Spalten-Nachzug (automatisch):** Beim Serverstart versucht die App `ALTER TABLE transactions` um fehlende Spalten zu ergänzen (u. a. `` `type` ``, `invoice_id`, `` `status` `` mit Default `PAID`). Ältere Cloud-SQL-Backups ohne diese Spalten verursachen sonst Fehler wie *Unknown column 'invoice_id'* oder *Unknown column 'status'* (z. B. bei Wallet-Einzahlung).
 
 ---
 
