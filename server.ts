@@ -1878,24 +1878,44 @@ async function nextProjectSerialId(): Promise<string> {
  * Adds the same fields as the initial CREATE in runSchema so seedAdmin + app routes work.
  */
 async function ensureUsersCoreColumns(d: DbInterface) {
-  const stmts = d.isMySQL
-    ? [
-        "ALTER TABLE users ADD COLUMN `password` LONGTEXT",
-        "ALTER TABLE users ADD COLUMN username VARCHAR(512)",
-        "ALTER TABLE users ADD COLUMN `name` LONGTEXT",
-        "ALTER TABLE users ADD COLUMN address LONGTEXT",
-        "ALTER TABLE users ADD COLUMN `role` VARCHAR(512) DEFAULT 'collector'",
-        "ALTER TABLE users ADD COLUMN `status` VARCHAR(512) DEFAULT 'pending'",
-        "ALTER TABLE users ADD COLUMN language VARCHAR(512) DEFAULT 'de'",
-        "ALTER TABLE users ADD COLUMN is_vip INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN account_type VARCHAR(512) DEFAULT 'private'",
-        "ALTER TABLE users ADD COLUMN business_data LONGTEXT",
-        "ALTER TABLE users ADD COLUMN reputation_score INTEGER DEFAULT 100",
-        "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
-        "ALTER TABLE users ADD COLUMN two_fa_enabled INTEGER DEFAULT 0",
-        "ALTER TABLE users ADD COLUMN two_fa_secret TEXT",
-      ]
-    : [
+  /** Cloud SQL: blind ALTER can fail silently in edge cases; ensure each column via INFORMATION_SCHEMA. */
+  if (d.isMySQL) {
+    const additions: { col: string; ddl: string }[] = [
+      { col: "password", ddl: "`password` LONGTEXT" },
+      { col: "username", ddl: "username VARCHAR(512)" },
+      { col: "name", ddl: "`name` LONGTEXT" },
+      { col: "address", ddl: "address LONGTEXT" },
+      { col: "role", ddl: "`role` VARCHAR(512) DEFAULT 'collector'" },
+      { col: "status", ddl: "`status` VARCHAR(512) DEFAULT 'pending'" },
+      { col: "language", ddl: "language VARCHAR(512) DEFAULT 'de'" },
+      { col: "is_vip", ddl: "is_vip INT DEFAULT 0" },
+      { col: "account_type", ddl: "account_type VARCHAR(512) DEFAULT 'private'" },
+      { col: "business_data", ddl: "business_data LONGTEXT" },
+      { col: "reputation_score", ddl: "reputation_score INT DEFAULT 100" },
+      { col: "created_at", ddl: "created_at DATETIME DEFAULT CURRENT_TIMESTAMP" },
+      { col: "two_fa_enabled", ddl: "two_fa_enabled INT DEFAULT 0" },
+      { col: "two_fa_secret", ddl: "two_fa_secret TEXT" },
+    ];
+    for (const { col, ddl } of additions) {
+      try {
+        const row = (await (
+          await d.prepare(
+            `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?`
+          )
+        ).get(col)) as { c: number };
+        if (Number(row?.c) > 0) continue;
+        await (await d.prepare(`ALTER TABLE users ADD COLUMN ${ddl}`)).run();
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (!/duplicate column|Duplicate column name|already exists/i.test(msg)) {
+          console.warn("[ensureUsersCoreColumns mysql]", col, msg);
+        }
+      }
+    }
+    return;
+  }
+
+  const stmts = [
         "ALTER TABLE users ADD COLUMN password TEXT",
         "ALTER TABLE users ADD COLUMN username TEXT",
         "ALTER TABLE users ADD COLUMN name TEXT",
@@ -1911,7 +1931,7 @@ async function ensureUsersCoreColumns(d: DbInterface) {
         "ALTER TABLE users ADD COLUMN two_fa_enabled INTEGER DEFAULT 0",
         "ALTER TABLE users ADD COLUMN two_fa_secret TEXT",
       ];
-  for (const sql of stmts) {
+  for (const sql of stmts as string[]) {
     try {
       await (await d.prepare(sql)).run();
     } catch (e: any) {
