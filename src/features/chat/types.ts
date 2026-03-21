@@ -10,6 +10,9 @@ export type ConsultationConversationRow = {
   masterpiece_title?: string | null;
   client_name?: string | null;
   client_email?: string | null;
+  purchase_unlocked_at?: string | null;
+  masterpiece_status?: string | null;
+  masterpiece_consultation_required?: number | null;
 };
 
 export type ConsultationMessageRow = {

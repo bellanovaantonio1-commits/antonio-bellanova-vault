@@ -41,6 +41,8 @@ export type ConsultationNotifyHooks = {
   onConsultationClosedByAdmin?: (clientUserId: number, conversationId: number) => void | Promise<void>;
   /** When staff reopens a closed thread */
   onConsultationReopenedByAdmin?: (clientUserId: number, conversationId: number) => void | Promise<void>;
+  /** When staff unlocks deposit / contract step for a consultation-only piece */
+  onPurchaseUnlockedForClient?: (clientUserId: number, conversationId: number) => void | Promise<void>;
 };
 
 type ConsultationDeps = {
@@ -168,10 +170,19 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid id" });
     try {
-      const conv = await loadConversation(id);
-      if (!conv) return res.status(404).json({ error: "Not found" });
+      const row = (await (
+        await db.prepare(
+          `SELECT c.*, m.title AS masterpiece_title, m.status AS masterpiece_status,
+            m.consultation_required AS masterpiece_consultation_required
+           FROM consultation_conversations c
+           LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
+           WHERE c.id = ?`
+        )
+      ).get(id)) as Record<string, unknown> | undefined;
+      if (!row) return res.status(404).json({ error: "Not found" });
+      const conv = row as Record<string, any>;
       if (!(await canAccessConversation(conv, req))) return res.status(403).json({ error: "Forbidden" });
-      res.json(conv);
+      res.json(row);
     } catch (e: any) {
       res.status(500).json({ error: e?.message || "Failed" });
     }
@@ -243,7 +254,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.post("/api/consultation/conversations/:id/reopen", gate, async (req: Request, res: Response) => {
+  app.post("/api/consultation/conversations/:id/reopen", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -426,7 +437,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
-  app.post("/api/admin/consultation/conversations/:id/close", gate, async (req: Request, res: Response) => {
+  app.post("/api/admin/consultation/conversations/:id/close", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const adminId = (req as any).userId as number;
     if (!id) return res.status(400).json({ error: "Invalid id" });
@@ -459,6 +470,45 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       broadcast?.({ type: "CONSULTATION_CONVERSATION_REOPENED", conversationId: id });
       try {
         await consultationNotify?.onConsultationReopenedByAdmin?.(Number(conv.user_id), id);
+      } catch (_) {}
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post("/api/admin/consultation/conversations/:id/unlock-purchase", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminId = (req as any).userId as number;
+    const finalRaw = req.body?.final_valuation_eur;
+    const finalValuation = finalRaw != null && String(finalRaw).trim() !== "" ? Number(finalRaw) : null;
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      const mid = conv.masterpiece_id != null ? Number(conv.masterpiece_id) : NaN;
+      if (!mid || Number.isNaN(mid)) return res.status(400).json({ error: "Conversation has no linked masterpiece" });
+      const piece = (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid)) as Record<string, unknown> | undefined;
+      if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
+      if (Number((piece as { consultation_required?: number }).consultation_required) !== 1) {
+        return res.status(400).json({
+          error: "This piece is not marked as consultation-only (Erwerb nur nach Concierge).",
+          code: "NOT_CONSULTATION_REQUIRED_PIECE",
+        });
+      }
+      if (finalValuation != null && Number.isFinite(finalValuation) && finalValuation > 0) {
+        await (await db.prepare("UPDATE masterpieces SET valuation = ? WHERE id = ?")).run(finalValuation, mid);
+      }
+      await (await db.prepare("UPDATE consultation_conversations SET purchase_unlocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(id);
+      await logAudit?.(adminId, "CONSULTATION_UNLOCK_PURCHASE", String(id), `Unlocked purchase for conversation ${id}, masterpiece ${mid}`);
+      broadcast?.({
+        type: "CONSULTATION_PURCHASE_UNLOCKED",
+        conversationId: id,
+        masterpieceId: mid,
+        userId: Number(conv.user_id),
+      });
+      try {
+        await consultationNotify?.onPurchaseUnlockedForClient?.(Number(conv.user_id), id);
       } catch (_) {}
       res.json({ success: true });
     } catch (e: any) {

@@ -74,6 +74,8 @@ export interface Masterpiece {
   description_i18n?: string; // JSON: { de: "...", en: "...", it: "..." }
   materials_i18n?: string;
   gemstones_i18n?: string;
+  /** 1 = purchase only after Concierge thread + admin unlock (requires ENABLE_CONSULTATION_FLOW + server gate). */
+  consultation_required?: number;
 }
 
 export interface Auction {

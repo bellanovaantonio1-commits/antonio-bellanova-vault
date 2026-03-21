@@ -26,6 +26,8 @@ type Props = {
   strings?: AdminConsultationStrings;
   /** Called after successful reopen-from-list (e.g. toast). */
   onReopened?: () => void;
+  /** Optional toasts; falls back to window.alert on errors if omitted. */
+  notify?: (message: string, kind?: "success" | "error") => void;
 };
 
 const defaultStrings: Required<AdminConsultationStrings> = {
@@ -44,7 +46,7 @@ const defaultStrings: Required<AdminConsultationStrings> = {
   statusClosed: "closed",
 };
 
-export function AdminConsultationSection({ onOpenConversation, refreshKey = 0, strings: sProp, onReopened }: Props) {
+export function AdminConsultationSection({ onOpenConversation, refreshKey = 0, strings: sProp, onReopened, notify }: Props) {
   const str = { ...defaultStrings, ...sProp };
   const [rows, setRows] = useState<ConsultationConversationRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -89,13 +91,14 @@ export function AdminConsultationSection({ onOpenConversation, refreshKey = 0, s
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        window.alert(data.error || str.reopenFail);
+        const msg = data.error || str.reopenFail;
+        notify ? notify(msg, "error") : window.alert(msg);
         return;
       }
       onReopened?.();
       await load();
     } catch {
-      window.alert(str.reopenFail);
+      notify ? notify(str.reopenFail, "error") : window.alert(str.reopenFail);
     } finally {
       setReopeningId(null);
     }

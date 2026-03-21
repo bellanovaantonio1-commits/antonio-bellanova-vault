@@ -190,6 +190,30 @@ const TRANSLATIONS: any = {
     consultation_reopen_thread: "Thread wieder öffnen",
     consultation_confirm_reopen: "Diesen Thread wieder öffnen? Sie können wieder Nachrichten senden.",
     consultation_thread_reopened_ok: "Thread wieder geöffnet.",
+    consultation_admin_inbox_title: "Concierge-Posteingang",
+    consultation_admin_filter_all: "Alle",
+    consultation_admin_filter_open: "Offen",
+    consultation_admin_filter_closed: "Geschlossen",
+    consultation_admin_empty_all: "Noch keine Beratungs-Threads.",
+    consultation_admin_empty_open: "Keine offenen Threads.",
+    consultation_admin_empty_closed: "Keine geschlossenen Threads.",
+    consultation_admin_load_error: "Beratungen konnten nicht geladen werden.",
+    consultation_admin_reopen_short: "Wieder öffnen",
+    consultation_admin_reopen_fail: "Thread konnte nicht wieder geöffnet werden.",
+    consultation_admin_status_open: "offen",
+    consultation_admin_status_closed: "geschlossen",
+    consultation_request_bespoke: "Maßanfertigung anfragen",
+    consultation_bespoke_detail_hint: "Dieses Stück wird nur über die Concierge-Beratung erworben. Wir besprechen Größe, Material und Details — danach schaltet das Atelier die Anzahlung frei.",
+    consultation_err_required: "Bitte starten Sie zuerst eine Beratung (Concierge) zu diesem Stück.",
+    consultation_err_locked: "Die Anzahlung wurde noch nicht freigegeben. Bitte warten Sie auf das Atelier im Beratungs-Chat.",
+    consultation_unlock_purchase_btn: "Plan fertig – Anzahlung für Kundin freigeben",
+    consultation_unlock_final_price_ph: "Endpreis EUR (optional, überschreibt Bewertung)",
+    consultation_unlock_purchase_ok: "Anzahlungsschritt ist für die Kundin freigeschaltet.",
+    consultation_waiting_unlock_hint: "Sobald die Planung steht, gibt das Atelier hier den Schritt zur Anzahlung frei.",
+    consultation_deposit_contract_btn: "Anzahlung & Vertrag",
+    consultation_purchase_started_ok: "Anzahlungsvertrag wurde angelegt — bitte Tresor prüfen.",
+    consultation_send_proposal_btn: "Angebot an Kundin senden",
+    "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
     reserved: "Reserviert",
     sold: "Verkauft",
     resale_pending: "Wiederverkauf ausstehend",
@@ -1143,6 +1167,30 @@ const TRANSLATIONS: any = {
     consultation_reopen_thread: "Reopen thread",
     consultation_confirm_reopen: "Reopen this thread? You can send messages again.",
     consultation_thread_reopened_ok: "Thread reopened.",
+    consultation_admin_inbox_title: "Consultation inbox",
+    consultation_admin_filter_all: "All",
+    consultation_admin_filter_open: "Open",
+    consultation_admin_filter_closed: "Closed",
+    consultation_admin_empty_all: "No consultation threads yet.",
+    consultation_admin_empty_open: "No open threads.",
+    consultation_admin_empty_closed: "No closed threads.",
+    consultation_admin_load_error: "Could not load consultations.",
+    consultation_admin_reopen_short: "Reopen",
+    consultation_admin_reopen_fail: "Could not reopen thread.",
+    consultation_admin_status_open: "open",
+    consultation_admin_status_closed: "closed",
+    consultation_request_bespoke: "Request bespoke consultation",
+    consultation_bespoke_detail_hint: "This piece is purchased only via Concierge. We agree size, materials and details — then the Atelier unlocks the deposit step.",
+    consultation_err_required: "Please start a Concierge consultation for this piece first.",
+    consultation_err_locked: "Deposit is not unlocked yet. Your Atelier will enable it in the consultation thread.",
+    consultation_unlock_purchase_btn: "Planning complete — unlock deposit for client",
+    consultation_unlock_final_price_ph: "Final price EUR (optional, updates valuation)",
+    consultation_unlock_purchase_ok: "Deposit step is now available to the client.",
+    consultation_waiting_unlock_hint: "When planning is complete, the Atelier will unlock the deposit step here.",
+    consultation_deposit_contract_btn: "Deposit & contract",
+    consultation_purchase_started_ok: "Deposit contract created — check your Vault.",
+    consultation_send_proposal_btn: "Send proposal to client",
+    "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
     reserved: "Reserved",
     sold: "Sold",
     resale_pending: "Resale Pending",
@@ -2039,6 +2087,30 @@ const TRANSLATIONS: any = {
     consultation_reopen_thread: "Riapri conversazione",
     consultation_confirm_reopen: "Riaprire questo thread? Potrai inviare di nuovo messaggi.",
     consultation_thread_reopened_ok: "Thread riaperto.",
+    consultation_admin_inbox_title: "Posta consultazioni",
+    consultation_admin_filter_all: "Tutti",
+    consultation_admin_filter_open: "Aperti",
+    consultation_admin_filter_closed: "Chiusi",
+    consultation_admin_empty_all: "Nessun thread di consultazione.",
+    consultation_admin_empty_open: "Nessun thread aperto.",
+    consultation_admin_empty_closed: "Nessun thread chiuso.",
+    consultation_admin_load_error: "Impossibile caricare le consultazioni.",
+    consultation_admin_reopen_short: "Riapri",
+    consultation_admin_reopen_fail: "Impossibile riaprire il thread.",
+    consultation_admin_status_open: "aperto",
+    consultation_admin_status_closed: "chiuso",
+    consultation_request_bespoke: "Richiedi su misura (Concierge)",
+    consultation_bespoke_detail_hint: "Questo pezzo si acquista solo via Concierge. Concordiamo misure e materiali; poi l’atelier abilita l’acconto.",
+    consultation_err_required: "Avvia prima una consultazione Concierge per questo pezzo.",
+    consultation_err_locked: "L’acconto non è ancora abilitato. L’atelier lo sbloccherà nel thread.",
+    consultation_unlock_purchase_btn: "Pianificazione completa — sblocca acconto per la cliente",
+    consultation_unlock_final_price_ph: "Prezzo finale EUR (opzionale, aggiorna la valutazione)",
+    consultation_unlock_purchase_ok: "Il passo acconto è ora disponibile per la cliente.",
+    consultation_waiting_unlock_hint: "A pianificazione ultimata, l’atelier sbloccherà qui l’acconto.",
+    consultation_deposit_contract_btn: "Acconto e contratto",
+    consultation_purchase_started_ok: "Contratto di acconto creato — controlla il Tesoro.",
+    consultation_send_proposal_btn: "Invia proposta alla cliente",
+    "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
     reserved: "Riservato",
     sold: "Venduto",
     resale_pending: "Rivendita in Sospeso",
@@ -3823,7 +3895,8 @@ export default function App() {
       image_url: editingPiece.image_url ?? '',
       image_urls: images.length > 0 ? images : [],
       purchase_price: (editingPiece as any).purchase_price ?? '',
-      estimated_market_value: (editingPiece as any).estimated_market_value ?? ''
+      estimated_market_value: (editingPiece as any).estimated_market_value ?? '',
+      consultation_required: Number((editingPiece as Masterpiece).consultation_required) === 1,
     });
   }, [editingPiece]);
 
@@ -3861,7 +3934,8 @@ export default function App() {
           estimated_market_value: editPieceForm.estimated_market_value !== undefined && editPieceForm.estimated_market_value !== '' ? parseFloat(editPieceForm.estimated_market_value) : undefined,
           price_visibility_rules: editPieceForm.price_visibility_rules || undefined,
           image_url: editPieceForm.image_url,
-          image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined
+          image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined,
+          consultation_required: !!editPieceForm.consultation_required,
         })
       });
       if (res.ok) {
@@ -3908,7 +3982,8 @@ export default function App() {
     deposit_pct: '50', 
     image: '',
     images: [] as string[],
-    pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden'
+    pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden',
+    consultation_required: false as boolean,
   });
   const [newAuction, setNewAuction] = useState({
     masterpieceId: '', startPrice: '', endTime: '', vipOnly: false
@@ -5178,7 +5253,8 @@ export default function App() {
           deposit_pct: parseFloat(newPiece.deposit_pct) || 50,
           image_url: (newPiece.images?.length ? newPiece.images[0] : newPiece.image) || '',
           image_urls: (newPiece.images?.length ? newPiece.images : undefined),
-          pricing_mode: (newPiece as any).pricing_mode ?? 'fixed'
+          pricing_mode: (newPiece as any).pricing_mode ?? 'fixed',
+          consultation_required: !!(newPiece as any).consultation_required,
         })
       });
       if (res.ok) {
@@ -5204,7 +5280,8 @@ export default function App() {
           deposit_pct: '50', 
           image: '',
           images: [],
-          pricing_mode: 'fixed'
+          pricing_mode: 'fixed',
+          consultation_required: false,
         });
         fetchData();
       } else {
@@ -5288,6 +5365,8 @@ export default function App() {
         fetchData();
       } else {
         if (res.status === 403 && data.code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else if (res.status === 403 && data.code === 'CONSULTATION_REQUIRED') notifyUser(t('consultation_err_required'), 'error');
+        else if (res.status === 403 && data.code === 'CONSULTATION_PURCHASE_LOCKED') notifyUser(t('consultation_err_locked'), 'error');
         else notifyUser(data.error || res.statusText || t('errors.generic'), 'error');
       }
     } catch {
@@ -10014,6 +10093,10 @@ export default function App() {
                                 <option value="hidden">{t('pricing.mode_hidden')}</option>
                               </select>
                             </div>
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+                              <input type="checkbox" checked={!!editPieceForm.consultation_required} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, consultation_required: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
+                              {t('admin.consultation_required_piece')}
+                            </label>
                             <Input label="Zertifikatsdaten (JSON)" value={editPieceForm.cert_data ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, cert_data: e.target.value }))} />
                             <div className="space-y-1.5">
                               <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
@@ -10105,6 +10188,10 @@ export default function App() {
                               <option value="hidden">{t('pricing.mode_hidden')}</option>
                             </select>
                           </div>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+                            <input type="checkbox" checked={!!(newPiece as any).consultation_required} onChange={(e) => setNewPiece({ ...newPiece, consultation_required: e.target.checked } as any)} className="rounded border-zinc-600 text-amber-600" />
+                            {t('admin.consultation_required_piece')}
+                          </label>
                           <Input label="Zertifikatsdaten (JSON)" value={newPiece.cert_data} onChange={(e: any) => setNewPiece({ ...newPiece, cert_data: e.target.value })} placeholder='{"cut": "Ideal", "clarity": "VVS1"}' />
                           <div className="space-y-1.5">
                             <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
@@ -10450,6 +10537,23 @@ export default function App() {
                         <AdminConsultationSection
                           refreshKey={consultationWsTick}
                           onOpenConversation={(id, title) => setConsultationPanel({ id, title, mode: 'admin' })}
+                          notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
+                          onReopened={() => notifyUser(t('consultation_thread_reopened_ok'), 'success')}
+                          strings={{
+                            title: t('consultation_admin_inbox_title'),
+                            filterAll: t('consultation_admin_filter_all'),
+                            filterOpen: t('consultation_admin_filter_open'),
+                            filterClosed: t('consultation_admin_filter_closed'),
+                            emptyAll: t('consultation_admin_empty_all'),
+                            emptyOpen: t('consultation_admin_empty_open'),
+                            emptyClosed: t('consultation_admin_empty_closed'),
+                            loadError: t('consultation_admin_load_error'),
+                            reopenShort: t('consultation_admin_reopen_short'),
+                            reopenedOk: t('consultation_thread_reopened_ok'),
+                            reopenFail: t('consultation_admin_reopen_fail'),
+                            statusOpen: t('consultation_admin_status_open'),
+                            statusClosed: t('consultation_admin_status_closed'),
+                          }}
                         />
                       </div>
                     )}
@@ -13129,28 +13233,41 @@ export default function App() {
                               {t('legal_notice')}
                             </p>
                           </div>
-                          <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
-                            {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
-                          </p>
-                          <div className="space-y-2">
-                            <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
-                            <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
-                              <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
-                              <option value="armored_courier">{t('delivery.armored_courier')}</option>
-                              <option value="private_jet">{t('delivery.private_jet')}</option>
-                              <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
-                              <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
-                              <option value="vault_storage">{t('delivery.vault_storage')}</option>
-                            </select>
-                          </div>
-                          <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
-                            <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
-                          </Button>
+                          {showConsultationUi && Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
+                            <>
+                              <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
+                                {t('consultation_bespoke_detail_hint')}
+                              </p>
+                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
+                                <Sparkles className="w-5 h-5" /> {t('consultation_request_bespoke')}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
+                                {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
+                              </p>
+                              <div className="space-y-2">
+                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
+                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
+                                  <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
+                                  <option value="armored_courier">{t('delivery.armored_courier')}</option>
+                                  <option value="private_jet">{t('delivery.private_jet')}</option>
+                                  <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
+                                  <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
+                                  <option value="vault_storage">{t('delivery.vault_storage')}</option>
+                                </select>
+                              </div>
+                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
+                              </Button>
+                            </>
+                          )}
                         </>
                       )}
                         </>
                       )}
-                      {showConsultationUi && selectedPiece.status === 'available' && (
+                      {showConsultationUi && selectedPiece.status === 'available' && Number((selectedPiece as Masterpiece).consultation_required) !== 1 && (
                         <Button variant="outline" className="w-full py-3 text-base border-amber-600/40" onClick={async () => { await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
                           <Sparkles className="w-5 h-5" /> {t('consultation_speak_concierge')}
                         </Button>
@@ -13321,6 +13438,15 @@ export default function App() {
             title={consultationPanel.title}
             currentUserId={user.id}
             refreshKey={consultationWsTick}
+            onAfterPurchaseSuccess={() => fetchData()}
+            deliveryOptions={[
+              { value: 'insured_global_shipping', label: t('delivery.insured_global') },
+              { value: 'armored_courier', label: t('delivery.armored_courier') },
+              { value: 'private_jet', label: t('delivery.private_jet') },
+              { value: 'personal_delivery_founder', label: t('delivery.personal_founder') },
+              { value: 'private_viewing_appointment', label: t('delivery.private_viewing') },
+              { value: 'vault_storage', label: t('delivery.vault_storage') },
+            ]}
             strings={{
               proposalsHeading: t('consultation_proposals_heading'),
               acceptProposal: t('consultation_accept'),
@@ -13335,6 +13461,14 @@ export default function App() {
               reopenThread: t('consultation_reopen_thread'),
               confirmReopenThread: t('consultation_confirm_reopen'),
               threadReopenedSuccess: t('consultation_thread_reopened_ok'),
+              unlockPurchaseButton: t('consultation_unlock_purchase_btn'),
+              unlockFinalValuationPlaceholder: t('consultation_unlock_final_price_ph'),
+              unlockPurchaseSuccess: t('consultation_unlock_purchase_ok'),
+              waitingForUnlockHint: t('consultation_waiting_unlock_hint'),
+              depositAndContractButton: t('consultation_deposit_contract_btn'),
+              deliverySelectLabel: t('delivery.select'),
+              purchaseSuccess: t('consultation_purchase_started_ok'),
+              sendProposalButton: t('consultation_send_proposal_btn'),
             }}
             onClose={() => setConsultationPanel(null)}
             notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
@@ -13561,7 +13695,9 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, consultationFlowEnabled, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, consultationFlowEnabled?: boolean, onConsultation?: (p: Masterpiece) => void }) => (
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, consultationFlowEnabled, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, consultationFlowEnabled?: boolean, onConsultation?: (p: Masterpiece) => void }) => {
+  const bespokeOnly = !!(consultationFlowEnabled && Number(piece.consultation_required) === 1);
+  return (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
       <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
@@ -13598,12 +13734,17 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">ID: {piece.serial_id}</span>
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{piece.materials}</span>
       </div>
-      {!hideAction && piece.status === 'available' && onBuy && (
+      {!hideAction && piece.status === 'available' && onBuy && !bespokeOnly && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
           <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Request Acquisition'}
         </Button>
       )}
-      {!hideAction && piece.status === 'available' && consultationFlowEnabled && onConsultation && (
+      {!hideAction && piece.status === 'available' && bespokeOnly && onConsultation && (
+        <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation(piece)}>
+          <Sparkles className="w-4 h-4" /> {t ? t('consultation_request_bespoke') : 'Request bespoke'}
+        </Button>
+      )}
+      {!hideAction && piece.status === 'available' && !bespokeOnly && consultationFlowEnabled && onConsultation && (
         <Button variant="ghost" className="w-full py-2 text-xs mt-2 border border-amber-600/25 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation(piece)}>
           <Sparkles className="w-4 h-4" /> {t ? t('consultation_speak_concierge') : 'Speak with Concierge'}
         </Button>
@@ -13611,7 +13752,8 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       {extraAction}
     </div>
   </Card>
-);
+  );
+};
 
 const AuctionCard = ({ auction, onBid, onViewDetails, userId, isFavorite, onToggleFavorite }: { auction: Auction, onBid: (amt: number) => void, onViewDetails?: (pId: number) => void, userId: number, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void }) => {
   const [bidAmt, setBidAmt] = useState(auction.current_bid + 1000);

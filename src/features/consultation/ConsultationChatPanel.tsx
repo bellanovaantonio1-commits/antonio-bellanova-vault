@@ -14,6 +14,10 @@ export type ConsultationChatPanelProps = {
   notify: Notify;
   /** Incremented on WebSocket CONSULTATION_* events to reload thread without waiting for poll. */
   refreshKey?: number;
+  /** Same delivery_option values as piece detail / marketplace buy. */
+  deliveryOptions?: { value: string; label: string }[];
+  /** After successful marketplace buy from this panel (refresh parent data). */
+  onAfterPurchaseSuccess?: () => void;
   /** Optional UI strings (defaults English). */
   strings?: Partial<{
     proposalsHeading: string;
@@ -29,6 +33,14 @@ export type ConsultationChatPanelProps = {
     reopenThread: string;
     confirmReopenThread: string;
     threadReopenedSuccess: string;
+    unlockPurchaseButton: string;
+    unlockFinalValuationPlaceholder: string;
+    unlockPurchaseSuccess: string;
+    waitingForUnlockHint: string;
+    depositAndContractButton: string;
+    deliverySelectLabel: string;
+    purchaseSuccess: string;
+    sendProposalButton: string;
   }>;
 };
 
@@ -49,6 +61,8 @@ export function ConsultationChatPanel({
   onClose,
   notify,
   refreshKey = 0,
+  deliveryOptions = [],
+  onAfterPurchaseSuccess,
   strings: stringsProp,
 }: ConsultationChatPanelProps) {
   const str = {
@@ -65,6 +79,15 @@ export function ConsultationChatPanel({
     reopenThread: "Reopen thread",
     confirmReopenThread: "Reopen this thread? You can send messages again.",
     threadReopenedSuccess: "Thread reopened.",
+    unlockPurchaseButton: "Unlock deposit & contract for client",
+    unlockFinalValuationPlaceholder: "Final price EUR (optional)",
+    unlockPurchaseSuccess: "Client can now proceed with deposit.",
+    waitingForUnlockHint:
+      "The Atelier will unlock the deposit step here when your bespoke plan is ready.",
+    depositAndContractButton: "Deposit & contract",
+    deliverySelectLabel: "Delivery",
+    purchaseSuccess: "Deposit contract started — check your Vault.",
+    sendProposalButton: "Send proposal to client",
     ...stringsProp,
   };
   const [convStatus, setConvStatus] = useState<string>("open");
@@ -75,6 +98,20 @@ export function ConsultationChatPanel({
   const [proposalTitle, setProposalTitle] = useState("");
   const [proposalDesc, setProposalDesc] = useState("");
   const [proposalAmount, setProposalAmount] = useState("");
+  const [metaPieceId, setMetaPieceId] = useState<number | null>(null);
+  const [metaPieceStatus, setMetaPieceStatus] = useState<string | null>(null);
+  const [metaConsultationRequired, setMetaConsultationRequired] = useState(0);
+  const [purchaseUnlockedAt, setPurchaseUnlockedAt] = useState<string | null>(null);
+  const [unlockValuationDraft, setUnlockValuationDraft] = useState("");
+  const [deliveryOption, setDeliveryOption] = useState<string>(
+    deliveryOptions[0]?.value ?? "insured_global_shipping"
+  );
+
+  useEffect(() => {
+    if (deliveryOptions.length > 0 && !deliveryOptions.some((o) => o.value === deliveryOption)) {
+      setDeliveryOption(deliveryOptions[0].value);
+    }
+  }, [deliveryOptions, deliveryOption]);
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +123,10 @@ export function ConsultationChatPanel({
       if (cRes.ok) {
         const c = await cRes.json();
         setConvStatus(String(c?.status || "open"));
+        setMetaPieceId(c?.masterpiece_id != null ? Number(c.masterpiece_id) : null);
+        setMetaPieceStatus(c?.masterpiece_status != null ? String(c.masterpiece_status) : null);
+        setMetaConsultationRequired(Number(c?.masterpiece_consultation_required) || 0);
+        setPurchaseUnlockedAt(c?.purchase_unlocked_at ? String(c.purchase_unlocked_at) : null);
       }
       if (mRes.ok) setMessages(await mRes.json());
       if (pRes.ok) setProposals(await pRes.json());
@@ -159,6 +200,59 @@ export function ConsultationChatPanel({
       setProposalAmount("");
       notify("Proposal sent", "success");
       load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unlockPurchaseForClient = async () => {
+    setLoading(true);
+    try {
+      const finalVal = unlockValuationDraft.trim() ? Number(unlockValuationDraft) : null;
+      const res = await fetch(`/api/admin/consultation/conversations/${conversationId}/unlock-purchase`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          final_valuation_eur:
+            finalVal != null && Number.isFinite(finalVal) && finalVal > 0 ? finalVal : undefined,
+        }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Unlock failed", "error");
+        return;
+      }
+      notify(str.unlockPurchaseSuccess, "success");
+      setUnlockValuationDraft("");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startDepositPurchase = async () => {
+    if (!metaPieceId) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/marketplace/buy", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          masterpieceId: metaPieceId,
+          delivery_option: deliveryOption || null,
+        }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Purchase failed", "error");
+        return;
+      }
+      notify(str.purchaseSuccess, "success");
+      onAfterPurchaseSuccess?.();
+      onClose();
     } finally {
       setLoading(false);
     }
@@ -268,6 +362,21 @@ export function ConsultationChatPanel({
     }
   };
 
+  const showBespokeUnlockAdmin = mode === "admin" && convStatus === "open" && metaConsultationRequired === 1 && metaPieceId != null;
+  const showClientDeposit =
+    mode === "client" &&
+    convStatus === "open" &&
+    !!purchaseUnlockedAt &&
+    metaPieceStatus === "available" &&
+    metaPieceId != null &&
+    metaConsultationRequired === 1;
+  const showClientWaitingBespoke =
+    mode === "client" &&
+    convStatus === "open" &&
+    metaConsultationRequired === 1 &&
+    !purchaseUnlockedAt &&
+    metaPieceStatus === "available";
+
   return (
     <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 sm:p-6">
       <button
@@ -317,6 +426,37 @@ export function ConsultationChatPanel({
         {convStatus !== "open" && (
           <div className="px-3 py-2 bg-zinc-800/90 border-b border-zinc-700 text-[11px] text-zinc-400 text-center">
             {str.conversationClosedBanner}
+          </div>
+        )}
+
+        {showClientWaitingBespoke && (
+          <div className="px-3 py-2 bg-amber-950/40 border-b border-amber-800/40 text-[11px] text-amber-200/90 text-center">
+            {str.waitingForUnlockHint}
+          </div>
+        )}
+
+        {showClientDeposit && deliveryOptions.length > 0 && (
+          <div className="px-3 py-3 border-b border-emerald-800/40 bg-emerald-950/20 space-y-2">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-500/90">{str.deliverySelectLabel}</p>
+            <select
+              value={deliveryOption}
+              onChange={(e) => setDeliveryOption(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 px-3 text-xs text-zinc-200"
+            >
+              {deliveryOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void startDepositPurchase()}
+              className="w-full min-h-[44px] rounded-full text-sm font-medium bg-emerald-600/90 hover:bg-emerald-500 text-white disabled:opacity-50"
+            >
+              {str.depositAndContractButton}
+            </button>
           </div>
         )}
 
@@ -386,7 +526,7 @@ export function ConsultationChatPanel({
                     </button>
                   </div>
                 )}
-                {mode === "client" && convStatus === "open" && p.status === "accepted" && (
+                {mode === "client" && convStatus === "open" && p.status === "accepted" && metaConsultationRequired !== 1 && (
                   <button
                     type="button"
                     disabled={loading}
@@ -398,6 +538,27 @@ export function ConsultationChatPanel({
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {showBespokeUnlockAdmin && (
+          <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/60">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-500/90">Bespoke purchase</p>
+            <input
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+              placeholder={str.unlockFinalValuationPlaceholder}
+              value={unlockValuationDraft}
+              onChange={(e) => setUnlockValuationDraft(e.target.value)}
+              inputMode="decimal"
+            />
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void unlockPurchaseForClient()}
+              className="w-full min-h-[40px] rounded-full text-xs font-medium bg-emerald-700/80 hover:bg-emerald-600 text-white disabled:opacity-50"
+            >
+              {str.unlockPurchaseButton}
+            </button>
           </div>
         )}
 
@@ -428,7 +589,7 @@ export function ConsultationChatPanel({
               onClick={sendProposal}
               className="w-full min-h-[40px] rounded-full text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50"
             >
-              Send proposal to client
+              {str.sendProposalButton}
             </button>
           </div>
         )}
@@ -443,14 +604,14 @@ export function ConsultationChatPanel({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
-                  send();
+                  void send();
                 }
               }}
             />
             <button
               type="button"
               disabled={loading || !draft.trim()}
-              onClick={send}
+              onClick={() => void send()}
               className="min-h-[44px] min-w-[44px] rounded-full bg-amber-600 text-white flex items-center justify-center disabled:opacity-50"
             >
               <Send className="w-4 h-4" />

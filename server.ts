@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
 import { validateServerEnv } from "./lib/validateEnv.js";
-import { registerConsultationRoutes } from "./features/consultation/consultationRoutes.js";
+import { registerConsultationRoutes, isConsultationFlowEnabled } from "./features/consultation/consultationRoutes.js";
 import { createIpRateLimiter } from "./lib/rateLimit.js";
 import {
   parseSessionUserIdFromCookieHeader,
@@ -1843,6 +1843,16 @@ await db.exec(`
     FOREIGN KEY(created_by) REFERENCES users(id)
   );
 `);
+  try {
+    await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN consultation_required INTEGER DEFAULT 0")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_conversations ADD COLUMN purchase_unlocked_at DATETIME")).run();
+  } catch (_) {
+    /* column exists */
+  }
 }
 
 async function nextProductSerial(category: string): Promise<string> {
@@ -3708,7 +3718,7 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, async (req, res, ne
 });
 
 app.post("/api/admin/masterpieces", async (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : await nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
@@ -3746,6 +3756,11 @@ app.post("/api/admin/masterpieces", async (req, res) => {
     } catch (rs: any) {
       console.error("[admin/masterpieces] calculateRarityScore failed:", rs?.message || rs);
     }
+    if (bodyConsultationRequired !== undefined && bodyConsultationRequired !== null) {
+      try {
+        await (await db.prepare("UPDATE masterpieces SET consultation_required = ? WHERE id = ?")).run(bodyConsultationRequired ? 1 : 0, id);
+      } catch (_) {}
+    }
 
     res.json({ id });
   } catch (e: any) {
@@ -3766,7 +3781,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
   const existing = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!existing) return res.status(404).json({ error: "Masterpiece not found" });
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired } = req.body;
   const serial_id = bodySerial != null && String(bodySerial).trim() ? String(bodySerial).trim() : existing.serial_id;
   const pricing_mode = bodyPricingMode && ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : (existing.pricing_mode || 'fixed');
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
@@ -3796,6 +3811,11 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
     if (bodyDescI18n !== undefined && typeof bodyDescI18n === 'object') await (await db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyDescI18n), id);
     if (bodyMaterialsI18n !== undefined && typeof bodyMaterialsI18n === 'object') await (await db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyMaterialsI18n), id);
     if (bodyGemstonesI18n !== undefined && typeof bodyGemstonesI18n === 'object') await (await db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyGemstonesI18n), id);
+    if (bodyConsultationRequired !== undefined && bodyConsultationRequired !== null) {
+      try {
+        await (await db.prepare("UPDATE masterpieces SET consultation_required = ? WHERE id = ?")).run(bodyConsultationRequired ? 1 : 0, id);
+      } catch (_) {}
+    }
     broadcast({ type: 'MASTERPIECE_UPDATED', id });
     res.json({ ok: true });
   } catch (e: any) {
@@ -3844,6 +3864,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (body.gemstones_i18n !== undefined) { updates.push('gemstones_i18n = ?'); values.push(typeof body.gemstones_i18n === 'object' ? JSON.stringify(body.gemstones_i18n) : str(body.gemstones_i18n)); }
   if (body.vip_early_access !== undefined) { updates.push('vip_early_access = ?'); values.push(body.vip_early_access ? 1 : 0); }
   if (body.product_release_date !== undefined) { updates.push('product_release_date = ?'); values.push(body.product_release_date ? str(body.product_release_date) : null); }
+  if (body.consultation_required !== undefined) { updates.push('consultation_required = ?'); values.push(body.consultation_required ? 1 : 0); }
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
@@ -4270,6 +4291,26 @@ app.post("/api/marketplace/buy", async (req, res) => {
       return res.status(400).json({ error: "Stück ist nicht verfügbar." });
     }
 
+    if (isConsultationFlowEnabled() && Number(piece.consultation_required) === 1) {
+      const conv = (await (
+        await db.prepare(
+          `SELECT id, purchase_unlocked_at FROM consultation_conversations WHERE user_id = ? AND masterpiece_id = ? ORDER BY id DESC LIMIT 1`
+        )
+      ).get(uid, mid)) as { id: number; purchase_unlocked_at: string | null } | undefined;
+      if (!conv) {
+        return res.status(403).json({
+          error: "Bitte starten Sie zuerst eine Concierge-Beratung zu diesem Stück.",
+          code: "CONSULTATION_REQUIRED",
+        });
+      }
+      if (!conv.purchase_unlocked_at) {
+        return res.status(403).json({
+          error: "Die Anzahlung wurde noch nicht freigegeben. Das Atelier informiert Sie im Beratungs-Chat.",
+          code: "CONSULTATION_PURCHASE_LOCKED",
+        });
+      }
+    }
+
     const valuation = Number(piece.valuation) || 0;
     const depositPct = Number(piece.deposit_pct) || 10;
     const depositAmount = (valuation * depositPct) / 100;
@@ -4531,6 +4572,23 @@ registerConsultationRoutes(app, {
         "Antonio Bellanova – Consultation reopened",
         `Ihr Beratungs-Thread (#${conversationId}) wurde wieder geöffnet. Sie können erneut Nachrichten senden — bitte Tresor „Concierge & Maßanfertigung“ öffnen.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
         `Your consultation thread (#${conversationId}) has been reopened. You can send messages again — please open your Vault under “Concierge & bespoke”.\n\nKind regards\nAntonio Bellanova Atelier`
+      );
+    },
+    onPurchaseUnlockedForClient: async (clientUserId, conversationId) => {
+      try {
+        await createActivityNotification(
+          clientUserId,
+          "new_contract",
+          `consultation:${conversationId}`,
+          "Your Atelier unlocked the deposit step — open your Concierge thread to continue with deposit & contract."
+        );
+      } catch (_) {}
+      await sendConsultationClientEmail(
+        clientUserId,
+        "Antonio Bellanova – Anzahlung freigegeben",
+        "Antonio Bellanova – Deposit step unlocked",
+        `Der nächste Schritt (Anzahlung & Vertrag) wurde für Ihre Beratung freigegeben (Thread #${conversationId}). Bitte öffnen Sie den Concierge-Chat im Tresor.\n\nMit freundlichen Grüßen\nIhr Atelier Antonio Bellanova`,
+        `The next step (deposit & contract) has been unlocked for your consultation (thread #${conversationId}). Please open the Concierge chat in your Vault.\n\nKind regards\nAntonio Bellanova Atelier`
       );
     },
   },
