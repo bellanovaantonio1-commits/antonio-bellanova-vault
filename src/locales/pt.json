@@ -112,5 +112,15 @@
   "contract.certificate_english_only": "Certificado: apenas inglês (oficial)",
   "contract.preview_loading": "A carregar documento…",
   "contract.read_document": "Ler",
-  "contract.close_reader": "Fechar"
+  "contract.close_reader": "Fechar",
+  "contract.download_pdf_title": "Descarregar contrato em PDF",
+  "vip.payment_title": "Membro VIP – instruções de pagamento",
+  "vip.fee_label": "Quota de membro VIP:",
+  "vip.per_year": "por ano",
+  "vip.payment_details": "Dados de pagamento",
+  "vip.account_holder": "Titular da conta",
+  "vip.iban": "IBAN",
+  "vip.bic": "BIC",
+  "vip.reference": "Referência",
+  "vip.transfer_hint": "Por favor transfira a quota. O seu acesso VIP será ativado após receção do pagamento."
 }

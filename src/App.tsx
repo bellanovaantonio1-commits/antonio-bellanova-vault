@@ -5366,9 +5366,11 @@ export default function App() {
       currentY += blockH + 10;
     }
 
-    // Body: use tidy generated text when we have piece + contractType, else stripped HTML (language-aware for contracts)
+    // Body: prefer stored contract HTML (official English). Only use language-aware fallback when content is missing/too short.
+    const contentPlainLen = String(content || '').replace(/\s/g, '').length;
+    const useLangFallback = piece && typ && contentPlainLen < 120;
     let bodyText: string;
-    if (piece && typ) {
+    if (useLangFallback) {
       const serial = piece.serial_id || '—';
       const valuation = piece.valuation != null && Number(piece.valuation) > 0 ? `${Number(piece.valuation).toLocaleString('de-DE')} EUR` : '—';
       const pct = piece.deposit_pct ?? 10;
@@ -7871,16 +7873,16 @@ export default function App() {
                       <div className="relative z-10 space-y-6">
                       {vipMembershipStatus?.membership?.status === 'WAITING_FOR_PAYMENT' && vipMembershipStatus?.paymentInstructions && (
                         <Card className="p-6 border-amber-500/30 bg-amber-500/5">
-                          <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">VIP Membership – Zahlungsanweisung</h3>
-                          <p className="text-sm text-zinc-300 mb-4">VIP Membership Fee: <strong className="text-amber-400">15.000 EUR</strong> pro Jahr</p>
+                          <h3 className="text-lg font-serif italic text-amber-500/90 mb-4">{t('vip.payment_title')}</h3>
+                          <p className="text-sm text-zinc-300 mb-4">{t('vip.fee_label')} <strong className="text-amber-400">15.000 EUR</strong> {t('vip.per_year')}</p>
                           <div className="grid gap-2 text-sm mb-4">
-                            <p className="text-zinc-500 uppercase tracking-wider text-[10px]">Zahlungsdetails</p>
-                            <p><span className="text-zinc-500">Kontoinhaber:</span> <span className="text-zinc-200">{vipMembershipStatus.paymentInstructions.accountHolder}</span></p>
-                            <p><span className="text-zinc-500">IBAN:</span> <span className="text-zinc-200 font-mono">{vipMembershipStatus.paymentInstructions.iban}</span></p>
-                            <p><span className="text-zinc-500">BIC:</span> <span className="text-zinc-200 font-mono">{vipMembershipStatus.paymentInstructions.bic}</span></p>
-                            <p><span className="text-zinc-500">Verwendungszweck:</span> <span className="text-amber-400 font-mono">{vipMembershipStatus.paymentInstructions.reference}</span></p>
+                            <p className="text-zinc-500 uppercase tracking-wider text-[10px]">{t('vip.payment_details')}</p>
+                            <p><span className="text-zinc-500">{t('vip.account_holder')}:</span> <span className="text-zinc-200">{vipMembershipStatus.paymentInstructions.accountHolder}</span></p>
+                            <p><span className="text-zinc-500">{t('vip.iban')}:</span> <span className="text-zinc-200 font-mono">{vipMembershipStatus.paymentInstructions.iban}</span></p>
+                            <p><span className="text-zinc-500">{t('vip.bic')}:</span> <span className="text-zinc-200 font-mono">{vipMembershipStatus.paymentInstructions.bic}</span></p>
+                            <p><span className="text-zinc-500">{t('vip.reference')}:</span> <span className="text-amber-400 font-mono">{vipMembershipStatus.paymentInstructions.reference}</span></p>
                           </div>
-                          <p className="text-sm text-zinc-400 italic">Bitte überweisen Sie den Mitgliedsbeitrag. Ihr VIP-Zugang wird nach Zahlungseingang aktiviert.</p>
+                          <p className="text-sm text-zinc-400 italic">{t('vip.transfer_hint')}</p>
                         </Card>
                       )}
                       {vaultData.contracts.filter(c => c.status !== 'archived').map(contract => (
@@ -7907,7 +7909,7 @@ export default function App() {
                               <Button variant="outline" size="sm" className="text-xs" title={t('contract.read_document')} onClick={() => setContractToRead(contract)}>
                                 <Eye className="w-4 h-4" /> {t('contract.read_document')}
                               </Button>
-                              <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" title="Vertrag als PDF herunterladen" onClick={() => {
+                              <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" title={t('contract.download_pdf_title')} onClick={() => {
                                 const piece = contract.masterpiece_id
                                   ? (vaultData.pieces.find((p: Masterpiece) => p.id === contract.masterpiece_id) || masterpieces.find(m => m.id === contract.masterpiece_id))
                                   : undefined;

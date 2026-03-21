@@ -135,5 +135,15 @@
   "contract.certificate_english_only": "Certificate: English only (official)",
   "contract.preview_loading": "Loading document…",
   "contract.read_document": "Read",
-  "contract.close_reader": "Close"
+  "contract.close_reader": "Close",
+  "contract.download_pdf_title": "Download contract as PDF",
+  "vip.payment_title": "VIP membership – payment instructions",
+  "vip.fee_label": "VIP membership fee:",
+  "vip.per_year": "per year",
+  "vip.payment_details": "Payment details",
+  "vip.account_holder": "Account holder",
+  "vip.iban": "IBAN",
+  "vip.bic": "BIC",
+  "vip.reference": "Payment reference",
+  "vip.transfer_hint": "Please transfer the membership fee. Your VIP access will be activated once payment is received."
 }

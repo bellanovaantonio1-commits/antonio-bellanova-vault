@@ -98,5 +98,15 @@
   "contract.certificate_english_only": "Certificato: solo inglese (originale)",
   "contract.preview_loading": "Caricamento documento…",
   "contract.read_document": "Leggi",
-  "contract.close_reader": "Chiudi"
+  "contract.close_reader": "Chiudi",
+  "contract.download_pdf_title": "Scarica contratto come PDF",
+  "vip.payment_title": "Membership VIP – istruzioni di pagamento",
+  "vip.fee_label": "Quota membership VIP:",
+  "vip.per_year": "all’anno",
+  "vip.payment_details": "Dettagli di pagamento",
+  "vip.account_holder": "Intestatario conto",
+  "vip.iban": "IBAN",
+  "vip.bic": "BIC",
+  "vip.reference": "Causale",
+  "vip.transfer_hint": "Si prega di effettuare il bonifico. L’accesso VIP sarà attivato dopo l’accredito."
 }

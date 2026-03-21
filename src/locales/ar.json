@@ -112,5 +112,15 @@
   "contract.certificate_english_only": "الشهادة: الإنجليزية فقط (رسمية)",
   "contract.preview_loading": "جاري تحميل المستند…",
   "contract.read_document": "قراءة",
-  "contract.close_reader": "إغلاق"
+  "contract.close_reader": "إغلاق",
+  "contract.download_pdf_title": "تنزيل العقد PDF",
+  "vip.payment_title": "عضوية VIP – تعليمات الدفع",
+  "vip.fee_label": "رسوم العضوية VIP:",
+  "vip.per_year": "سنويًا",
+  "vip.payment_details": "بيانات الدفع",
+  "vip.account_holder": "صاحب الحساب",
+  "vip.iban": "IBAN",
+  "vip.bic": "BIC",
+  "vip.reference": "المرجع",
+  "vip.transfer_hint": "يرجى تحويل الرسوم. سيتم تفعيل وصول VIP بعد استلام الدفع."
 }
