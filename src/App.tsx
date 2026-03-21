@@ -741,7 +741,7 @@ const TRANSLATIONS: any = {
     "view.drops": "Exklusive Drops",
     "view.auctions": "Auktionen",
     "view.vault": "Tresor",
-    "view.private_gallery": "Private Gallery",
+    "view.private_gallery": "Private Galerie",
     "view.private_clients": "Nachrichten",
     "view.admin": "Verwaltung",
     "view.portfolio": "Portfolio",
@@ -1075,7 +1075,14 @@ const TRANSLATIONS: any = {
     "legal.privacy": "Datenschutz",
     "legal.terms": "AGB",
     "legal.contact": "Kontakt",
-    "legal.directions": "Anfahrt"
+    "legal.directions": "Anfahrt",
+    "private_gallery.subtitle": "Exklusive Schmuckstücke und nur für Sammler bestimmte Kreationen.",
+    "private_gallery.empty": "Derzeit keine Stücke in der privaten Galerie.",
+    "world.subtitle": "Entdecken Sie die Kollektion.",
+    "footer.brand_legal": "Juwelen & Schmuckatelier Antonio Bellanova",
+    "footer.address_line": "Ahorstraße 8 · 50765 Köln, Deutschland",
+    "footer.atelier_short": "Atelier",
+    "footer.private_vault_tag": "Privater Tresor"
   },
   en: {
     dashboard: "Dashboard",
@@ -1944,7 +1951,14 @@ const TRANSLATIONS: any = {
     "legal.privacy": "Privacy",
     "legal.terms": "Terms & Conditions",
     "legal.contact": "Contact",
-    "legal.directions": "Directions"
+    "legal.directions": "Directions",
+    "private_gallery.subtitle": "Exclusive jewelry and collector-only creations.",
+    "private_gallery.empty": "No pieces in the private gallery at the moment.",
+    "world.subtitle": "Explore the collection.",
+    "footer.brand_legal": "Juwelen & Schmuckatelier Antonio Bellanova",
+    "footer.address_line": "Ahorstraße 8 · 50765 Köln, Germany",
+    "footer.atelier_short": "Atelier",
+    "footer.private_vault_tag": "Private Vault"
   },
   it: {
     dashboard: "Dashboard",
@@ -2615,6 +2629,13 @@ const TRANSLATIONS: any = {
     "legal.terms": "Termini e condizioni",
     "legal.contact": "Contatto",
     "legal.directions": "Come arrivare",
+    "private_gallery.subtitle": "Gioielli esclusivi e creazioni riservate ai collezionisti.",
+    "private_gallery.empty": "Al momento nessun pezzo nella galleria privata.",
+    "world.subtitle": "Scoprite la collezione.",
+    "footer.brand_legal": "Juwelen & Schmuckatelier Antonio Bellanova",
+    "footer.address_line": "Ahorstraße 8 · 50765 Colonia, Germania",
+    "footer.atelier_short": "Atelier",
+    "footer.private_vault_tag": "Caveau privato",
     "concierge.send_request": "Invia richiesta",
     "maintenance.title": "Piattaforma in manutenzione",
     "maintenance.message": "Torneremo presto. Riprova più tardi.",
@@ -7053,12 +7074,12 @@ export default function App() {
             {view === 'private_gallery' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                   <div className="space-y-2">
-                  <h3 className="text-3xl font-serif italic">{t('view.private_gallery') || 'Private Gallery'}</h3>
-                  <p className="text-zinc-500">Exclusive jewelry and collector-only creations.</p>
+                  <h3 className="text-3xl font-serif italic">{t('view.private_gallery')}</h3>
+                  <p className="text-zinc-500">{t('private_gallery.subtitle')}</p>
                   </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {privateGalleryPieces.length === 0 ? (
-                    <p className="text-zinc-500 col-span-full">{t('marketplace.no_pieces') || 'No pieces in the private gallery at the moment.'}</p>
+                    <p className="text-zinc-500 col-span-full">{t('private_gallery.empty')}</p>
                   ) : (
                     privateGalleryPieces.map(piece => (
                       <PieceCard
@@ -7085,8 +7106,8 @@ export default function App() {
               <motion.div key={view === 'world' ? 'world' : 'marketplace'} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
                 <div className="flex justify-between items-end flex-wrap gap-4">
                   <div className="space-y-2">
-                    <h3 className="text-3xl font-serif italic">{view === 'world' ? 'World' : t('marketplace')}</h3>
-                    <p className="text-zinc-500">{view === 'world' ? 'Explore the collection.' : t('marketplace.subtitle')}</p>
+                    <h3 className="text-3xl font-serif italic">{view === 'world' ? t('view.world') : t('marketplace')}</h3>
+                    <p className="text-zinc-500">{view === 'world' ? t('world.subtitle') : t('marketplace.subtitle')}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                     <input type="text" placeholder={t('marketplace.filter_placeholder')} value={filterSearch} onChange={e => setFilterSearch(e.target.value)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-4 text-zinc-200 text-sm w-48 md:w-64" />
@@ -7836,7 +7857,7 @@ export default function App() {
                           }
                         />
                       ))}
-                      {visiblePortfolioPieces.length === 0 && <EmptyState icon={TrendingUp} text="No pieces available for resale." />}
+                      {visiblePortfolioPieces.length === 0 && <EmptyState icon={TrendingUp} text={t('resale.no_pieces')} />}
                     </div>
                   )}
                   {vaultTab === 'service' && (
@@ -12510,8 +12531,8 @@ export default function App() {
           <footer className="premium-footer mt-16 py-6 sm:py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto safe-area-bottom">
             <div className="flex flex-wrap items-center justify-between gap-6 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
               <div className="flex items-center gap-6">
-                <span className="font-serif italic text-amber-500/80">Juwelen & Schmuckatelier Antonio Bellanova</span>
-                <span>Ahorstraße 8 · 50765 Köln, Deutschland</span>
+                <span className="font-serif italic text-amber-500/80">{t('footer.brand_legal')}</span>
+                <span>{t('footer.address_line')}</span>
                 <button type="button" onClick={() => setView('impressum')} className="hover:text-amber-500/80">{t('legal.imprint')}</button>
                 <button type="button" onClick={() => setView('datenschutz')} className="hover:text-amber-500/80">{t('legal.privacy')}</button>
                 <button type="button" onClick={() => setView('agb')} className="hover:text-amber-500/80">{t('legal.terms')}</button>
@@ -12519,8 +12540,8 @@ export default function App() {
                 <button type="button" onClick={() => setView('anfahrt')} className="hover:text-amber-500/80">{t('legal.directions')}</button>
               </div>
               <div className="flex items-center gap-4">
-                <span>© {new Date().getFullYear()} Atelier</span>
-                <span className="text-amber-500/60">Private Vault</span>
+                <span>© {new Date().getFullYear()} {t('footer.atelier_short')}</span>
+                <span className="text-amber-500/60">{t('footer.private_vault_tag')}</span>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-zinc-800/50 text-[9px] text-zinc-600 uppercase tracking-wider">
