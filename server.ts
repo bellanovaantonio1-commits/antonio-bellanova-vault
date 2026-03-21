@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
+import helmet from "helmet";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
@@ -14,6 +15,16 @@ import Stripe from "stripe";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
+import { validateServerEnv } from "./lib/validateEnv.js";
+import { createIpRateLimiter } from "./lib/rateLimit.js";
+import {
+  parseSessionUserIdFromCookieHeader,
+  buildSetSessionCookieHeader,
+  buildClearSessionCookieHeader,
+  DEFAULT_SESSION_MAX_AGE_SEC,
+  assertProductionSessionSecret,
+} from "./lib/sessionCookie.js";
+import { authenticator } from "otplib";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
 
@@ -38,7 +49,13 @@ async function upgradePasswordIfNeeded(userId: number, plain: string): Promise<v
   await (await db.prepare("UPDATE users SET password = ? WHERE id = ?")).run(hashPassword(plain), userId);
 }
 
+function sanitizeUserRowForClient(user: Record<string, any>) {
+  const { password: _p, two_fa_secret: _t, ...rest } = user;
+  return rest;
+}
+
 const app = express();
+app.disable("x-powered-by");
 app.set("trust proxy", 1);
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
@@ -68,7 +85,26 @@ registerStripeWebhookRawRoute(app, {
   getSendMail: () => stripeWebhookSendMail,
 });
 
-app.use(express.json({ limit: '50mb' }));
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+/** Use Secure cookie flag when the app is served over HTTPS (env or proxy). */
+function isSecureCookieRequest(req: express.Request): boolean {
+  const base = process.env.APP_URL || process.env.BASE_URL || "";
+  if (base.toLowerCase().startsWith("https:")) return true;
+  if (req.secure) return true;
+  const xf = req.headers["x-forwarded-proto"];
+  const first = typeof xf === "string" ? xf.split(",")[0]?.trim().toLowerCase() : "";
+  return first === "https";
+}
+
+app.use(express.json({ limit: "5mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadsDropsDir = path.join(uploadsDir, 'drops');
@@ -1695,6 +1731,8 @@ try { await (await db.prepare("ALTER TABLE users ADD COLUMN notify_marketing INT
 try { await (await db.prepare("ALTER TABLE users ADD COLUMN username TEXT")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_balance INTEGER DEFAULT 0")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE users ADD COLUMN wallet_locked INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN two_fa_enabled INTEGER DEFAULT 0")).run(); } catch (_) {}
+try { await (await db.prepare("ALTER TABLE users ADD COLUMN two_fa_secret TEXT")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE payments ADD COLUMN reminder_sent_at DATETIME")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE payments ADD COLUMN manual_note TEXT")).run(); } catch (_) {}
 try { await (await db.prepare("ALTER TABLE payments ADD COLUMN stripe_payment_intent_id TEXT")).run(); } catch (_) {}
@@ -1854,6 +1892,8 @@ async function ensureUsersCoreColumns(d: DbInterface) {
         "ALTER TABLE users ADD COLUMN business_data LONGTEXT",
         "ALTER TABLE users ADD COLUMN reputation_score INTEGER DEFAULT 100",
         "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN two_fa_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN two_fa_secret TEXT",
       ]
     : [
         "ALTER TABLE users ADD COLUMN password TEXT",
@@ -1868,6 +1908,8 @@ async function ensureUsersCoreColumns(d: DbInterface) {
         "ALTER TABLE users ADD COLUMN business_data TEXT",
         "ALTER TABLE users ADD COLUMN reputation_score INTEGER DEFAULT 100",
         "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN two_fa_enabled INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN two_fa_secret TEXT",
       ];
   for (const sql of stmts) {
     try {
@@ -2601,15 +2643,56 @@ async function calculateRarityScore(masterpieceId: number) {
 
 // --- API Routes ---
 
-// Health-Check (für Nginx/502-Diagnose: wenn dieser Endpunkt antwortet, läuft die Node-App)
+// Health-Check (für Nginx/502-Diagnose: DB-Ping + nicht-geheime Env-Flags)
 app.get("/api/health", async (_req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
+  const envReport = validateServerEnv();
+  let dbOk = false;
+  try {
+    if (db) {
+      await (await db.prepare(db.isMySQL ? "SELECT 1 AS ok" : "SELECT 1 AS ok")).get();
+      dbOk = true;
+    }
+  } catch (e) {
+    console.error("[health] db ping failed:", (e as Error)?.message || e);
+  }
+  const payload = {
+    ok: dbOk,
+    service: "Antonio Bellanova Vault",
+    ts: new Date().toISOString(),
+    db: dbOk,
+    env: envReport.flags,
+    envWarningCount: envReport.warnings.length,
+    envErrorCount: envReport.errors.length,
+  };
+  res.status(dbOk ? 200 : 503).json(payload);
 });
 app.get("/health", async (_req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.status(200).json({ ok: true, service: "Antonio Bellanova Vault", ts: new Date().toISOString() });
+  const envReport = validateServerEnv();
+  let dbOk = false;
+  try {
+    if (db) {
+      await (await db.prepare(db.isMySQL ? "SELECT 1 AS ok" : "SELECT 1 AS ok")).get();
+      dbOk = true;
+    }
+  } catch (e) {
+    console.error("[health] db ping failed:", (e as Error)?.message || e);
+  }
+  res.status(dbOk ? 200 : 503).json({
+    ok: dbOk,
+    service: "Antonio Bellanova Vault",
+    ts: new Date().toISOString(),
+    db: dbOk,
+    env: envReport.flags,
+  });
 });
+
+const registerRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 25, keyPrefix: ":register" });
+const loginRateLimiter = createIpRateLimiter({ windowMs: 15 * 60 * 1000, max: 40, keyPrefix: ":login" });
+const forgotPasswordRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 8, keyPrefix: ":forgotpw" });
+const resetPasswordRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 24, keyPrefix: ":resetpw" });
+const contactRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 40, keyPrefix: ":contact" });
 
 // Auth
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
@@ -2627,7 +2710,7 @@ async function ensureUniqueUsername(base: string): Promise<string> {
   }
   return username;
 }
-app.post("/api/register", async (req, res) => {
+app.post("/api/register", registerRateLimiter, async (req, res) => {
   const { email, password, name, username: rawUsername, address, wantsVip, language, role } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Email and password required" });
   const requestedRole = (role || "client").toString().toLowerCase();
@@ -2743,10 +2826,7 @@ async function ensureUserIdSequenceMin(db: DbInterface): Promise<void> {
 }
 
 function getSessionUserId(req: express.Request): number | null {
-  const cookie = req.headers.cookie;
-  if (!cookie) return null;
-  const m = cookie.match(/\bsession=(\d+)\b/);
-  return m ? Number(m[1]) : null;
+  return parseSessionUserIdFromCookieHeader(req.headers.cookie);
 }
 
 /** Guest uses id 0 — never use `if (!userId)` after getSessionUserId (0 is valid). */
@@ -2872,9 +2952,10 @@ app.use("/api", async (req, res, next) => {
   });
 });
 
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", loginRateLimiter, async (req, res) => {
   const loginInput = (req.body?.email ?? req.body?.login ?? "").toString().trim().toLowerCase();
   const password = String(req.body?.password ?? "");
+  const totpToken = String(req.body?.totp ?? req.body?.code ?? "").replace(/\s/g, "");
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || '';
   const userAgent = (req.headers['user-agent'] as string) || '';
   let user = await (await db.prepare("SELECT * FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)")).get(loginInput, loginInput) as any;
@@ -2895,12 +2976,24 @@ app.post("/api/login", async (req, res) => {
       try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run(user.id, ip, userAgent); } catch (_) {}
       return res.status(403).json({ error: "Account locked. Please contact the Atelier." });
     }
+    const isAdminRole = user.role === "admin" || user.role === "super_admin";
+    const totpEnabled = Number(user.two_fa_enabled) === 1 && user.two_fa_secret && String(user.two_fa_secret).length > 0;
+    if (isAdminRole && totpEnabled) {
+      if (!totpToken) {
+        return res.status(401).json({ error: "Two-factor authentication code required", needs2fa: true });
+      }
+      if (!authenticator.verify({ token: totpToken, secret: user.two_fa_secret })) {
+        try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run(user.id, ip, userAgent); } catch (_) {}
+        return res.status(401).json({ error: "Invalid two-factor code", needs2fa: true });
+      }
+    }
     if (checkPassword(password, user.password || '')) try { await upgradePasswordIfNeeded(user.id, String(password)); } catch (_) {}
     try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 1)")).run(user.id, ip, userAgent); } catch (_) {}
-    const isSecure = (process.env.APP_URL || "").startsWith("https");
-    res.setHeader("Set-Cookie", `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
-    const { password: _p, ...rest } = user;
-    res.json(rest);
+    res.setHeader(
+      "Set-Cookie",
+      buildSetSessionCookieHeader(user.id, DEFAULT_SESSION_MAX_AGE_SEC, isSecureCookieRequest(req))
+    );
+    res.json(sanitizeUserRowForClient(user));
   } else {
     const u = await (await db.prepare("SELECT id FROM users WHERE LOWER(TRIM(email)) = ? OR (username IS NOT NULL AND LOWER(TRIM(username)) = ?)")).get(loginInput, loginInput);
     try { await (await db.prepare("INSERT INTO login_history (user_id, ip_address, user_agent, success) VALUES (?, ?, ?, 0)")).run((u as any)?.id ?? null, ip, userAgent); } catch (_) {}
@@ -2909,8 +3002,10 @@ app.post("/api/login", async (req, res) => {
 });
 
 app.post("/api/guest-login", async (req, res) => {
-  const isSecure = (process.env.APP_URL || "").startsWith("https");
-  res.setHeader("Set-Cookie", `session=${GUEST_USER_ID}; Path=/; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`);
+  res.setHeader(
+    "Set-Cookie",
+    buildSetSessionCookieHeader(GUEST_USER_ID, 24 * 3600, isSecureCookieRequest(req))
+  );
   res.json(getGuestUserPayload());
 });
 
@@ -2921,7 +3016,7 @@ app.get("/api/me", async (req, res) => {
   let user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
   if (!user || user.status !== 'approved') return res.status(401).json({ error: "Invalid session" });
   if (typeof recalcPrestigeTier === 'function' && user.role !== 'admin' && user.role !== 'super_admin') try { recalcPrestigeTier(userId); user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any; } catch (_) {}
-  const { password: _p, ...rest } = user;
+  const rest = sanitizeUserRowForClient(user);
   rest.prestige_tier = rest.prestige_tier || getPrestigeTier(user);
   res.json(rest);
 });
@@ -2983,6 +3078,99 @@ app.delete("/api/me/addresses/:id", async (req, res) => {
   res.status(204).send();
 });
 
+/** Admin TOTP: generate secret (does not enable until /enable confirms). */
+app.post("/api/me/2fa/setup", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const user = (await (await db.prepare("SELECT id, email, username, role FROM users WHERE id = ?")).get(userId)) as
+    | { id: number; email?: string; username?: string; role?: string }
+    | undefined;
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+  const secret = authenticator.generateSecret();
+  await (await db.prepare("UPDATE users SET two_fa_secret = ?, two_fa_enabled = 0 WHERE id = ?")).run(secret, userId);
+  const accountLabel = (user.email || user.username || "admin").toString();
+  const otpauthUrl = authenticator.keyuri(accountLabel, "AntonioBellanovaVault", secret);
+  res.json({ secret, otpauthUrl });
+});
+
+app.post("/api/me/2fa/enable", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const user = (await (await db.prepare("SELECT id, role, two_fa_secret FROM users WHERE id = ?")).get(userId)) as any;
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+  if (!user.two_fa_secret) return res.status(400).json({ error: "Run 2FA setup first" });
+  const code = String(req.body?.code ?? req.body?.totp ?? "").replace(/\s/g, "");
+  if (!code || !authenticator.verify({ token: code, secret: user.two_fa_secret })) {
+    return res.status(400).json({ error: "Invalid authenticator code" });
+  }
+  await (await db.prepare("UPDATE users SET two_fa_enabled = 1 WHERE id = ?")).run(userId);
+  res.json({ ok: true });
+});
+
+app.post("/api/me/2fa/disable", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const user = (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any;
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+  const password = String(req.body?.password ?? "");
+  if (!checkPassword(password, user.password || "")) return res.status(401).json({ error: "Invalid password" });
+  const totpEnabled = Number(user.two_fa_enabled) === 1 && user.two_fa_secret;
+  if (totpEnabled) {
+    const code = String(req.body?.code ?? req.body?.totp ?? "").replace(/\s/g, "");
+    if (!code || !authenticator.verify({ token: code, secret: user.two_fa_secret })) {
+      return res.status(400).json({ error: "Invalid authenticator code" });
+    }
+  }
+  await (await db.prepare("UPDATE users SET two_fa_enabled = 0, two_fa_secret = NULL WHERE id = ?")).run(userId);
+  res.json({ ok: true });
+});
+
+/** Owner: structured vault service requests (audit, insurance, transfer, withdrawal). */
+app.get("/api/vault-requests", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const rows = await (await db.prepare(`
+    SELECT vr.*, m.title AS masterpiece_title, m.serial_id AS masterpiece_serial
+    FROM vault_requests vr
+    JOIN masterpieces m ON m.id = vr.masterpiece_id
+    WHERE vr.user_id = ?
+    ORDER BY vr.created_at DESC
+  `)).all(userId);
+  res.json(rows);
+});
+
+app.get("/api/admin/vault-requests", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const admin = (await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(userId)) as { role?: string } | undefined;
+  if (!admin || (admin.role !== "admin" && admin.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+  const rows = await (await db.prepare(`
+    SELECT vr.*, m.title AS masterpiece_title, m.serial_id AS masterpiece_serial, u.email AS user_email, u.name AS user_name
+    FROM vault_requests vr
+    JOIN masterpieces m ON m.id = vr.masterpiece_id
+    JOIN users u ON u.id = vr.user_id
+    ORDER BY vr.created_at DESC
+    LIMIT 500
+  `)).all();
+  res.json(rows);
+});
+
+app.patch("/api/admin/vault-requests/:id", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const admin = (await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(userId)) as { role?: string } | undefined;
+  if (!admin || (admin.role !== "admin" && admin.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: "Invalid id" });
+  const status = String(req.body?.status ?? "").trim();
+  const allowed = ["pending", "approved", "rejected", "completed"];
+  if (!allowed.includes(status)) return res.status(400).json({ error: "Invalid status" });
+  const row = (await (await db.prepare("SELECT id FROM vault_requests WHERE id = ?")).get(id)) as { id: number } | undefined;
+  if (!row) return res.status(404).json({ error: "Not found" });
+  await (await db.prepare("UPDATE vault_requests SET status = ? WHERE id = ?")).run(status, id);
+  res.json({ ok: true });
+});
+
 app.get("/api/me/notification-settings", async (req, res) => {
   const userId = getSessionUserId(req);
   if (noSessionUserId(userId)) return res.status(401).json({ error: "Not signed in" });
@@ -3010,11 +3198,15 @@ app.patch("/api/me/notification-settings", async (req, res) => {
 });
 
 app.post("/api/logout", async (req, res) => {
-  res.setHeader("Set-Cookie", "session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax");
+  res.setHeader("Set-Cookie", buildClearSessionCookieHeader(isSecureCookieRequest(req)));
   res.json({ success: true });
 });
+app.get("/api/logout", async (req, res) => {
+  res.setHeader("Set-Cookie", buildClearSessionCookieHeader(isSecureCookieRequest(req)));
+  res.redirect(302, "/");
+});
 
-app.post("/api/forgot-password", async (req, res) => {
+app.post("/api/forgot-password", forgotPasswordRateLimiter, async (req, res) => {
   const { email } = req.body || {};
   if (!email || typeof email !== "string") return res.status(400).json({ error: "E-Mail erforderlich." });
   const user = await (await db.prepare("SELECT id, email, name FROM users WHERE email = ?")).get(email.trim()) as any;
@@ -3036,7 +3228,7 @@ app.post("/api/forgot-password", async (req, res) => {
   res.json({ success: true });
 });
 
-app.post("/api/reset-password", async (req, res) => {
+app.post("/api/reset-password", resetPasswordRateLimiter, async (req, res) => {
   const { token, newPassword } = req.body || {};
   if (!token || !newPassword || typeof newPassword !== "string" || newPassword.length < 6)
     return res.status(400).json({ error: "Token und neues Passwort (min. 6 Zeichen) erforderlich." });
@@ -3073,9 +3265,8 @@ app.get("/api/auth/link", async (req, res) => {
   } catch (_) {
     await (await db.prepare("INSERT INTO session_handoff (token, user_id, expires_at) VALUES (?, ?, ?)")).run(handoffToken, user.id, handoffExpires);
   }
-  const isSecure = baseUrl.startsWith("https");
-  const cookieOpts = `session=${user.id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
-  res.setHeader("Set-Cookie", cookieOpts);
+  const isSecure = baseUrl.startsWith("https") || isSecureCookieRequest(req);
+  res.setHeader("Set-Cookie", buildSetSessionCookieHeader(user.id, DEFAULT_SESSION_MAX_AGE_SEC, isSecure));
   const emailParam = (user.email || "").trim() ? "&email=" + encodeURIComponent(user.email) : "";
   const usernameParam = (user.username || "").trim() ? "&username=" + encodeURIComponent(user.username) : "";
   const redirectUrl = baseUrl + "/?must_change_password=1&session_handoff=" + handoffToken + emailParam + usernameParam;
@@ -3093,9 +3284,8 @@ app.post("/api/auth/session-from-handoff", express.json(), async (req, res) => {
   if (!row) return res.status(400).json({ error: "Token ungültig oder abgelaufen." });
   await (await db.prepare("DELETE FROM session_handoff WHERE token = ?")).run(token);
   const baseUrl = getBaseUrl(req);
-  const isSecure = baseUrl.startsWith("https");
-  const cookieOpts = `session=${row.user_id}; Path=/; Max-Age=${7 * 24 * 3600}; HttpOnly; SameSite=Lax${isSecure ? "; Secure" : ""}`;
-  res.setHeader("Set-Cookie", cookieOpts);
+  const isSecure = baseUrl.startsWith("https") || isSecureCookieRequest(req);
+  res.setHeader("Set-Cookie", buildSetSessionCookieHeader(row.user_id, DEFAULT_SESSION_MAX_AGE_SEC, isSecure));
   res.json({ success: true });
 });
 
@@ -6128,7 +6318,7 @@ app.post("/api/admin/intelligence/recalc-prestige", requireAuth, requireAdmin, a
 });
 
 // --- Contact form (public): speichern + E-Mail an Atelier (wenn SMTP + ADMIN_EMAIL gesetzt) ---
-app.post("/api/contact", async (req, res) => {
+app.post("/api/contact", contactRateLimiter, async (req, res) => {
   const { name, email, subject, message } = req.body || {};
   if (!name || !email || !message) return res.status(400).json({ error: "Name, E-Mail und Nachricht sind erforderlich." });
   await (await db.prepare("INSERT INTO contact_requests (name, email, subject, message) VALUES (?, ?, ?, ?)")).run(
@@ -10258,22 +10448,36 @@ app.get("/api/communication/admin/threads", async (req, res) => {
 });
 
 app.post("/api/communication/vault-request", async (req, res) => {
-  const { userId, masterpieceId, requestType, details } = req.body;
-  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId);
-  if (!user) return res.status(401).json({ error: "Unauthorized" });
-  const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(masterpieceId);
-  if (!piece || piece.current_owner_id !== userId) return res.status(403).json({ error: "Not owner" });
-  const allowed = ['audit', 'insurance_update', 'transfer', 'withdrawal'];
+  const sessionUserId = getSessionUserId(req);
+  if (noSessionUserId(sessionUserId) || sessionUserId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const { masterpieceId, requestType, details } = req.body;
+  const mid = Number(masterpieceId);
+  if (!Number.isFinite(mid) || mid <= 0) return res.status(400).json({ error: "Invalid masterpiece" });
+  const piece = (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid)) as { current_owner_id?: number } | undefined;
+  if (!piece || Number(piece.current_owner_id) !== sessionUserId) return res.status(403).json({ error: "Not owner" });
+  const allowed = ["audit", "insurance_update", "transfer", "withdrawal"];
   if (!allowed.includes(requestType)) return res.status(400).json({ error: "Invalid request type" });
-  const result = await (await db.prepare("INSERT INTO vault_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)")).run(userId, masterpieceId, requestType, details ? JSON.stringify(details) : null);
-  await commAudit('asset_transfer_request', userId, undefined, undefined, String(masterpieceId), requestType);
+  const result = await (await db.prepare("INSERT INTO vault_requests (user_id, masterpiece_id, request_type, details) VALUES (?, ?, ?, ?)")).run(
+    sessionUserId,
+    mid,
+    requestType,
+    details ? JSON.stringify(details) : null
+  );
+  await commAudit("asset_transfer_request", sessionUserId, undefined, undefined, String(mid), requestType);
   res.json({ id: result.lastInsertRowid });
 });
 
+app.get("/api/me/login-history", async (req, res) => {
+  const sessionUserId = getSessionUserId(req);
+  if (noSessionUserId(sessionUserId) || sessionUserId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const rows = await (await db.prepare("SELECT id, ip_address, user_agent, success, created_at FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")).all(sessionUserId);
+  res.json(rows);
+});
+/** @deprecated Use GET /api/me/login-history (session); query userId is no longer accepted. */
 app.get("/api/communication/login-history", async (req, res) => {
-  const userId = Number(req.query.userId);
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-  const rows = await (await db.prepare("SELECT id, ip_address, user_agent, success, created_at FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")).all(userId);
+  const sessionUserId = getSessionUserId(req);
+  if (noSessionUserId(sessionUserId) || sessionUserId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const rows = await (await db.prepare("SELECT id, ip_address, user_agent, success, created_at FROM login_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 50")).all(sessionUserId);
   res.json(rows);
 });
 
@@ -10434,6 +10638,16 @@ Respond in a highly sophisticated, professional, helpful tone. Elegant purchase 
 
 // --- Vite Integration ---
 async function startServer() {
+  const envReport = validateServerEnv();
+  for (const w of envReport.warnings) console.warn("[env]", w);
+  for (const e of envReport.errors) console.error("[env:error]", e);
+  if (envReport.errors.length && process.env.NODE_ENV === "production") {
+    console.error("[env] Refusing to start in production with env errors (see above).");
+    process.exit(1);
+  } else if (envReport.errors.length) {
+    console.error("[env] Startup continues in development; fix env errors before production.");
+  }
+  assertProductionSessionSecret();
   db = await initDb();
   await runSchema(db);
   try {

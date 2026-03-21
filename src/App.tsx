@@ -45,7 +45,8 @@ import {
   Menu,
   X,
   Wallet,
-  Receipt
+  Receipt,
+  ClipboardList
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -2724,7 +2725,7 @@ const Button = ({ children, onClick, variant = 'primary', className = '', disabl
   );
 };
 
-const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon, className = '' }: any) => (
+const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon, className = '', ...rest }: any) => (
   <div className={`space-y-1.5 w-full ${className}`}>
     {label && <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{label}</label>}
     <div className="relative">
@@ -2735,6 +2736,7 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon,
         onChange={onChange}
         placeholder={placeholder}
         className={`w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 ${Icon ? 'pl-12' : 'px-4'} pr-4 text-zinc-200 focus:outline-none focus:border-amber-600/50 focus:ring-1 focus:ring-amber-600/20 transition-all`}
+        {...rest}
       />
     </div>
   </div>
@@ -3027,7 +3029,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError }: any) => {
   );
 };
 
-function ForgotPasswordForm({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+function ForgotPasswordForm({ onBack, onSuccess, t }: { onBack: () => void; onSuccess: () => void; t: (key: string) => string }) {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<'idle' | 'success' | 'error'>('idle');
@@ -3053,19 +3055,19 @@ function ForgotPasswordForm({ onBack, onSuccess }: { onBack: () => void; onSucce
   };
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <p className="text-sm text-zinc-400">Geben Sie Ihre E-Mail ein. Wir senden Ihnen einen Link zum Zurücksetzen des Passworts.</p>
-      <Input label="E-Mail" type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder="ihre@email.de" required />
-      {message === 'success' && <p className="text-sm text-emerald-500">Falls ein Konto existiert, wurde ein Link versendet. Prüfen Sie Ihr Postfach.</p>}
-      {message === 'error' && <p className="text-sm text-red-400">Fehler beim Senden. Bitte später erneut versuchen.</p>}
+      <p className="text-sm text-zinc-400">{t('auth.forgot_password_intro')}</p>
+      <Input label={t('auth.email_or_username')} type="email" value={email} onChange={(e: any) => setEmail(e.target.value)} placeholder={t('auth.email_placeholder')} required />
+      {message === 'success' && <p className="text-sm text-emerald-500">{t('auth.forgot_password_success')}</p>}
+      {message === 'error' && <p className="text-sm text-red-400">{t('auth.forgot_password_error')}</p>}
       <div className="flex gap-3">
-        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>Zurück</Button>
-        <Button type="submit" disabled={loading}>{loading ? 'Wird gesendet…' : 'Link anfordern'}</Button>
+        <Button type="button" variant="outline" onClick={onBack} disabled={loading}>{t('auth.back')}</Button>
+        <Button type="submit" disabled={loading}>{loading ? t('auth.forgot_password_sending') : t('auth.forgot_password_submit')}</Button>
       </div>
     </form>
   );
 }
 
-function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack: () => void; onSuccess: () => void }) {
+function ResetPasswordForm({ token, onBack, onSuccess, t }: { token: string; onBack: () => void; onSuccess: () => void; t: (key: string) => string }) {
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -3073,9 +3075,9 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (newPassword.length < 6) { setError('Mindestens 6 Zeichen.'); return; }
-    if (newPassword !== confirm) { setError('Passwörter stimmen nicht überein.'); return; }
-    if (!token) { setError('Kein gültiger Link. Bitte fordern Sie einen neuen an.'); return; }
+    if (newPassword.length < 6) { setError(t('settings.password_min_length')); return; }
+    if (newPassword !== confirm) { setError(t('settings.password_mismatch')); return; }
+    if (!token) { setError(t('auth.reset_invalid_link')); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, newPassword }), credentials: 'include' });
@@ -3083,10 +3085,10 @@ function ResetPasswordForm({ token, onBack, onSuccess }: { token: string; onBack
       if (res.ok) {
         onSuccess();
       } else {
-        setError(data.error || 'Link abgelaufen oder ungültig.');
+        setError(data.error || t('auth.reset_link_expired'));
       }
     } catch {
-      setError('Netzwerkfehler. Bitte erneut versuchen.');
+      setError(t('auth.network_error_retry'));
     } finally {
       setLoading(false);
     }
@@ -3134,7 +3136,7 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'settings'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'vault_requests' | 'settings'>('pieces');
   const [walletData, setWalletData] = useState<{ wallet_balance: number; wallet_locked: number; available: number } | null>(null);
   const [stripePk, setStripePk] = useState<string | null>(null);
   /** Loaded from GET /api/stripe/config (null = not fetched yet for this navigation). */
@@ -3176,6 +3178,8 @@ export default function App() {
   const [serviceRequestForm, setServiceRequestForm] = useState({ masterpieceId: '' as number | '', type: 'restoration', description: '' });
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginNeeds2fa, setLoginNeeds2fa] = useState(false);
+  const [loginTotp, setLoginTotp] = useState('');
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [masterpieces, setMasterpieces] = useState<Masterpiece[]>([]);
   const [resalePieces, setResalePieces] = useState<(Masterpiece & { is_resale?: boolean; resale_listing_id?: number })[]>([]);
@@ -3298,7 +3302,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -3376,6 +3380,18 @@ export default function App() {
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
   const [adminLegacyRequests, setAdminLegacyRequests] = useState<any[]>([]);
+  const [adminVaultRequests, setAdminVaultRequests] = useState<any[]>([]);
+  const [clientVaultRequests, setClientVaultRequests] = useState<any[]>([]);
+  const [vaultRequestForm, setVaultRequestForm] = useState<{
+    masterpieceId: number | '';
+    requestType: 'audit' | 'insurance_update' | 'transfer' | 'withdrawal';
+    details: string;
+  }>({ masterpieceId: '', requestType: 'audit', details: '' });
+  const [twoFaSetup, setTwoFaSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [twoFaEnableCode, setTwoFaEnableCode] = useState('');
+  const [twoFaDisablePassword, setTwoFaDisablePassword] = useState('');
+  const [twoFaDisableCode, setTwoFaDisableCode] = useState('');
+  const [loginHistoryRows, setLoginHistoryRows] = useState<{ id: number; ip_address?: string; user_agent?: string; success?: number; created_at?: string }[]>([]);
   const [adminAdvisors, setAdminAdvisors] = useState<any[]>([]);
   const [adminAdvisorCommissions, setAdminAdvisorCommissions] = useState<any[]>([]);
   const [lastInvitedAdvisorPassword, setLastInvitedAdvisorPassword] = useState<{ email: string; password: string } | null>(null);
@@ -4533,7 +4549,7 @@ export default function App() {
   }, [selectedAssetDetailId]);
 
   useEffect(() => {
-    if (user?.role !== UserRole.ADMIN) return;
+    if (user?.role !== UserRole.ADMIN && user?.role !== 'super_admin') return;
     if (adminTab === 'intelligence') {
       Promise.all([
         fetch('/api/admin/intelligence/client-profiles', { credentials: 'include' }),
@@ -4551,6 +4567,9 @@ export default function App() {
     if (adminTab === 'concierge') {
       const q = adminConciergeFilter ? `?requestType=${encodeURIComponent(adminConciergeFilter)}` : '';
       fetch(`/api/admin/concierge/requests${q}`, { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminConciergeRequests)).catch(() => setAdminConciergeRequests([]));
+    }
+    if (adminTab === 'vault_requests') {
+      fetch('/api/admin/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminVaultRequests)).catch(() => setAdminVaultRequests([]));
     }
     if (adminTab === 'private_clients') {
       Promise.all([
@@ -4849,16 +4868,25 @@ export default function App() {
       setLoginError('Bitte E-Mail und Passwort eingeben.');
       return;
     }
+    if (loginNeeds2fa && !loginTotp.replace(/\s/g, '')) {
+      setLoginError(t('auth.totp_required') || 'Bitte den 6-stelligen Authenticator-Code eingeben.');
+      return;
+    }
     setLoading(true);
     try {
+      const loginBody: Record<string, string> = { email: emailTrim, password: passwordVal };
+      const totpClean = loginTotp.replace(/\s/g, '');
+      if (loginNeeds2fa && totpClean) loginBody.totp = totpClean;
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: emailTrim, password: passwordVal }),
+        body: JSON.stringify(loginBody),
         credentials: 'include'
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        setLoginNeeds2fa(false);
+        setLoginTotp('');
         setUser(data);
         setLanguage(data.preferred_language || data.language || 'de');
         setView('dashboard');
@@ -4866,6 +4894,13 @@ export default function App() {
           setShowMaintenanceAfterLoginAttempt(false);
         }
       } else {
+        if (data?.needs2fa) {
+          setLoginNeeds2fa(true);
+          const msg = (data && data.error) || t('auth.totp_required') || 'Authenticator-Code erforderlich.';
+          setLoginError(msg);
+          if (!maintenanceMode) notifyUser(msg, 'error');
+          return;
+        }
         if (maintenanceMode) {
           setShowMaintenanceAfterLoginAttempt(true);
         } else {
@@ -4873,6 +4908,7 @@ export default function App() {
           setLoginError(msg);
           notifyUser(msg, 'error');
         }
+        if (loginNeeds2fa) setLoginTotp('');
       }
     } catch (err) {
       const msg = 'Verbindungsfehler. Ist der Server gestartet? (npm run dev)';
@@ -6052,16 +6088,16 @@ export default function App() {
 
           <Card className="p-8">
             <div className="flex gap-4 mb-8">
-              <button type="button" onClick={() => { setView('login'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'login' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('login')}</button>
+              <button type="button" onClick={() => { setView('login'); setLoginError(null); setLoginNeeds2fa(false); setLoginTotp(''); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'login' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('login')}</button>
               <button type="button" onClick={() => { setView('register'); setLoginError(null); setRegisterError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'register' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('register')}</button>
               <button type="button" onClick={() => { setView('forgot-password'); setLoginError(null); }} className={`flex-1 pb-4 text-sm font-semibold uppercase tracking-widest transition-all border-b-2 ${view === 'forgot-password' ? 'border-amber-600 text-amber-500' : 'border-transparent text-zinc-600'}`}>{t('auth.forgot_password')}</button>
             </div>
 
             {view === 'forgot-password' && (
-              <ForgotPasswordForm onBack={() => setView('login')} onSuccess={() => setView('login')} />
+              <ForgotPasswordForm onBack={() => setView('login')} onSuccess={() => setView('login')} t={t} />
             )}
             {view === 'reset-password' && (
-              <ResetPasswordForm token={resetPasswordToken} onBack={() => setView('login')} onSuccess={() => { setView('login'); setResetPasswordToken(''); }} />
+              <ResetPasswordForm token={resetPasswordToken} onBack={() => setView('login')} onSuccess={() => { setView('login'); setResetPasswordToken(''); }} t={t} />
             )}
             {view !== 'forgot-password' && view !== 'reset-password' && (
             <form id="auth-form" onSubmit={view === 'login' ? handleLogin : handleRegister} className="space-y-6" noValidate>
@@ -6090,8 +6126,11 @@ export default function App() {
                   </div>
                 </>
               )}
-              <Input label={t('auth.email_or_username')} icon={Mail} type="text" value={email} onChange={(e: any) => { setEmail(e.target.value); setLoginError(null); if (view === 'register') setRegisterError(null); }} placeholder={t('auth.email_placeholder')} autoComplete="username" />
+              <Input label={t('auth.email_or_username')} icon={Mail} type="text" value={email} onChange={(e: any) => { setEmail(e.target.value); setLoginError(null); setLoginNeeds2fa(false); setLoginTotp(''); if (view === 'register') setRegisterError(null); }} placeholder={t('auth.email_placeholder')} autoComplete="username" />
               <Input label={t('password')} icon={Lock} type="password" value={password} onChange={(e: any) => { setPassword(e.target.value); setLoginError(null); if (view === 'register') setRegisterError(null); }} placeholder={t('auth.password_placeholder')} autoComplete={view === 'register' ? 'new-password' : 'current-password'} />
+              {view === 'login' && loginNeeds2fa && (
+                <Input label={t('auth.totp_code') || 'Authenticator-Code'} icon={ShieldCheck} type="text" inputMode="numeric" autoComplete="one-time-code" value={loginTotp} onChange={(e: any) => { setLoginTotp(e.target.value); setLoginError(null); }} placeholder="000000" />
+              )}
               {view === 'login' && loginError && (
                 <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3" role="alert">
                   {loginError}
@@ -6655,7 +6694,7 @@ export default function App() {
                 {(user.role === 'vip' || user.role === UserRole.VIP || (user as any).is_vip) && (
                   <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30"><Diamond className="w-2.5 h-2.5" /> VIP</span>
                 )}
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -7570,6 +7609,7 @@ export default function App() {
                   <TabButton active={vaultTab === 'service'} label={t('service')} onClick={() => setVaultTab('service')} icon={Wrench} />
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
                   <TabButton active={vaultTab === 'legacy'} label={t('vault.legacy') || 'Legacy'} onClick={() => { setVaultTab('legacy'); fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientLegacyRequests)); }} icon={BookOpen} />
+                  <TabButton active={vaultTab === 'vault_requests'} label={t('vault.vault_requests_tab') || 'Tresor-Anfragen'} onClick={() => { setVaultTab('vault_requests'); fetch('/api/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientVaultRequests)).catch(() => setClientVaultRequests([])); }} icon={ClipboardList} />
                   <TabButton active={vaultTab === 'settings'} label={t('vault.settings') || 'Settings'} onClick={() => { setVaultTab('settings'); if (user?.id) fetch(`/api/collector/preferences?userId=${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then((d: any) => setCollectorPreferences({ favorite_gemstones: d.favorite_gemstones ?? '', preferred_metals: d.preferred_metals ?? '', design_style: d.design_style ?? '', budget_range: d.budget_range ?? '', collection_type: d.collection_type ?? '', collection_focus: d.collection_focus ?? '' })) : null); }} icon={UserIcon} />
                 </div>
 
@@ -9498,9 +9538,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -11703,6 +11743,53 @@ export default function App() {
                         </table>
                       </div>
                       {adminLegacyRequests.length === 0 && <p className="text-zinc-500 text-sm italic py-4">No legacy requests.</p>}
+                    </Card>
+                  </section>
+                  )}
+
+                  {(adminTab === 'vault_requests') && (
+                  <section className="space-y-6">
+                    <h3 className="text-xl font-serif italic text-amber-500/90">{t('admin.tab_vault_requests') || 'Tresor-Anfragen'}</h3>
+                    <p className="text-sm text-zinc-500">{t('vault_requests.admin_hint') || 'Structured requests from owners (audit, insurance, transfer, withdrawal).'}</p>
+                    <Card className="p-6">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                              <th className="py-2 pr-2">{t('vault_requests.col_user') || 'User'}</th>
+                              <th className="py-2 pr-2">{t('vault_requests.col_piece') || 'Piece'}</th>
+                              <th className="py-2 pr-2">{t('vault_requests.col_type') || 'Type'}</th>
+                              <th className="py-2 pr-2">{t('vault_requests.col_status') || 'Status'}</th>
+                              <th className="py-2 pr-2">{t('vault_requests.col_created') || 'Created'}</th>
+                              <th className="py-2 pr-2" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminVaultRequests.map((r: any) => (
+                              <tr key={r.id} className="border-b border-zinc-800/50">
+                                <td className="py-2 pr-2 text-zinc-300">{r.user_name || r.user_email || '—'}</td>
+                                <td className="py-2 pr-2 text-zinc-400">{r.masterpiece_title || '—'} <span className="text-zinc-600 font-mono text-xs">{r.masterpiece_serial || ''}</span></td>
+                                <td className="py-2 pr-2 font-mono text-xs text-amber-500/90">{r.request_type}</td>
+                                <td className="py-2 pr-2"><Badge variant={r.status === 'approved' ? 'emerald' : r.status === 'rejected' ? 'red' : r.status === 'completed' ? 'outline' : 'amber'}>{r.status || 'pending'}</Badge></td>
+                                <td className="py-2 pr-2 text-zinc-500">{r.created_at ? new Date(r.created_at).toLocaleString() : '—'}</td>
+                                <td className="py-2 pr-2">
+                                  {r.status === 'pending' && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {(['approved', 'rejected', 'completed'] as const).map(st => (
+                                        <Button key={st} variant="outline" size="sm" className="text-[10px] uppercase" onClick={async () => {
+                                          const res = await fetch(`/api/admin/vault-requests/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: st }), credentials: 'include' });
+                                          if (res.ok) { notifyUser(t('vault_requests.status_updated') || 'Status updated', 'success'); fetch('/api/admin/vault-requests', { credentials: 'include' }).then(x => x.ok && x.json().then(setAdminVaultRequests)); }
+                                        }}>{st}</Button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {adminVaultRequests.length === 0 && <p className="text-zinc-500 text-sm italic py-4">{t('vault_requests.admin_empty') || 'No vault requests yet.'}</p>}
                     </Card>
                   </section>
                   )}
