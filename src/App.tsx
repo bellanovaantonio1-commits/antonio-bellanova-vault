@@ -2976,6 +2976,8 @@ export default function App() {
     const pathname = window.location.pathname || '';
     const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
     if (verifyMatch) return 'verify';
+    /** Öffentliche Entdecken-Ansicht — gleiche URL wie nach „Als Gast fortfahren“ */
+    if (pathname === '/world' || pathname.startsWith('/world/')) return 'world';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
     if (v === 'reset-password' && params.get('token')) return 'reset-password';
@@ -3623,9 +3625,16 @@ export default function App() {
       if (!data) return;
       setUser(data);
       setLanguage(data.preferred_language || data.language || 'de');
+      const pathNow = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+      const onWorldPath = pathNow === '/world' || pathNow.startsWith('/world/');
       if (data.is_guest || data.role === 'guest') {
         setView('world');
         if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
+        return;
+      }
+      /** Eingeloggte Nutzer: URL /world bewusst = öffentliche Sammlung, nicht Dashboard überschreiben */
+      if (onWorldPath) {
+        setView('world');
         return;
       }
       setView('dashboard');
@@ -3652,6 +3661,18 @@ export default function App() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data) return applyUser(data);
+          /** Direkt /world ohne Session: automatisch Gast-Session, sonst weißer/leerer Zustand (view=world, user=null) */
+          const p = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+          if (p === '/world' || p.startsWith('/world/')) {
+            fetch('/api/guest-login', { method: 'POST', credentials: 'include' })
+              .then(r => (r.ok ? r.json() : null))
+              .then((g) => {
+                /** Gast-User hat id=0 — truthy-Check auf g.id würde nie applyUser aufrufen */
+                if (g != null && typeof g === 'object' && (g.is_guest || g.role === 'guest' || g.id === 0)) applyUser(g);
+              })
+              .catch(() => {});
+            return;
+          }
           if (hasMustChange && attempt < 3) setTimeout(() => tryMe(attempt + 1), 300 * attempt);
         })
         .catch(() => { if (hasMustChange && attempt < 3) setTimeout(() => tryMe(attempt + 1), 300 * attempt); });
@@ -5774,6 +5795,20 @@ export default function App() {
   }
 
   if (!user) {
+    const pathNoUser = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+    const isWorldEntry = view === 'world' || pathNoUser === '/world' || pathNoUser.startsWith('/world/');
+    /** /world + keine Session: kein Auth-Formular mit view=world (Submit/Labels falsch) — warten auf auto guest-login */
+    if (isWorldEntry) {
+      return (
+        <div className="min-h-screen bg-[#050505] text-zinc-200 flex flex-col items-center justify-center gap-6 p-8 font-sans">
+          <Diamond className="w-14 h-14 text-amber-500 shrink-0" />
+          <p className="text-sm text-zinc-400 text-center max-w-sm">{t('world.loading_guest') || 'Die Sammlung wird für Sie vorbereitet…'}</p>
+          <button type="button" className="text-xs uppercase tracking-widest text-amber-500/90 hover:text-amber-400" onClick={() => { setView('login'); if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); }}>
+            {t('world.to_login') || 'Zur Anmeldung'}
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-black text-zinc-100 flex items-center justify-center p-6 font-sans selection:bg-amber-500/30">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -5912,6 +5947,9 @@ export default function App() {
     if (viewKey === 'portfolio' && !canAccessPortfolioMenu) {
       notifyUser(t('portfolio.menu_restricted') || 'Der Bereich Portfolio ist nur für die Verwaltung und Investoren sichtbar.', 'error');
       return;
+    }
+    if (viewKey === 'world' && typeof window !== 'undefined') {
+      window.history.pushState({}, '', '/world');
     }
     setView(viewKey as any);
   };
@@ -6890,7 +6928,7 @@ export default function App() {
                               fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
-                            onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
+                            onBuy={!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
                         if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);

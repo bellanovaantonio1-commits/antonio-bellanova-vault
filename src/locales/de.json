@@ -78,5 +78,8 @@
   "dashboard.collector_ranking_by_value": "Nach Sammlungswert",
   "dashboard.collector_ranking_by_prestige": "Nach Prestige-Score",
   "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe",
-  "portfolio.menu_restricted": "Der Bereich Portfolio ist nur für die Verwaltung und registrierte Investoren sichtbar."
+  "portfolio.menu_restricted": "Der Bereich Portfolio ist nur für die Verwaltung und registrierte Investoren sichtbar.",
+  "world.loading_guest": "Die Sammlung wird für Sie vorbereitet…",
+  "world.to_login": "Zur Anmeldung",
+  "view.world": "World"
 }
