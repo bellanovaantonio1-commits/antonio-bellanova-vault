@@ -77,5 +77,6 @@
   "dashboard.collector_ranking_empty": "No collector data yet.",
   "dashboard.collector_ranking_by_value": "By collection value",
   "dashboard.collector_ranking_by_prestige": "By prestige score",
-  "dashboard.collector_ranking_by_purchases": "By total purchases"
+  "dashboard.collector_ranking_by_purchases": "By total purchases",
+  "portfolio.menu_restricted": "The Portfolio section is only visible to administration and registered investors."
 }

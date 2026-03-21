@@ -77,5 +77,6 @@
   "dashboard.collector_ranking_empty": "Noch keine Sammler-Daten.",
   "dashboard.collector_ranking_by_value": "Nach Sammlungswert",
   "dashboard.collector_ranking_by_prestige": "Nach Prestige-Score",
-  "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe"
+  "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe",
+  "portfolio.menu_restricted": "Der Bereich Portfolio ist nur für die Verwaltung und registrierte Investoren sichtbar."
 }

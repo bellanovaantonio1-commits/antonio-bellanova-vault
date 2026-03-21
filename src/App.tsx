@@ -3717,6 +3717,17 @@ export default function App() {
     document.title = view === 'login' || view === 'register' ? 'Juwelen & Schmuckatelier Antonio Bellanova' : view === 'verify' ? 'Zertifikat prüfen' : `${(view as string).replace(/_/g, ' ')} · Juwelen & Schmuckatelier Antonio Bellanova`;
   }, [view]);
 
+  /** Portfolio nur Admin/Investor: bei Session-Wechsel oder direkter URL nicht leeren Screen zeigen */
+  useEffect(() => {
+    if (!user) return;
+    const portfolioOk =
+      user.role === UserRole.ADMIN ||
+      (user as any).role === 'super_admin' ||
+      user.role === UserRole.INVESTOR ||
+      (user as any).role === 'investor';
+    if (view === 'portfolio' && !portfolioOk) setView('dashboard');
+  }, [user, view]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onOnline = () => { setIsOnline(true); setOfflineBannerShown(false); };
@@ -5886,10 +5897,20 @@ export default function App() {
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
   const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
+  /** Portfolio-Seite: nur Admin / Super-Admin / Investor (Datenschutz — reguläre Kunden nicht). */
+  const canAccessPortfolioMenu =
+    user.role === UserRole.ADMIN ||
+    (user as any).role === 'super_admin' ||
+    user.role === UserRole.INVESTOR ||
+    (user as any).role === 'investor';
   const handleNavViewChange = (viewKey: string) => {
     if (isGuest && viewKey === 'concierge') {
       notifyUser(t('guest.concierge_register_required') || 'Please register to use the concierge service.', 'error');
       setView('register');
+      return;
+    }
+    if (viewKey === 'portfolio' && !canAccessPortfolioMenu) {
+      notifyUser(t('portfolio.menu_restricted') || 'Der Bereich Portfolio ist nur für die Verwaltung und Investoren sichtbar.', 'error');
       return;
     }
     setView(viewKey as any);
@@ -5912,7 +5933,7 @@ export default function App() {
     ...(user.role !== 'black' && user.role !== UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.concierge'))] : []),
     ...(user.role === 'black' || user.role === UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.direct_line'))] : []),
     ...(user.role !== 'admin' && user.role !== 'super_admin' ? [navItem('private_clients', MessageCircle, t('private_clients.menu') || 'Nachrichten')] : []),
-    navItem('portfolio', Award, t('view.portfolio')),
+    ...(canAccessPortfolioMenu ? [navItem('portfolio', Award, t('view.portfolio'))] : []),
     ...(user.role !== UserRole.ADMIN ? [navItem('fractional', PieChart, t('view.fractional'))] : []),
     ...(user.role === UserRole.INVESTOR ? [navItem('investor', BarChart3, t('investor.title'))] : []),
     ...(user.role === UserRole.STRATEGIC_PRIVATE_ADVISOR ? [navItem('advisor', BarChart3, t('advisor.title') || 'Advisor')] : []),
@@ -8343,7 +8364,7 @@ export default function App() {
               </motion.div>
             )}
 
-            {view === 'portfolio' && (
+            {view === 'portfolio' && canAccessPortfolioMenu && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="text-center space-y-4 max-w-2xl mx-auto">
                   <h3 className="text-5xl font-serif italic text-white">{t('portfolio.curated_title')}</h3>
