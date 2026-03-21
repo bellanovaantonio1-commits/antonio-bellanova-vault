@@ -929,10 +929,45 @@ const TRANSLATIONS: any = {
     "activity.view_message": "Nachricht ansehen",
     "activity.new_offer": "Neues Angebot verfügbar",
     "activity.review_offer": "Angebot prüfen",
-    "verify.piece_name": "Piece Name",
-    "verify.owner": "Owner",
-    "verify.creation_date": "Creation Date",
-    "verify.certificate_status": "Certificate Status",
+    "verify.piece_name": "Stückbezeichnung",
+    "verify.owner": "Eigentümer",
+    "verify.creation_date": "Erstellungsdatum",
+    "verify.certificate_status": "Zertifikatsstatus",
+    "verify.page_title": "Zertifikatsprüfung",
+    "verify.authentic_confirmed": "Echtheitszertifikat bestätigt",
+    "verify.registered_in_vault": "Dieses Zertifikat ist im Antonio Bellanova Vault registriert.",
+    "verify.serial_number": "Seriennummer",
+    "verify.certificate_id_label": "Zertifikats-ID",
+    "verify.piece_image_caption": "Schmuckstück",
+    "verify.piece_image_alt": "Stück",
+    "verify.atelier_footer": "Atelier: Antonio Bellanova · Haute Joaillerie",
+    "verify.loading": "Wird geladen…",
+    "verify.failed_title": "Dieses Zertifikat konnte nicht verifiziert werden.",
+    "verify.failed_hint": "Prüfen Sie die URL oder wenden Sie sich an das Atelier.",
+    "verify.status_verified": "Echt verifiziert",
+    "notifications.mark_all_read": "Alle als gelesen",
+    "theme.aria_light": "Hellmodus",
+    "theme.aria_dark": "Dunkelmodus",
+    "guest.account_required_title": "Konto erforderlich",
+    "guest.account_required_body": "Legen Sie ein Konto an, um exklusive Tresor-Funktionen zu nutzen.",
+    "collector.level_legacy": "Legacy-Sammler",
+    "collector.level_grand": "Grand Collector",
+    "collector.level_private": "Private Collector",
+    "collector.level_vip": "VIP",
+    "collector.level_collector": "Sammler",
+    "trust.portfolio_prefix": "Portfolio ·",
+    "settings.addr_badge_billing": "Rechnung",
+    "settings.addr_badge_shipping": "Lieferung",
+    "settings.address_confirm_remove": "Adresse entfernen?",
+    "settings.address_remove": "Entfernen",
+    "settings.address_placeholder_label": "Bezeichnung (z. B. Zuhause)",
+    "settings.address_placeholder_street": "Straße, Nr.",
+    "settings.address_placeholder_postal": "PLZ",
+    "settings.address_placeholder_city": "Ort",
+    "settings.address_placeholder_country": "Land",
+    "settings.address_default_country": "Deutschland",
+    "admin.marketplace_restore_failed": "Marktplatz-Wiederherstellung fehlgeschlagen",
+    "admin.marketplace_backup_downloaded": "Marktplatz-Backup heruntergeladen",
     "dashboard.portfolio_value": "Portfolio-Wert",
     "dashboard.recent_views": "Zuletzt angesehen",
     "dashboard.favorites": "Favoriten",
@@ -1756,6 +1791,45 @@ const TRANSLATIONS: any = {
     "activity.view_message": "View Message",
     "activity.new_offer": "New offer available",
     "activity.review_offer": "Review Offer",
+    "verify.piece_name": "Piece name",
+    "verify.owner": "Owner",
+    "verify.creation_date": "Creation date",
+    "verify.certificate_status": "Certificate status",
+    "verify.page_title": "Certificate verification",
+    "verify.authentic_confirmed": "Certificate of authenticity confirmed",
+    "verify.registered_in_vault": "This certificate is registered in the Antonio Bellanova Vault.",
+    "verify.serial_number": "Serial number",
+    "verify.certificate_id_label": "Certificate ID",
+    "verify.piece_image_caption": "Jewellery piece",
+    "verify.piece_image_alt": "Piece",
+    "verify.atelier_footer": "Atelier: Antonio Bellanova · Haute Joaillerie",
+    "verify.loading": "Loading…",
+    "verify.failed_title": "This certificate could not be verified.",
+    "verify.failed_hint": "Check the URL or contact the atelier.",
+    "verify.status_verified": "Verified authentic",
+    "notifications.mark_all_read": "Mark all read",
+    "theme.aria_light": "Light mode",
+    "theme.aria_dark": "Dark mode",
+    "guest.account_required_title": "Account required",
+    "guest.account_required_body": "Create an account to access exclusive Vault features.",
+    "collector.level_legacy": "Legacy Collector",
+    "collector.level_grand": "Grand Collector",
+    "collector.level_private": "Private Collector",
+    "collector.level_vip": "VIP",
+    "collector.level_collector": "Collector",
+    "trust.portfolio_prefix": "Portfolio ·",
+    "settings.addr_badge_billing": "Billing",
+    "settings.addr_badge_shipping": "Shipping",
+    "settings.address_confirm_remove": "Remove this address?",
+    "settings.address_remove": "Remove",
+    "settings.address_placeholder_label": "Label (e.g. Home)",
+    "settings.address_placeholder_street": "Street, no.",
+    "settings.address_placeholder_postal": "Postal code",
+    "settings.address_placeholder_city": "City",
+    "settings.address_placeholder_country": "Country",
+    "settings.address_default_country": "Germany",
+    "admin.marketplace_restore_failed": "Marketplace restore failed",
+    "admin.marketplace_backup_downloaded": "Marketplace backup downloaded",
     "dashboard.collection_value_short": "Collection Value",
     "dashboard.portfolio_value": "Portfolio Value",
     "dashboard.recent_views": "Recently viewed",
@@ -2547,7 +2621,46 @@ const TRANSLATIONS: any = {
     "maintenance.on": "Modalità manutenzione attivata",
     "maintenance.off": "Modalità manutenzione disattivata",
     "maintenance.try_again": "Riprova",
-    "maintenance.admin_login": "Accesso admin"
+    "maintenance.admin_login": "Accesso admin",
+    "verify.piece_name": "Nome del pezzo",
+    "verify.owner": "Proprietario",
+    "verify.creation_date": "Data di creazione",
+    "verify.certificate_status": "Stato certificato",
+    "verify.page_title": "Verifica certificato",
+    "verify.authentic_confirmed": "Certificato di autenticità confermato",
+    "verify.registered_in_vault": "Questo certificato è registrato nell’Antonio Bellanova Vault.",
+    "verify.serial_number": "Numero di serie",
+    "verify.certificate_id_label": "ID certificato",
+    "verify.piece_image_caption": "Gioiello",
+    "verify.piece_image_alt": "Pezzo",
+    "verify.atelier_footer": "Atelier: Antonio Bellanova · Haute Joaillerie",
+    "verify.loading": "Caricamento…",
+    "verify.failed_title": "Impossibile verificare questo certificato.",
+    "verify.failed_hint": "Controllate l’URL o contattate l’atelier.",
+    "verify.status_verified": "Autentico verificato",
+    "notifications.mark_all_read": "Segna tutti come letti",
+    "theme.aria_light": "Modalità chiara",
+    "theme.aria_dark": "Modalità scura",
+    "guest.account_required_title": "Account richiesto",
+    "guest.account_required_body": "Create un account per accedere alle funzioni esclusive del caveau.",
+    "collector.level_legacy": "Collezionista Legacy",
+    "collector.level_grand": "Grand Collector",
+    "collector.level_private": "Private Collector",
+    "collector.level_vip": "VIP",
+    "collector.level_collector": "Collezionista",
+    "trust.portfolio_prefix": "Portafoglio ·",
+    "settings.addr_badge_billing": "Fatturazione",
+    "settings.addr_badge_shipping": "Spedizione",
+    "settings.address_confirm_remove": "Rimuovere questo indirizzo?",
+    "settings.address_remove": "Rimuovi",
+    "settings.address_placeholder_label": "Etichetta (es. Casa)",
+    "settings.address_placeholder_street": "Via, n.",
+    "settings.address_placeholder_postal": "CAP",
+    "settings.address_placeholder_city": "Città",
+    "settings.address_placeholder_country": "Paese",
+    "settings.address_default_country": "Germania",
+    "admin.marketplace_restore_failed": "Ripristino mercato non riuscito",
+    "admin.marketplace_backup_downloaded": "Backup mercato scaricato"
   },
   fr: {} as Record<string, string>,
   ar: {} as Record<string, string>,
@@ -3147,7 +3260,7 @@ export default function App() {
   const [forcePasswordChangeMode, setForcePasswordChangeMode] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMarketplacePdfModal, setShowMarketplacePdfModal] = useState(false);
-  const [marketplacePdfLang, setMarketplacePdfLang] = useState<'de' | 'en' | 'it'>('de');
+  const [marketplacePdfLang, setMarketplacePdfLang] = useState<'de' | 'en' | 'it' | 'fr' | 'es' | 'pt' | 'ar'>('de');
   const [changePasswordForm, setChangePasswordForm] = useState({ current: '', new: '', confirm: '' });
   const [changePasswordSubmitting, setChangePasswordSubmitting] = useState(false);
   const [changePasswordError, setChangePasswordError] = useState('');
@@ -3309,6 +3422,19 @@ export default function App() {
   };
 
   const t = (key: string) => TRANSLATIONS[language]?.[key] ?? TRANSLATIONS['en']?.[key] ?? key;
+  /** Collector tier labels — use everywhere instead of hardcoded English. */
+  const collectorLevelLabel = (level: string) => {
+    const map: Record<string, string> = {
+      legacy_collector: t('collector.level_legacy'),
+      grand_collector: t('collector.level_grand'),
+      private_collector: t('collector.level_private'),
+      vip: t('collector.level_vip'),
+      collector: t('collector.level_collector'),
+    };
+    return map[level] || level;
+  };
+  const uiLocale =
+    ({ de: 'de-DE', en: 'en-GB', it: 'it-IT', fr: 'fr-FR', es: 'es-ES', pt: 'pt-PT', ar: 'ar-SA' } as Record<string, string>)[language] || 'en-GB';
 
   const lang = (language || 'de').toLowerCase().slice(0, 2);
   const getPieceLocalized = (piece: any, field: 'description' | 'materials' | 'gemstones'): string => {
@@ -3396,11 +3522,15 @@ export default function App() {
       img.src = url;
     });
 
-  const downloadMarketplacePdf = async (lang: 'de' | 'en' | 'it') => {
+  const downloadMarketplacePdf = async (lang: 'de' | 'en' | 'it' | 'fr' | 'es' | 'pt' | 'ar') => {
     const PDF_LABELS: Record<string, Record<string, string>> = {
       de: { title: 'Marktplatz', description: 'Beschreibung', materials: 'Materialien', gemstones: 'Edelsteine', serial_id: 'Seriennummer', price_on_request: 'Preis auf Anfrage', from: 'Ab', rarity: 'Seltenheit' },
       en: { title: 'Marketplace', description: 'Description', materials: 'Materials', gemstones: 'Gemstones', serial_id: 'Serial ID', price_on_request: 'Price on request', from: 'From', rarity: 'Rarity' },
-      it: { title: 'Mercato', description: 'Descrizione', materials: 'Materiali', gemstones: 'Pietre preziose', serial_id: 'Numero di serie', price_on_request: 'Prezzo su richiesta', from: 'Da', rarity: 'Rarità' }
+      it: { title: 'Mercato', description: 'Descrizione', materials: 'Materiali', gemstones: 'Pietre preziose', serial_id: 'Numero di serie', price_on_request: 'Prezzo su richiesta', from: 'Da', rarity: 'Rarità' },
+      fr: { title: 'Marché', description: 'Description', materials: 'Matériaux', gemstones: 'Pierres précieuses', serial_id: 'N° de série', price_on_request: 'Prix sur demande', from: 'À partir de', rarity: 'Rareté' },
+      es: { title: 'Mercado', description: 'Descripción', materials: 'Materiales', gemstones: 'Gemas', serial_id: 'N.º de serie', price_on_request: 'Precio bajo consulta', from: 'Desde', rarity: 'Rareza' },
+      pt: { title: 'Mercado', description: 'Descrição', materials: 'Materiais', gemstones: 'Pedras preciosas', serial_id: 'N.º de série', price_on_request: 'Preço sob consulta', from: 'A partir de', rarity: 'Raridade' },
+      ar: { title: 'السوق', description: 'الوصف', materials: 'المواد', gemstones: 'الأحجار الكريمة', serial_id: 'الرقم التسلسلي', price_on_request: 'السعر عند الطلب', from: 'ابتداءً من', rarity: 'الندرة' }
     };
     const L = PDF_LABELS[lang] || PDF_LABELS.de;
     const list = filterMasterpieces(masterpieces, 'available');
@@ -3413,7 +3543,8 @@ export default function App() {
     y += 10;
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(new Date().toLocaleDateString(lang === 'de' ? 'de-DE' : lang === 'it' ? 'it-IT' : 'en-GB'), margin, y);
+    const pdfLocale = lang === 'de' ? 'de-DE' : lang === 'it' ? 'it-IT' : lang === 'fr' ? 'fr-FR' : lang === 'es' ? 'es-ES' : lang === 'pt' ? 'pt-PT' : lang === 'ar' ? 'ar-SA' : 'en-GB';
+    doc.text(new Date().toLocaleDateString(pdfLocale), margin, y);
     y += 14;
     for (let i = 0; i < list.length; i++) {
       const piece = list[i] as Masterpiece & { pricing_mode?: string; description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string };
@@ -4030,13 +4161,13 @@ export default function App() {
       const res = await fetch('/api/admin/marketplace/restore', { method: 'POST', body: fd, credentials: 'include' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        notifyUser(data.error || 'Marketplace-Restore fehlgeschlagen', 'error');
+        notifyUser(data.error || t('admin.marketplace_restore_failed'), 'error');
         return;
       }
       notifyUser(`Restore abgeschlossen: ${data.inserted ?? 0} eingefügt, ${data.updated ?? 0} aktualisiert, ${data.skipped ?? 0} übersprungen`, 'success');
       await fetchData();
     } catch (_err) {
-      notifyUser('Marketplace-Restore fehlgeschlagen', 'error');
+      notifyUser(t('admin.marketplace_restore_failed'), 'error');
     } finally {
       setMarketplaceRestoreLoading(false);
     }
@@ -5735,36 +5866,36 @@ export default function App() {
             <ShieldCheck className="w-8 h-8 text-amber-500" />
           </div>
           <h1 className="text-xl font-serif italic text-zinc-200">Antonio Bellanova</h1>
-          <p className="text-[10px] uppercase tracking-widest text-amber-500/90">Certificate Verification</p>
+          <p className="text-[10px] uppercase tracking-widest text-amber-500/90">{t('verify.page_title')}</p>
           {verifyData ? (
             <div className="bg-zinc-900/80 border border-amber-500/20 rounded-2xl p-6 text-left space-y-5">
               <div className="flex items-center gap-2 text-emerald-500">
                 <CheckCircle className="w-6 h-6 shrink-0" />
-                <span className="font-semibold uppercase tracking-widest text-sm">Echtheitszertifikat bestätigt</span>
+                <span className="font-semibold uppercase tracking-widest text-sm">{t('verify.authentic_confirmed')}</span>
               </div>
-              <p className="text-zinc-400 text-sm">Dieses Zertifikat ist im Antonio Bellanova Vault registriert.</p>
+              <p className="text-zinc-400 text-sm">{t('verify.registered_in_vault')}</p>
               <div className="grid grid-cols-1 gap-3 pt-2 border-t border-zinc-800">
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.piece_name') || 'Piece Name'}</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.title ?? '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Seriennummer</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.serial_id ?? '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.owner') || 'Owner'}</span><br /><span className="text-zinc-300">{verifyData.owner_name ?? '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.creation_date') || 'Creation Date'}</span><br /><span className="text-zinc-300">{verifyData.cert?.created_at ? new Date(verifyData.cert.created_at).toLocaleDateString('de-DE') : '—'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.certificate_status') || 'Certificate Status'}</span><br /><span className="text-emerald-400 font-medium">{verifyData.cert?.status_label ?? 'Verified Authentic'}</span></div>
-                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">Certificate ID</span><br /><span className="font-mono text-amber-500/90">{verifyData.cert?.cert_id ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.piece_name')}</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.title ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.serial_number')}</span><br /><span className="font-mono text-zinc-300">{verifyData.piece?.serial_id ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.owner')}</span><br /><span className="text-zinc-300">{verifyData.owner_name ?? '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.creation_date')}</span><br /><span className="text-zinc-300">{verifyData.cert?.created_at ? new Date(verifyData.cert.created_at).toLocaleDateString(uiLocale) : '—'}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.certificate_status')}</span><br /><span className="text-emerald-400 font-medium">{verifyData.cert?.status_label ?? t('verify.status_verified')}</span></div>
+                <div><span className="text-zinc-500 text-[10px] uppercase tracking-wider">{t('verify.certificate_id_label')}</span><br /><span className="font-mono text-amber-500/90">{verifyData.cert?.cert_id ?? '—'}</span></div>
               </div>
               {verifyData.piece?.image_url && (
                 <div className="pt-2">
-                  <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">Schmuckstück</p>
-                  <img src={verifyData.piece.image_url} alt={verifyData.piece?.title || 'Piece'} className="w-full max-h-48 object-contain rounded-xl border border-zinc-700 bg-zinc-900/50" />
+                  <p className="text-zinc-500 text-[10px] uppercase tracking-wider mb-2">{t('verify.piece_image_caption')}</p>
+                  <img src={verifyData.piece.image_url} alt={verifyData.piece?.title || t('verify.piece_image_alt')} className="w-full max-h-48 object-contain rounded-xl border border-zinc-700 bg-zinc-900/50" />
                 </div>
               )}
-              <p className="text-zinc-500 text-xs pt-2 border-t border-zinc-800">Atelier: Antonio Bellanova · Haute Joaillerie</p>
+              <p className="text-zinc-500 text-xs pt-2 border-t border-zinc-800">{t('verify.atelier_footer')}</p>
             </div>
           ) : verifyCertId && verifyData === null ? (
-            <p className="text-zinc-500">Lade …</p>
+            <p className="text-zinc-500">{t('verify.loading')}</p>
           ) : verifyCertId ? (
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6">
-              <p className="text-amber-500/90 font-medium">Dieses Zertifikat konnte nicht verifiziert werden.</p>
-              <p className="text-zinc-500 text-xs mt-2">Prüfen Sie die URL oder wenden Sie sich an das Atelier.</p>
+              <p className="text-amber-500/90 font-medium">{t('verify.failed_title')}</p>
+              <p className="text-zinc-500 text-xs mt-2">{t('verify.failed_hint')}</p>
             </div>
           ) : null}
           <button type="button" onClick={() => { setView('login'); setVerifyCertId(null); setVerifyData(null); if (typeof window !== 'undefined') window.history.replaceState({}, '', '/'); }} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400">← {t('common.back_home')}</button>
@@ -6043,7 +6174,7 @@ export default function App() {
     setView(viewKey as any);
   };
   const navItems = isGuest ? [
-    navItem('world', Globe, 'World'),
+    navItem('world', Globe, t('view.world')),
     navItem('marketplace', ShoppingBag, t('marketplace')),
     navItem('resale', History, t('resale.menu_title')),
     navItem('auctions', Gavel, t('auctions')),
@@ -6193,7 +6324,7 @@ export default function App() {
                             if (!user) return;
                             await fetch(`/api/notifications/${user.id}/read-all`, { method: 'POST' });
                             fetchData();
-                          }}>Alle gelesen</button>
+                          }}>{t('notifications.mark_all_read')}</button>
                         )}
                       </div>
                     </div>
@@ -6212,7 +6343,7 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={theme === 'dark' ? t('theme.aria_light') : t('theme.aria_dark')}>
               {theme === 'dark' ? <Sun className="w-5 h-5 text-zinc-400 hover:text-amber-500" /> : <Moon className="w-5 h-5 text-zinc-500 hover:text-amber-600" />}
             </button>
             <div className="flex items-center gap-2" title={t('settings.language')}>
@@ -6243,8 +6374,7 @@ export default function App() {
                       );
                     }
                     const level = (user as any).collector_level || 'collector';
-                    const badges: Record<string, string> = { legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' };
-                    const label = badges[level] || level;
+                    const label = collectorLevelLabel(level);
                     return (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest border ${getCollectorBadgeClasses(level)}`}>
                         <Diamond className="w-3 h-3" /> {label}
@@ -6256,8 +6386,7 @@ export default function App() {
                   const isAdmin = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
                   if (isAdmin) return <p className="text-[10px] uppercase tracking-widest text-amber-500">{t('identity.system_role_administrator') || 'Administrator'}</p>;
                   const level = (user as any).collector_level || 'collector';
-                  const badges: Record<string, string> = { legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' };
-                  return <p className="text-[10px] uppercase tracking-widest text-amber-500">{badges[level] || level}</p>;
+                  return <p className="text-[10px] uppercase tracking-widest text-amber-500">{collectorLevelLabel(level)}</p>;
                 })()}
               </div>
               <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center ring-2 ring-transparent hover:ring-amber-500/20 transition-all">
@@ -6275,7 +6404,7 @@ export default function App() {
             <span>{t('trust.dsgvo_compliant')}</span>
             {visiblePortfolioPieces.length > 0 && (
               <span className="text-amber-500/90 font-semibold">
-                Portfolio · {visiblePortfolioPieces.reduce((sum: number, p: any) => sum + (Number(p.valuation) || 0), 0).toLocaleString('de-DE')} €
+                {t('trust.portfolio_prefix')}{' '}{visiblePortfolioPieces.reduce((sum: number, p: any) => sum + (Number(p.valuation) || 0), 0).toLocaleString(uiLocale)} €
               </span>
             )}
             {favoriteIds.length > 0 && (
@@ -6394,24 +6523,24 @@ export default function App() {
                         <p className="font-medium text-zinc-200">{addr.label}</p>
                         <p className="text-xs text-zinc-500">{[addr.street, addr.postal_code, addr.city, addr.country].filter(Boolean).join(', ') || '—'}</p>
                         <div className="flex gap-2 mt-1">
-                          {addr.is_default_billing && <Badge variant="outline" className="text-[9px]">Rechnung</Badge>}
-                          {addr.is_default_shipping && <Badge variant="outline" className="text-[9px]">Lieferung</Badge>}
+                          {addr.is_default_billing && <Badge variant="outline" className="text-[9px]">{t('settings.addr_badge_billing')}</Badge>}
+                          {addr.is_default_shipping && <Badge variant="outline" className="text-[9px]">{t('settings.addr_badge_shipping')}</Badge>}
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" className="text-red-400 shrink-0" onClick={async () => { if (!window.confirm('Adresse entfernen?')) return; const r = await fetch(`/api/me/addresses/${addr.id}`, { method: 'DELETE', credentials: 'include' }); if (r.ok) setUserAddresses(prev => prev.filter((a: any) => a.id !== addr.id)); }}>Entfernen</Button>
+                      <Button variant="ghost" size="sm" className="text-red-400 shrink-0" onClick={async () => { if (!window.confirm(t('settings.address_confirm_remove'))) return; const r = await fetch(`/api/me/addresses/${addr.id}`, { method: 'DELETE', credentials: 'include' }); if (r.ok) setUserAddresses(prev => prev.filter((a: any) => a.id !== addr.id)); }}>{t('settings.address_remove')}</Button>
                     </div>
                   ))}
                   {userAddresses.length === 0 && <p className="text-zinc-500 text-sm">{t('admin.no_entries')}</p>}
                 </div>
                 <form className="space-y-2 pt-2 border-t border-zinc-800" onSubmit={async e => { e.preventDefault(); const f = e.target as HTMLFormElement; const label = (f.querySelector('[name="addr_label"]') as HTMLInputElement)?.value?.trim(); if (!label) return; const r = await fetch('/api/me/addresses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label, street: (f.querySelector('[name="addr_street"]') as HTMLInputElement)?.value?.trim(), city: (f.querySelector('[name="addr_city"]') as HTMLInputElement)?.value?.trim(), postal_code: (f.querySelector('[name="addr_postal"]') as HTMLInputElement)?.value?.trim(), country: (f.querySelector('[name="addr_country"]') as HTMLInputElement)?.value?.trim() || 'Deutschland', is_default_shipping: (f.querySelector('[name="addr_shipping"]') as HTMLInputElement)?.checked, is_default_billing: (f.querySelector('[name="addr_billing"]') as HTMLInputElement)?.checked }), credentials: 'include' }); if (r.ok) { const newAddr = await r.json(); setUserAddresses(prev => [...prev, newAddr]); f.reset(); } }}>
-                  <Input name="addr_label" placeholder={t('settings.add_address') + ' – Bezeichnung'} required />
+                  <Input name="addr_label" placeholder={t('settings.address_placeholder_label')} required />
                   <div className="grid grid-cols-2 gap-2">
-                    <Input name="addr_street" placeholder="Straße, Nr." />
-                    <Input name="addr_postal" placeholder="PLZ" />
+                    <Input name="addr_street" placeholder={t('settings.address_placeholder_street')} />
+                    <Input name="addr_postal" placeholder={t('settings.address_placeholder_postal')} />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input name="addr_city" placeholder="Ort" />
-                    <Input name="addr_country" placeholder="Land" defaultValue="Deutschland" />
+                    <Input name="addr_city" placeholder={t('settings.address_placeholder_city')} />
+                    <Input name="addr_country" placeholder={t('settings.address_placeholder_country')} defaultValue={t('settings.address_default_country')} />
                   </div>
                   <label className="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" name="addr_shipping" /> {t('settings.default_shipping')}</label>
                   <label className="flex items-center gap-2 text-sm text-zinc-400"><input type="checkbox" name="addr_billing" /> {t('settings.default_billing')}</label>
@@ -6462,8 +6591,8 @@ export default function App() {
           {showAccountRequiredModal && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[195] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={() => setShowAccountRequiredModal(false)}>
               <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }} onClick={e => e.stopPropagation()} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-4">
-                <h4 className="text-lg font-serif italic">Account required</h4>
-                <p className="text-zinc-400">Create an account to access exclusive Vault features.</p>
+                <h4 className="text-lg font-serif italic">{t('guest.account_required_title')}</h4>
+                <p className="text-zinc-400">{t('guest.account_required_body')}</p>
                 <div className="flex gap-2 pt-2">
                   <Button variant="outline" className="flex-1" onClick={() => leaveGuestSessionForAuth('register')}>
                     {t('auth.create_account') || 'Create Account'}
@@ -6497,7 +6626,7 @@ export default function App() {
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
           <div className="px-4 sm:px-6 md:px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
-            <button type="button" onClick={() => setView(isGuest ? 'world' : 'dashboard')} className="hover:text-amber-500/80">{isGuest ? 'World' : t('dashboard')}</button>
+            <button type="button" onClick={() => setView(isGuest ? 'world' : 'dashboard')} className="hover:text-amber-500/80">{isGuest ? t('view.world') : t('dashboard')}</button>
             <span>/</span>
             {view === 'vault' ? (
               <>
@@ -6534,7 +6663,7 @@ export default function App() {
                 {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
                   <div className="flex justify-center sm:justify-start">
                     <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-widest border ${getCollectorBadgeClasses((user as any).collector_level || 'collector')}`}>
-                      {({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}
+                      {collectorLevelLabel((user as any).collector_level || 'collector')}
                     </span>
                   </div>
                 )}
@@ -6566,8 +6695,8 @@ export default function App() {
                       ) : (
                         <>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.client_id')}</span><span className="font-mono text-amber-500/90">AB-{String(user.id).padStart(5, '0')}</span></div>
-                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getCollectorBadgeClasses((user as any).collector_level || 'collector')}`}>{({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}</span></div>
-                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.collector_level') || 'Collector Level'}</span><span className="text-zinc-200">{({ legacy_collector: 'Legacy Collector', grand_collector: 'Grand Collector', private_collector: 'Private Collector', vip: 'VIP', collector: 'Collector' } as Record<string, string>)[(user as any).collector_level] || (user as any).collector_level || 'Collector'}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.member_tier')}</span><span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getCollectorBadgeClasses((user as any).collector_level || 'collector')}`}>{collectorLevelLabel((user as any).collector_level || 'collector')}</span></div>
+                          <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.collector_level') || 'Collector Level'}</span><span className="text-zinc-200">{collectorLevelLabel((user as any).collector_level || 'collector')}</span></div>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('dashboard.collection_value_short') || 'Collection Value'}</span><span className="text-zinc-200 font-medium">{visiblePortfolioPieces.reduce((s: number, p: any) => s + (Number(p.valuation) || Number(p.estimated_market_value) || 0), 0).toLocaleString('de-DE')} €</span></div>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.asset_count')}</span><span className="text-zinc-200">{visiblePortfolioPieces.length}</span></div>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.vault_status')}</span><span className={vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? 'text-emerald-400' : 'text-zinc-400'}>{vaultData.pieces?.length > 0 || vaultData.certs?.length > 0 ? t('identity.vault_active') : t('identity.vault_ready')}</span></div>
@@ -6990,10 +7119,14 @@ export default function App() {
                     <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
                       <h4 className="text-lg font-serif italic text-zinc-100 mb-2">{t('marketplace.pdf_modal_title')}</h4>
                       <p className="text-sm text-zinc-500 mb-4">{t('marketplace.pdf_choose_lang')}</p>
-                      <select value={marketplacePdfLang} onChange={e => setMarketplacePdfLang(e.target.value as 'de' | 'en' | 'it')} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-200 mb-4">
+                      <select value={marketplacePdfLang} onChange={e => setMarketplacePdfLang(e.target.value as 'de' | 'en' | 'it' | 'fr' | 'es' | 'pt' | 'ar')} className="w-full bg-zinc-800 border border-zinc-700 rounded-xl py-3 px-4 text-zinc-200 mb-4">
                         <option value="de">Deutsch</option>
                         <option value="en">English</option>
                         <option value="it">Italiano</option>
+                        <option value="fr">Français</option>
+                        <option value="es">Español</option>
+                        <option value="pt">Português</option>
+                        <option value="ar">العربية</option>
                       </select>
                       <div className="flex gap-2">
                         <Button className="flex-1" onClick={() => { downloadMarketplacePdf(marketplacePdfLang); setShowMarketplacePdfModal(false); }}>{t('marketplace.pdf_download_btn')}</Button>
@@ -9506,7 +9639,7 @@ export default function App() {
                               a.download = `antonio-bellanova-marketplace-backup-${new Date().toISOString().slice(0, 10)}.json`;
                               a.click();
                               URL.revokeObjectURL(a.href);
-                              notifyUser('Marketplace-Backup heruntergeladen', 'success');
+                              notifyUser(t('admin.marketplace_backup_downloaded'), 'success');
                             } catch (err) {
                               notifyUser(err instanceof Error ? err.message : 'Backup fehlgeschlagen', 'error');
                             }
