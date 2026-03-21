@@ -2991,6 +2991,7 @@ export default function App() {
     const v = params.get('view');
     if (v === 'reset-password' && params.get('token')) return 'reset-password';
     if (v === 'forgot-password') return 'forgot-password';
+    if (v === 'register') return 'register';
     return 'login';
   });
   const [resetPasswordToken, setResetPasswordToken] = useState<string>(() => {
@@ -5979,6 +5980,22 @@ export default function App() {
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
   const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
+  /** Gast-Session beenden, damit Login/Registrierung (nur im !user-Zweig) sichtbar wird. */
+  const leaveGuestSessionForAuth = (targetView: 'login' | 'register') => {
+    setShowAccountRequiredModal(false);
+    setLoginError(null);
+    setRegisterError(null);
+    fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      .catch(() => {})
+      .finally(() => {
+        setUser(null);
+        setShowMaintenanceAfterLoginAttempt(false);
+        setView(targetView);
+        if (typeof window !== 'undefined') {
+          window.history.replaceState({}, '', targetView === 'register' ? '/?view=register' : '/');
+        }
+      });
+  };
   /** Portfolio-Seite: nur Admin / Super-Admin / Investor (Datenschutz — reguläre Kunden nicht). */
   const canAccessPortfolioMenu =
     user.role === UserRole.ADMIN ||
@@ -5988,7 +6005,7 @@ export default function App() {
   const handleNavViewChange = (viewKey: string) => {
     if (isGuest && viewKey === 'concierge') {
       notifyUser(t('guest.concierge_register_required') || 'Please register to use the concierge service.', 'error');
-      setView('register');
+      leaveGuestSessionForAuth('register');
       return;
     }
     if (viewKey === 'portfolio' && !canAccessPortfolioMenu) {
@@ -6423,8 +6440,12 @@ export default function App() {
                 <h4 className="text-lg font-serif italic">Account required</h4>
                 <p className="text-zinc-400">Create an account to access exclusive Vault features.</p>
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" className="flex-1" onClick={() => { setShowAccountRequiredModal(false); setView('register'); }}>Create Account</Button>
-                  <Button className="flex-1" onClick={() => { setShowAccountRequiredModal(false); setView('login'); }}>Sign In</Button>
+                  <Button variant="outline" className="flex-1" onClick={() => leaveGuestSessionForAuth('register')}>
+                    {t('auth.create_account') || 'Create Account'}
+                  </Button>
+                  <Button className="flex-1" onClick={() => leaveGuestSessionForAuth('login')}>
+                    {t('auth.sign_in') || 'Sign In'}
+                  </Button>
                 </div>
               </motion.div>
             </motion.div>
