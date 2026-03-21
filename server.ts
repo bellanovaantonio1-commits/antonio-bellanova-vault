@@ -65,6 +65,20 @@ let db: DbInterface;
 /** Wired after `sendMail` is defined (see bottom of mail section). */
 let stripeWebhookSendMail: StripeWebhookSendMail | null = null;
 
+/** Status history row (module scope — must not be nested inside runSchema). */
+async function logMasterpieceStatusChange(masterpieceId: number, toStatus: string, changedByUserId: number | null) {
+  try {
+    const row = await (await db.prepare("SELECT status FROM masterpieces WHERE id = ?")).get(masterpieceId) as { status: string } | undefined;
+    const fromStatus = row?.status ?? null;
+    await (await db.prepare("INSERT INTO masterpiece_status_history (masterpiece_id, from_status, to_status, changed_by_user_id) VALUES (?, ?, ?, ?)")).run(
+      masterpieceId,
+      fromStatus,
+      toStatus,
+      changedByUserId
+    );
+  } catch (_) {}
+}
+
 /** Trimmed secret from env (whitespace/newlines in .env break Stripe otherwise). */
 function getStripeSecretKey(): string {
   const raw = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
@@ -1777,14 +1791,6 @@ await db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
-
-async function logMasterpieceStatusChange(masterpieceId: number, toStatus: string, changedByUserId: number | null) {
-  try {
-    const row = await (await db.prepare("SELECT status FROM masterpieces WHERE id = ?")).get(masterpieceId) as { status: string } | undefined;
-    const fromStatus = row?.status ?? null;
-    await (await db.prepare("INSERT INTO masterpiece_status_history (masterpiece_id, from_status, to_status, changed_by_user_id) VALUES (?, ?, ?, ?)")).run(masterpieceId, fromStatus, toStatus, changedByUserId);
-  } catch (_) {}
-}
 
 // --- Automatic Number Systems (International Luxury Maison) ---
 await db.exec(`
