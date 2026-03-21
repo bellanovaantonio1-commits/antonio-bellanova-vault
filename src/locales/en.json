@@ -51,7 +51,6 @@
   "wallet.deposit_funds": "Deposit Funds",
   "wallet.deposits_not_configured": "Deposits are not configured.",
   "wallet.test_card": "Test mode: use card 4242 4242 4242 4242.",
-  "wallet.live_notice": "Live payments: real cards will be charged. Do not use test card numbers (e.g. 4242…).",
   "wallet.amount_eur": "Amount (€)",
   "wallet.continue_to_payment": "Continue to payment",
   "wallet.complete_payment": "Complete payment",
