@@ -106,5 +106,11 @@
   "settings.address_placeholder_country": "País",
   "settings.address_default_country": "Alemania",
   "admin.marketplace_restore_failed": "Error al restaurar el mercado",
-  "admin.marketplace_backup_downloaded": "Copia del mercado descargada"
+  "admin.marketplace_backup_downloaded": "Copia del mercado descargada",
+  "contract.reading_language": "Leer contrato (idioma)",
+  "contract.official_english_notice": "La versión vinculante para envío y entrega está en inglés. Esta vista es para su comprensión en el idioma elegido.",
+  "contract.certificate_english_only": "Certificado: solo inglés (oficial)",
+  "contract.preview_loading": "Cargando documento…",
+  "contract.read_document": "Leer",
+  "contract.close_reader": "Cerrar"
 }

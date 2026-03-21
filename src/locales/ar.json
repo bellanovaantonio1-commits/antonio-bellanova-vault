@@ -106,5 +106,11 @@
   "settings.address_placeholder_country": "البلد",
   "settings.address_default_country": "ألمانيا",
   "admin.marketplace_restore_failed": "فشل استعادة السوق",
-  "admin.marketplace_backup_downloaded": "تم تنزيل نسخة احتياطية للسوق"
+  "admin.marketplace_backup_downloaded": "تم تنزيل نسخة احتياطية للسوق",
+  "contract.reading_language": "قراءة العقد (اللغة)",
+  "contract.official_english_notice": "النسخة الملزمة للشحن والتسليم باللغة الإنجليزية. هذا العرض للفهم بلغتك المختارة.",
+  "contract.certificate_english_only": "الشهادة: الإنجليزية فقط (رسمية)",
+  "contract.preview_loading": "جاري تحميل المستند…",
+  "contract.read_document": "قراءة",
+  "contract.close_reader": "إغلاق"
 }

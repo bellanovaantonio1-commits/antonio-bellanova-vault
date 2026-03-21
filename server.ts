@@ -2230,6 +2230,9 @@ function getContractLang(lang: string | undefined | null): ContractLang {
   return 'en';
 }
 
+/** Stored contracts / certificates for legal & shipping: always English. UI may request translated preview via ?lang=. */
+const OFFICIAL_CONTRACT_LANG: ContractLang = 'en';
+
 // Contract body templates per language (placeholders: piece.title, piece.serial_id, piece.valuation, piece.deposit_pct, user.name, depositAmount, balanceDue, regId, blockchainHash, pct)
 const CONTRACT_BODIES_EN = {
   deposit: {
@@ -2497,14 +2500,16 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   `;
 }
 
-/** Regenerates contract HTML content from current user/piece data. Returns new content or null if not supported. lang: de | en | it (default from user.language or 'en'). */
+/** Regenerates contract HTML from DB row. Omit `lang` or use official language → English (stored legal text). Pass `lang` for UI preview only (not persisted). Certificates always use English body/labels. */
 async function regenerateContractContent(c: any, lang?: string): Promise<string | null> {
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(c.user_id) as any;
   if (!user) return null;
   const piece = c.masterpiece_id ? (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(c.masterpiece_id) as any) : null;
   const docRef = c.doc_ref || await nextContractRef(c.type);
   const dummyPiece = { id: 0, title: '—', serial_id: '—', materials: '—', gemstones: '—', valuation: 0, status: '—', description: '', image_url: '', blockchain_hash: '—' };
-  const L = getContractLang(lang || user?.preferred_language || user?.language);
+  const previewLang =
+    typeof lang === 'string' && lang.trim() !== '' ? getContractLang(lang) : OFFICIAL_CONTRACT_LANG;
+  const L: ContractLang = c.type === 'certificate' ? OFFICIAL_CONTRACT_LANG : previewLang;
 
   switch (c.type) {
     case 'deposit':
@@ -2959,6 +2964,7 @@ function isGuestRestrictedPath(path: string, method: string): boolean {
   if (path.startsWith("/api/investor/")) return true;
   if (path.startsWith("/api/portfolio/") && method === "POST") return true;
   if (path === "/api/contracts/sign" && method === "POST") return true;
+  if (path.match(/^\/api\/contracts\/\d+\/preview$/) && method === "GET") return true;
   if ((path === "/api/resale/start" || path === "/api/resale/list") && method === "POST") return true;
   if (path === "/api/users/me" && (method === "PATCH" || method === "PUT")) return true;
   if (path === "/api/users/me/change-password" && method === "POST") return true;
@@ -4200,7 +4206,7 @@ app.post("/api/marketplace/buy", async (req, res) => {
 
   if (isResale) {
     const docRef = await nextContractRef('deposit');
-    const L: ContractLang = getContractLang(user.preferred_language || user.language);
+    const L: ContractLang = OFFICIAL_CONTRACT_LANG;
     const resaleT = (CONTRACT_BODIES[L] as any).deposit_resale;
     if (resaleT) {
       const vars = { piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() }, buyerName: user.name || '—', buyerAddress: user.address || '—', depositAmount: depositAmount.toLocaleString(), depositPct: piece.deposit_pct || 10 };
@@ -4211,28 +4217,28 @@ app.post("/api/marketplace/buy", async (req, res) => {
       createActivityNotification(userId, 'new_contract', String(rr.lastInsertRowid), 'Contract ready for signature');
     } else {
       const docRef = 'DEP-RSL-' + Date.now();
-      const content = `Anzahlungsvertrag Wiederverkauf – ${piece.title} (${piece.serial_id}). Kaufpreis: ${piece.valuation} EUR. Anzahlung: ${depositAmount} EUR. Privatverkäufer über Antonio Bellanova Vault. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.`;
-      const html = generateLuxuryDocument("Anzahlungsvertrag Wiederverkauf", content, user, piece, { docRef, title: "Anzahlungsvertrag Wiederverkauf", lang: 'de' });
+      const content = `Deposit Agreement – Resale – ${piece.title} (${piece.serial_id}). Purchase price: ${piece.valuation} EUR. Deposit: ${depositAmount} EUR. Private sale via Antonio Bellanova Vault. Governing law: Germany. Jurisdiction: Cologne.`;
+      const html = generateLuxuryDocument("Deposit Agreement – Resale", content, user, piece, { docRef, title: "Deposit Agreement – Resale", lang: OFFICIAL_CONTRACT_LANG });
       const metaResaleFallback = JSON.stringify({ delivery_option: delivery_option || null, is_resale: true, resale_listing_id: listing.id });
       const rrf = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit_resale', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, metaResaleFallback);
       createActivityNotification(userId, 'new_contract', String(rrf.lastInsertRowid), 'Contract ready for signature');
     }
   } else {
-  const content = `
-    ANZAHLUNGSVERTRAG (DEPOSIT AGREEMENT)
-    VERKÄUFER: Juwelen & Schmuckatelier Antonio Bellanova, Ahorstraße 8, 50765 Köln, USt-IdNr.: DE457682154
-    KÄUFER: ${user.name}, ${user.address}
-    GEGENSTAND: ${piece.title} (Serial ID: ${piece.serial_id})
-    GESAMTPREIS: ${piece.valuation} EUR
-    ANZAHLUNGSBETRAG (${piece.deposit_pct || 10}%): ${depositAmount} EUR
-    RECHTLICHE HINWEISE: Mit Unterzeichnung reserviert der Verkäufer das Stück. Anzahlung innerhalb 7 Werktage. Eigentum nach vollständiger Zahlung. Bei Nichtzahlung erlischt die Reservierung. Anwendbares Recht: Deutschland. Gerichtsstand: Köln.
-    Datum: ${new Date().toLocaleDateString('de-DE')}
-  `;
+    const docRef = await nextContractRef('deposit');
+    const depositT = CONTRACT_BODIES_EN.deposit;
+    const depositVars = {
+      piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() },
+      user,
+      depositAmount: depositAmount.toLocaleString(),
+      depositPct: piece.deposit_pct || 10,
+    };
+    const depositBody = applyContractVars(depositT.body, depositVars);
+    const html = generateLuxuryDocument(depositT.title, depositBody, user, piece, { docRef, title: depositT.title, lang: OFFICIAL_CONTRACT_LANG });
     try {
-      const rd = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content, metadata) VALUES (?, ?, ?, ?, ?)")).run(userId, masterpieceId, 'deposit', content, meta);
+      const rd = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit', ?, ?, 'draft', ?)")).run(userId, masterpieceId, docRef, html, meta);
       createActivityNotification(userId, 'new_contract', String(rd.lastInsertRowid), 'Contract ready for signature');
     } catch (_) {
-      const rd2 = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, content) VALUES (?, ?, ?, ?)")).run(userId, masterpieceId, 'deposit', content);
+      const rd2 = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(userId, masterpieceId, docRef, html);
       createActivityNotification(userId, 'new_contract', String(rd2.lastInsertRowid), 'Contract ready for signature');
     }
   }
@@ -4279,7 +4285,7 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
     
     // Deposit Contract
     const depositContent = `This binding instrument confirms the formal reservation of the Masterpiece identified as "${piece.title}" (Serial: ${piece.serial_id}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of ${piece.valuation.toLocaleString()} EUR.\n\nA non-refundable commitment deposit of ${depositAmount.toLocaleString()} EUR (${piece.deposit_pct}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.`;
-    const depositHtml = generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement" });
+    const depositHtml = generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement", lang: OFFICIAL_CONTRACT_LANG });
     const contractRun = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(
       user.id, masterpieceId, docRef, depositHtml
     );
@@ -4394,7 +4400,8 @@ app.post("/api/admin/workflow/update", async (req, res) => {
         docRef: invRef, 
         title: "Final Invoice",
         balanceDue,
-        escrowEnabled: true 
+        escrowEnabled: true,
+        lang: OFFICIAL_CONTRACT_LANG,
       });
       await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')")).run(
         user.id, masterpieceId, invRef, invHtml
@@ -4444,7 +4451,7 @@ await (await db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 
       if (!piece.registry_id) await (await db.prepare("UPDATE masterpieces SET registry_id = ? WHERE id = ?")).run(regId, masterpieceId);
       const certRef = await nextCertRef();
       const certContent = `CERTIFICATE OF AUTHENTICITY & OWNERSHIP\n\nThis definitive instrument serves as the permanent record of provenance for the Masterpiece "${piece.title}".\n\nHandcrafted within the Antonio Bellanova Atelier, this asset is now officially registered to the collection of ${user.name}.\n\nAsset Specifications:\nSerial Number: ${piece.serial_id}\nRegistry ID: ${regId}\nBlockchain Hash: ${piece.blockchain_hash || 'AB-SECURE-HASH-772'}\n\nThe Atelier hereby guarantees the authenticity and exceptional quality of this unique creation in perpetuity.`;
-      const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef: certRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${masterpieceId}`, certificateVerifyUrl: `${BASE_URL}/verify/${certRef}` });
+      const certHtml = generateLuxuryDocument("Certificate of Authenticity", certContent, user, piece, { docRef: certRef, title: "Certificate of Authenticity", registryId: regId, registryUrl: `/registry/masterpiece/${masterpieceId}`, certificateVerifyUrl: `${BASE_URL}/verify/${certRef}`, lang: OFFICIAL_CONTRACT_LANG });
       await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'certificate', ?, ?, 'signed')")).run(
         user.id, masterpieceId, certRef, certHtml
       );
@@ -5005,7 +5012,8 @@ app.post("/api/admin/generate-certificate", async (req, res) => {
     title: "Certificate of Authenticity",
     registryId: regId,
     registryUrl: `/registry/masterpiece/${masterpieceId}`,
-    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`
+    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`,
+    lang: OFFICIAL_CONTRACT_LANG,
   });
 
   try {
@@ -5063,7 +5071,8 @@ app.post("/api/admin/confirm-payment", async (req, res) => {
     title: "Certificate of Authenticity",
     registryId: regId,
     registryUrl: `/registry/masterpiece/${payment.masterpiece_id}`,
-    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`
+    certificateVerifyUrl: `${BASE_URL}/verify/${certId}`,
+    lang: OFFICIAL_CONTRACT_LANG,
   });
 
   await (await db.prepare("INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash) VALUES (?, ?, ?, ?, ?, ?)")).run(
@@ -5847,6 +5856,41 @@ app.patch("/api/admin/service-requests/:id", async (req, res) => {
   if (!row) return res.status(404).json({ error: "Not found" });
   await (await db.prepare("UPDATE service_requests SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(status || "completed", id);
   res.json({ success: true });
+});
+
+// Contract preview in chosen language (UI only; DB `content` stays official English). Certificates always English.
+app.get("/api/contracts/:id/preview", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id)) return res.status(400).json({ error: "Invalid contract id" });
+    const sessionUserId = getSessionUserId(req);
+    if (noSessionUserId(sessionUserId) || sessionUserId === GUEST_USER_ID) {
+      return res.status(401).json({ error: "Not signed in" });
+    }
+    const c = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(id) as any;
+    if (!c) return res.status(404).json({ error: "Contract not found" });
+    const requester = await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(sessionUserId) as { role?: string } | undefined;
+    const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
+    if (Number(c.user_id) !== Number(sessionUserId) && !isAdmin) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+    const langQ = typeof req.query.lang === "string" ? req.query.lang.trim() : "";
+    const html = await regenerateContractContent(c, langQ || undefined);
+    if (!html) return res.status(422).json({ error: "Preview not available for this contract type" });
+    const officialLang = OFFICIAL_CONTRACT_LANG;
+    const isCertificate = c.type === "certificate";
+    res.json({
+      content: html,
+      officialLang,
+      /** True when this document is always generated in English (certificate of authenticity). */
+      certificateOfficialOnly: isCertificate,
+      /** True when the viewer asked for a non-English preview (only applies when regenerate supports that language). */
+      isTranslationPreview: !isCertificate && !!langQ && getContractLang(langQ) !== OFFICIAL_CONTRACT_LANG,
+    });
+  } catch (err: any) {
+    console.error("[contracts/preview]", err);
+    res.status(500).json({ error: err?.message || "Preview failed" });
+  }
 });
 
 // Contract/Certificate premium download (HTML for Print to PDF)
@@ -6780,7 +6824,7 @@ app.post("/api/admin/approve-user", requireAuth, requireAdmin, async (req, res) 
       const docRef = await nextContractRef('vip');
       const vipContent = `VIP MEMBERSHIP AGREEMENT (€15,000 annual)\n\nThis agreement grants ${user.name} VIP membership to the Antonio Bellanova Atelier.\n\nBenefits: 48h Early Access to new creations; Private Auction Access; Concierge Service; Repair priority; Reduced Resale Commission (6%); Invite-Only Events. Duration and cancellation rules as per Platform Terms.`;
       const dummyPiece = { serial_id: 'VIP', title: 'VIP Membership', materials: '—', gemstones: '—', valuation: 15000, status: 'active', description: 'VIP Annual Membership', blockchain_hash: '' };
-      const content = generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement", isVipAgreement: true });
+      const content = generateLuxuryDocument("VIP Membership Agreement", vipContent, user, dummyPiece, { docRef, title: "VIP Membership Agreement", isVipAgreement: true, lang: OFFICIAL_CONTRACT_LANG });
       await (await db.prepare("INSERT INTO contracts (user_id, type, doc_ref, content) VALUES (?, 'vip', ?, ?)")).run(userId, docRef, content);
     }
   } else {
@@ -6879,7 +6923,8 @@ async function computePrestigeResaleMetrics(masterpieceId: number, currentValuat
   return { prestige_score, market_stability_score, price_recommendation };
 }
 
-const RESALE_AGREEMENT: Record<ContractLang, { title: string; body: (opts: { piece: any; owner: any; commissionPct: number; saleMethod: string; date: string }) => string }> = {
+type ResaleAgreementEntry = { title: string; body: (opts: { piece: any; owner: any; commissionPct: number; saleMethod: string; date: string }) => string };
+const RESALE_AGREEMENT: Record<'de' | 'en' | 'it', ResaleAgreementEntry> = {
   de: {
     title: 'Weiterverkaufsprovisions-Vereinbarung',
     body: (o) => `WEITERVERKAUFSPROVISIONS-VEREINBARUNG
@@ -6965,9 +7010,10 @@ DATA: ${o.date}`.trim(),
 
 function generateResaleCommissionAgreement(piece: any, owner: any, options: { commissionPct: number; saleMethod: string; docRef: string }, lang: ContractLang = 'en') {
   const L = getContractLang(lang);
-  const locale = L === 'de' ? 'de-DE' : L === 'it' ? 'it-IT' : 'en-GB';
+  const agreementLang: 'de' | 'en' | 'it' = L === 'de' ? 'de' : L === 'it' ? 'it' : 'en';
+  const t = RESALE_AGREEMENT[agreementLang];
+  const locale = agreementLang === 'de' ? 'de-DE' : agreementLang === 'it' ? 'it-IT' : 'en-GB';
   const date = new Date().toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' });
-  const t = RESALE_AGREEMENT[L];
   const content = t.body({ piece, owner, commissionPct: options.commissionPct, saleMethod: options.saleMethod, date });
   return generateLuxuryDocument(t.title, content, owner, piece, { docRef: options.docRef, title: t.title, lang: L });
 }
@@ -7096,7 +7142,7 @@ app.post("/api/resale/start", async (req, res) => {
 
     const commissionPct = getResaleCommissionPct(user);
     const docRef = await nextContractRef('resale_commission');
-    const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef });
+    const agreementHtml = generateResaleCommissionAgreement(piece, user, { commissionPct, saleMethod: saleMethod || 'marketplace', docRef }, OFFICIAL_CONTRACT_LANG);
 
     const insertContract = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)

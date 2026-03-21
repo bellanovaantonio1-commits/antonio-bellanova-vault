@@ -2864,7 +2864,86 @@ const SignaturePad = ({ onSave, onClear, t }: { onSave: (v: string) => void; onC
   );
 };
 
-const SignatureModal = ({ contract, onClose, onSign, t, signError }: any) => {
+const CONTRACT_PREVIEW_LANGS: { code: string; label: string }[] = [
+  { code: 'de', label: 'Deutsch' },
+  { code: 'en', label: 'English' },
+  { code: 'it', label: 'Italiano' },
+  { code: 'fr', label: 'Français' },
+  { code: 'es', label: 'Español' },
+  { code: 'pt', label: 'Português' },
+  { code: 'ar', label: 'العربية' },
+];
+
+function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { contractId: number; contractType?: string; defaultLang: string; t: (k: string) => string }) {
+  const [readLang, setReadLang] = useState(defaultLang);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const isCert = contractType === 'certificate';
+  const effectiveLang = isCert ? 'en' : readLang;
+
+  useEffect(() => {
+    setReadLang(defaultLang);
+  }, [contractId, defaultLang]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setErr(null);
+    fetch(`/api/contracts/${contractId}/preview?lang=${encodeURIComponent(effectiveLang)}`, { credentials: 'include' })
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error((j as { error?: string }).error || `HTTP ${r.status}`);
+        return j as { content?: string };
+      })
+      .then((j) => {
+        if (cancelled) return;
+        setPreviewHtml(j.content || '');
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [contractId, effectiveLang]);
+
+  return (
+    <div className="space-y-3">
+      {!isCert ? (
+        <div className="flex flex-wrap items-center gap-2 justify-between">
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('contract.reading_language')}</p>
+          <select
+            value={readLang}
+            onChange={(e) => setReadLang(e.target.value)}
+            className="bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-zinc-200 px-2 py-1.5 max-w-[200px]"
+            aria-label={t('contract.reading_language')}
+          >
+            {CONTRACT_PREVIEW_LANGS.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
+        {isCert ? t('contract.certificate_english_only') : t('contract.official_english_notice')}
+      </p>
+      {loading && <p className="text-xs text-zinc-500">{t('contract.preview_loading')}</p>}
+      {err && <p className="text-xs text-red-400" role="alert">{err}</p>}
+      {!loading && !err && previewHtml ? (
+        <iframe
+          title="contract-preview"
+          className="w-full h-[min(55vh,420px)] rounded-xl border border-zinc-800 bg-[#0d0d0d]"
+          srcDoc={`<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body style="margin:0;background:#0d0d0d;">${previewHtml}</body></html>`}
+          sandbox="allow-same-origin"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLang = 'en' }: any) => {
   const [method, setMethod] = useState<'typed' | 'drawn' | 'email'>('typed');
   const [typedName, setTypedName] = useState('');
   const [drawnData, setDrawnData] = useState('');
@@ -2927,6 +3006,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError }: any) => {
         </div>
 
         <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto">
+          <ContractHtmlPreview contractId={contract.id} contractType={contract.type} defaultLang={defaultReadLang} t={t} />
           <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6">
             <div className="flex gap-4">
               <div className="p-3 bg-amber-500/10 rounded-xl h-fit">
@@ -3209,6 +3289,7 @@ export default function App() {
   const [workflows, setWorkflows] = useState<Record<number, PurchaseWorkflow>>({});
   const [showNotifications, setShowNotifications] = useState(false);
   const [contractToSign, setContractToSign] = useState<Contract | null>(null);
+  const [contractToRead, setContractToRead] = useState<Contract | null>(null);
   const [contractSignError, setContractSignError] = useState<string | null>(null);
   const [investorAnalytics, setInvestorAnalytics] = useState<InvestorAnalytics | null>(null);
   const [investorRequests, setInvestorRequests] = useState<InvestorRequest[]>([]);
@@ -3942,6 +4023,7 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (selectedPiece) closePieceDetail();
+        else if (contractToRead) setContractToRead(null);
         else if (contractToSign) setContractToSign(null);
         else if (showNotifications) setShowNotifications(false);
         else if (showNotificationPrefsModal) setShowNotificationPrefsModal(false);
@@ -3958,7 +4040,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [selectedPiece, contractToSign, showNotifications, showNotificationPrefsModal, showPasswordChangeModal, showAccountRequiredModal, showShortcutsModal, selectedCert]);
+  }, [selectedPiece, contractToRead, contractToSign, showNotifications, showNotificationPrefsModal, showPasswordChangeModal, showAccountRequiredModal, showShortcutsModal, selectedCert]);
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(typeof window !== 'undefined' && window.scrollY > 400);
@@ -7822,6 +7904,9 @@ export default function App() {
                                   <Signature className="w-4 h-4" /> {t('accept_contract')}
                                 </Button>
                               ) : null}
+                              <Button variant="outline" size="sm" className="text-xs" title={t('contract.read_document')} onClick={() => setContractToRead(contract)}>
+                                <Eye className="w-4 h-4" /> {t('contract.read_document')}
+                              </Button>
                               <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" title="Vertrag als PDF herunterladen" onClick={() => {
                                 const piece = contract.masterpiece_id
                                   ? (vaultData.pieces.find((p: Masterpiece) => p.id === contract.masterpiece_id) || masterpieces.find(m => m.id === contract.masterpiece_id))
@@ -13059,7 +13144,45 @@ export default function App() {
               onSign={handleSignContract}
               t={t}
               signError={contractSignError}
+              defaultReadLang={language}
             />
+          ) : null}
+        </AnimatePresence>
+
+        {/* Contract reader (translated preview; official PDF remains English) */}
+        <AnimatePresence>
+          {contractToRead ? (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setContractToRead(null)}
+                className="absolute inset-0 bg-black/85 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 16 }}
+                className="relative w-full max-w-3xl max-h-[90vh] bg-zinc-900 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col"
+              >
+                <div className="p-5 border-b border-zinc-800 flex justify-between items-center shrink-0">
+                  <div>
+                    <h2 className="text-lg font-serif italic text-white">{t('contracts')}</h2>
+                    <p className="text-zinc-500 text-xs font-mono uppercase tracking-tighter mt-0.5">{contractToRead.doc_ref}</p>
+                  </div>
+                  <button type="button" onClick={() => setContractToRead(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors" aria-label={t('contract.close_reader')}>
+                    <Plus className="w-6 h-6 text-zinc-500 rotate-45" />
+                  </button>
+                </div>
+                <div className="p-5 overflow-y-auto flex-1 min-h-0">
+                  <ContractHtmlPreview contractId={contractToRead.id} contractType={contractToRead.type} defaultLang={language} t={t} />
+                </div>
+                <div className="p-4 border-t border-zinc-800 bg-zinc-950 shrink-0">
+                  <Button variant="ghost" className="w-full" onClick={() => setContractToRead(null)}>{t('contract.close_reader')}</Button>
+                </div>
+              </motion.div>
+            </div>
           ) : null}
         </AnimatePresence>
 
@@ -13085,6 +13208,7 @@ export default function App() {
                     <div className="space-y-2">
                       <h3 className="text-3xl font-serif italic text-amber-500">{t('cert.title')}</h3>
                       <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Antonio Bellanova Atelier</p>
+                      <p className="text-[11px] text-amber-200/70 border border-amber-500/20 bg-amber-500/5 rounded-lg px-3 py-2 max-w-md">{t('contract.certificate_english_only')}</p>
                     </div>
                     <button onClick={() => setSelectedCert(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                       <Plus className="w-6 h-6 text-zinc-500 rotate-45" />

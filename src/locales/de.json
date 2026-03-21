@@ -129,5 +129,11 @@
   "settings.address_placeholder_country": "Land",
   "settings.address_default_country": "Deutschland",
   "admin.marketplace_restore_failed": "Marktplatz-Wiederherstellung fehlgeschlagen",
-  "admin.marketplace_backup_downloaded": "Marktplatz-Backup heruntergeladen"
+  "admin.marketplace_backup_downloaded": "Marktplatz-Backup heruntergeladen",
+  "contract.reading_language": "Vertrag lesen (Sprache)",
+  "contract.official_english_notice": "Die verbindliche Fassung für Versand und Übergabe ist auf Englisch. Diese Ansicht dient dem Verständnis in Ihrer gewählten Sprache.",
+  "contract.certificate_english_only": "Zertifikat: nur Englisch (Original)",
+  "contract.preview_loading": "Dokument wird geladen…",
+  "contract.read_document": "Lesen",
+  "contract.close_reader": "Schließen"
 }

@@ -129,5 +129,11 @@
   "settings.address_placeholder_country": "Country",
   "settings.address_default_country": "Germany",
   "admin.marketplace_restore_failed": "Marketplace restore failed",
-  "admin.marketplace_backup_downloaded": "Marketplace backup downloaded"
+  "admin.marketplace_backup_downloaded": "Marketplace backup downloaded",
+  "contract.reading_language": "Read contract (language)",
+  "contract.official_english_notice": "The binding version for shipping and handover is in English. This view is for your understanding in your chosen language.",
+  "contract.certificate_english_only": "Certificate: English only (official)",
+  "contract.preview_loading": "Loading document…",
+  "contract.read_document": "Read",
+  "contract.close_reader": "Close"
 }
