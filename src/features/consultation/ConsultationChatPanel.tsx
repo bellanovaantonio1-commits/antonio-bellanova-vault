@@ -58,6 +58,8 @@ export type ConsultationChatPanelProps = {
     contractSentToast: string;
     contractSignedToast: string;
     depositPaidToast: string;
+    contractAgreedTotalLabel: string;
+    contractFromProposalHint: string;
   }>;
 };
 
@@ -119,6 +121,9 @@ export function ConsultationChatPanel({
     contractSentToast: "Contract sent",
     contractSignedToast: "Contract signed",
     depositPaidToast: "Deposit received",
+    contractAgreedTotalLabel: "Vereinbarter Gesamtpreis",
+    contractFromProposalHint:
+      "Nach Kundenannahme eines Angebots werden Titel und Text hier mit Angebot und Preis vorbefüllt — bitte PDF-Link ergänzen und senden.",
     ...stringsProp,
   };
   const [convStatus, setConvStatus] = useState<string>("open");
@@ -208,7 +213,38 @@ export function ConsultationChatPanel({
     setStripePk(null);
     setDepositClientSecret(null);
     setDepositAmountCents(null);
+    setContractTitle("");
+    setContractDesc("");
+    setContractFileUrl("");
+    setProposalTitle("");
+    setProposalDesc("");
+    setProposalAmount("");
   }, [conversationId]);
+
+  const latestAcceptedProposal = useMemo(() => {
+    const accepted = proposals.filter((p) => String(p.status) === "accepted");
+    if (accepted.length === 0) return null;
+    return accepted.reduce((a, b) => (a.id > b.id ? a : b));
+  }, [proposals]);
+
+  useEffect(() => {
+    if (mode !== "admin") return;
+    if (hasContractMessage) return;
+    const p = latestAcceptedProposal;
+    if (!p) return;
+    setContractTitle((prev) => (prev.trim() ? prev : String(p.title || "").trim()));
+    setContractDesc((prev) => {
+      if (prev.trim()) return prev;
+      const lines: string[] = [];
+      if (p.description && String(p.description).trim()) lines.push(String(p.description).trim());
+      if (p.amount_eur != null && Number(p.amount_eur) > 0) {
+        lines.push(
+          `Vereinbarter Gesamtpreis / Agreed total: ${Number(p.amount_eur).toLocaleString("de-DE")} ${p.currency || "EUR"}`
+        );
+      }
+      return lines.join("\n\n");
+    });
+  }, [mode, hasContractMessage, latestAcceptedProposal, conversationId]);
 
   useEffect(() => {
     if (!showStripeConsultDeposit) {
@@ -489,15 +525,18 @@ export function ConsultationChatPanel({
     }
     setLoading(true);
     try {
+      const body: Record<string, unknown> = {
+        title: contractTitle.trim(),
+        description: contractDesc.trim() || null,
+        file_url: contractFileUrl.trim(),
+      };
+      if (latestAcceptedProposal?.id) body.proposal_id = latestAcceptedProposal.id;
+
       const res = await fetch(`/api/admin/consultation/conversations/${conversationId}/contract-message`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: contractTitle.trim(),
-          description: contractDesc.trim() || null,
-          file_url: contractFileUrl.trim(),
-        }),
+        body: JSON.stringify(body),
       });
       const data = await readJson(res);
       if (!res.ok) {
@@ -669,6 +708,7 @@ export function ConsultationChatPanel({
                     mode={mode}
                     isMine={mine}
                     loading={loading}
+                    labels={{ agreedTotal: str.contractAgreedTotalLabel }}
                     onSign={
                       mode === "client" && convStatus === "open" && String(m.contract_status || "") === "sent"
                         ? () => void acceptContractMessage(m.id)
@@ -777,6 +817,9 @@ export function ConsultationChatPanel({
         {mode === "admin" && convStatus === "open" && !hasContractMessage && (
           <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/70">
             <p className="text-[10px] uppercase tracking-widest text-amber-600/90">{str.sendContractHeading}</p>
+            {latestAcceptedProposal ? (
+              <p className="text-[10px] text-zinc-500 leading-relaxed">{str.contractFromProposalHint}</p>
+            ) : null}
             <input
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
               placeholder={str.contractTitlePlaceholder}

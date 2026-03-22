@@ -32,4 +32,7 @@ export type ConsultationMessageRow = {
   contract_file_url?: string | null;
   /** sent | accepted */
   contract_status?: string | null;
+  /** Agreed total from linked consultation proposal (EUR), not marketplace list price */
+  contract_amount_eur?: number | null;
+  source_proposal_id?: number | null;
 };

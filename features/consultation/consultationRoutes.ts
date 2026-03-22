@@ -184,16 +184,36 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   }
 
+  /** Basis für Anzahlung: zuerst akzeptiertes Angebot (consultation_proposals.amount_eur), sonst Marktplatz-Bewertung. */
   async function conversationDepositAmountCents(conv: Record<string, any>): Promise<number | null> {
+    const convId = Number(conv.id);
     const mid = conv.masterpiece_id != null ? Number(conv.masterpiece_id) : NaN;
-    if (!mid || Number.isNaN(mid)) return null;
-    const piece = (await (await getDb().prepare(`SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?`)).get(mid)) as
-      | { valuation?: number | null; deposit_pct?: number | null }
-      | undefined;
-    if (!piece) return null;
-    const valuation = Number(piece.valuation) || 0;
-    const depositPct = Number(piece.deposit_pct) || 10;
-    const amountEur = (valuation * depositPct) / 100;
+    const proposalRow = (await (
+      await getDb().prepare(
+        `SELECT amount_eur FROM consultation_proposals
+         WHERE conversation_id = ? AND status = 'accepted' AND amount_eur IS NOT NULL AND amount_eur > 0
+         ORDER BY id DESC LIMIT 1`
+      )
+    ).get(convId)) as { amount_eur?: number | null } | undefined;
+
+    let baseEur = 0;
+    if (proposalRow != null && proposalRow.amount_eur != null && Number(proposalRow.amount_eur) > 0) {
+      baseEur = Number(proposalRow.amount_eur);
+    }
+
+    let depositPct = 10;
+    if (mid && !Number.isNaN(mid)) {
+      const piece = (await (await getDb().prepare(`SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?`)).get(mid)) as
+        | { valuation?: number | null; deposit_pct?: number | null }
+        | undefined;
+      if (!piece) return null;
+      depositPct = Number(piece.deposit_pct) || 10;
+      if (baseEur <= 0) baseEur = Number(piece.valuation) || 0;
+    } else if (baseEur <= 0) {
+      return null;
+    }
+
+    const amountEur = (baseEur * depositPct) / 100;
     const amountCents = Math.round(amountEur * 100);
     if (amountCents < 100) return null;
     return amountCents;
@@ -715,11 +735,11 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
   app.post("/api/admin/consultation/conversations/:id/contract-message", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const adminId = (req as any).userId as number;
-    const title = req.body?.title != null ? String(req.body.title).trim().slice(0, 500) : "";
-    const description = req.body?.description != null ? String(req.body.description).trim().slice(0, 20000) : "";
+    let title = req.body?.title != null ? String(req.body.title).trim().slice(0, 500) : "";
+    let description = req.body?.description != null ? String(req.body.description).trim().slice(0, 20000) : "";
     const fileUrlRaw = req.body?.file_url != null ? String(req.body.file_url).trim().slice(0, 2000) : "";
+    const proposalIdRaw = req.body?.proposal_id != null ? Number(req.body.proposal_id) : NaN;
     if (!id) return res.status(400).json({ error: "Invalid id" });
-    if (!title) return res.status(400).json({ error: "title required" });
     if (!fileUrlRaw) return res.status(400).json({ error: "file_url required (PDF URL)" });
     const okUrl =
       fileUrlRaw.startsWith("https://") || fileUrlRaw.startsWith("http://") || fileUrlRaw.startsWith("/");
@@ -736,14 +756,54 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (existingContract?.id) {
         return res.status(400).json({ error: "A contract was already sent in this thread", code: "CONTRACT_ALREADY_SENT" });
       }
-      const bodyPreview = description || title;
+
+      let sourceProposalId: number | null = null;
+      let contractAmountEur: number | null = null;
+      if (proposalIdRaw && !Number.isNaN(proposalIdRaw)) {
+        const prop = (await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalIdRaw)) as
+          | Record<string, any>
+          | undefined;
+        if (!prop || Number(prop.conversation_id) !== id) {
+          return res.status(400).json({ error: "proposal_id does not belong to this conversation" });
+        }
+        if (String(prop.status) !== "accepted") {
+          return res.status(400).json({ error: "Proposal must be accepted by the client before sending the contract", code: "PROPOSAL_NOT_ACCEPTED" });
+        }
+        sourceProposalId = proposalIdRaw;
+        if (prop.amount_eur != null && Number(prop.amount_eur) > 0) {
+          contractAmountEur = Number(prop.amount_eur);
+        }
+        if (!title && prop.title) title = String(prop.title).slice(0, 500);
+        const propDesc = prop.description != null ? String(prop.description).trim() : "";
+        const cur = description.trim();
+        const amountLine =
+          contractAmountEur != null
+            ? `\n\n—\nVereinbarter Gesamtpreis / Agreed total: ${contractAmountEur.toLocaleString("de-DE")} ${String(prop.currency || "EUR")}`
+            : "";
+        if (!cur && propDesc) description = (propDesc + amountLine).slice(0, 20000);
+        else if (cur && contractAmountEur != null && !cur.includes("Vereinbarter Gesamtpreis") && !cur.includes("Agreed total")) {
+          description = (cur + amountLine).slice(0, 20000);
+        }
+      }
+      if (!title) return res.status(400).json({ error: "title required (or pass proposal_id of an accepted offer)" });
+
+      const bodyPreview = (description || title).slice(0, 20000);
       const r = await (
         await getDb().prepare(
           `INSERT INTO consultation_messages
-           (conversation_id, sender_id, body, message_type, contract_title, contract_description, contract_file_url, contract_status)
-           VALUES (?, ?, ?, 'contract', ?, ?, ?, 'sent')`
+           (conversation_id, sender_id, body, message_type, contract_title, contract_description, contract_file_url, contract_status, contract_amount_eur, source_proposal_id)
+           VALUES (?, ?, ?, 'contract', ?, ?, ?, 'sent', ?, ?)`
         )
-      ).run(id, adminId, bodyPreview.slice(0, 20000), title, description || null, fileUrlRaw);
+      ).run(
+        id,
+        adminId,
+        bodyPreview,
+        title,
+        description || null,
+        fileUrlRaw,
+        contractAmountEur,
+        sourceProposalId
+      );
       await (await getDb().prepare(`UPDATE consultation_conversations SET workflow_status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(
         id
       );

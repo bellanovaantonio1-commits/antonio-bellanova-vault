@@ -14,6 +14,7 @@ export type ConsultationContractCardProps = {
     sign: string;
     signed: string;
     awaitingSign: string;
+    agreedTotal: string;
   }>;
 };
 
@@ -40,11 +41,16 @@ export function ConsultationContractCard({
     sign: "Sign contract",
     signed: "Signed",
     awaitingSign: "Awaiting your signature",
+    agreedTotal: "Agreed total",
     ...labels,
   };
   const title = message.contract_title || "Contract";
   const desc = message.contract_description || message.body || "";
   const fileUrl = message.contract_file_url || "";
+  const amountEur =
+    message.contract_amount_eur != null && Number(message.contract_amount_eur) > 0
+      ? Number(message.contract_amount_eur)
+      : null;
   const status = String(message.contract_status || "sent");
 
   return (
@@ -60,6 +66,11 @@ export function ConsultationContractCard({
         <span className="text-[10px] uppercase tracking-[0.2em] font-semibold">{l.contractBadge}</span>
       </div>
       <p className="text-sm font-semibold text-amber-100/95">{title}</p>
+      {amountEur != null ? (
+        <p className="text-xs font-semibold text-amber-400/95 mt-2">
+          {l.agreedTotal}: {amountEur.toLocaleString("de-DE")} €
+        </p>
+      ) : null}
       {desc ? <p className="text-xs text-zinc-300/95 mt-2 whitespace-pre-wrap break-words leading-relaxed">{desc}</p> : null}
       {message.created_at && (
         <p className="text-[10px] text-zinc-500 mt-2">{new Date(message.created_at).toLocaleString()}</p>

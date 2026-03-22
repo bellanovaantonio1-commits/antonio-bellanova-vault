@@ -1893,6 +1893,16 @@ await db.exec(`
   } catch (_) {
     /* column exists */
   }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN contract_amount_eur REAL")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN source_proposal_id INTEGER")).run();
+  } catch (_) {
+    /* column exists */
+  }
 }
 
 async function nextProductSerial(category: string): Promise<string> {

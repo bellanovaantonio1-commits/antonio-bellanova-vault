@@ -218,6 +218,9 @@ const TRANSLATIONS: any = {
     consultation_briefing_title: "So geht’s weiter",
     consultation_briefing_legal: "Ein verbindlicher Kauf entsteht erst nach Ihrer ausdrücklichen Bestätigung und dem vereinbarten Anzahlungsschritt — nicht bereits durch diesen Chat. Der Preis gilt für die gezeigte Konfiguration; Änderungen an Materialien oder Steinen führen zu einem neuen Angebot.",
     consultation_briefing_checklist: "Bitte schreiben Sie uns:\n• gewünschte Materialien (z. B. Weißgold, Platin)\n• Edelsteine, Farben, Qualität\n• Größe bzw. Karat des Hauptsteins\n• Ringgröße, Längen oder andere Maße\n• weitere Wünsche zur Ausführung",
+    consultation_contract_agreed_total: "Vereinbarter Gesamtpreis",
+    consultation_contract_from_proposal_hint:
+      "Nach Kundenannahme eines Angebots: Titel, Text und Preis stammen aus Ihrem Angebot (nicht vom Marktplatz-Eintrag). PDF-URL ergänzen und senden.",
     "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
     reserved: "Reserviert",
     sold: "Verkauft",
@@ -1205,6 +1208,9 @@ const TRANSLATIONS: any = {
     consultation_briefing_title: "How to proceed",
     consultation_briefing_legal: "A binding purchase is formed only after your explicit confirmation and the agreed deposit step — not from this chat alone. The price applies to the configuration shown; changes to materials or stones require a revised offer.",
     consultation_briefing_checklist: "Please tell us:\n• preferred metals (e.g. white gold, platinum)\n• gemstones, colours, quality\n• size or carat of the main stone\n• ring size, lengths or other measurements\n• any other wishes for the piece",
+    consultation_contract_agreed_total: "Agreed total",
+    consultation_contract_from_proposal_hint:
+      "After the client accepts an offer, title, text and price come from your proposal (not the marketplace listing). Add the PDF URL and send.",
     "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
     reserved: "Reserved",
     sold: "Sold",
@@ -2135,6 +2141,9 @@ const TRANSLATIONS: any = {
     consultation_briefing_title: "Come procedere",
     consultation_briefing_legal: "Un acquisto vincolante nasce solo dopo la Sua conferma esplicita e il passo acconto concordato — non solo con questa chat. Il prezzo vale per la configurazione mostrata; modifiche a materiali o pietre richiedono una nuova offerta.",
     consultation_briefing_checklist: "Ci scriva:\n• metalli desiderati (es. oro bianco, platino)\n• pietre, colori, qualità\n• dimensione o carati della pietra principale\n• misura anello, lunghezze o altre misure\n• altre preferenze sulla realizzazione",
+    consultation_contract_agreed_total: "Totale concordato",
+    consultation_contract_from_proposal_hint:
+      "Dopo l’accettazione di un’offerta: titolo, testo e prezzo provengono dalla Sua proposta (non dalla scheda marketplace). Aggiunga l’URL del PDF e invii.",
     "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
     reserved: "Riservato",
     sold: "Venduto",
@@ -13530,6 +13539,8 @@ export default function App() {
               clientBriefingTitle: t('consultation_briefing_title'),
               clientBriefingLegal: t('consultation_briefing_legal'),
               clientBriefingChecklist: t('consultation_briefing_checklist'),
+              contractAgreedTotalLabel: t('consultation_contract_agreed_total'),
+              contractFromProposalHint: t('consultation_contract_from_proposal_hint'),
             }}
             onClose={() => setConsultationPanel(null)}
             notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
