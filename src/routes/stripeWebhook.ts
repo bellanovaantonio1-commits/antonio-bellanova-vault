@@ -27,6 +27,7 @@ export async function creditWalletFromSucceededPaymentIntent(
   if (paymentType === "invoice" && metadata.invoice_id) return "skipped";
   if (paymentType === "purchase" && userId && metadata.masterpiece_id) return "skipped";
   if (paymentType === "order_deposit" || paymentType === "order_final") return "skipped";
+  if (paymentType === "consultation_deposit") return "skipped";
   if (!(paymentType === "wallet" || !paymentType)) return "skipped";
   if (!userId || amountCents <= 0) return "skipped";
 
@@ -171,6 +172,57 @@ export function registerStripeWebhookRawRoute(app: Express, deps: StripeWebhookD
           } catch (e) {
             console.error("[Stripe] Webhook: failed to update order payment:", e);
             return res.status(500).send("Failed to update payment");
+          }
+        }
+      } else if (paymentType === "consultation_deposit" && db) {
+        const conversationId = metadata.conversation_id ? Number(metadata.conversation_id) : null;
+        const masterpieceId = metadata.masterpiece_id ? Number(metadata.masterpiece_id) : null;
+        if (!conversationId || !userId || !masterpieceId) {
+          console.log("[Consultation deposit] Webhook: missing conversation_id, user_id, or masterpiece_id");
+        } else if (amountCents > 0) {
+          try {
+            const conv = (await (await db.prepare("SELECT * FROM consultation_conversations WHERE id = ?")).get(conversationId)) as
+              | Record<string, unknown>
+              | undefined;
+            if (!conv || Number(conv.user_id) !== userId) {
+              console.warn("[Consultation deposit] Webhook: conversation not found or user mismatch");
+            } else {
+              const piece = (await (await db.prepare("SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?")).get(masterpieceId)) as
+                | { valuation?: number | null; deposit_pct?: number | null }
+                | undefined;
+              const valuation = piece ? Number(piece.valuation) || 0 : 0;
+              const depositPct = piece ? Number(piece.deposit_pct) || 10 : 10;
+              const expectedCents = Math.round(((valuation * depositPct) / 100) * 100);
+              if (expectedCents < 100 || expectedCents !== amountCents) {
+                console.warn(
+                  "[Consultation deposit] Webhook: amount mismatch conv=" +
+                    conversationId +
+                    " expected_cents=" +
+                    expectedCents +
+                    " received=" +
+                    amountCents
+                );
+              } else {
+                const existingPi = String((conv as { deposit_stripe_payment_intent_id?: string }).deposit_stripe_payment_intent_id || "");
+                if ((conv as { deposit_paid_at?: string | null }).deposit_paid_at) {
+                  if (existingPi === paymentIntent.id) {
+                    console.log("[Consultation deposit] Webhook: idempotent replay pi=" + paymentIntent.id);
+                  } else {
+                    console.warn("[Consultation deposit] Webhook: deposit already recorded for conv=" + conversationId);
+                  }
+                } else {
+                  await (
+                    await db.prepare(
+                      "UPDATE consultation_conversations SET deposit_paid_at = CURRENT_TIMESTAMP, deposit_stripe_payment_intent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?"
+                    )
+                  ).run(paymentIntent.id, conversationId, userId);
+                  console.log("[Consultation deposit] Webhook: recorded conv=" + conversationId + " pi=" + paymentIntent.id);
+                }
+              }
+            }
+          } catch (e) {
+            console.error("[Stripe] Webhook: consultation deposit failed:", e);
+            return res.status(500).send("Failed to record consultation deposit");
           }
         }
       } else if (paymentType === "wallet" || !paymentType) {

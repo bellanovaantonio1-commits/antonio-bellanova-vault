@@ -1,7 +1,11 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements } from "@stripe/react-stripe-js";
 import { X, Send } from "lucide-react";
 import type { ConsultationMessageRow } from "../chat/types";
 import type { ConsultationProposalRow } from "../proposals/types";
+import { ConsultationContractCard } from "../contracts/ConsultationContractCard";
+import { ConsultationStripeDepositForm } from "../contracts/ConsultationStripeDepositForm";
 
 type Notify = (message: string, kind?: "success" | "error" | "warning") => void;
 
@@ -45,6 +49,15 @@ export type ConsultationChatPanelProps = {
     clientBriefingTitle: string;
     clientBriefingLegal: string;
     clientBriefingChecklist: string;
+    proceedDepositTitle: string;
+    payDepositButton: string;
+    sendContractHeading: string;
+    contractTitlePlaceholder: string;
+    contractPdfUrlPlaceholder: string;
+    sendContractButton: string;
+    contractSentToast: string;
+    contractSignedToast: string;
+    depositPaidToast: string;
   }>;
 };
 
@@ -136,6 +149,7 @@ export function ConsultationChatPanel({
         setMetaPieceStatus(c?.masterpiece_status != null ? String(c.masterpiece_status) : null);
         setMetaConsultationRequired(Number(c?.masterpiece_consultation_required) || 0);
         setPurchaseUnlockedAt(c?.purchase_unlocked_at ? String(c.purchase_unlocked_at) : null);
+        setDepositPaidAt(c?.deposit_paid_at ? String(c.deposit_paid_at) : null);
       }
       if (mRes.ok) setMessages(await mRes.json());
       if (pRes.ok) setProposals(await pRes.json());
@@ -153,6 +167,68 @@ export function ConsultationChatPanel({
   useEffect(() => {
     if (refreshKey > 0) load();
   }, [refreshKey, load]);
+
+  const hasContractMessage = useMemo(
+    () => messages.some((m) => String(m.message_type || "text") === "contract"),
+    [messages]
+  );
+  const hasAcceptedContract = useMemo(
+    () =>
+      messages.some(
+        (m) => String(m.message_type || "text") === "contract" && String(m.contract_status || "") === "accepted"
+      ),
+    [messages]
+  );
+
+  const showStripeConsultDeposit =
+    mode === "client" &&
+    convStatus === "open" &&
+    metaConsultationRequired === 1 &&
+    hasAcceptedContract &&
+    !depositPaidAt &&
+    metaPieceId != null;
+
+  useEffect(() => {
+    setStripePk(null);
+    setDepositClientSecret(null);
+    setDepositAmountCents(null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!showStripeConsultDeposit) {
+      setDepositClientSecret(null);
+      setStripePk(null);
+      setDepositAmountCents(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfgRes = await fetch("/api/stripe/config");
+        const cfg = cfgRes.ok ? await cfgRes.json() : {};
+        if (cancelled) return;
+        const pk = cfg?.publishableKey ?? cfg?.publishable_key;
+        if (pk) setStripePk(String(pk));
+        const depRes = await fetch(`/api/consultation/conversations/${conversationId}/deposit-intent`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const dep = await readJson(depRes);
+        if (cancelled) return;
+        if (!depRes.ok) {
+          notify(dep.error || "Could not start deposit payment", "error");
+          return;
+        }
+        setDepositClientSecret(dep.client_secret != null ? String(dep.client_secret) : null);
+        setDepositAmountCents(dep.amount_cents != null ? Number(dep.amount_cents) : null);
+      } catch {
+        if (!cancelled) notify("Could not start deposit payment", "error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showStripeConsultDeposit, conversationId, notify]);
 
   const send = async () => {
     const body = draft.trim();
@@ -371,11 +447,62 @@ export function ConsultationChatPanel({
     }
   };
 
+  const acceptContractMessage = async (messageId: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/consultation/conversations/${conversationId}/messages/${messageId}/accept-contract`,
+        { method: "POST", credentials: "include" }
+      );
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Sign failed", "error");
+        return;
+      }
+      notify(str.contractSignedToast, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendContractFromAdmin = async () => {
+    if (!contractTitle.trim() || !contractFileUrl.trim()) {
+      notify("Title and PDF URL required", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/consultation/conversations/${conversationId}/contract-message`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: contractTitle.trim(),
+          description: contractDesc.trim() || null,
+          file_url: contractFileUrl.trim(),
+        }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Send failed", "error");
+        return;
+      }
+      setContractTitle("");
+      setContractDesc("");
+      setContractFileUrl("");
+      notify(str.contractSentToast, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const showBespokeUnlockAdmin = mode === "admin" && convStatus === "open" && metaConsultationRequired === 1 && metaPieceId != null;
   const showClientDeposit =
     mode === "client" &&
     convStatus === "open" &&
-    !!purchaseUnlockedAt &&
+    !!(purchaseUnlockedAt || depositPaidAt) &&
     metaPieceStatus === "available" &&
     metaPieceId != null &&
     metaConsultationRequired === 1;
@@ -384,7 +511,10 @@ export function ConsultationChatPanel({
     convStatus === "open" &&
     metaConsultationRequired === 1 &&
     !purchaseUnlockedAt &&
-    metaPieceStatus === "available";
+    !depositPaidAt &&
+    metaPieceStatus === "available" &&
+    !hasContractMessage &&
+    !hasAcceptedContract;
 
   const showClientPieceBriefing =
     mode === "client" && convStatus === "open" && metaPieceId != null && !showClientDeposit;
@@ -455,6 +585,35 @@ export function ConsultationChatPanel({
           </div>
         )}
 
+        {showStripeConsultDeposit && (
+          <div className="px-3 py-3 border-b border-amber-800/40 bg-zinc-950/95 space-y-2 shrink-0">
+            <p className="text-[10px] uppercase tracking-widest text-amber-500/90">{str.proceedDepositTitle}</p>
+            {stripePk && depositClientSecret && depositAmountCents != null && depositAmountCents > 0 ? (
+              <Elements stripe={loadStripe(stripePk)} options={{ clientSecret: depositClientSecret }}>
+                <ConsultationStripeDepositForm
+                  conversationId={conversationId}
+                  amountCents={depositAmountCents}
+                  onPaid={() => {
+                    notify(str.depositPaidToast, "success");
+                    void load();
+                  }}
+                  onCancel={() => {
+                    setDepositClientSecret(null);
+                    setStripePk(null);
+                    setDepositAmountCents(null);
+                  }}
+                  labels={{
+                    heading: str.payDepositButton,
+                    pay: str.payDepositButton,
+                  }}
+                />
+              </Elements>
+            ) : (
+              <p className="text-xs text-zinc-500 text-center py-2">Preparing secure payment…</p>
+            )}
+          </div>
+        )}
+
         {showClientDeposit && deliveryOptions.length > 0 && (
           <div className="px-3 py-3 border-b border-emerald-800/40 bg-emerald-950/20 space-y-2">
             <p className="text-[10px] uppercase tracking-widest text-emerald-500/90">{str.deliverySelectLabel}</p>
@@ -486,16 +645,33 @@ export function ConsultationChatPanel({
           )}
           {messages.map((m) => {
             const mine = Number(m.sender_id) === Number(currentUserId);
+            if (String(m.message_type || "text") === "contract") {
+              return (
+                <div key={m.id} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}>
+                  <ConsultationContractCard
+                    message={m}
+                    mode={mode}
+                    isMine={mine}
+                    loading={loading}
+                    onSign={
+                      mode === "client" && convStatus === "open" && String(m.contract_status || "") === "sent"
+                        ? () => void acceptContractMessage(m.id)
+                        : undefined
+                    }
+                  />
+                </div>
+              );
+            }
             return (
               <div
                 key={m.id}
                 className={`flex ${mine ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                  className={`max-w-[85%] rounded-[1.25rem] px-3 py-2 text-sm ${
                     mine
-                      ? "bg-amber-600/20 text-amber-50 border border-amber-600/30"
-                      : "bg-zinc-800 text-zinc-200 border border-zinc-700"
+                      ? "rounded-br-md bg-amber-600/20 text-amber-50 border border-amber-600/30"
+                      : "rounded-bl-md bg-zinc-800 text-zinc-200 border border-zinc-700"
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">{m.body}</p>
@@ -579,6 +755,44 @@ export function ConsultationChatPanel({
             >
               {str.unlockPurchaseButton}
             </button>
+          </div>
+        )}
+
+        {mode === "admin" && convStatus === "open" && !hasContractMessage && (
+          <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/70">
+            <p className="text-[10px] uppercase tracking-widest text-amber-600/90">{str.sendContractHeading}</p>
+            <input
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+              placeholder={str.contractTitlePlaceholder}
+              value={contractTitle}
+              onChange={(e) => setContractTitle(e.target.value)}
+            />
+            <textarea
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200 min-h-[48px]"
+              placeholder="Description (optional)"
+              value={contractDesc}
+              onChange={(e) => setContractDesc(e.target.value)}
+            />
+            <input
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+              placeholder={str.contractPdfUrlPlaceholder}
+              value={contractFileUrl}
+              onChange={(e) => setContractFileUrl(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void sendContractFromAdmin()}
+              className="w-full min-h-[40px] rounded-full text-xs font-medium bg-amber-700/90 hover:bg-amber-600 text-white disabled:opacity-50 border border-amber-600/40"
+            >
+              {str.sendContractButton}
+            </button>
+          </div>
+        )}
+
+        {mode === "admin" && convStatus === "open" && hasContractMessage && (
+          <div className="border-t border-zinc-800 px-3 py-2 bg-zinc-950/50 text-[10px] text-zinc-500 text-center">
+            Contract message already sent in this thread.
           </div>
         )}
 

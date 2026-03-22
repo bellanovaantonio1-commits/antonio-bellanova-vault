@@ -3,6 +3,7 @@
  * Gated by ENABLE_CONSULTATION_FLOW — does not alter existing purchase/payment flows.
  */
 import type { Application, Request, Response } from "express";
+import type Stripe from "stripe";
 import type { DbInterface } from "../../lib/db.js";
 import { createUserOrIpRateLimiter } from "../../lib/rateLimit.js";
 
@@ -49,11 +50,18 @@ type ConsultationDeps = {
   db: DbInterface;
   broadcast?: (data: Record<string, unknown>) => void;
   logAudit?: (adminId: number, action: string, targetId: string, details: string) => Promise<void> | void;
+  /** Required for consultation deposit PaymentIntents */
+  getStripe?: () => Stripe;
   consultationNotify?: ConsultationNotifyHooks;
 };
 
+function stripeSecretConfigured(): boolean {
+  const raw = process.env.STRIPE_SECRET_KEY || process.env.STRIPE_SECRET;
+  return !!(raw && String(raw).trim());
+}
+
 export function registerConsultationRoutes(app: Application, deps: ConsultationDeps): void {
-  const { db, broadcast, logAudit, consultationNotify } = deps;
+  const { db, broadcast, logAudit, consultationNotify, getStripe } = deps;
 
   app.get("/api/consultation/enabled", (_req: Request, res: Response) => {
     res.json({
@@ -158,6 +166,45 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     return (await (await db.prepare(`SELECT * FROM consultation_conversations WHERE id = ?`)).get(id)) as Record<string, any> | undefined;
   }
 
+  async function bumpWorkflowInProgress(convId: number) {
+    try {
+      await (
+        await db.prepare(
+          `UPDATE consultation_conversations SET workflow_status = 'in_progress', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND (workflow_status IS NULL OR workflow_status = '' OR workflow_status = 'open')`
+        )
+      ).run(convId);
+    } catch (_) {
+      /* optional column / legacy DB */
+    }
+  }
+
+  async function conversationDepositAmountCents(conv: Record<string, any>): Promise<number | null> {
+    const mid = conv.masterpiece_id != null ? Number(conv.masterpiece_id) : NaN;
+    if (!mid || Number.isNaN(mid)) return null;
+    const piece = (await (await db.prepare(`SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?`)).get(mid)) as
+      | { valuation?: number | null; deposit_pct?: number | null }
+      | undefined;
+    if (!piece) return null;
+    const valuation = Number(piece.valuation) || 0;
+    const depositPct = Number(piece.deposit_pct) || 10;
+    const amountEur = (valuation * depositPct) / 100;
+    const amountCents = Math.round(amountEur * 100);
+    if (amountCents < 100) return null;
+    return amountCents;
+  }
+
+  async function hasAcceptedContractMessage(conversationId: number): Promise<boolean> {
+    const row = (await (
+      await db.prepare(
+        `SELECT id FROM consultation_messages
+         WHERE conversation_id = ? AND COALESCE(message_type, 'text') = 'contract' AND contract_status = 'accepted'
+         LIMIT 1`
+      )
+    ).get(conversationId)) as { id?: number } | undefined;
+    return !!row?.id;
+  }
+
   async function canAccessConversation(conv: Record<string, any>, req: Request): Promise<boolean> {
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -222,14 +269,157 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
         await db.prepare(
-          `INSERT INTO consultation_messages (conversation_id, sender_id, body) VALUES (?, ?, ?)`
+          `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type) VALUES (?, ?, ?, 'text')`
         )
       ).run(id, userId, body.slice(0, 20000));
       await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await bumpWorkflowInProgress(id);
       const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid });
       res.json(msg);
     } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post(
+    "/api/consultation/conversations/:conversationId/messages/:messageId/accept-contract",
+    gate,
+    consultationMutatePostLimiter,
+    async (req: Request, res: Response) => {
+      const conversationId = Number(req.params.conversationId);
+      const messageId = Number(req.params.messageId);
+      const userId = (req as any).userId as number;
+      const user = (req as any).user;
+      if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+      if (isAdminUser(user)) return res.status(403).json({ error: "Clients only" });
+      if (!conversationId || !messageId) return res.status(400).json({ error: "Invalid id" });
+      try {
+        const conv = await loadConversation(conversationId);
+        if (!conv) return res.status(404).json({ error: "Not found" });
+        if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+        if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+        const msg = (await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ? AND conversation_id = ?`)).get(
+          messageId,
+          conversationId
+        )) as Record<string, any> | undefined;
+        if (!msg) return res.status(404).json({ error: "Message not found" });
+        if (String(msg.message_type || "text") !== "contract") return res.status(400).json({ error: "Not a contract message" });
+        if (String(msg.contract_status || "") !== "sent") return res.status(400).json({ error: "Contract cannot be signed in current state" });
+        await (
+          await db.prepare(`UPDATE consultation_messages SET contract_status = 'accepted' WHERE id = ? AND conversation_id = ?`)
+        ).run(messageId, conversationId);
+        await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(conversationId);
+        const updated = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(messageId);
+        broadcast?.({ type: "CONSULTATION_CONTRACT_ACCEPTED", conversationId, messageId });
+        res.json(updated);
+      } catch (e: any) {
+        res.status(500).json({ error: e?.message || "Failed" });
+      }
+    }
+  );
+
+  app.post("/api/consultation/conversations/:id/deposit-intent", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const userId = (req as any).userId as number;
+    const user = (req as any).user;
+    if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    if (isAdminUser(user)) return res.status(403).json({ error: "Client endpoint" });
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    if (!getStripe || !stripeSecretConfigured()) return res.status(503).json({ error: "Card payments are not configured" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+      const accepted = await hasAcceptedContractMessage(id);
+      if (!accepted) {
+        return res.status(400).json({
+          error: "Deposit is available only after you sign the contract sent in this chat.",
+          code: "CONTRACT_NOT_ACCEPTED",
+        });
+      }
+      if (conv.deposit_paid_at) {
+        return res.status(400).json({ error: "Deposit already recorded for this consultation", code: "DEPOSIT_ALREADY_PAID" });
+      }
+      const amountCents = await conversationDepositAmountCents(conv);
+      if (amountCents == null) {
+        return res.status(400).json({ error: "No linked masterpiece or deposit amount could not be calculated" });
+      }
+      const mid = Number(conv.masterpiece_id);
+      const stripe = getStripe();
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: "eur",
+        automatic_payment_methods: { enabled: true },
+        metadata: {
+          payment_type: "consultation_deposit",
+          conversation_id: String(id),
+          user_id: String(userId),
+          masterpiece_id: String(mid),
+        },
+      });
+      console.log(
+        "[Consultation] Deposit intent: conversation_id=" + id + " user_id=" + userId + " amount_cents=" + amountCents + " pi=" + paymentIntent.id
+      );
+      res.json({
+        client_secret: paymentIntent.client_secret,
+        amount_cents: amountCents,
+        payment_intent_id: paymentIntent.id,
+      });
+    } catch (e: any) {
+      console.error("[consultation/deposit-intent]", e);
+      res.status(500).json({ error: e?.message || "Failed to create payment" });
+    }
+  });
+
+  app.post("/api/consultation/conversations/:id/confirm-deposit", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const userId = (req as any).userId as number;
+    const user = (req as any).user;
+    if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+    if (isAdminUser(user)) return res.status(403).json({ error: "Client endpoint" });
+    const piId = String(req.body?.payment_intent || req.body?.payment_intent_id || "").trim();
+    if (!piId || !piId.startsWith("pi_")) return res.status(400).json({ error: "Invalid payment_intent" });
+    if (!getStripe || !stripeSecretConfigured()) return res.status(503).json({ error: "Card payments are not configured" });
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+      const stripe = getStripe();
+      const pi = await stripe.paymentIntents.retrieve(piId);
+      if (pi.status !== "succeeded") {
+        return res.status(200).json({ recorded: false, status: pi.status, message: "Payment not completed yet" });
+      }
+      const meta = pi.metadata || {};
+      if (meta.payment_type !== "consultation_deposit") {
+        return res.json({ recorded: false, wrong_type: true });
+      }
+      if (String(meta.conversation_id || "") !== String(id) || String(meta.user_id || "") !== String(userId)) {
+        return res.status(403).json({ error: "Payment does not match this consultation" });
+      }
+      const expectedCents = await conversationDepositAmountCents(conv);
+      const amountCents = pi.amount ?? 0;
+      if (expectedCents != null && amountCents !== expectedCents) {
+        console.warn("[Consultation] confirm-deposit amount mismatch conv=" + id + " expected=" + expectedCents + " got=" + amountCents);
+        return res.status(400).json({ error: "Amount mismatch" });
+      }
+      if (conv.deposit_paid_at && String(conv.deposit_stripe_payment_intent_id || "") === piId) {
+        return res.json({ recorded: true, already: true });
+      }
+      if (conv.deposit_paid_at) {
+        return res.json({ recorded: true, already: true });
+      }
+      await (
+        await db.prepare(
+          `UPDATE consultation_conversations SET deposit_paid_at = CURRENT_TIMESTAMP, deposit_stripe_payment_intent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
+        )
+      ).run(piId, id, userId);
+      broadcast?.({ type: "CONSULTATION_DEPOSIT_PAID", conversationId: id, userId });
+      res.json({ recorded: true });
+    } catch (e: any) {
+      console.error("[consultation/confirm-deposit]", e);
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });
@@ -389,10 +579,11 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
         await db.prepare(
-          `INSERT INTO consultation_messages (conversation_id, sender_id, body) VALUES (?, ?, ?)`
+          `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type) VALUES (?, ?, ?, 'text')`
         )
       ).run(id, adminId, body.slice(0, 20000));
       await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await bumpWorkflowInProgress(id);
       const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       await logAudit?.(adminId, "CONSULTATION_MESSAGE", String(id), `Admin reply in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid, fromAdmin: true });
@@ -512,6 +703,54 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       } catch (_) {}
       res.json({ success: true });
     } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post("/api/admin/consultation/conversations/:id/contract-message", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminId = (req as any).userId as number;
+    const title = req.body?.title != null ? String(req.body.title).trim().slice(0, 500) : "";
+    const description = req.body?.description != null ? String(req.body.description).trim().slice(0, 20000) : "";
+    const fileUrlRaw = req.body?.file_url != null ? String(req.body.file_url).trim().slice(0, 2000) : "";
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    if (!title) return res.status(400).json({ error: "title required" });
+    if (!fileUrlRaw) return res.status(400).json({ error: "file_url required (PDF URL)" });
+    const okUrl =
+      fileUrlRaw.startsWith("https://") || fileUrlRaw.startsWith("http://") || fileUrlRaw.startsWith("/");
+    if (!okUrl) return res.status(400).json({ error: "file_url must be http(s) or a path starting with /" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+      const existingContract = (await (
+        await db.prepare(
+          `SELECT id FROM consultation_messages WHERE conversation_id = ? AND COALESCE(message_type, 'text') = 'contract' LIMIT 1`
+        )
+      ).get(id)) as { id?: number } | undefined;
+      if (existingContract?.id) {
+        return res.status(400).json({ error: "A contract was already sent in this thread", code: "CONTRACT_ALREADY_SENT" });
+      }
+      const bodyPreview = description || title;
+      const r = await (
+        await db.prepare(
+          `INSERT INTO consultation_messages
+           (conversation_id, sender_id, body, message_type, contract_title, contract_description, contract_file_url, contract_status)
+           VALUES (?, ?, ?, 'contract', ?, ?, ?, 'sent')`
+        )
+      ).run(id, adminId, bodyPreview.slice(0, 20000), title, description || null, fileUrlRaw);
+      await (await db.prepare(`UPDATE consultation_conversations SET workflow_status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(
+        id
+      );
+      const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      await logAudit?.(adminId, "CONSULTATION_CONTRACT_MESSAGE", String(id), `Contract message in consultation ${id}`);
+      broadcast?.({ type: "CONSULTATION_CONTRACT_SENT", conversationId: id, messageId: r.lastInsertRowid });
+      try {
+        await consultationNotify?.onAdminRepliedToClient?.(Number(conv.user_id), id);
+      } catch (_) {}
+      res.json(msg);
+    } catch (e: any) {
+      console.error("[admin/consultation/contract-message]", e);
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });

@@ -1853,6 +1853,46 @@ await db.exec(`
   } catch (_) {
     /* column exists */
   }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_conversations ADD COLUMN workflow_status TEXT DEFAULT 'open'")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_conversations ADD COLUMN deposit_paid_at DATETIME")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_conversations ADD COLUMN deposit_stripe_payment_intent_id TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN message_type TEXT DEFAULT 'text'")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN contract_title TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN contract_description TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN contract_file_url TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN contract_status TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
 }
 
 async function nextProductSerial(category: string): Promise<string> {
@@ -4294,18 +4334,21 @@ app.post("/api/marketplace/buy", async (req, res) => {
     if (isConsultationFlowEnabled() && Number(piece.consultation_required) === 1) {
       const conv = (await (
         await db.prepare(
-          `SELECT id, purchase_unlocked_at FROM consultation_conversations WHERE user_id = ? AND masterpiece_id = ? ORDER BY id DESC LIMIT 1`
+          `SELECT id, purchase_unlocked_at, deposit_paid_at FROM consultation_conversations WHERE user_id = ? AND masterpiece_id = ? ORDER BY id DESC LIMIT 1`
         )
-      ).get(uid, mid)) as { id: number; purchase_unlocked_at: string | null } | undefined;
+      ).get(uid, mid)) as { id: number; purchase_unlocked_at: string | null; deposit_paid_at: string | null } | undefined;
       if (!conv) {
         return res.status(403).json({
           error: "Bitte starten Sie zuerst eine Concierge-Beratung zu diesem Stück.",
           code: "CONSULTATION_REQUIRED",
         });
       }
-      if (!conv.purchase_unlocked_at) {
+      const unlockedByAdmin = !!conv.purchase_unlocked_at;
+      const paidConsultDeposit = !!conv.deposit_paid_at;
+      if (!unlockedByAdmin && !paidConsultDeposit) {
         return res.status(403).json({
-          error: "Die Anzahlung wurde noch nicht freigegeben. Das Atelier informiert Sie im Beratungs-Chat.",
+          error:
+            "Die Anzahlung wurde noch nicht freigegeben bzw. noch nicht beglichen. Bitte Chat-Contract unterzeichnen und Anzahlung per Karte zahlen, oder warten Sie auf die Freigabe durch das Atelier.",
           code: "CONSULTATION_PURCHASE_LOCKED",
         });
       }
@@ -4505,6 +4548,7 @@ registerConsultationRoutes(app, {
   db,
   broadcast,
   logAudit,
+  getStripe,
   consultationNotify: {
     onAdminRepliedToClient: async (clientUserId, conversationId) => {
       try {
