@@ -52,7 +52,6 @@ import {
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
-import { isConsultationUiAllowed } from './features/consultation/consultationConfig';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -704,6 +703,10 @@ const TRANSLATIONS: any = {
     "appointments.decline": "Absagen",
     "appointments.no_appointments_user": "Keine Termine.",
     "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
+    "marketplace.cta_purchase_request": "Kaufanfrage senden",
+    "admin.tab_consultation_chats": "Beratungs-Chats",
+    consultation_err_disabled:
+      "Der private Beratungs-Chat ist auf dem Server nicht aktiv. Bitte ENABLE_CONSULTATION_FLOW=true in der Umgebung setzen und den Dienst neu starten.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
     "resale.menu_title": "Wiederverkauf",
     "resale.badge_preowned": "Ehemaliges Sammlerstück",
@@ -1623,6 +1626,10 @@ const TRANSLATIONS: any = {
     "appointments.decline": "Decline",
     "appointments.no_appointments_user": "No appointments.",
     "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
+    "marketplace.cta_purchase_request": "Send purchase request",
+    "admin.tab_consultation_chats": "Consultation chats",
+    consultation_err_disabled:
+      "The private consultation chat is not enabled on the server. Set ENABLE_CONSULTATION_FLOW=true in the environment and restart.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
     "resale.menu_title": "Resale",
     "resale.badge_preowned": "Pre-owned",
@@ -2493,6 +2500,10 @@ const TRANSLATIONS: any = {
     "appointments.decline": "Rifiuta",
     "appointments.no_appointments_user": "Nessun appuntamento.",
     "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
+    "marketplace.cta_purchase_request": "Invia richiesta di acquisto",
+    "admin.tab_consultation_chats": "Chat di consulenza",
+    consultation_err_disabled:
+      "La chat di consulenza non è attiva sul server. Impostare ENABLE_CONSULTATION_FLOW=true e riavviare.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
     "resale.menu_title": "Rivendita",
     "resale.badge_preowned": "Usato",
@@ -3460,7 +3471,6 @@ export default function App() {
   const [adminBankConfig, setAdminBankConfig] = useState<any>({});
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [showMaintenanceAfterLoginAttempt, setShowMaintenanceAfterLoginAttempt] = useState<boolean>(false);
-  const [consultationServerEnabled, setConsultationServerEnabled] = useState(false);
   const [consultationPanel, setConsultationPanel] = useState<{
     id: number;
     title?: string;
@@ -3549,7 +3559,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -4345,13 +4355,6 @@ export default function App() {
     setToast({ msg, type });
     toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
   };
-
-  useEffect(() => {
-    fetch('/api/consultation/enabled')
-      .then((r) => (r.ok ? r.json() : { enabled: false }))
-      .then((d) => setConsultationServerEnabled(!!d?.enabled))
-      .catch(() => setConsultationServerEnabled(false));
-  }, []);
 
   /** After Stripe redirects with ?payment_intent=…, credit wallet if webhook did not run (dev / missing STRIPE_WEBHOOK_SECRET). */
   useEffect(() => {
@@ -5394,8 +5397,6 @@ export default function App() {
     }
   };
 
-  const showConsultationUi = isConsultationUiAllowed(consultationServerEnabled);
-
   const openConsultationForPiece = async (piece: Masterpiece) => {
     if (!user || isGuestSessionUser(user)) {
       setShowAccountRequiredModal(true);
@@ -5412,7 +5413,9 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 403 && (data as { code?: string }).code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
-        else notifyUser((data as { error?: string }).error || t('errors.generic'), 'error');
+        else if (res.status === 503 && (data as { code?: string }).code === 'CONSULTATION_DISABLED') {
+          notifyUser(t('consultation_err_disabled'), 'error');
+        } else notifyUser((data as { error?: string }).error || t('errors.generic'), 'error');
         return;
       }
       setConsultationPanel({ id: Number((data as { id?: number }).id), title: piece.title, mode: 'client' });
@@ -7406,7 +7409,6 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                         } : undefined}
                         onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                        consultationFlowEnabled={showConsultationUi}
                         onConsultation={openConsultationForPiece}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
@@ -7442,7 +7444,6 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id)));
                         } : undefined}
                         onBuy={user ? () => handleBuy(piece.id) : undefined}
-                        consultationFlowEnabled={showConsultationUi}
                         onConsultation={openConsultationForPiece}
                         onViewDetails={(p) => setSelectedPiece(p)}
                       />
@@ -7526,7 +7527,6 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                            consultationFlowEnabled={showConsultationUi}
                             onConsultation={openConsultationForPiece}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
@@ -7582,7 +7582,6 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                            consultationFlowEnabled={showConsultationUi}
                             onConsultation={openConsultationForPiece}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
@@ -7925,9 +7924,7 @@ export default function App() {
                   <TabButton active={vaultTab === 'vip'} label={t('vip')} onClick={() => setVaultTab('vip')} icon={Diamond} />
                   <TabButton active={vaultTab === 'legacy'} label={t('vault.legacy') || 'Legacy'} onClick={() => { setVaultTab('legacy'); fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientLegacyRequests)); }} icon={BookOpen} />
                   <TabButton active={vaultTab === 'vault_requests'} label={t('vault.vault_requests_tab') || 'Tresor-Anfragen'} onClick={() => { setVaultTab('vault_requests'); fetch('/api/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientVaultRequests)).catch(() => setClientVaultRequests([])); }} icon={ClipboardList} />
-                  {showConsultationUi && (
-                    <TabButton active={vaultTab === 'consultation'} label={t('vault.consultation_tab') || 'Concierge'} onClick={() => setVaultTab('consultation')} icon={Sparkles} />
-                  )}
+                  <TabButton active={vaultTab === 'consultation'} label={t('vault.consultation_tab') || 'Concierge'} onClick={() => setVaultTab('consultation')} icon={Sparkles} />
                   <TabButton active={vaultTab === 'settings'} label={t('vault.settings') || 'Settings'} onClick={() => { setVaultTab('settings'); if (user?.id) fetch(`/api/collector/preferences?userId=${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json().then((d: any) => setCollectorPreferences({ favorite_gemstones: d.favorite_gemstones ?? '', preferred_metals: d.preferred_metals ?? '', design_style: d.design_style ?? '', budget_range: d.budget_range ?? '', collection_type: d.collection_type ?? '', collection_focus: d.collection_focus ?? '' })) : null); }} icon={UserIcon} />
                 </div>
 
@@ -8683,7 +8680,7 @@ export default function App() {
                       )}
                     </div>
                   )}
-                  {vaultTab === 'consultation' && showConsultationUi && (
+                  {vaultTab === 'consultation' && (
                     <div className="space-y-6">
                       <Card className="p-6 border-amber-500/20 space-y-4">
                         <div className="flex items-center gap-3">
@@ -9884,9 +9881,9 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
+                  {(['overview', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
@@ -10397,6 +10394,34 @@ export default function App() {
                 </>
                 )}
 
+                {(adminTab === 'consultation_chats') && (
+                  <section className="space-y-6 max-w-3xl">
+                    <h3 className="text-2xl font-serif italic text-zinc-100">{t('admin.tab_consultation_chats')}</h3>
+                    <p className="text-sm text-zinc-500">{t('consultation_admin_inbox_title')} — {t('consultation_vault_hint')}</p>
+                    <AdminConsultationSection
+                      refreshKey={consultationWsTick}
+                      onOpenConversation={(id, title) => setConsultationPanel({ id, title, mode: 'admin' })}
+                      notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
+                      onReopened={() => notifyUser(t('consultation_thread_reopened_ok'), 'success')}
+                      strings={{
+                        title: t('consultation_admin_inbox_title'),
+                        filterAll: t('consultation_admin_filter_all'),
+                        filterOpen: t('consultation_admin_filter_open'),
+                        filterClosed: t('consultation_admin_filter_closed'),
+                        emptyAll: t('consultation_admin_empty_all'),
+                        emptyOpen: t('consultation_admin_empty_open'),
+                        emptyClosed: t('consultation_admin_empty_closed'),
+                        loadError: t('consultation_admin_load_error'),
+                        reopenShort: t('consultation_admin_reopen_short'),
+                        reopenedOk: t('consultation_thread_reopened_ok'),
+                        reopenFail: t('consultation_admin_reopen_fail'),
+                        statusOpen: t('consultation_admin_status_open'),
+                        statusClosed: t('consultation_admin_status_closed'),
+                      }}
+                    />
+                  </section>
+                )}
+
                 {/* Admin Intelligence & Payments (Sections 2, 15) */}
                 {(adminTab === 'overview') && (user.role === UserRole.ADMIN || user.role === 'super_admin') && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -10550,31 +10575,12 @@ export default function App() {
                       })}
                       {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
                     </div>
-                    {showConsultationUi && (
-                      <div className="pt-6 border-t border-zinc-800/80">
-                        <AdminConsultationSection
-                          refreshKey={consultationWsTick}
-                          onOpenConversation={(id, title) => setConsultationPanel({ id, title, mode: 'admin' })}
-                          notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
-                          onReopened={() => notifyUser(t('consultation_thread_reopened_ok'), 'success')}
-                          strings={{
-                            title: t('consultation_admin_inbox_title'),
-                            filterAll: t('consultation_admin_filter_all'),
-                            filterOpen: t('consultation_admin_filter_open'),
-                            filterClosed: t('consultation_admin_filter_closed'),
-                            emptyAll: t('consultation_admin_empty_all'),
-                            emptyOpen: t('consultation_admin_empty_open'),
-                            emptyClosed: t('consultation_admin_empty_closed'),
-                            loadError: t('consultation_admin_load_error'),
-                            reopenShort: t('consultation_admin_reopen_short'),
-                            reopenedOk: t('consultation_thread_reopened_ok'),
-                            reopenFail: t('consultation_admin_reopen_fail'),
-                            statusOpen: t('consultation_admin_status_open'),
-                            statusClosed: t('consultation_admin_status_closed'),
-                          }}
-                        />
-                      </div>
-                    )}
+                    <div className="pt-6 border-t border-zinc-800/80">
+                      <p className="text-sm text-zinc-400 mb-3">{t('consultation_admin_inbox_title')}</p>
+                      <Button variant="outline" className="border-amber-600/40 text-amber-200/90" onClick={() => setAdminTab('consultation_chats')}>
+                        {t('admin.tab_consultation_chats')} →
+                      </Button>
+                    </div>
                   </section>
                   )}
                   {(adminTab === 'overview') && (
@@ -13251,27 +13257,7 @@ export default function App() {
                               {t('legal_notice')}
                             </p>
                           </div>
-                          {!showConsultationUi ? (
-                            <>
-                              <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
-                                {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
-                              </p>
-                              <div className="space-y-2">
-                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
-                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
-                                  <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
-                                  <option value="armored_courier">{t('delivery.armored_courier')}</option>
-                                  <option value="private_jet">{t('delivery.private_jet')}</option>
-                                  <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
-                                  <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
-                                  <option value="vault_storage">{t('delivery.vault_storage')}</option>
-                                </select>
-                              </div>
-                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
-                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
-                              </Button>
-                            </>
-                          ) : Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
+                          {Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
                             <>
                               <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
                                 {t('consultation_bespoke_detail_hint')}
@@ -13303,7 +13289,7 @@ export default function App() {
                                 </select>
                               </div>
                               <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
-                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
+                                <ShoppingBag className="w-5 h-5" /> {t('marketplace.cta_purchase_request')}
                               </Button>
                             </>
                           )}
@@ -13737,8 +13723,9 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, consultationFlowEnabled, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, consultationFlowEnabled?: boolean, onConsultation?: (p: Masterpiece) => void }) => {
-  const cardChatFirst = !!(consultationFlowEnabled && onConsultation);
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void }) => {
+  /** Always open real consultation chat when handler is provided — do not fall back to purchase request with a “consultation” label. */
+  const cardChatFirst = !!onConsultation;
   return (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
@@ -13783,7 +13770,7 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       )}
       {!hideAction && piece.status === 'available' && !cardChatFirst && onBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
-          <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Start Consultation'}
+          <ShoppingBag className="w-4 h-4" /> {t ? t('marketplace.cta_purchase_request') : 'Send purchase request'}
         </Button>
       )}
       {extraAction}
