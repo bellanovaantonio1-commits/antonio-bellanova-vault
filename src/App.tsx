@@ -169,7 +169,7 @@ const TRANSLATIONS: any = {
     active_bids: "Aktive Gebote",
     membership: "Mitgliedschaftsstatus",
     featured: "Ausgewählte Meisterwerke",
-    request_acquisition: "Erwerb anfragen",
+    request_acquisition: "Start Consultation",
     consultation_speak_concierge: "Mit dem Concierge sprechen",
     "vault.consultation_tab": "Concierge & Maßanfertigung",
     consultation_vault_hint: "Ihre laufenden Beratungen zu Maßanfertigungen. Öffnen Sie einen Thread, um zu schreiben oder Angebote zu sehen.",
@@ -203,7 +203,7 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "offen",
     consultation_admin_status_closed: "geschlossen",
     consultation_request_bespoke: "Maßanfertigung anfragen",
-    consultation_piece_chat_cta: "Mit dem Atelier sprechen",
+    consultation_piece_chat_cta: "Start Consultation",
     consultation_price_reference_note: "Der angezeigte Preis bezieht sich auf die gezeigte Referenz. Abweichungen bei Material, Steinen oder Größe werden individuell besprochen und bepreist.",
     consultation_detail_after_chat: "Nach der Beratung können Sie — sobald das Atelier den nächsten Schritt freigibt — hier oder im Tresor zur Anzahlung gehen.",
     consultation_bespoke_detail_hint: "Dieses Stück wird nur über die Concierge-Beratung erworben. Wir besprechen Größe, Material und Details — danach schaltet das Atelier die Anzahlung frei.",
@@ -1080,7 +1080,7 @@ const TRANSLATIONS: any = {
     "drops.title": "Exklusive Drops",
     "drops.countdown": "Verfügbar in",
     "drops.ended": "Beendet",
-    "private_terms.request": "Private Konditionen anfragen",
+    "private_terms.request": "Private Beratung anfragen",
     "private_terms.requested": "Anfrage gesendet",
     "pricing.mode_fixed": "Festpreis",
     "pricing.mode_starting_from": "Ab-Preis",
@@ -1152,7 +1152,7 @@ const TRANSLATIONS: any = {
     active_bids: "Active Bids",
     membership: "Membership Status",
     featured: "Featured Masterpieces",
-    request_acquisition: "Request Acquisition",
+    request_acquisition: "Start Consultation",
     consultation_speak_concierge: "Speak with Concierge",
     "vault.consultation_tab": "Concierge & bespoke",
     consultation_vault_hint: "Your ongoing made-to-order consultations. Open a thread to message or review offers.",
@@ -1186,7 +1186,7 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "open",
     consultation_admin_status_closed: "closed",
     consultation_request_bespoke: "Request bespoke consultation",
-    consultation_piece_chat_cta: "Speak with the Atelier",
+    consultation_piece_chat_cta: "Start Consultation",
     consultation_price_reference_note: "The price shown reflects the reference configuration. Changes to materials, stones or proportions are discussed and quoted individually.",
     consultation_detail_after_chat: "After your consultation — when the Atelier enables the next step — you may proceed to deposit here or from your Vault.",
     consultation_bespoke_detail_hint: "This piece is purchased only via Concierge. We agree size, materials and details — then the Atelier unlocks the deposit step.",
@@ -2006,7 +2006,7 @@ const TRANSLATIONS: any = {
     "drops.title": "Exclusive Drops",
     "drops.countdown": "Available in",
     "drops.ended": "Ended",
-    "private_terms.request": "Request Private Terms",
+    "private_terms.request": "Request private consultation",
     "private_terms.requested": "Request sent",
     "pricing.mode_fixed": "Fixed Price",
     "pricing.mode_starting_from": "Starting From Price",
@@ -2078,7 +2078,7 @@ const TRANSLATIONS: any = {
     active_bids: "Offerte Attive",
     membership: "Stato Membro",
     featured: "Capolavori in Primo Piano",
-    request_acquisition: "Richiedi Acquisizione",
+    request_acquisition: "Avvia consulenza",
     consultation_speak_concierge: "Parla con il Concierge",
     "vault.consultation_tab": "Concierge & su misura",
     consultation_vault_hint: "Le tue consultazioni per pezzi su misura. Apri un thread per scrivere o vedere le proposte.",
@@ -2112,7 +2112,7 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "aperto",
     consultation_admin_status_closed: "chiuso",
     consultation_request_bespoke: "Richiedi su misura (Concierge)",
-    consultation_piece_chat_cta: "Parla con l’atelier",
+    consultation_piece_chat_cta: "Avvia consulenza",
     consultation_price_reference_note: "Il prezzo indicato si riferisce alla configurazione mostrata. Modifiche a materiali, pietre o dimensioni si concordano e quotano individualmente.",
     consultation_detail_after_chat: "Dopo la consulenza — quando l’atelier abilita il passo successivo — potrai procedere all’acconto da qui o dal Tesoro.",
     consultation_bespoke_detail_hint: "Questo pezzo si acquista solo via Concierge. Concordiamo misure e materiali; poi l’atelier abilita l’acconto.",
@@ -2734,7 +2734,7 @@ const TRANSLATIONS: any = {
     "drops.title": "Drop esclusivi",
     "drops.countdown": "Disponibile tra",
     "drops.ended": "Terminato",
-    "private_terms.request": "Richiedi condizioni private",
+    "private_terms.request": "Richiedi consulenza privata",
     "private_terms.requested": "Richiesta inviata",
     "pricing.mode_fixed": "Prezzo fisso",
     "pricing.mode_starting_from": "Prezzo a partire da",
@@ -13778,12 +13778,12 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       </div>
       {!hideAction && piece.status === 'available' && cardChatFirst && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation?.(piece)}>
-          <MessageCircle className="w-4 h-4" /> {t ? t('consultation_piece_chat_cta') : 'Speak with the Atelier'}
+          <MessageCircle className="w-4 h-4" /> {t ? t('consultation_piece_chat_cta') : 'Start Consultation'}
         </Button>
       )}
       {!hideAction && piece.status === 'available' && !cardChatFirst && onBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
-          <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Request Acquisition'}
+          <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Start Consultation'}
         </Button>
       )}
       {extraAction}
