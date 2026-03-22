@@ -202,7 +202,6 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "offen",
     consultation_admin_status_closed: "geschlossen",
     consultation_request_bespoke: "Maßanfertigung anfragen",
-    consultation_piece_chat_cta: "Start Consultation",
     consultation_price_reference_note: "Der angezeigte Preis bezieht sich auf die gezeigte Referenz. Abweichungen bei Material, Steinen oder Größe werden individuell besprochen und bepreist.",
     consultation_detail_after_chat: "Nach der Beratung können Sie — sobald das Atelier den nächsten Schritt freigibt — hier oder im Tresor zur Anzahlung gehen.",
     consultation_bespoke_detail_hint: "Dieses Stück wird nur über die Concierge-Beratung erworben. Wir besprechen Größe, Material und Details — danach schaltet das Atelier die Anzahlung frei.",
@@ -222,6 +221,15 @@ const TRANSLATIONS: any = {
     consultation_contract_from_proposal_hint:
       "Nach Kundenannahme eines Angebots: Titel, Text und Preis stammen aus Ihrem Angebot (nicht vom Marktplatz-Eintrag). PDF-URL ergänzen und senden.",
     "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
+    "admin.made_to_order_piece": "Maßanfertigung (Beratung zuerst; kein Direktkauf im Marktplatz)",
+    consultation_piece_chat_cta: "Private Beratung starten",
+    "piece.consultation_mto_hint": "Dieses Schmuckstück wird individuell für Sie angefertigt.",
+    consultation_send_file_heading: "Datei an Kundin senden (PDF)",
+    consultation_file_label_ph: "Bezeichnung (z. B. Anlage)",
+    consultation_file_url_ph: "Datei-URL (https://… oder /pfad)",
+    consultation_send_file_btn: "Datei senden",
+    consultation_file_sent_ok: "Datei gesendet",
+    consultation_workflow_phase_lbl: "Ablaufstatus",
     reserved: "Reserviert",
     sold: "Verkauft",
     resale_pending: "Wiederverkauf ausstehend",
@@ -1209,7 +1217,6 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "open",
     consultation_admin_status_closed: "closed",
     consultation_request_bespoke: "Request bespoke consultation",
-    consultation_piece_chat_cta: "Start Consultation",
     consultation_price_reference_note: "The price shown reflects the reference configuration. Changes to materials, stones or proportions are discussed and quoted individually.",
     consultation_detail_after_chat: "After your consultation — when the Atelier enables the next step — you may proceed to deposit here or from your Vault.",
     consultation_bespoke_detail_hint: "This piece is purchased only via Concierge. We agree size, materials and details — then the Atelier unlocks the deposit step.",
@@ -1229,6 +1236,15 @@ const TRANSLATIONS: any = {
     consultation_contract_from_proposal_hint:
       "After the client accepts an offer, title, text and price come from your proposal (not the marketplace listing). Add the PDF URL and send.",
     "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
+    "admin.made_to_order_piece": "Made-to-order (consultation first; no direct marketplace purchase)",
+    consultation_piece_chat_cta: "Start Consultation",
+    "piece.consultation_mto_hint": "This jewel is crafted individually for you.",
+    consultation_send_file_heading: "Send file to client (PDF)",
+    consultation_file_label_ph: "Label (e.g. attachment)",
+    consultation_file_url_ph: "File URL (https://… or /path)",
+    consultation_send_file_btn: "Send file",
+    consultation_file_sent_ok: "File sent",
+    consultation_workflow_phase_lbl: "Status",
     reserved: "Reserved",
     sold: "Sold",
     resale_pending: "Resale Pending",
@@ -2159,7 +2175,6 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "aperto",
     consultation_admin_status_closed: "chiuso",
     consultation_request_bespoke: "Richiedi su misura (Concierge)",
-    consultation_piece_chat_cta: "Avvia consulenza",
     consultation_price_reference_note: "Il prezzo indicato si riferisce alla configurazione mostrata. Modifiche a materiali, pietre o dimensioni si concordano e quotano individualmente.",
     consultation_detail_after_chat: "Dopo la consulenza — quando l’atelier abilita il passo successivo — potrai procedere all’acconto da qui o dal Tesoro.",
     consultation_bespoke_detail_hint: "Questo pezzo si acquista solo via Concierge. Concordiamo misure e materiali; poi l’atelier abilita l’acconto.",
@@ -2179,6 +2194,15 @@ const TRANSLATIONS: any = {
     consultation_contract_from_proposal_hint:
       "Dopo l’accettazione di un’offerta: titolo, testo e prezzo provengono dalla Sua proposta (non dalla scheda marketplace). Aggiunga l’URL del PDF e invii.",
     "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
+    "admin.made_to_order_piece": "Su misura (prima consulenza; nessun acquisto diretto)",
+    consultation_piece_chat_cta: "Avvia consulenza privata",
+    "piece.consultation_mto_hint": "Questo gioiello è realizzato individualmente per Lei.",
+    consultation_send_file_heading: "Invia file alla cliente (PDF)",
+    consultation_file_label_ph: "Etichetta (es. allegato)",
+    consultation_file_url_ph: "URL file (https://… o /percorso)",
+    consultation_send_file_btn: "Invia file",
+    consultation_file_sent_ok: "File inviato",
+    consultation_workflow_phase_lbl: "Stato flusso",
     reserved: "Riservato",
     sold: "Venduto",
     resale_pending: "Rivendita in Sospeso",
@@ -3989,6 +4013,7 @@ export default function App() {
       purchase_price: (editingPiece as any).purchase_price ?? '',
       estimated_market_value: (editingPiece as any).estimated_market_value ?? '',
       consultation_required: Number((editingPiece as Masterpiece).consultation_required) === 1,
+      made_to_order: Number((editingPiece as Masterpiece).made_to_order) === 1,
     });
   }, [editingPiece]);
 
@@ -4028,6 +4053,7 @@ export default function App() {
           image_url: editPieceForm.image_url,
           image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined,
           consultation_required: !!editPieceForm.consultation_required,
+          made_to_order: !!editPieceForm.made_to_order,
         })
       });
       if (res.ok) {
@@ -4076,6 +4102,7 @@ export default function App() {
     images: [] as string[],
     pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden',
     consultation_required: false as boolean,
+    made_to_order: true as boolean,
   });
   const [newAuction, setNewAuction] = useState({
     masterpieceId: '', startPrice: '', endTime: '', vipOnly: false
@@ -5402,6 +5429,7 @@ export default function App() {
           image_urls: (newPiece.images?.length ? newPiece.images : undefined),
           pricing_mode: (newPiece as any).pricing_mode ?? 'fixed',
           consultation_required: !!(newPiece as any).consultation_required,
+          made_to_order: (newPiece as any).made_to_order !== false,
         })
       });
       if (res.ok) {
@@ -5429,6 +5457,7 @@ export default function App() {
           images: [],
           pricing_mode: 'fixed',
           consultation_required: false,
+          made_to_order: true,
         });
         fetchData();
       } else {
@@ -7522,11 +7551,14 @@ export default function App() {
                 <div className="space-y-4">
                   <h4 className="text-sm uppercase tracking-widest text-zinc-500 font-bold">{t('featured')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {masterpieces.filter(p => p.status === 'available').slice(0, 3).map(piece => (
+                    {masterpieces.filter(p => p.status === 'available').slice(0, 3).map(piece => {
+                      const consultFirst = pieceRequiresConsultationFirst(piece);
+                      return (
                       <PieceCard 
                         key={piece.id} 
                         piece={piece} 
                         t={t}
+                        consultationFirstPiece={consultFirst}
                         priceLabel={getPiecePriceDisplay(piece, user).label}
                         isFavorite={user ? favoriteIds.includes(piece.id) : false}
                         onToggleFavorite={user ? () => {
@@ -7534,14 +7566,14 @@ export default function App() {
                           fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                         } : undefined}
-                        onBuy={user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                        onConsultation={openConsultationForPiece}
+                        onBuy={!consultFirst ? (user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                        onConsultation={consultFirst ? openConsultationForPiece : undefined}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
                           if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 2);
                         }} 
                       />
-                    ))}
+                    );})}
                   </div>
                 </div>
               </motion.div>
@@ -7557,11 +7589,14 @@ export default function App() {
                   {privateGalleryPieces.length === 0 ? (
                     <p className="text-zinc-500 col-span-full">{t('private_gallery.empty')}</p>
                   ) : (
-                    privateGalleryPieces.map(piece => (
+                    privateGalleryPieces.map(piece => {
+                      const consultFirst = pieceRequiresConsultationFirst(piece);
+                      return (
                       <PieceCard
                         key={piece.id}
                         piece={piece}
                         t={t}
+                        consultationFirstPiece={consultFirst}
                         priceLabel={getPiecePriceDisplay(piece, user).label}
                         isFavorite={user ? favoriteIds.includes(piece.id) : false}
                         onToggleFavorite={user ? () => {
@@ -7569,11 +7604,11 @@ export default function App() {
                           fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id)));
                         } : undefined}
-                        onBuy={user ? () => handleBuy(piece.id) : undefined}
-                        onConsultation={openConsultationForPiece}
+                        onBuy={user && !consultFirst ? () => handleBuy(piece.id) : undefined}
+                        onConsultation={consultFirst ? openConsultationForPiece : undefined}
                         onViewDetails={(p) => setSelectedPiece(p)}
                       />
-                    ))
+                    );})
                   )}
                 </div>
               </motion.div>
@@ -7640,11 +7675,13 @@ export default function App() {
                     <>
                       {filterMasterpieces(masterpieces, 'available').map(piece => {
                         const isOwnPiece = user && piece.current_owner_id === user.id;
+                        const consultFirst = pieceRequiresConsultationFirst(piece);
                         return (
                     <PieceCard 
                       key={piece.id} 
                       piece={piece} 
                             t={t}
+                            consultationFirstPiece={consultFirst}
                             priceLabel={getPiecePriceDisplay(piece, user).label}
                             isFavorite={user ? favoriteIds.includes(piece.id) : false}
                             onToggleFavorite={user ? () => {
@@ -7652,8 +7689,8 @@ export default function App() {
                               fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
-                            onBuy={!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                            onConsultation={openConsultationForPiece}
+                            onBuy={!consultFirst ? (!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                            onConsultation={consultFirst ? openConsultationForPiece : undefined}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
                         if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
@@ -7694,12 +7731,14 @@ export default function App() {
                   ) : (
                     resalePieces.map(piece => {
                       const isOwnPiece = user && piece.current_owner_id === user.id;
+                      const consultFirst = pieceRequiresConsultationFirst(piece);
                       return (
                         <div key={piece.id} className="relative">
                           <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30">{t('resale.badge_preowned')}</span>
                           <PieceCard
                             piece={piece}
                             t={t}
+                            consultationFirstPiece={consultFirst}
                             priceLabel={getPiecePriceDisplay(piece, user).label}
                             isFavorite={user ? favoriteIds.includes(piece.id) : false}
                             onToggleFavorite={user ? () => {
@@ -7707,8 +7746,8 @@ export default function App() {
                               fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
-                            onBuy={user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)}
-                            onConsultation={openConsultationForPiece}
+                            onBuy={!consultFirst ? (user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                            onConsultation={consultFirst ? openConsultationForPiece : undefined}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
                           />
@@ -10330,6 +10369,10 @@ export default function App() {
                               <input type="checkbox" checked={!!editPieceForm.consultation_required} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, consultation_required: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
                               {t('admin.consultation_required_piece')}
                             </label>
+                            <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                              <input type="checkbox" checked={!!editPieceForm.made_to_order} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, made_to_order: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
+                              {t('admin.made_to_order_piece')}
+                            </label>
                             <Input label="Zertifikatsdaten (JSON)" value={editPieceForm.cert_data ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, cert_data: e.target.value }))} />
                             <div className="space-y-1.5">
                               <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
@@ -10424,6 +10467,10 @@ export default function App() {
                           <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
                             <input type="checkbox" checked={!!(newPiece as any).consultation_required} onChange={(e) => setNewPiece({ ...newPiece, consultation_required: e.target.checked } as any)} className="rounded border-zinc-600 text-amber-600" />
                             {t('admin.consultation_required_piece')}
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+                            <input type="checkbox" checked={(newPiece as any).made_to_order !== false} onChange={(e) => setNewPiece({ ...newPiece, made_to_order: e.target.checked } as any)} className="rounded border-zinc-600 text-amber-600" />
+                            {t('admin.made_to_order_piece')}
                           </label>
                           <Input label="Zertifikatsdaten (JSON)" value={newPiece.cert_data} onChange={(e: any) => setNewPiece({ ...newPiece, cert_data: e.target.value })} placeholder='{"cut": "Ideal", "clarity": "VVS1"}' />
                           <div className="space-y-1.5">
@@ -13475,11 +13522,12 @@ export default function App() {
                               {t('legal_notice')}
                             </p>
                           </div>
-                          {Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
+                          {pieceRequiresConsultationFirst(selectedPiece) ? (
                             <>
                               <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
                                 {t('consultation_bespoke_detail_hint')}
                               </p>
+                              <p className="text-[11px] text-amber-600/85 text-center leading-relaxed px-1">{t('piece.consultation_mto_hint')}</p>
                               <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
                               <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
                                 <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
@@ -13488,13 +13536,6 @@ export default function App() {
                           ) : (
                             <>
                               <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
-                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
-                                <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
-                              </Button>
-                              <p className="text-[10px] text-zinc-500 text-center px-1">{t('consultation_detail_after_chat')}</p>
-                              <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
-                                {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
-                              </p>
                               <div className="space-y-2">
                                 <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
                                 <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
@@ -13717,6 +13758,12 @@ export default function App() {
               clientBriefingChecklist: t('consultation_briefing_checklist'),
               contractAgreedTotalLabel: t('consultation_contract_agreed_total'),
               contractFromProposalHint: t('consultation_contract_from_proposal_hint'),
+              sendFileHeading: t('consultation_send_file_heading'),
+              fileLabelPlaceholder: t('consultation_file_label_ph'),
+              fileUrlPlaceholder: t('consultation_file_url_ph'),
+              sendFileButton: t('consultation_send_file_btn'),
+              fileSentToast: t('consultation_file_sent_ok'),
+              workflowPhaseLabel: t('consultation_workflow_phase_lbl'),
             }}
             onClose={() => setConsultationPanel(null)}
             notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
@@ -13936,6 +13983,11 @@ function getCollectorBadgeClasses(level: string): string {
   return COLLECTOR_BADGE_STYLES[level] || COLLECTOR_BADGE_STYLES.collector;
 }
 
+/** Consultation-first / made-to-order: no direct buy on marketplace until consultation + contract + deposit (or admin unlock). */
+function pieceRequiresConsultationFirst(p: Masterpiece): boolean {
+  return Number(p.consultation_required) === 1 || Number(p.made_to_order) === 1;
+}
+
 const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${active ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-200 border border-zinc-800'}`}>
     <Icon className="w-4 h-4" />
@@ -13943,9 +13995,9 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void }) => {
-  /** Always open real consultation chat when handler is provided — do not fall back to purchase request with a “consultation” label. */
-  const cardChatFirst = !!onConsultation;
+const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean }) => {
+  const showConsultationCta = !!onConsultation && consultationFirstPiece;
+  const showDirectBuy = !!onBuy && !consultationFirstPiece;
   return (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
@@ -13983,12 +14035,17 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">ID: {piece.serial_id}</span>
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{piece.materials}</span>
       </div>
-      {!hideAction && piece.status === 'available' && cardChatFirst && (
+      {!hideAction && piece.status === 'available' && consultationFirstPiece && (
+        <p className="text-[11px] text-amber-600/80 mt-3 leading-relaxed">
+          {t ? t('piece.consultation_mto_hint') : 'This piece is crafted individually for you.'}
+        </p>
+      )}
+      {!hideAction && piece.status === 'available' && showConsultationCta && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation?.(piece)}>
           <MessageCircle className="w-4 h-4" /> {t ? t('consultation_piece_chat_cta') : 'Start Consultation'}
         </Button>
       )}
-      {!hideAction && piece.status === 'available' && !cardChatFirst && onBuy && (
+      {!hideAction && piece.status === 'available' && showDirectBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
           <ShoppingBag className="w-4 h-4" /> {t ? t('marketplace.cta_purchase_request') : 'Send purchase request'}
         </Button>

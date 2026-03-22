@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
-import { X, Send } from "lucide-react";
+import { X, Send, FileDown } from "lucide-react";
 import type { ConsultationMessageRow } from "../chat/types";
 import type { ConsultationProposalRow } from "../proposals/types";
 import { ConsultationContractCard } from "../contracts/ConsultationContractCard";
@@ -60,6 +60,12 @@ export type ConsultationChatPanelProps = {
     depositPaidToast: string;
     contractAgreedTotalLabel: string;
     contractFromProposalHint: string;
+    sendFileHeading: string;
+    fileLabelPlaceholder: string;
+    fileUrlPlaceholder: string;
+    sendFileButton: string;
+    fileSentToast: string;
+    workflowPhaseLabel: string;
   }>;
 };
 
@@ -124,6 +130,12 @@ export function ConsultationChatPanel({
     contractAgreedTotalLabel: "Vereinbarter Gesamtpreis",
     contractFromProposalHint:
       "Nach Kundenannahme eines Angebots werden Titel und Text hier mit Angebot und Preis vorbefüllt — bitte PDF-Link ergänzen und senden.",
+    sendFileHeading: "Datei an Kundin senden (PDF)",
+    fileLabelPlaceholder: "Bezeichnung (z. B. Anlage zum Vertrag)",
+    fileUrlPlaceholder: "Datei-URL (https://… oder /pfad)",
+    sendFileButton: "Datei senden",
+    fileSentToast: "Datei gesendet",
+    workflowPhaseLabel: "Status",
     ...stringsProp,
   };
   const [convStatus, setConvStatus] = useState<string>("open");
@@ -137,6 +149,8 @@ export function ConsultationChatPanel({
   const [metaPieceId, setMetaPieceId] = useState<number | null>(null);
   const [metaPieceStatus, setMetaPieceStatus] = useState<string | null>(null);
   const [metaConsultationRequired, setMetaConsultationRequired] = useState(0);
+  const [metaMadeToOrder, setMetaMadeToOrder] = useState(0);
+  const [workflowPhase, setWorkflowPhase] = useState<string | null>(null);
   const [purchaseUnlockedAt, setPurchaseUnlockedAt] = useState<string | null>(null);
   const [depositPaidAt, setDepositPaidAt] = useState<string | null>(null);
   const [unlockValuationDraft, setUnlockValuationDraft] = useState("");
@@ -149,6 +163,8 @@ export function ConsultationChatPanel({
   const [contractTitle, setContractTitle] = useState("");
   const [contractDesc, setContractDesc] = useState("");
   const [contractFileUrl, setContractFileUrl] = useState("");
+  const [fileAttachLabel, setFileAttachLabel] = useState("");
+  const [fileAttachUrl, setFileAttachUrl] = useState("");
 
   useEffect(() => {
     if (deliveryOptions.length > 0 && !deliveryOptions.some((o) => o.value === deliveryOption)) {
@@ -169,6 +185,8 @@ export function ConsultationChatPanel({
         setMetaPieceId(c?.masterpiece_id != null ? Number(c.masterpiece_id) : null);
         setMetaPieceStatus(c?.masterpiece_status != null ? String(c.masterpiece_status) : null);
         setMetaConsultationRequired(Number(c?.masterpiece_consultation_required) || 0);
+        setMetaMadeToOrder(Number(c?.masterpiece_made_to_order) || 0);
+        setWorkflowPhase(c?.consultation_workflow_phase != null ? String(c.consultation_workflow_phase) : null);
         setPurchaseUnlockedAt(c?.purchase_unlocked_at ? String(c.purchase_unlocked_at) : null);
         setDepositPaidAt(c?.deposit_paid_at ? String(c.deposit_paid_at) : null);
       }
@@ -201,10 +219,12 @@ export function ConsultationChatPanel({
     [messages]
   );
 
+  const metaGateDeposit = metaConsultationRequired === 1 || metaMadeToOrder === 1;
+
   const showStripeConsultDeposit =
     mode === "client" &&
     convStatus === "open" &&
-    metaConsultationRequired === 1 &&
+    metaGateDeposit &&
     hasAcceptedContract &&
     !depositPaidAt &&
     metaPieceId != null;
@@ -216,6 +236,8 @@ export function ConsultationChatPanel({
     setContractTitle("");
     setContractDesc("");
     setContractFileUrl("");
+    setFileAttachLabel("");
+    setFileAttachUrl("");
     setProposalTitle("");
     setProposalDesc("");
     setProposalAmount("");
@@ -518,6 +540,37 @@ export function ConsultationChatPanel({
     }
   };
 
+  const sendFileFromAdmin = async () => {
+    const url = fileAttachUrl.trim();
+    if (!url) {
+      notify("File URL required", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/consultation/conversations/${conversationId}/file-message`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_url: url,
+          title: fileAttachLabel.trim() || undefined,
+        }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Send failed", "error");
+        return;
+      }
+      setFileAttachLabel("");
+      setFileAttachUrl("");
+      notify(str.fileSentToast, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendContractFromAdmin = async () => {
     if (!contractTitle.trim() || !contractFileUrl.trim()) {
       notify("Title and PDF URL required", "error");
@@ -553,18 +606,18 @@ export function ConsultationChatPanel({
     }
   };
 
-  const showBespokeUnlockAdmin = mode === "admin" && convStatus === "open" && metaConsultationRequired === 1 && metaPieceId != null;
+  const showBespokeUnlockAdmin = mode === "admin" && convStatus === "open" && metaGateDeposit && metaPieceId != null;
   const showClientDeposit =
     mode === "client" &&
     convStatus === "open" &&
     !!(purchaseUnlockedAt || depositPaidAt) &&
     metaPieceStatus === "available" &&
     metaPieceId != null &&
-    metaConsultationRequired === 1;
+    metaGateDeposit;
   const showClientWaitingBespoke =
     mode === "client" &&
     convStatus === "open" &&
-    metaConsultationRequired === 1 &&
+    metaGateDeposit &&
     !purchaseUnlockedAt &&
     !depositPaidAt &&
     metaPieceStatus === "available" &&
@@ -589,6 +642,11 @@ export function ConsultationChatPanel({
             <p className="text-sm font-medium text-zinc-100 truncate max-w-[200px] sm:max-w-[240px]">
               {title || `Conversation #${conversationId}`}
             </p>
+            {workflowPhase && (
+              <p className="text-[10px] text-zinc-500 mt-0.5 truncate" title={workflowPhase}>
+                {str.workflowPhaseLabel}: {workflowPhase.replace(/_/g, " ")}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             {convStatus === "open" ? (
@@ -700,6 +758,36 @@ export function ConsultationChatPanel({
           )}
           {messages.map((m) => {
             const mine = Number(m.sender_id) === Number(currentUserId);
+            if (String(m.message_type || "text") === "file") {
+              const href = m.contract_file_url || "";
+              return (
+                <div key={m.id} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[85%] rounded-[1.25rem] px-3 py-2 text-sm border ${
+                      mine
+                        ? "rounded-br-md bg-amber-600/15 text-amber-50 border-amber-600/35"
+                        : "rounded-bl-md bg-zinc-800 text-zinc-200 border-zinc-700"
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-zinc-300 mb-1">{m.body || "Attachment"}</p>
+                    {href ? (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-amber-500/95 hover:text-amber-400 text-xs font-medium"
+                      >
+                        <FileDown className="w-4 h-4 shrink-0" />
+                        Download
+                      </a>
+                    ) : null}
+                    {m.created_at && (
+                      <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            }
             if (String(m.message_type || "text") === "contract") {
               return (
                 <div key={m.id} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}>
@@ -778,7 +866,7 @@ export function ConsultationChatPanel({
                     </button>
                   </div>
                 )}
-                {mode === "client" && convStatus === "open" && p.status === "accepted" && metaConsultationRequired !== 1 && (
+                {mode === "client" && convStatus === "open" && p.status === "accepted" && !metaGateDeposit && (
                   <button
                     type="button"
                     disabled={loading}
@@ -852,6 +940,32 @@ export function ConsultationChatPanel({
         {mode === "admin" && convStatus === "open" && hasContractMessage && (
           <div className="border-t border-zinc-800 px-3 py-2 bg-zinc-950/50 text-[10px] text-zinc-500 text-center">
             Contract message already sent in this thread.
+          </div>
+        )}
+
+        {mode === "admin" && convStatus === "open" && (
+          <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/55">
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500">{str.sendFileHeading}</p>
+            <input
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+              placeholder={str.fileLabelPlaceholder}
+              value={fileAttachLabel}
+              onChange={(e) => setFileAttachLabel(e.target.value)}
+            />
+            <input
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+              placeholder={str.fileUrlPlaceholder}
+              value={fileAttachUrl}
+              onChange={(e) => setFileAttachUrl(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={loading || !fileAttachUrl.trim()}
+              onClick={() => void sendFileFromAdmin()}
+              className="w-full min-h-[40px] rounded-full text-xs font-medium bg-zinc-700 hover:bg-zinc-600 text-white disabled:opacity-50 border border-zinc-600/50"
+            >
+              {str.sendFileButton}
+            </button>
           </div>
         )}
 

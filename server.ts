@@ -1919,6 +1919,22 @@ await db.exec(`
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  try {
+    await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN made_to_order INTEGER DEFAULT 0")).run();
+  } catch (_) {
+    /* exists */
+  }
+  try {
+    await (await db.prepare("UPDATE masterpieces SET made_to_order = 1 WHERE consultation_required = 1 AND (made_to_order IS NULL OR made_to_order = 0)")).run();
+  } catch (_) {}
+  try {
+    await (await db.prepare("ALTER TABLE consultation_conversations ADD COLUMN consultation_workflow_phase TEXT DEFAULT 'consultation_open'")).run();
+  } catch (_) {
+    /* exists */
+  }
+  try {
+    await (await db.prepare("UPDATE consultation_conversations SET consultation_workflow_phase = 'consultation_open' WHERE consultation_workflow_phase IS NULL OR consultation_workflow_phase = ''")).run();
+  } catch (_) {}
 }
 
 async function nextProductSerial(category: string): Promise<string> {
@@ -3792,7 +3808,7 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, async (req, res, ne
 });
 
 app.post("/api/admin/masterpieces", async (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : await nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
@@ -3835,6 +3851,13 @@ app.post("/api/admin/masterpieces", async (req, res) => {
         await (await db.prepare("UPDATE masterpieces SET consultation_required = ? WHERE id = ?")).run(bodyConsultationRequired ? 1 : 0, id);
       } catch (_) {}
     }
+    try {
+      if (bodyMadeToOrder !== undefined && bodyMadeToOrder !== null) {
+        await (await db.prepare("UPDATE masterpieces SET made_to_order = ? WHERE id = ?")).run(bodyMadeToOrder ? 1 : 0, id);
+      } else {
+        await (await db.prepare("UPDATE masterpieces SET made_to_order = 1 WHERE id = ?")).run(id);
+      }
+    } catch (_) {}
 
     res.json({ id });
   } catch (e: any) {
@@ -3855,7 +3878,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
   const existing = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!existing) return res.status(404).json({ error: "Masterpiece not found" });
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder } = req.body;
   const serial_id = bodySerial != null && String(bodySerial).trim() ? String(bodySerial).trim() : existing.serial_id;
   const pricing_mode = bodyPricingMode && ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : (existing.pricing_mode || 'fixed');
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
@@ -3888,6 +3911,11 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
     if (bodyConsultationRequired !== undefined && bodyConsultationRequired !== null) {
       try {
         await (await db.prepare("UPDATE masterpieces SET consultation_required = ? WHERE id = ?")).run(bodyConsultationRequired ? 1 : 0, id);
+      } catch (_) {}
+    }
+    if (bodyMadeToOrder !== undefined && bodyMadeToOrder !== null) {
+      try {
+        await (await db.prepare("UPDATE masterpieces SET made_to_order = ? WHERE id = ?")).run(bodyMadeToOrder ? 1 : 0, id);
       } catch (_) {}
     }
     broadcast({ type: 'MASTERPIECE_UPDATED', id });
@@ -3939,6 +3967,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (body.vip_early_access !== undefined) { updates.push('vip_early_access = ?'); values.push(body.vip_early_access ? 1 : 0); }
   if (body.product_release_date !== undefined) { updates.push('product_release_date = ?'); values.push(body.product_release_date ? str(body.product_release_date) : null); }
   if (body.consultation_required !== undefined) { updates.push('consultation_required = ?'); values.push(body.consultation_required ? 1 : 0); }
+  if (body.made_to_order !== undefined) { updates.push('made_to_order = ?'); values.push(body.made_to_order ? 1 : 0); }
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
@@ -4365,7 +4394,10 @@ app.post("/api/marketplace/buy", async (req, res) => {
       return res.status(400).json({ error: "Stück ist nicht verfügbar." });
     }
 
-    if (isConsultationFlowEnabled() && Number(piece.consultation_required) === 1) {
+    const requiresConsultationFirst =
+      isConsultationFlowEnabled() &&
+      (Number(piece.consultation_required) === 1 || Number((piece as any).made_to_order) === 1);
+    if (requiresConsultationFirst) {
       const conv = (await (
         await db.prepare(
           `SELECT id, purchase_unlocked_at, deposit_paid_at FROM consultation_conversations WHERE user_id = ? AND masterpiece_id = ? ORDER BY id DESC LIMIT 1`

@@ -17,6 +17,9 @@ export type ConsultationConversationRow = {
   deposit_stripe_payment_intent_id?: string | null;
   masterpiece_status?: string | null;
   masterpiece_consultation_required?: number | null;
+  masterpiece_made_to_order?: number | null;
+  /** consultation_open | specification_in_progress | contract_sent | contract_accepted | deposit_pending | in_production */
+  consultation_workflow_phase?: string | null;
 };
 
 export type ConsultationMessageRow = {
@@ -25,7 +28,7 @@ export type ConsultationMessageRow = {
   sender_id: number;
   body: string;
   created_at?: string;
-  /** text | contract */
+  /** text | contract | file (admin attachment — URL in contract_file_url) */
   message_type?: string | null;
   contract_title?: string | null;
   contract_description?: string | null;

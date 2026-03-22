@@ -76,6 +76,8 @@ export interface Masterpiece {
   gemstones_i18n?: string;
   /** 1 = purchase only after Concierge thread + admin unlock (requires ENABLE_CONSULTATION_FLOW + server gate). */
   consultation_required?: number;
+  /** 1 = made-to-order: no direct marketplace buy; consultation + contract + deposit flow (same buy gate as consultation_required when flow enabled). */
+  made_to_order?: number;
 }
 
 export interface Auction {

@@ -175,8 +175,18 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     try {
       await (
         await getDb().prepare(
-          `UPDATE consultation_conversations SET workflow_status = 'in_progress', updated_at = CURRENT_TIMESTAMP
-           WHERE id = ? AND (workflow_status IS NULL OR workflow_status = '' OR workflow_status = 'open')`
+          `UPDATE consultation_conversations SET
+             workflow_status = CASE
+               WHEN workflow_status IS NULL OR workflow_status = '' OR workflow_status = 'open' THEN 'in_progress'
+               ELSE workflow_status
+             END,
+             consultation_workflow_phase = CASE
+               WHEN consultation_workflow_phase IS NULL OR consultation_workflow_phase = '' OR consultation_workflow_phase = 'consultation_open'
+               THEN 'specification_in_progress'
+               ELSE consultation_workflow_phase
+             END,
+             updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`
         )
       ).run(convId);
     } catch (_) {
@@ -245,7 +255,8 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const row = (await (
         await getDb().prepare(
           `SELECT c.*, m.title AS masterpiece_title, m.status AS masterpiece_status,
-            m.consultation_required AS masterpiece_consultation_required
+            m.consultation_required AS masterpiece_consultation_required,
+            m.made_to_order AS masterpiece_made_to_order
            FROM consultation_conversations c
            LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
            WHERE c.id = ?`
@@ -334,7 +345,15 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         await (
           await getDb().prepare(`UPDATE consultation_messages SET contract_status = 'accepted' WHERE id = ? AND conversation_id = ?`)
         ).run(messageId, conversationId);
-        await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(conversationId);
+        try {
+          await (
+            await getDb().prepare(
+              `UPDATE consultation_conversations SET consultation_workflow_phase = 'contract_accepted', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            )
+          ).run(conversationId);
+        } catch (_) {
+          await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(conversationId);
+        }
         const updated = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(messageId);
         broadcast?.({ type: "CONSULTATION_CONTRACT_ACCEPTED", conversationId, messageId });
         res.json(updated);
@@ -387,6 +406,14 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       console.log(
         "[Consultation] Deposit intent: conversation_id=" + id + " user_id=" + userId + " amount_cents=" + amountCents + " pi=" + paymentIntent.id
       );
+      try {
+        await (
+          await getDb().prepare(
+            `UPDATE consultation_conversations SET consultation_workflow_phase = 'deposit_pending', updated_at = CURRENT_TIMESTAMP
+             WHERE id = ? AND consultation_workflow_phase = 'contract_accepted'`
+          )
+        ).run(id);
+      } catch (_) {}
       res.json({
         client_secret: paymentIntent.client_secret,
         amount_cents: amountCents,
@@ -441,6 +468,13 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
           `UPDATE consultation_conversations SET deposit_paid_at = CURRENT_TIMESTAMP, deposit_stripe_payment_intent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
         )
       ).run(piId, id, userId);
+      try {
+        await (
+          await getDb().prepare(
+            `UPDATE consultation_conversations SET consultation_workflow_phase = 'in_production', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          )
+        ).run(id);
+      } catch (_) {}
       broadcast?.({ type: "CONSULTATION_DEPOSIT_PAID", conversationId: id, userId });
       res.json({ recorded: true });
     } catch (e: any) {
@@ -524,6 +558,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
           `UPDATE consultation_proposals SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
         )
       ).run(proposalId);
+      await bumpWorkflowInProgress(Number(proposal.conversation_id));
       const updated = await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
       broadcast?.({ type: "CONSULTATION_PROPOSAL_ACCEPTED", proposalId, conversationId: proposal.conversation_id });
       res.json(updated);
@@ -706,9 +741,11 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!mid || Number.isNaN(mid)) return res.status(400).json({ error: "Conversation has no linked masterpiece" });
       const piece = (await (await getDb().prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid)) as Record<string, unknown> | undefined;
       if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-      if (Number((piece as { consultation_required?: number }).consultation_required) !== 1) {
+      const cr = Number((piece as { consultation_required?: number }).consultation_required) === 1;
+      const mto = Number((piece as { made_to_order?: number }).made_to_order) === 1;
+      if (!cr && !mto) {
         return res.status(400).json({
-          error: "This piece is not marked as consultation-only (Erwerb nur nach Concierge).",
+          error: "This piece is not marked as consultation-only or made-to-order (Erwerb nur nach Concierge).",
           code: "NOT_CONSULTATION_REQUIRED_PIECE",
         });
       }
@@ -804,9 +841,11 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         contractAmountEur,
         sourceProposalId
       );
-      await (await getDb().prepare(`UPDATE consultation_conversations SET workflow_status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(
-        id
-      );
+      await (
+        await getDb().prepare(
+          `UPDATE consultation_conversations SET workflow_status = 'finalized', consultation_workflow_phase = 'contract_sent', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+        )
+      ).run(id);
       const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       await logAudit?.(adminId, "CONSULTATION_CONTRACT_MESSAGE", String(id), `Contract message in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_CONTRACT_SENT", conversationId: id, messageId: r.lastInsertRowid });
@@ -816,6 +855,42 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       res.json(msg);
     } catch (e: any) {
       console.error("[admin/consultation/contract-message]", e);
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  /** Admin: send a file attachment (e.g. supplementary PDF) as a chat message — not a formal contract card. */
+  app.post("/api/admin/consultation/conversations/:id/file-message", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const adminId = (req as any).userId as number;
+    const fileUrlRaw = req.body?.file_url != null ? String(req.body.file_url).trim().slice(0, 2000) : "";
+    const label = req.body?.title != null ? String(req.body.title).trim().slice(0, 500) : "Attachment";
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    if (!fileUrlRaw) return res.status(400).json({ error: "file_url required" });
+    const okUrl =
+      fileUrlRaw.startsWith("https://") || fileUrlRaw.startsWith("http://") || fileUrlRaw.startsWith("/");
+    if (!okUrl) return res.status(400).json({ error: "file_url must be http(s) or a path starting with /" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+      const r = await (
+        await getDb().prepare(
+          `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, contract_file_url)
+           VALUES (?, ?, ?, 'file', ?)`
+        )
+      ).run(id, adminId, label.slice(0, 20000), fileUrlRaw);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await bumpWorkflowInProgress(id);
+      const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      await logAudit?.(adminId, "CONSULTATION_FILE_MESSAGE", String(id), `File message in consultation ${id}`);
+      broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid, fromAdmin: true, messageType: "file" });
+      try {
+        await consultationNotify?.onAdminRepliedToClient?.(Number(conv.user_id), id);
+      } catch (_) {}
+      res.json(msg);
+    } catch (e: any) {
+      console.error("[admin/consultation/file-message]", e);
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });
