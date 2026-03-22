@@ -51,7 +51,8 @@ export type ConsultationNotifyHooks = {
 };
 
 type ConsultationDeps = {
-  db: DbInterface;
+  /** Lazy: `db` is assigned only after `initDb()` in `startServer()` — do not pass `db` at module load time. */
+  getDb: () => DbInterface;
   broadcast?: (data: Record<string, unknown>) => void;
   logAudit?: (adminId: number, action: string, targetId: string, details: string) => Promise<void> | void;
   /** Required for consultation deposit PaymentIntents */
@@ -65,7 +66,7 @@ function stripeSecretConfigured(): boolean {
 }
 
 export function registerConsultationRoutes(app: Application, deps: ConsultationDeps): void {
-  const { db, broadcast, logAudit, consultationNotify, getStripe } = deps;
+  const { getDb, broadcast, logAudit, consultationNotify, getStripe } = deps;
 
   app.get("/api/consultation/enabled", (_req: Request, res: Response) => {
     res.json({
@@ -88,7 +89,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
     try {
       const rows = await (
-        await db.prepare(
+        await getDb().prepare(
           `SELECT c.*, m.title AS masterpiece_title
            FROM consultation_conversations c
            LEFT JOIN masterpieces m ON m.id = c.masterpiece_id
@@ -124,8 +125,8 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
            ORDER BY c.updated_at DESC LIMIT 200`;
       const rows =
         statusFilter === "all"
-          ? await (await db.prepare(sql)).all()
-          : await (await db.prepare(sql)).all(statusFilter);
+          ? await (await getDb().prepare(sql)).all()
+          : await (await getDb().prepare(sql)).all(statusFilter);
       res.json(rows);
     } catch (e: any) {
       console.error("[admin/consultation/conversations]", e);
@@ -143,7 +144,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     try {
       if (masterpiece_id) {
         const existing = (await (
-          await db.prepare(
+          await getDb().prepare(
             `SELECT * FROM consultation_conversations
              WHERE user_id = ? AND masterpiece_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1`
           )
@@ -151,13 +152,13 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         if (existing) return res.json(existing);
       }
       const r = await (
-        await db.prepare(
+        await getDb().prepare(
           `INSERT INTO consultation_conversations (user_id, masterpiece_id, status, subject)
            VALUES (?, ?, 'open', ?)`
         )
       ).run(userId, masterpiece_id, subject);
       const id = Number(r.lastInsertRowid);
-      const row = await (await db.prepare(`SELECT * FROM consultation_conversations WHERE id = ?`)).get(id);
+      const row = await (await getDb().prepare(`SELECT * FROM consultation_conversations WHERE id = ?`)).get(id);
       broadcast?.({ type: "CONSULTATION_CONVERSATION_CREATED", conversationId: id, userId });
       res.json(row);
     } catch (e: any) {
@@ -167,13 +168,13 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
   });
 
   async function loadConversation(id: number) {
-    return (await (await db.prepare(`SELECT * FROM consultation_conversations WHERE id = ?`)).get(id)) as Record<string, any> | undefined;
+    return (await (await getDb().prepare(`SELECT * FROM consultation_conversations WHERE id = ?`)).get(id)) as Record<string, any> | undefined;
   }
 
   async function bumpWorkflowInProgress(convId: number) {
     try {
       await (
-        await db.prepare(
+        await getDb().prepare(
           `UPDATE consultation_conversations SET workflow_status = 'in_progress', updated_at = CURRENT_TIMESTAMP
            WHERE id = ? AND (workflow_status IS NULL OR workflow_status = '' OR workflow_status = 'open')`
         )
@@ -186,7 +187,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
   async function conversationDepositAmountCents(conv: Record<string, any>): Promise<number | null> {
     const mid = conv.masterpiece_id != null ? Number(conv.masterpiece_id) : NaN;
     if (!mid || Number.isNaN(mid)) return null;
-    const piece = (await (await db.prepare(`SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?`)).get(mid)) as
+    const piece = (await (await getDb().prepare(`SELECT valuation, deposit_pct FROM masterpieces WHERE id = ?`)).get(mid)) as
       | { valuation?: number | null; deposit_pct?: number | null }
       | undefined;
     if (!piece) return null;
@@ -200,7 +201,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
 
   async function hasAcceptedContractMessage(conversationId: number): Promise<boolean> {
     const row = (await (
-      await db.prepare(
+      await getDb().prepare(
         `SELECT id FROM consultation_messages
          WHERE conversation_id = ? AND COALESCE(message_type, 'text') = 'contract' AND contract_status = 'accepted'
          LIMIT 1`
@@ -222,7 +223,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     if (!id) return res.status(400).json({ error: "Invalid id" });
     try {
       const row = (await (
-        await db.prepare(
+        await getDb().prepare(
           `SELECT c.*, m.title AS masterpiece_title, m.status AS masterpiece_status,
             m.consultation_required AS masterpiece_consultation_required
            FROM consultation_conversations c
@@ -247,7 +248,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (!(await canAccessConversation(conv, req))) return res.status(403).json({ error: "Forbidden" });
       const rows = await (
-        await db.prepare(
+        await getDb().prepare(
           `SELECT * FROM consultation_messages WHERE conversation_id = ? ORDER BY created_at ASC`
         )
       ).all(id);
@@ -272,13 +273,13 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!(await canAccessConversation(conv, req))) return res.status(403).json({ error: "Forbidden" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
-        await db.prepare(
+        await getDb().prepare(
           `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type) VALUES (?, ?, ?, 'text')`
         )
       ).run(id, userId, body.slice(0, 20000));
-      await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       await bumpWorkflowInProgress(id);
-      const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid });
       res.json(msg);
     } catch (e: any) {
@@ -303,7 +304,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         if (!conv) return res.status(404).json({ error: "Not found" });
         if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
         if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
-        const msg = (await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ? AND conversation_id = ?`)).get(
+        const msg = (await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ? AND conversation_id = ?`)).get(
           messageId,
           conversationId
         )) as Record<string, any> | undefined;
@@ -311,10 +312,10 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         if (String(msg.message_type || "text") !== "contract") return res.status(400).json({ error: "Not a contract message" });
         if (String(msg.contract_status || "") !== "sent") return res.status(400).json({ error: "Contract cannot be signed in current state" });
         await (
-          await db.prepare(`UPDATE consultation_messages SET contract_status = 'accepted' WHERE id = ? AND conversation_id = ?`)
+          await getDb().prepare(`UPDATE consultation_messages SET contract_status = 'accepted' WHERE id = ? AND conversation_id = ?`)
         ).run(messageId, conversationId);
-        await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(conversationId);
-        const updated = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(messageId);
+        await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(conversationId);
+        const updated = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(messageId);
         broadcast?.({ type: "CONSULTATION_CONTRACT_ACCEPTED", conversationId, messageId });
         res.json(updated);
       } catch (e: any) {
@@ -416,7 +417,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         return res.json({ recorded: true, already: true });
       }
       await (
-        await db.prepare(
+        await getDb().prepare(
           `UPDATE consultation_conversations SET deposit_paid_at = CURRENT_TIMESTAMP, deposit_stripe_payment_intent_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
         )
       ).run(piId, id, userId);
@@ -440,7 +441,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation already closed" });
-      await (await db.prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       broadcast?.({ type: "CONSULTATION_CONVERSATION_CLOSED", conversationId: id });
       res.json({ success: true });
     } catch (e: any) {
@@ -460,7 +461,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
       if (conv.status === "open") return res.status(400).json({ error: "Conversation is already open" });
-      await (await db.prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       broadcast?.({ type: "CONSULTATION_CONVERSATION_REOPENED", conversationId: id });
       res.json({ success: true });
     } catch (e: any) {
@@ -476,7 +477,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (!(await canAccessConversation(conv, req))) return res.status(403).json({ error: "Forbidden" });
       const rows = await (
-        await db.prepare(`SELECT * FROM consultation_proposals WHERE conversation_id = ? ORDER BY id DESC`)
+        await getDb().prepare(`SELECT * FROM consultation_proposals WHERE conversation_id = ? ORDER BY id DESC`)
       ).all(id);
       res.json(rows);
     } catch (e: any) {
@@ -492,18 +493,18 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     if (isAdminUser(user)) return res.status(403).json({ error: "Admins cannot accept on behalf of client" });
     if (!proposalId) return res.status(400).json({ error: "Invalid proposal" });
     try {
-      const proposal = (await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
+      const proposal = (await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       if (proposal.status !== "sent") return res.status(400).json({ error: "Proposal cannot be accepted in current state" });
       const conv = await loadConversation(Number(proposal.conversation_id));
       if (!conv || Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       await (
-        await db.prepare(
+        await getDb().prepare(
           `UPDATE consultation_proposals SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
         )
       ).run(proposalId);
-      const updated = await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
+      const updated = await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
       broadcast?.({ type: "CONSULTATION_PROPOSAL_ACCEPTED", proposalId, conversationId: proposal.conversation_id });
       res.json(updated);
     } catch (e: any) {
@@ -519,18 +520,18 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     if (isAdminUser(user)) return res.status(403).json({ error: "Admins cannot decline on behalf of client" });
     if (!proposalId) return res.status(400).json({ error: "Invalid proposal" });
     try {
-      const proposal = (await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
+      const proposal = (await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       if (proposal.status !== "sent") return res.status(400).json({ error: "Proposal cannot be declined in current state" });
       const conv = await loadConversation(Number(proposal.conversation_id));
       if (!conv || Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       await (
-        await db.prepare(
+        await getDb().prepare(
           `UPDATE consultation_proposals SET status = 'declined', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
         )
       ).run(proposalId);
-      const updated = await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
+      const updated = await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId);
       broadcast?.({ type: "CONSULTATION_PROPOSAL_DECLINED", proposalId, conversationId: proposal.conversation_id });
       res.json(updated);
     } catch (e: any) {
@@ -549,7 +550,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
     if (!proposalId) return res.status(400).json({ error: "Invalid proposal" });
     try {
-      const proposal = (await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
+      const proposal = (await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(proposalId)) as Record<string, any> | undefined;
       if (!proposal) return res.status(404).json({ error: "Proposal not found" });
       if (proposal.status !== "accepted") return res.status(400).json({ error: "Proposal must be accepted first" });
       const conv = await loadConversation(Number(proposal.conversation_id));
@@ -582,13 +583,13 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
-        await db.prepare(
+        await getDb().prepare(
           `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type) VALUES (?, ?, ?, 'text')`
         )
       ).run(id, adminId, body.slice(0, 20000));
-      await (await db.prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       await bumpWorkflowInProgress(id);
-      const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       await logAudit?.(adminId, "CONSULTATION_MESSAGE", String(id), `Admin reply in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid, fromAdmin: true });
       try {
@@ -613,14 +614,14 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Conversation not found" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const r = await (
-        await db.prepare(
+        await getDb().prepare(
           `INSERT INTO consultation_proposals
            (conversation_id, title, description, amount_eur, currency, status, created_by)
            VALUES (?, ?, ?, ?, ?, 'sent', ?)`
         )
       ).run(conversation_id, title, description, amount_eur, currency, adminId);
       const pid = Number(r.lastInsertRowid);
-      const row = await (await db.prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(pid);
+      const row = await (await getDb().prepare(`SELECT * FROM consultation_proposals WHERE id = ?`)).get(pid);
       await logAudit?.(adminId, "CONSULTATION_PROPOSAL", String(pid), `Sent proposal "${title}" for conversation ${conversation_id}`);
       broadcast?.({ type: "CONSULTATION_PROPOSAL_SENT", proposalId: pid, conversationId: conversation_id });
       try {
@@ -640,7 +641,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const conv = await loadConversation(id);
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation already closed" });
-      await (await db.prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       await logAudit?.(adminId, "CONSULTATION_CLOSE", String(id), `Closed consultation ${id} for user ${conv.user_id}`);
       broadcast?.({ type: "CONSULTATION_CONVERSATION_CLOSED", conversationId: id });
       try {
@@ -660,7 +661,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const conv = await loadConversation(id);
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (conv.status === "open") return res.status(400).json({ error: "Conversation is already open" });
-      await (await db.prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+      await (await getDb().prepare(`UPDATE consultation_conversations SET status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       await logAudit?.(adminId, "CONSULTATION_REOPEN", String(id), `Reopened consultation ${id} for user ${conv.user_id}`);
       broadcast?.({ type: "CONSULTATION_CONVERSATION_REOPENED", conversationId: id });
       try {
@@ -683,7 +684,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       const mid = conv.masterpiece_id != null ? Number(conv.masterpiece_id) : NaN;
       if (!mid || Number.isNaN(mid)) return res.status(400).json({ error: "Conversation has no linked masterpiece" });
-      const piece = (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid)) as Record<string, unknown> | undefined;
+      const piece = (await (await getDb().prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid)) as Record<string, unknown> | undefined;
       if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
       if (Number((piece as { consultation_required?: number }).consultation_required) !== 1) {
         return res.status(400).json({
@@ -692,9 +693,9 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         });
       }
       if (finalValuation != null && Number.isFinite(finalValuation) && finalValuation > 0) {
-        await (await db.prepare("UPDATE masterpieces SET valuation = ? WHERE id = ?")).run(finalValuation, mid);
+        await (await getDb().prepare("UPDATE masterpieces SET valuation = ? WHERE id = ?")).run(finalValuation, mid);
       }
-      await (await db.prepare("UPDATE consultation_conversations SET purchase_unlocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(id);
+      await (await getDb().prepare("UPDATE consultation_conversations SET purchase_unlocked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(id);
       await logAudit?.(adminId, "CONSULTATION_UNLOCK_PURCHASE", String(id), `Unlocked purchase for conversation ${id}, masterpiece ${mid}`);
       broadcast?.({
         type: "CONSULTATION_PURCHASE_UNLOCKED",
@@ -728,7 +729,7 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
       const existingContract = (await (
-        await db.prepare(
+        await getDb().prepare(
           `SELECT id FROM consultation_messages WHERE conversation_id = ? AND COALESCE(message_type, 'text') = 'contract' LIMIT 1`
         )
       ).get(id)) as { id?: number } | undefined;
@@ -737,16 +738,16 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       }
       const bodyPreview = description || title;
       const r = await (
-        await db.prepare(
+        await getDb().prepare(
           `INSERT INTO consultation_messages
            (conversation_id, sender_id, body, message_type, contract_title, contract_description, contract_file_url, contract_status)
            VALUES (?, ?, ?, 'contract', ?, ?, ?, 'sent')`
         )
       ).run(id, adminId, bodyPreview.slice(0, 20000), title, description || null, fileUrlRaw);
-      await (await db.prepare(`UPDATE consultation_conversations SET workflow_status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(
+      await (await getDb().prepare(`UPDATE consultation_conversations SET workflow_status = 'finalized', updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(
         id
       );
-      const msg = await (await db.prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
       await logAudit?.(adminId, "CONSULTATION_CONTRACT_MESSAGE", String(id), `Contract message in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_CONTRACT_SENT", conversationId: id, messageId: r.lastInsertRowid });
       try {

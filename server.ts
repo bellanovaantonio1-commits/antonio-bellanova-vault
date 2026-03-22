@@ -4545,7 +4545,7 @@ async function sendConsultationClientEmail(
 }
 
 registerConsultationRoutes(app, {
-  db,
+  getDb: () => db,
   broadcast,
   logAudit,
   getStripe,
