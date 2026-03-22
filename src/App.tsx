@@ -4061,6 +4061,16 @@ export default function App() {
       if (urlUsername) setUsername(decodeURIComponent(urlUsername));
       setView('login');
     }
+    const stripAuthViewQueryParam = () => {
+      if (typeof window === 'undefined') return;
+      const u = new URL(window.location.href);
+      const vv = u.searchParams.get('view');
+      if (vv && ['login', 'register', 'forgot-password', 'reset-password'].includes(vv)) {
+        u.searchParams.delete('view');
+        const qs = u.searchParams.toString();
+        window.history.replaceState({}, '', `${u.pathname}${qs ? `?${qs}` : ''}${u.hash}`);
+      }
+    };
     const applyUser = (data: any) => {
       if (!data) return;
       setUser(data);
@@ -4069,15 +4079,18 @@ export default function App() {
       const onWorldPath = pathNow === '/world' || pathNow.startsWith('/world/');
       if (data.is_guest || data.role === 'guest') {
         setView('world');
+        stripAuthViewQueryParam();
         if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
         return;
       }
       /** Eingeloggte Nutzer: URL /world bewusst = öffentliche Sammlung, nicht Dashboard überschreiben */
       if (onWorldPath) {
         setView('world');
+        stripAuthViewQueryParam();
         return;
       }
       setView('dashboard');
+      stripAuthViewQueryParam();
       if (data.notification_prefs) {
         try {
           const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
@@ -4187,6 +4200,26 @@ export default function App() {
       user.role === UserRole.INVESTOR ||
       (user as any).role === 'investor';
     if (view === 'portfolio' && !portfolioOk) setView('dashboard');
+  }, [user, view]);
+
+  /**
+   * Eingeloggt (inkl. Gast) + ?view=register|login|…: Auth-UI liegt nur unter !user — sonst leerer/weißer Hauptbereich.
+   * Nach Session-Load immer auf Dashboard bzw. World umleiten und view= aus der URL entfernen.
+   */
+  useEffect(() => {
+    if (!user) return;
+    const authOnlyViews = ['login', 'register', 'forgot-password', 'reset-password'] as const;
+    if (!authOnlyViews.includes(view as (typeof authOnlyViews)[number])) return;
+    const guest = user.role === UserRole.GUEST || (user as any).is_guest;
+    setView(guest ? 'world' : 'dashboard');
+    if (typeof window !== 'undefined') {
+      const u = new URL(window.location.href);
+      if (u.searchParams.has('view')) {
+        u.searchParams.delete('view');
+        const qs = u.searchParams.toString();
+        window.history.replaceState({}, '', `${u.pathname}${qs ? `?${qs}` : ''}${u.hash}`);
+      }
+    }
   }, [user, view]);
 
   useEffect(() => {
