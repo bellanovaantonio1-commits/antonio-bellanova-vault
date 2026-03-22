@@ -110,6 +110,15 @@ export function ConsultationChatPanel({
       "The listed price refers to the reference configuration shown. Changes to materials or stones affect the offer. A binding purchase agreement is only formed after explicit confirmation and the agreed deposit step — not from this chat alone.",
     clientBriefingChecklist:
       "• Preferred metals (e.g. gold, platinum)\n• Gemstones and colours\n• Size or carat of the main stone\n• Ring size / lengths / other measurements\n• Any other wishes for the execution",
+    proceedDepositTitle: "Deposit",
+    payDepositButton: "Pay deposit",
+    sendContractHeading: "Send contract (PDF)",
+    contractTitlePlaceholder: "Contract title",
+    contractPdfUrlPlaceholder: "PDF URL",
+    sendContractButton: "Send contract to client",
+    contractSentToast: "Contract sent",
+    contractSignedToast: "Contract signed",
+    depositPaidToast: "Deposit received",
     ...stringsProp,
   };
   const [convStatus, setConvStatus] = useState<string>("open");
@@ -124,10 +133,17 @@ export function ConsultationChatPanel({
   const [metaPieceStatus, setMetaPieceStatus] = useState<string | null>(null);
   const [metaConsultationRequired, setMetaConsultationRequired] = useState(0);
   const [purchaseUnlockedAt, setPurchaseUnlockedAt] = useState<string | null>(null);
+  const [depositPaidAt, setDepositPaidAt] = useState<string | null>(null);
   const [unlockValuationDraft, setUnlockValuationDraft] = useState("");
   const [deliveryOption, setDeliveryOption] = useState<string>(
     deliveryOptions[0]?.value ?? "insured_global_shipping"
   );
+  const [stripePk, setStripePk] = useState<string | null>(null);
+  const [depositClientSecret, setDepositClientSecret] = useState<string | null>(null);
+  const [depositAmountCents, setDepositAmountCents] = useState<number | null>(null);
+  const [contractTitle, setContractTitle] = useState("");
+  const [contractDesc, setContractDesc] = useState("");
+  const [contractFileUrl, setContractFileUrl] = useState("");
 
   useEffect(() => {
     if (deliveryOptions.length > 0 && !deliveryOptions.some((o) => o.value === deliveryOption)) {
