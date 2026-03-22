@@ -1804,7 +1804,7 @@ await db.exec(`
   );
 `);
 
-  // Isolated made-to-order consultation flow (optional; gated by ENABLE_CONSULTATION_FLOW)
+  // Made-to-order consultation tables (on by default; disable with ENABLE_CONSULTATION_FLOW=false)
   await db.exec(`
   CREATE TABLE IF NOT EXISTS consultation_conversations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

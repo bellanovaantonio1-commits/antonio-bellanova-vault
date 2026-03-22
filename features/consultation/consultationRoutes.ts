@@ -1,6 +1,7 @@
 /**
- * Optional made-to-order consultation API (conversations, messages, proposals).
- * Gated by ENABLE_CONSULTATION_FLOW — does not alter existing purchase/payment flows.
+ * Made-to-order consultation API (conversations, messages, proposals).
+ * **Default: enabled** when `ENABLE_CONSULTATION_FLOW` is unset. Set to `false` / `0` / `no` to disable.
+ * Does not alter legacy purchase/payment flows when disabled (routes return 503).
  */
 import type { Application, Request, Response } from "express";
 import type Stripe from "stripe";
@@ -21,8 +22,11 @@ const consultationMutatePostLimiter = createUserOrIpRateLimiter({
 });
 
 export function isConsultationFlowEnabled(): boolean {
-  const v = String(process.env.ENABLE_CONSULTATION_FLOW ?? "").trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
+  const raw = String(process.env.ENABLE_CONSULTATION_FLOW ?? "").trim();
+  if (!raw) return true;
+  const v = raw.toLowerCase();
+  if (v === "false" || v === "0" || v === "no" || v === "off") return false;
+  return v === "true" || v === "1" || v === "yes" || v === "on";
 }
 
 function disabled(res: Response) {

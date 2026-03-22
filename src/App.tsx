@@ -706,7 +706,7 @@ const TRANSLATIONS: any = {
     "marketplace.cta_purchase_request": "Kaufanfrage senden",
     "admin.tab_consultation_chats": "Beratungs-Chats",
     consultation_err_disabled:
-      "Der private Beratungs-Chat ist auf dem Server nicht aktiv. Bitte ENABLE_CONSULTATION_FLOW=true in der Umgebung setzen und den Dienst neu starten.",
+      "Der Beratungs-Chat ist abgeschaltet. Entfernen Sie ENABLE_CONSULTATION_FLOW=false aus der Server-Umgebung (oder setzen Sie true) und starten Sie den Dienst neu.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
     "resale.menu_title": "Wiederverkauf",
     "resale.badge_preowned": "Ehemaliges Sammlerstück",
@@ -1629,7 +1629,7 @@ const TRANSLATIONS: any = {
     "marketplace.cta_purchase_request": "Send purchase request",
     "admin.tab_consultation_chats": "Consultation chats",
     consultation_err_disabled:
-      "The private consultation chat is not enabled on the server. Set ENABLE_CONSULTATION_FLOW=true in the environment and restart.",
+      "Consultation chat is turned off. Remove ENABLE_CONSULTATION_FLOW=false from the server environment (or set it to true) and restart.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
     "resale.menu_title": "Resale",
     "resale.badge_preowned": "Pre-owned",
@@ -2503,7 +2503,7 @@ const TRANSLATIONS: any = {
     "marketplace.cta_purchase_request": "Invia richiesta di acquisto",
     "admin.tab_consultation_chats": "Chat di consulenza",
     consultation_err_disabled:
-      "La chat di consulenza non è attiva sul server. Impostare ENABLE_CONSULTATION_FLOW=true e riavviare.",
+      "La chat di consulenza è disattivata. Rimuovere ENABLE_CONSULTATION_FLOW=false dall'ambiente del server (o impostare true) e riavviare.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
     "resale.menu_title": "Rivendita",
     "resale.badge_preowned": "Usato",
