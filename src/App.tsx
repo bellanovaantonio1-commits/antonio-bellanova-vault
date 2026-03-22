@@ -203,6 +203,9 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "offen",
     consultation_admin_status_closed: "geschlossen",
     consultation_request_bespoke: "Maßanfertigung anfragen",
+    consultation_piece_chat_cta: "Mit dem Atelier sprechen",
+    consultation_price_reference_note: "Der angezeigte Preis bezieht sich auf die gezeigte Referenz. Abweichungen bei Material, Steinen oder Größe werden individuell besprochen und bepreist.",
+    consultation_detail_after_chat: "Nach der Beratung können Sie — sobald das Atelier den nächsten Schritt freigibt — hier oder im Tresor zur Anzahlung gehen.",
     consultation_bespoke_detail_hint: "Dieses Stück wird nur über die Concierge-Beratung erworben. Wir besprechen Größe, Material und Details — danach schaltet das Atelier die Anzahlung frei.",
     consultation_err_required: "Bitte starten Sie zuerst eine Beratung (Concierge) zu diesem Stück.",
     consultation_err_locked: "Die Anzahlung wurde noch nicht freigegeben. Bitte warten Sie auf das Atelier im Beratungs-Chat.",
@@ -213,6 +216,9 @@ const TRANSLATIONS: any = {
     consultation_deposit_contract_btn: "Anzahlung & Vertrag",
     consultation_purchase_started_ok: "Anzahlungsvertrag wurde angelegt — bitte Tresor prüfen.",
     consultation_send_proposal_btn: "Angebot an Kundin senden",
+    consultation_briefing_title: "So geht’s weiter",
+    consultation_briefing_legal: "Ein verbindlicher Kauf entsteht erst nach Ihrer ausdrücklichen Bestätigung und dem vereinbarten Anzahlungsschritt — nicht bereits durch diesen Chat. Der Preis gilt für die gezeigte Konfiguration; Änderungen an Materialien oder Steinen führen zu einem neuen Angebot.",
+    consultation_briefing_checklist: "Bitte schreiben Sie uns:\n• gewünschte Materialien (z. B. Weißgold, Platin)\n• Edelsteine, Farben, Qualität\n• Größe bzw. Karat des Hauptsteins\n• Ringgröße, Längen oder andere Maße\n• weitere Wünsche zur Ausführung",
     "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
     reserved: "Reserviert",
     sold: "Verkauft",
@@ -1180,6 +1186,9 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "open",
     consultation_admin_status_closed: "closed",
     consultation_request_bespoke: "Request bespoke consultation",
+    consultation_piece_chat_cta: "Speak with the Atelier",
+    consultation_price_reference_note: "The price shown reflects the reference configuration. Changes to materials, stones or proportions are discussed and quoted individually.",
+    consultation_detail_after_chat: "After your consultation — when the Atelier enables the next step — you may proceed to deposit here or from your Vault.",
     consultation_bespoke_detail_hint: "This piece is purchased only via Concierge. We agree size, materials and details — then the Atelier unlocks the deposit step.",
     consultation_err_required: "Please start a Concierge consultation for this piece first.",
     consultation_err_locked: "Deposit is not unlocked yet. Your Atelier will enable it in the consultation thread.",
@@ -1190,6 +1199,9 @@ const TRANSLATIONS: any = {
     consultation_deposit_contract_btn: "Deposit & contract",
     consultation_purchase_started_ok: "Deposit contract created — check your Vault.",
     consultation_send_proposal_btn: "Send proposal to client",
+    consultation_briefing_title: "How to proceed",
+    consultation_briefing_legal: "A binding purchase is formed only after your explicit confirmation and the agreed deposit step — not from this chat alone. The price applies to the configuration shown; changes to materials or stones require a revised offer.",
+    consultation_briefing_checklist: "Please tell us:\n• preferred metals (e.g. white gold, platinum)\n• gemstones, colours, quality\n• size or carat of the main stone\n• ring size, lengths or other measurements\n• any other wishes for the piece",
     "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
     reserved: "Reserved",
     sold: "Sold",
@@ -2100,6 +2112,9 @@ const TRANSLATIONS: any = {
     consultation_admin_status_open: "aperto",
     consultation_admin_status_closed: "chiuso",
     consultation_request_bespoke: "Richiedi su misura (Concierge)",
+    consultation_piece_chat_cta: "Parla con l’atelier",
+    consultation_price_reference_note: "Il prezzo indicato si riferisce alla configurazione mostrata. Modifiche a materiali, pietre o dimensioni si concordano e quotano individualmente.",
+    consultation_detail_after_chat: "Dopo la consulenza — quando l’atelier abilita il passo successivo — potrai procedere all’acconto da qui o dal Tesoro.",
     consultation_bespoke_detail_hint: "Questo pezzo si acquista solo via Concierge. Concordiamo misure e materiali; poi l’atelier abilita l’acconto.",
     consultation_err_required: "Avvia prima una consultazione Concierge per questo pezzo.",
     consultation_err_locked: "L’acconto non è ancora abilitato. L’atelier lo sbloccherà nel thread.",
@@ -2110,6 +2125,9 @@ const TRANSLATIONS: any = {
     consultation_deposit_contract_btn: "Acconto e contratto",
     consultation_purchase_started_ok: "Contratto di acconto creato — controlla il Tesoro.",
     consultation_send_proposal_btn: "Invia proposta alla cliente",
+    consultation_briefing_title: "Come procedere",
+    consultation_briefing_legal: "Un acquisto vincolante nasce solo dopo la Sua conferma esplicita e il passo acconto concordato — non solo con questa chat. Il prezzo vale per la configurazione mostrata; modifiche a materiali o pietre richiedono una nuova offerta.",
+    consultation_briefing_checklist: "Ci scriva:\n• metalli desiderati (es. oro bianco, platino)\n• pietre, colori, qualità\n• dimensione o carati della pietra principale\n• misura anello, lunghezze o altre misure\n• altre preferenze sulla realizzazione",
     "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
     reserved: "Riservato",
     sold: "Venduto",
@@ -13233,16 +13251,7 @@ export default function App() {
                               {t('legal_notice')}
                             </p>
                           </div>
-                          {showConsultationUi && Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
-                            <>
-                              <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
-                                {t('consultation_bespoke_detail_hint')}
-                              </p>
-                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
-                                <Sparkles className="w-5 h-5" /> {t('consultation_request_bespoke')}
-                              </Button>
-                            </>
-                          ) : (
+                          {!showConsultationUi ? (
                             <>
                               <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
                                 {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
@@ -13262,15 +13271,45 @@ export default function App() {
                                 <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
                               </Button>
                             </>
+                          ) : Number((selectedPiece as Masterpiece).consultation_required) === 1 ? (
+                            <>
+                              <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
+                                {t('consultation_bespoke_detail_hint')}
+                              </p>
+                              <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
+                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
+                                <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
+                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
+                                <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
+                              </Button>
+                              <p className="text-[10px] text-zinc-500 text-center px-1">{t('consultation_detail_after_chat')}</p>
+                              <p className="text-xs text-zinc-500 text-center leading-relaxed px-1">
+                                {t('purchase.made_to_order_hint') || 'Maßanfertigung: Der Erwerb erfolgt auf Anfrage; Sie erhalten eine Rechnung zu einem späteren Zeitpunkt.'}
+                              </p>
+                              <div className="space-y-2">
+                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
+                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
+                                  <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
+                                  <option value="armored_courier">{t('delivery.armored_courier')}</option>
+                                  <option value="private_jet">{t('delivery.private_jet')}</option>
+                                  <option value="personal_delivery_founder">{t('delivery.personal_founder')}</option>
+                                  <option value="private_viewing_appointment">{t('delivery.private_viewing')}</option>
+                                  <option value="vault_storage">{t('delivery.vault_storage')}</option>
+                                </select>
+                              </div>
+                              <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                                <ShoppingBag className="w-5 h-5" /> {t('request_acquisition')}
+                              </Button>
+                            </>
                           )}
                         </>
                       )}
                         </>
-                      )}
-                      {showConsultationUi && selectedPiece.status === 'available' && Number((selectedPiece as Masterpiece).consultation_required) !== 1 && (
-                        <Button variant="outline" className="w-full py-3 text-base border-amber-600/40" onClick={async () => { await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
-                          <Sparkles className="w-5 h-5" /> {t('consultation_speak_concierge')}
-                        </Button>
                       )}
                       <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
                         <MessageCircle className="w-4 h-4" /> Concierge: Zu diesem Stück anfragen
@@ -13469,6 +13508,9 @@ export default function App() {
               deliverySelectLabel: t('delivery.select'),
               purchaseSuccess: t('consultation_purchase_started_ok'),
               sendProposalButton: t('consultation_send_proposal_btn'),
+              clientBriefingTitle: t('consultation_briefing_title'),
+              clientBriefingLegal: t('consultation_briefing_legal'),
+              clientBriefingChecklist: t('consultation_briefing_checklist'),
             }}
             onClose={() => setConsultationPanel(null)}
             notify={(msg, kind) => notifyUser(msg, kind === 'error' ? 'error' : 'success')}
@@ -13696,7 +13738,7 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
 );
 
 const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, consultationFlowEnabled, onConsultation }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, consultationFlowEnabled?: boolean, onConsultation?: (p: Masterpiece) => void }) => {
-  const bespokeOnly = !!(consultationFlowEnabled && Number(piece.consultation_required) === 1);
+  const cardChatFirst = !!(consultationFlowEnabled && onConsultation);
   return (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
@@ -13734,19 +13776,14 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">ID: {piece.serial_id}</span>
         <span className="text-[8px] uppercase px-1.5 py-0.5 bg-zinc-800 text-zinc-400 rounded">{piece.materials}</span>
       </div>
-      {!hideAction && piece.status === 'available' && onBuy && !bespokeOnly && (
+      {!hideAction && piece.status === 'available' && cardChatFirst && (
+        <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation?.(piece)}>
+          <MessageCircle className="w-4 h-4" /> {t ? t('consultation_piece_chat_cta') : 'Speak with the Atelier'}
+        </Button>
+      )}
+      {!hideAction && piece.status === 'available' && !cardChatFirst && onBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
           <ShoppingBag className="w-4 h-4" /> {t ? t('request_acquisition') : 'Request Acquisition'}
-        </Button>
-      )}
-      {!hideAction && piece.status === 'available' && bespokeOnly && onConsultation && (
-        <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation(piece)}>
-          <Sparkles className="w-4 h-4" /> {t ? t('consultation_request_bespoke') : 'Request bespoke'}
-        </Button>
-      )}
-      {!hideAction && piece.status === 'available' && !bespokeOnly && consultationFlowEnabled && onConsultation && (
-        <Button variant="ghost" className="w-full py-2 text-xs mt-2 border border-amber-600/25 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation(piece)}>
-          <Sparkles className="w-4 h-4" /> {t ? t('consultation_speak_concierge') : 'Speak with Concierge'}
         </Button>
       )}
       {extraAction}

@@ -41,6 +41,10 @@ export type ConsultationChatPanelProps = {
     deliverySelectLabel: string;
     purchaseSuccess: string;
     sendProposalButton: string;
+    /** Shown to clients for piece-linked threads: no contract from chat alone + what to specify */
+    clientBriefingTitle: string;
+    clientBriefingLegal: string;
+    clientBriefingChecklist: string;
   }>;
 };
 
@@ -88,6 +92,11 @@ export function ConsultationChatPanel({
     deliverySelectLabel: "Delivery",
     purchaseSuccess: "Deposit contract started — check your Vault.",
     sendProposalButton: "Send proposal to client",
+    clientBriefingTitle: "What to share with the Atelier",
+    clientBriefingLegal:
+      "The listed price refers to the reference configuration shown. Changes to materials or stones affect the offer. A binding purchase agreement is only formed after explicit confirmation and the agreed deposit step — not from this chat alone.",
+    clientBriefingChecklist:
+      "• Preferred metals (e.g. gold, platinum)\n• Gemstones and colours\n• Size or carat of the main stone\n• Ring size / lengths / other measurements\n• Any other wishes for the execution",
     ...stringsProp,
   };
   const [convStatus, setConvStatus] = useState<string>("open");
@@ -377,6 +386,9 @@ export function ConsultationChatPanel({
     !purchaseUnlockedAt &&
     metaPieceStatus === "available";
 
+  const showClientPieceBriefing =
+    mode === "client" && convStatus === "open" && metaPieceId != null && !showClientDeposit;
+
   return (
     <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center p-4 sm:p-6">
       <button
@@ -426,6 +438,14 @@ export function ConsultationChatPanel({
         {convStatus !== "open" && (
           <div className="px-3 py-2 bg-zinc-800/90 border-b border-zinc-700 text-[11px] text-zinc-400 text-center">
             {str.conversationClosedBanner}
+          </div>
+        )}
+
+        {showClientPieceBriefing && (
+          <div className="px-3 py-3 border-b border-zinc-700/80 bg-zinc-950/80 space-y-2 shrink-0">
+            <p className="text-[10px] uppercase tracking-widest text-amber-600/90">{str.clientBriefingTitle}</p>
+            <p className="text-[11px] text-zinc-400 leading-relaxed">{str.clientBriefingLegal}</p>
+            <p className="text-[11px] text-zinc-300 leading-relaxed whitespace-pre-line">{str.clientBriefingChecklist}</p>
           </div>
         )}
 
