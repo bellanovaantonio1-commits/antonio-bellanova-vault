@@ -1903,6 +1903,22 @@ await db.exec(`
   } catch (_) {
     /* column exists */
   }
+  try {
+    await (await db.prepare("ALTER TABLE asset_views ADD COLUMN ip_address TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS platform_visit_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      path TEXT,
+      masterpiece_id INTEGER,
+      user_id INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 async function nextProductSerial(category: string): Promise<string> {
@@ -2976,6 +2992,12 @@ function noSessionUserId(userId: number | null | undefined): boolean {
   return userId === null || userId === undefined;
 }
 
+/** Client IP (honours trust proxy + X-Forwarded-For). */
+function clientIp(req: express.Request): string {
+  const xf = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim();
+  return xf || (req.socket?.remoteAddress as string) || "";
+}
+
 /** Minimal user object for guest session (read-only; not in DB). */
 function getGuestUserPayload(): Record<string, any> {
   return {
@@ -3052,6 +3074,8 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "GET", path: "/api/stripe/config" },
   /** Optional consultation flow: feature flag check without session. */
   { method: "GET", path: "/api/consultation/enabled" },
+  /** Anonymous + optional session page/piece visits for admin reach metrics (IP stored). */
+  { method: "POST", path: "/api/analytics/visit" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -10865,13 +10889,123 @@ app.get("/api/communication/login-history", async (req, res) => {
 });
 
 // --- AI Sales Psychology Engine ---
+/** Public: records path / optional masterpiece + IP (cookie session → user_id if logged in, not guest). */
+app.post("/api/analytics/visit", async (req, res) => {
+  try {
+    const pathStr = req.body?.path != null ? String(req.body.path).slice(0, 500) : "";
+    const masterpieceRaw = req.body?.masterpiece_id ?? req.body?.masterpieceId;
+    const masterpieceId = masterpieceRaw != null ? Number(masterpieceRaw) : NaN;
+    const mid = Number.isFinite(masterpieceId) && masterpieceId > 0 ? masterpieceId : null;
+    const sid = getSessionUserId(req);
+    let uid: number | null = null;
+    if (sid !== null && sid !== GUEST_USER_ID) uid = sid;
+    const ip = clientIp(req);
+    const ua = String((req.headers["user-agent"] as string) || "").slice(0, 500);
+    await (
+      await db.prepare(
+        `INSERT INTO platform_visit_events (path, masterpiece_id, user_id, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)`
+      )
+    ).run(pathStr || "/", mid, uid, ip || null, ua || null);
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("[analytics/visit]", e?.message || e);
+    res.status(500).json({ error: e?.message || "Failed" });
+  }
+});
+
 app.post("/api/analytics/asset-view", async (req, res) => {
+  const sessionUid = getSessionUserId(req);
+  if (noSessionUserId(sessionUid)) return res.status(401).json({ error: "Not signed in" });
   const { userId, masterpieceId, durationSeconds } = req.body;
-  if (!userId || !masterpieceId) return res.status(400).json({ error: "userId and masterpieceId required" });
-  await (await db.prepare("INSERT INTO asset_views (user_id, masterpiece_id, duration_seconds) VALUES (?, ?, ?)")).run(
-    userId, masterpieceId, Math.max(0, Math.min(Number(durationSeconds) || 0, 86400))
+  const uid = Number(userId);
+  if (!masterpieceId) return res.status(400).json({ error: "userId and masterpieceId required" });
+  if (uid !== sessionUid) return res.status(403).json({ error: "Forbidden" });
+  if (uid === GUEST_USER_ID) return res.json({ success: true, skipped: true });
+  const ip = clientIp(req);
+  await (
+    await db.prepare(
+      `INSERT INTO asset_views (user_id, masterpiece_id, duration_seconds, ip_address) VALUES (?, ?, ?, ?)`
+    )
+  ).run(
+    uid,
+    masterpieceId,
+    Math.max(0, Math.min(Number(durationSeconds) || 0, 86400)),
+    ip || null
   );
   res.json({ success: true });
+});
+
+app.get("/api/admin/analytics/audience/summary", async (req, res) => {
+  const days = Math.min(366, Math.max(1, Number(req.query.days) || 30));
+  const since = `-${days} days`;
+  try {
+    const totalVisits = (await (
+      await db.prepare(
+        `SELECT COUNT(*) as c FROM platform_visit_events WHERE datetime(created_at) >= datetime('now', ?)`
+      )
+    ).get(since)) as { c: number };
+    const uniqueIps = (await (
+      await db.prepare(
+        `SELECT COUNT(DISTINCT ip_address) as c FROM platform_visit_events 
+         WHERE datetime(created_at) >= datetime('now', ?) AND ip_address IS NOT NULL AND TRIM(ip_address) != ''`
+      )
+    ).get(since)) as { c: number };
+    const registeredTouches = (await (
+      await db.prepare(
+        `SELECT COUNT(*) as c FROM platform_visit_events 
+         WHERE datetime(created_at) >= datetime('now', ?) AND user_id IS NOT NULL AND user_id > 0`
+      )
+    ).get(since)) as { c: number };
+    const longClientViews = (await (
+      await db.prepare(
+        `SELECT COUNT(*) as c FROM asset_views av 
+         JOIN users u ON u.id = av.user_id 
+         WHERE av.duration_seconds >= 25 AND av.user_id > 0 
+         AND datetime(av.viewed_at) >= datetime('now', ?)
+         AND LOWER(COALESCE(u.role,'')) NOT IN ('guest','admin','super_admin')`
+      )
+    ).get(since)) as { c: number };
+    res.json({
+      days,
+      total_visits: totalVisits?.c ?? 0,
+      unique_ip_visitors: uniqueIps?.c ?? 0,
+      registered_session_events: registeredTouches?.c ?? 0,
+      registered_long_piece_views_25s_plus: longClientViews?.c ?? 0,
+      note: "unique_ip_visitors is distinct IPs (approx. Besucher). Verweildauer-Tabelle: Admin → Reichweite.",
+    });
+  } catch (e: any) {
+    console.error("[admin/analytics/audience/summary]", e);
+    res.status(500).json({ error: e?.message || "Failed" });
+  }
+});
+
+app.get("/api/admin/analytics/audience/dwell", async (req, res) => {
+  const days = Math.min(366, Math.max(1, Number(req.query.days) || 90));
+  const minSeconds = Math.min(7200, Math.max(5, Number(req.query.minSeconds) || 25));
+  const limit = Math.min(2000, Math.max(1, Number(req.query.limit) || 500));
+  const since = `-${days} days`;
+  try {
+    const rows = await (
+      await db.prepare(
+        `SELECT av.id, av.user_id, u.name as user_name, u.email as user_email, u.role as user_role,
+                av.masterpiece_id, m.title as masterpiece_title, m.serial_id as masterpiece_serial,
+                av.viewed_at, av.duration_seconds, av.ip_address
+         FROM asset_views av
+         JOIN users u ON u.id = av.user_id
+         LEFT JOIN masterpieces m ON m.id = av.masterpiece_id
+         WHERE av.user_id > 0
+           AND av.duration_seconds >= ?
+           AND datetime(av.viewed_at) >= datetime('now', ?)
+           AND LOWER(COALESCE(u.role,'')) NOT IN ('guest','admin','super_admin')
+         ORDER BY av.viewed_at DESC
+         LIMIT ?`
+      )
+    ).all(minSeconds, since, limit);
+    res.json({ rows, minSeconds, days, limit });
+  } catch (e: any) {
+    console.error("[admin/analytics/audience/dwell]", e);
+    res.status(500).json({ error: e?.message || "Failed" });
+  }
 });
 
 app.get("/api/recent-views", async (req, res) => {

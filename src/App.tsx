@@ -708,6 +708,23 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Kaufanfrage gesendet. Warten auf Admin-Genehmigung.",
     "marketplace.cta_purchase_request": "Kaufanfrage senden",
     "admin.tab_consultation_chats": "Beratungs-Chats",
+    "admin.tab_audience": "Reichweite & Verweildauer",
+    "admin.audience_intro": "Aufrufe und ungefähre Besucherzahlen (unique IPs). Bei registrierten Kunden sehen Sie lange Stück-Ansichten inkl. IP — Gast-Sessions und Admin-Konten sind in der Tabelle ausgeblendet.",
+    "admin.audience_total_visits": "Erfasste Aufrufe",
+    "admin.audience_period_hint": "Zeitraum: letzte {days} Tage (Kacheln oben)",
+    "admin.audience_unique_ips": "Ungefähre Besucher (unique IPs)",
+    "admin.audience_reg_events": "Klicks mit eingeloggtem Konto",
+    "admin.audience_long_views": "Lange Stück-Ansichten (≥ 25 s)",
+    "admin.audience_privacy_note": "Hinweis: IP-Adressen nur im Rahmen der DSGVO verwenden und in der Datenschutzerklärung erwähnen.",
+    "admin.audience_reload": "Daten aktualisieren",
+    "admin.audience_dwell_title": "Registrierte Kunden — längere Betrachtung",
+    "admin.audience_dwell_sub": "Nur Ansichten ≥ 25 Sekunden; ohne Gäste, ohne Admin-Konten.",
+    "admin.audience_table_user": "Kunde",
+    "admin.audience_table_piece": "Stück",
+    "admin.audience_table_duration": "Dauer",
+    "admin.audience_table_when": "Zeitpunkt",
+    "admin.audience_table_ip": "IP-Adresse",
+    "admin.audience_empty": "Noch keine Einträge — sobald Nutzer eingeloggte Sessions und längere Detailansichten haben, erscheinen sie hier.",
     consultation_err_disabled:
       "Der Beratungs-Chat ist abgeschaltet. Entfernen Sie ENABLE_CONSULTATION_FLOW=false aus der Server-Umgebung (oder setzen Sie true) und starten Sie den Dienst neu.",
     "marketplace.no_pieces": "Derzeit keine Meisterwerke im Marktplatz verfügbar.",
@@ -1634,6 +1651,23 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Acquisition request sent. Awaiting admin approval.",
     "marketplace.cta_purchase_request": "Send purchase request",
     "admin.tab_consultation_chats": "Consultation chats",
+    "admin.tab_audience": "Reach & dwell time",
+    "admin.audience_intro": "Page hits and approximate visitors (unique IPs). For registered clients, long piece views with IP are listed — guest sessions and admin accounts are excluded from the table.",
+    "admin.audience_total_visits": "Recorded visits",
+    "admin.audience_period_hint": "Window: last {days} days (summary tiles)",
+    "admin.audience_unique_ips": "Approx. visitors (unique IPs)",
+    "admin.audience_reg_events": "Hits while logged in",
+    "admin.audience_long_views": "Long piece views (≥ 25 s)",
+    "admin.audience_privacy_note": "Use IP data in line with GDPR and disclose it in your privacy policy.",
+    "admin.audience_reload": "Refresh data",
+    "admin.audience_dwell_title": "Registered clients — longer viewing",
+    "admin.audience_dwell_sub": "Only views ≥ 25 seconds; excludes guests and admin accounts.",
+    "admin.audience_table_user": "Client",
+    "admin.audience_table_piece": "Piece",
+    "admin.audience_table_duration": "Duration",
+    "admin.audience_table_when": "When",
+    "admin.audience_table_ip": "IP address",
+    "admin.audience_empty": "No rows yet — data appears when clients stay on piece details while logged in.",
     consultation_err_disabled:
       "Consultation chat is turned off. Remove ENABLE_CONSULTATION_FLOW=false from the server environment (or set it to true) and restart.",
     "marketplace.no_pieces": "No masterpieces currently available in the marketplace.",
@@ -2511,6 +2545,23 @@ const TRANSLATIONS: any = {
     "marketplace.request_sent": "Richiesta di acquisizione inviata. In attesa di approvazione.",
     "marketplace.cta_purchase_request": "Invia richiesta di acquisto",
     "admin.tab_consultation_chats": "Chat di consulenza",
+    "admin.tab_audience": "Portata e permanenza",
+    "admin.audience_intro": "Visite e visitatori approssimativi (IP uniche). Per i clienti registrati: visualizzazioni lunghe con IP — ospiti e account admin esclusi dalla tabella.",
+    "admin.audience_total_visits": "Visite registrate",
+    "admin.audience_period_hint": "Periodo: ultimi {days} giorni (riquadri)",
+    "admin.audience_unique_ips": "Visitatori appross. (IP uniche)",
+    "admin.audience_reg_events": "Click con sessione attiva",
+    "admin.audience_long_views": "Visualizzazioni lunghe (≥ 25 s)",
+    "admin.audience_privacy_note": "Trattare gli IP secondo il GDPR e indicarli nell’informativa privacy.",
+    "admin.audience_reload": "Aggiorna dati",
+    "admin.audience_dwell_title": "Clienti registrati — permanenza",
+    "admin.audience_dwell_sub": "Solo visualizzazioni ≥ 25 s; senza ospiti né admin.",
+    "admin.audience_table_user": "Cliente",
+    "admin.audience_table_piece": "Pezzo",
+    "admin.audience_table_duration": "Durata",
+    "admin.audience_table_when": "Quando",
+    "admin.audience_table_ip": "Indirizzo IP",
+    "admin.audience_empty": "Nessun dato — comparirà con sessioni clienti e dettagli aperti a lungo.",
     consultation_err_disabled:
       "La chat di consulenza è disattivata. Rimuovere ENABLE_CONSULTATION_FLOW=false dall'ambiente del server (o impostare true) e riavviare.",
     "marketplace.no_pieces": "Nessuna opera disponibile sul mercato.",
@@ -3528,6 +3579,7 @@ export default function App() {
   const [filterMarketScope, setFilterMarketScope] = useState<'all' | 'favorites' | 'recent'>('all');
   const [sortMarket, setSortMarket] = useState<'newest' | 'price_asc' | 'price_desc' | 'title'>('newest');
   const assetViewStartRef = useRef<number | null>(null);
+  const lastPlatformVisitKeyRef = useRef<string>('');
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem('vault-recently-viewed') || '[]'); } catch { return []; } });
   const [dropsList, setDropsList] = useState<any[]>([]);
   const [registryData, setRegistryData] = useState<Record<number, any>>({});
@@ -3568,7 +3620,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -3645,6 +3697,9 @@ export default function App() {
   const [intelligenceClientProfiles, setIntelligenceClientProfiles] = useState<any[]>([]);
   const [intelligenceAdvisorAnalytics, setIntelligenceAdvisorAnalytics] = useState<any[]>([]);
   const [intelligenceScarcityHeatmap, setIntelligenceScarcityHeatmap] = useState<any[]>([]);
+  const [adminAudienceSummary, setAdminAudienceSummary] = useState<Record<string, unknown> | null>(null);
+  const [adminAudienceDwell, setAdminAudienceDwell] = useState<any[]>([]);
+  const [adminAudienceLoading, setAdminAudienceLoading] = useState(false);
   const [adminLegacyRequests, setAdminLegacyRequests] = useState<any[]>([]);
   const [adminVaultRequests, setAdminVaultRequests] = useState<any[]>([]);
   const [clientVaultRequests, setClientVaultRequests] = useState<any[]>([]);
@@ -4327,10 +4382,23 @@ export default function App() {
   }, [selectedPiece?.id]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const key = `${user?.id ?? 'anon'}|${view}|${selectedPiece?.id ?? ''}`;
+    if (lastPlatformVisitKeyRef.current === key) return;
+    lastPlatformVisitKeyRef.current = key;
+    const path = `${window.location.pathname || '/'}#view=${view}${selectedPiece?.id ? `&piece=${selectedPiece.id}` : ''}`;
+    fetch('/api/analytics/visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, masterpiece_id: selectedPiece?.id ?? null }),
+    }).catch(() => {});
+  }, [user?.id, view, selectedPiece?.id]);
+
+  useEffect(() => {
     const pieceId = selectedPiece?.id;
-    if (pieceId && user) assetViewStartRef.current = Date.now();
+    if (pieceId && user && !isGuestSessionUser(user)) assetViewStartRef.current = Date.now();
     return () => {
-      if (user != null && typeof user.id === 'number' && pieceId && assetViewStartRef.current) {
+      if (user != null && typeof user.id === 'number' && !isGuestSessionUser(user) && pieceId && assetViewStartRef.current) {
         const durationSeconds = Math.round((Date.now() - assetViewStartRef.current) / 1000);
         fetch('/api/analytics/asset-view', {
           method: 'POST',
@@ -4343,7 +4411,7 @@ export default function App() {
   }, [selectedPiece?.id, user?.id]);
 
   const closePieceDetail = () => {
-    if (user && selectedPiece && assetViewStartRef.current) {
+    if (user && !isGuestSessionUser(user) && selectedPiece && assetViewStartRef.current) {
       const durationSeconds = Math.round((Date.now() - assetViewStartRef.current) / 1000);
       fetch('/api/analytics/asset-view', {
         method: 'POST',
@@ -4900,6 +4968,22 @@ export default function App() {
     }
     if (adminTab === 'investor_dashboard') {
       fetch('/api/investor-documents', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setAdminInvestorDocuments);
+    }
+    if (adminTab === 'audience') {
+      setAdminAudienceLoading(true);
+      Promise.all([
+        fetch('/api/admin/analytics/audience/summary?days=30', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)),
+        fetch('/api/admin/analytics/audience/dwell?minSeconds=25&days=90&limit=500', { credentials: 'include' }).then((r) => (r.ok ? r.json() : { rows: [] })),
+      ])
+        .then(([sum, dwell]) => {
+          setAdminAudienceSummary(sum);
+          setAdminAudienceDwell((dwell as { rows?: any[] })?.rows || []);
+        })
+        .catch(() => {
+          setAdminAudienceSummary(null);
+          setAdminAudienceDwell([]);
+        })
+        .finally(() => setAdminAudienceLoading(false));
     }
   }, [user?.role, adminTab, adminConciergeFilter]);
   useEffect(() => {
@@ -9923,12 +10007,104 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
+                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'audience' ? t('admin.tab_audience') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
+                {(adminTab === 'audience') && (
+                  <div className="space-y-8">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-2xl font-serif italic text-zinc-100">{t('admin.tab_audience')}</h3>
+                        <p className="text-sm text-zinc-500 mt-1 max-w-2xl">{t('admin.audience_intro')}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-600/40 text-amber-200"
+                        disabled={adminAudienceLoading}
+                        onClick={() => {
+                          setAdminAudienceLoading(true);
+                          Promise.all([
+                            fetch('/api/admin/analytics/audience/summary?days=30', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)),
+                            fetch('/api/admin/analytics/audience/dwell?minSeconds=25&days=90&limit=500', { credentials: 'include' }).then((r) => (r.ok ? r.json() : { rows: [] })),
+                          ])
+                            .then(([sum, dwell]) => {
+                              setAdminAudienceSummary(sum);
+                              setAdminAudienceDwell((dwell as { rows?: any[] })?.rows || []);
+                            })
+                            .finally(() => setAdminAudienceLoading(false));
+                        }}
+                      >
+                        {adminAudienceLoading ? '…' : t('admin.audience_reload')}
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <Card className="p-5 border-zinc-800">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.audience_total_visits')}</p>
+                        <p className="text-2xl font-bold text-amber-500/90 mt-1">{Number(adminAudienceSummary?.total_visits ?? 0).toLocaleString()}</p>
+                        <p className="text-[10px] text-zinc-600 mt-2">{(t('admin.audience_period_hint') || '').replace('{days}', String(adminAudienceSummary?.days ?? 30))}</p>
+                      </Card>
+                      <Card className="p-5 border-zinc-800">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.audience_unique_ips')}</p>
+                        <p className="text-2xl font-bold text-zinc-100 mt-1">{Number(adminAudienceSummary?.unique_ip_visitors ?? 0).toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-5 border-zinc-800">
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('admin.audience_reg_events')}</p>
+                        <p className="text-2xl font-bold text-zinc-100 mt-1">{Number(adminAudienceSummary?.registered_session_events ?? 0).toLocaleString()}</p>
+                      </Card>
+                      <Card className="p-5 border-amber-900/30 bg-amber-950/10">
+                        <p className="text-[10px] uppercase tracking-widest text-amber-600/90">{t('admin.audience_long_views')}</p>
+                        <p className="text-2xl font-bold text-amber-400 mt-1">{Number(adminAudienceSummary?.registered_long_piece_views_25s_plus ?? 0).toLocaleString()}</p>
+                      </Card>
+                    </div>
+                    <p className="text-[11px] text-zinc-600">{t('admin.audience_privacy_note')}</p>
+                    <Card className="p-0 overflow-hidden border-zinc-800">
+                      <div className="px-5 py-4 border-b border-zinc-800">
+                        <h4 className="text-sm font-semibold text-zinc-200">{t('admin.audience_dwell_title')}</h4>
+                        <p className="text-xs text-zinc-500 mt-1">{t('admin.audience_dwell_sub')}</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm">
+                          <thead>
+                            <tr className="border-b border-zinc-800 text-[10px] uppercase tracking-widest text-zinc-500">
+                              <th className="px-4 py-3">{t('admin.audience_table_user')}</th>
+                              <th className="px-4 py-3">{t('admin.audience_table_piece')}</th>
+                              <th className="px-4 py-3">{t('admin.audience_table_duration')}</th>
+                              <th className="px-4 py-3">{t('admin.audience_table_when')}</th>
+                              <th className="px-4 py-3">{t('admin.audience_table_ip')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminAudienceDwell.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500 text-sm">{t('admin.audience_empty')}</td>
+                              </tr>
+                            ) : (
+                              adminAudienceDwell.map((row: any) => (
+                                <tr key={row.id} className="border-b border-zinc-800/80 hover:bg-zinc-900/40">
+                                  <td className="px-4 py-3 text-zinc-200">
+                                    <span className="font-medium">{row.user_name || '—'}</span>
+                                    <span className="block text-[11px] text-zinc-500">{row.user_email || ''}</span>
+                                  </td>
+                                  <td className="px-4 py-3 text-zinc-300 max-w-[220px]">
+                                    <span className="truncate block">{row.masterpiece_title || `#${row.masterpiece_id}`}</span>
+                                    {row.masterpiece_serial ? <span className="text-[10px] text-zinc-600">{row.masterpiece_serial}</span> : null}
+                                  </td>
+                                  <td className="px-4 py-3 text-amber-500/90 font-mono">{row.duration_seconds ?? 0}s</td>
+                                  <td className="px-4 py-3 text-zinc-400 text-xs whitespace-nowrap">{row.viewed_at ? new Date(row.viewed_at).toLocaleString() : '—'}</td>
+                                  <td className="px-4 py-3 text-zinc-500 font-mono text-xs">{row.ip_address || '—'}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </Card>
+                  </div>
+                )}
                 {(adminTab === 'overview') && (
                 <>
                 {/* Platform metrics (Valuation, Liquidity, Scarcity, Pieces) */}
