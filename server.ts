@@ -329,9 +329,11 @@ async function runSchema(db: DbInterface) {
     approved_at DATETIME,
     approved_by INTEGER,
     deposit_contract_sent_at DATETIME,
+    deposit_invoice_sent_at DATETIME,
     deposit_paid_at DATETIME,
     production_started_at DATETIME,
     production_finished_at DATETIME,
+    final_invoice_sent_at DATETIME,
     ready_for_delivery_at DATETIME,
     final_payment_pending_at DATETIME,
     completed_at DATETIME,
@@ -1449,6 +1451,8 @@ try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN vip_early_acc
 try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN product_release_date DATETIME")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE drops ADD COLUMN vip_early_access INTEGER DEFAULT 0")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN production_priority TEXT DEFAULT 'standard'")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN deposit_invoice_sent_at DATETIME")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN final_invoice_sent_at DATETIME")).run(); } catch (e) {}
 
 // --- Collector Level System & Luxury Extensions ---
 const COLLECTOR_LEVELS = ['collector', 'vip', 'private_collector', 'grand_collector', 'legacy_collector'] as const;
@@ -4781,6 +4785,26 @@ app.post("/api/admin/workflow/update", async (req, res) => {
   let message = "";
 
   switch (step) {
+    case 'deposit_invoice_sent': {
+      updateField = "deposit_invoice_sent_at";
+      newStatus = "DEPOSIT_INVOICE_SENT";
+      message = `Deposit invoice for ${piece.title} has been issued.`;
+      const depositAmount = Math.round(Number(piece.valuation || 0) * ((Number(piece.deposit_pct) || 10) / 100));
+      const existingInv = await (await db.prepare("SELECT id FROM invoices WHERE user_id = ? AND type = 'deposit' AND status IN ('pending','paid') ORDER BY id DESC LIMIT 1")).get(user.id) as any;
+      if (!existingInv && depositAmount > 0) {
+        await (await db.prepare("INSERT INTO invoices (user_id, project_id, amount, status, type) VALUES (?, NULL, ?, 'pending', 'deposit')")).run(user.id, depositAmount);
+      }
+      const existingDepPay = await (await db.prepare("SELECT id FROM payments WHERE masterpiece_id = ? AND type = 'deposit' ORDER BY id DESC LIMIT 1")).get(masterpieceId) as any;
+      if (!existingDepPay && depositAmount > 0) {
+        const depRef = await nextContractRef('deposit');
+        const bankDep = getBankConfig();
+        await (await db.prepare(`
+          INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
+          VALUES (?, ?, 'deposit', ?, 'pending', ?, ?)
+        `)).run(user.id, masterpieceId, depositAmount, bankDep.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', depRef);
+      }
+      break;
+    }
     case 'deposit_paid':
       updateField = "deposit_paid_at";
       newStatus = "PRODUCTION_STARTED";
@@ -4820,6 +4844,40 @@ app.post("/api/admin/workflow/update", async (req, res) => {
         VALUES (?, ?, 'full', ?, 'awaiting_payment', ?, ?)
       `)).run(user.id, masterpieceId, balanceDue, bankFull.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', invRef);
       break;
+    case 'final_invoice_sent': {
+      updateField = "final_invoice_sent_at";
+      newStatus = "FINAL_INVOICE_SENT";
+      message = `Final invoice for ${piece.title} has been issued.`;
+      const balanceDue = Math.round(Number(piece.valuation || 0) - (Number(piece.valuation || 0) * (Number(piece.deposit_pct || 10) / 100)));
+      const existingInvoiceContract = await (await db.prepare("SELECT id FROM contracts WHERE masterpiece_id = ? AND user_id = ? AND type = 'invoice' ORDER BY id DESC LIMIT 1")).get(masterpieceId, user.id) as any;
+      const existingFullPayment = await (await db.prepare("SELECT id FROM payments WHERE masterpiece_id = ? AND type = 'full' ORDER BY id DESC LIMIT 1")).get(masterpieceId) as any;
+      if (!existingInvoiceContract && balanceDue > 0) {
+        const invRef = await nextContractRef('invoice');
+        const invContent = `FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "${piece.title}".\n\nTotal Valuation: ${piece.valuation.toLocaleString()} EUR\nDeposit Paid: ${(piece.valuation * piece.deposit_pct / 100).toLocaleString()} EUR\nRemaining Balance: ${balanceDue.toLocaleString()} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.`;
+        const invHtml = generateLuxuryDocument("Final Invoice", invContent, user, piece, {
+          docRef: invRef,
+          title: "Final Invoice",
+          balanceDue,
+          escrowEnabled: true,
+          lang: OFFICIAL_CONTRACT_LANG,
+        });
+        await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')")).run(
+          user.id, masterpieceId, invRef, invHtml
+        );
+        if (!existingFullPayment) {
+          const bankFull = getBankConfig();
+          await (await db.prepare(`
+            INSERT INTO payments (user_id, masterpiece_id, type, amount, status, iban, reference)
+            VALUES (?, ?, 'full', ?, 'awaiting_payment', ?, ?)
+          `)).run(user.id, masterpieceId, balanceDue, bankFull.iban || 'Bitte in Admin unter Bank-Konfiguration eintragen', invRef);
+        }
+      }
+      const existingInv = await (await db.prepare("SELECT id FROM invoices WHERE user_id = ? AND type = 'final_payment' AND status IN ('pending','paid') ORDER BY id DESC LIMIT 1")).get(user.id) as any;
+      if (!existingInv && balanceDue > 0) {
+        await (await db.prepare("INSERT INTO invoices (user_id, project_id, amount, status, type) VALUES (?, NULL, ?, 'pending', 'final_payment')")).run(user.id, balanceDue);
+      }
+      break;
+    }
     case 'final_payment_paid':
     case 'final_payment_pending':
       updateField = "final_payment_pending_at";

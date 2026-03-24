@@ -14326,8 +14326,10 @@ const WorkflowTimeline = ({ masterpieceId, onAction }: { masterpieceId: number, 
   const steps = [
     { key: 'approved_at', label: 'Contract Generated', icon: FileText, status: 'WAITING_SIGNATURE' },
     { key: 'signed_at', label: 'Contract Signed', icon: Signature, status: 'SIGNED' },
+    { key: 'deposit_invoice_sent_at', label: 'Anzahlungsrechnung versendet', icon: FileDown, status: 'DEPOSIT_INVOICE_SENT' },
     { key: 'deposit_paid_at', label: 'Deposit Paid', icon: CreditCard, status: 'RESERVED' },
     { key: 'production_finished_at', label: 'Final Invoice Issued', icon: FileDown, status: 'AWAITING_FINAL_PAYMENT' },
+    { key: 'final_invoice_sent_at', label: 'Schlussrechnung versendet', icon: FileDown, status: 'FINAL_INVOICE_SENT' },
     { key: 'final_payment_pending_at', label: 'Final Payment Received', icon: Lock, status: 'FUNDS_HELD' },
     { key: 'completed_at', label: 'Ownership Transferred', icon: Award, status: 'COMPLETED' },
   ];
@@ -14430,12 +14432,14 @@ const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpd
   if (!workflow) return null;
 
   const steps = [
-    { id: 'deposit_paid', label: 'Confirm Deposit Received', key: 'deposit_paid_at' },
-    { id: 'production_started', label: 'Start Production', key: 'production_started_at' },
-    { id: 'production_finished', label: 'Mark Production Finished', key: 'production_finished_at' },
-    { id: 'ready_for_delivery', label: 'Confirm Ready for Delivery', key: 'ready_for_delivery_at' },
-    { id: 'final_payment_pending', label: 'Confirm Final Payment Pending', key: 'final_payment_pending_at' },
-    { id: 'completed', label: 'Confirm Completed', key: 'completed_at' },
+    { id: 'deposit_invoice_sent', label: 'Anzahlungsrechnung senden', key: 'deposit_invoice_sent_at' },
+    { id: 'deposit_paid', label: 'Anzahlung bestätigen', key: 'deposit_paid_at' },
+    { id: 'production_started', label: 'Produktion starten', key: 'production_started_at' },
+    { id: 'production_finished', label: 'Produktion als fertig markieren', key: 'production_finished_at' },
+    { id: 'final_invoice_sent', label: 'Schlussrechnung senden', key: 'final_invoice_sent_at' },
+    { id: 'ready_for_delivery', label: 'Versandbereit bestätigen', key: 'ready_for_delivery_at' },
+    { id: 'final_payment_pending', label: 'Schlusszahlung bestätigen', key: 'final_payment_pending_at' },
+    { id: 'completed', label: 'Abschluss bestätigen', key: 'completed_at' },
   ];
 
   return (

@@ -173,9 +173,12 @@ export interface PurchaseWorkflow {
   status: string;
   approved_at: string | null;
   approved_by: number | null;
+  deposit_invoice_sent_at?: string | null;
   deposit_received_at: string | null;
+  deposit_paid_at?: string | null;
   production_started_at: string | null;
   production_finished_at: string | null;
+  final_invoice_sent_at?: string | null;
   ready_for_delivery_at: string | null;
   final_payment_pending_at: string | null;
   completed_at: string | null;
