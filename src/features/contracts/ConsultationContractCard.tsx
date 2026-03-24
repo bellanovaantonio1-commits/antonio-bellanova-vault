@@ -19,6 +19,11 @@ export type ConsultationContractCardProps = {
 };
 
 function absoluteFileUrl(url: string): string {
+  if (url.startsWith("/uploads/private-clients/")) {
+    const secure = `/api/consultation/secure-file?url=${encodeURIComponent(url)}`;
+    if (typeof window !== "undefined") return `${window.location.origin}${secure}`;
+    return secure;
+  }
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (typeof window !== "undefined" && url.startsWith("/")) return `${window.location.origin}${url}`;
   return url;

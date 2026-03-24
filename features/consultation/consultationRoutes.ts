@@ -80,6 +80,19 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     next();
   };
 
+  app.get("/api/consultation/secure-file", gate, async (req: Request, res: Response) => {
+    const userId = Number((req as any).userId || 0);
+    const user = (req as any).user as { role?: string } | undefined;
+    const raw = String(req.query?.url || "").trim();
+    if (!userId) return res.status(401).json({ error: "Not signed in" });
+    if (!raw.startsWith("/uploads/private-clients/")) return res.status(400).json({ error: "Invalid file" });
+    const m = raw.match(/^\/uploads\/private-clients\/(\d+)\//);
+    const ownerId = m ? Number(m[1]) : 0;
+    if (!ownerId) return res.status(400).json({ error: "Invalid file" });
+    if (!isAdminUser(user) && ownerId !== userId) return res.status(403).json({ error: "Forbidden" });
+    res.redirect(raw);
+  });
+
   app.get("/api/consultation/conversations", gate, async (req: Request, res: Response) => {
     const userId = (req as any).userId as number;
     const user = (req as any).user;
@@ -248,6 +261,37 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     return Number(conv.user_id) === Number(userId);
   }
 
+  async function createVaultDocumentForClient(params: {
+    clientId: number;
+    createdBy: number;
+    documentType: "contract" | "certificate" | "verification";
+    contractType?: string | null;
+    fileUrl: string;
+    title: string;
+    certificateId?: number | null;
+  }): Promise<number> {
+    const refPrefix =
+      params.documentType === "contract" ? "CTR" : params.documentType === "certificate" ? "CERT" : "KYC";
+    const docRef = `${refPrefix}-${Date.now()}-${params.clientId}`;
+    const content = `<div style="padding:24px;font-family:Inter,Arial,sans-serif;color:#111"><h2>${params.title}</h2><p>Stored file: <a href="${params.fileUrl}" target="_blank" rel="noopener noreferrer">${params.fileUrl}</a></p></div>`;
+    const r = await (
+      await getDb().prepare(
+        `INSERT INTO vault_documents (document_type, contract_type, client_id, file_path, content, doc_ref, certificate_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+    ).run(
+      params.documentType,
+      params.contractType ?? null,
+      params.clientId,
+      params.fileUrl,
+      content,
+      docRef,
+      params.certificateId ?? null,
+      params.createdBy
+    );
+    return Number(r.lastInsertRowid);
+  }
+
   app.get("/api/consultation/conversations/:id", gate, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ error: "Invalid id" });
@@ -288,6 +332,74 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });
+
+  app.get("/api/consultation/conversations/:id/verification-documents", gate, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "Invalid id" });
+    try {
+      const conv = await loadConversation(id);
+      if (!conv) return res.status(404).json({ error: "Not found" });
+      if (!(await canAccessConversation(conv, req))) return res.status(403).json({ error: "Forbidden" });
+      const rows = await (
+        await getDb().prepare(`SELECT * FROM verification_documents WHERE conversation_id = ? ORDER BY created_at DESC`)
+      ).all(id);
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed" });
+    }
+  });
+
+  app.post(
+    "/api/consultation/conversations/:id/verification-documents",
+    gate,
+    consultationMutatePostLimiter,
+    async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const userId = (req as any).userId as number;
+      const user = (req as any).user;
+      if (!id) return res.status(400).json({ error: "Invalid id" });
+      if (user?.role === "guest") return res.status(403).json({ error: "Account required", code: "GUEST_RESTRICTED" });
+      const typeRaw = String(req.body?.type || "").trim().toLowerCase();
+      const fileUrlRaw = String(req.body?.file_url || "").trim().slice(0, 2000);
+      const allowedTypes = new Set(["id", "selfie", "address", "funds"]);
+      if (!allowedTypes.has(typeRaw)) return res.status(400).json({ error: "Invalid type" });
+      if (!fileUrlRaw) return res.status(400).json({ error: "file_url required" });
+      const okUrl = fileUrlRaw.startsWith("https://") || fileUrlRaw.startsWith("http://") || fileUrlRaw.startsWith("/");
+      if (!okUrl) return res.status(400).json({ error: "file_url must be http(s) or /path" });
+      try {
+        const conv = await loadConversation(id);
+        if (!conv) return res.status(404).json({ error: "Not found" });
+        if (Number(conv.user_id) !== Number(userId)) return res.status(403).json({ error: "Forbidden" });
+        const r = await (
+          await getDb().prepare(
+            `INSERT INTO verification_documents (user_id, conversation_id, type, file_url, status)
+             VALUES (?, ?, ?, ?, 'pending')`
+          )
+        ).run(Number(conv.user_id), id, typeRaw, fileUrlRaw);
+        const docId = Number(r.lastInsertRowid);
+        const msg = await (
+          await getDb().prepare(
+            `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, contract_file_url, file_kind)
+             VALUES (?, ?, ?, 'verification_document', ?, 'verification')`
+          )
+        ).run(id, userId, `Verification upload: ${typeRaw}`, fileUrlRaw);
+        await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+        await createVaultDocumentForClient({
+          clientId: Number(conv.user_id),
+          createdBy: userId,
+          documentType: "verification",
+          fileUrl: fileUrlRaw,
+          title: `Verification: ${typeRaw}`,
+        });
+        broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: msg.lastInsertRowid });
+        const row = await (await getDb().prepare(`SELECT * FROM verification_documents WHERE id = ?`)).get(docId);
+        res.status(201).json(row);
+      } catch (e: any) {
+        console.error("[consultation/verification-documents]", e);
+        res.status(500).json({ error: e?.message || "Failed" });
+      }
+    }
+  );
 
   app.post("/api/consultation/conversations/:id/messages", gate, consultationChatPostLimiter, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
@@ -656,6 +768,35 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     }
   });
 
+  app.post(
+    "/api/admin/consultation/conversations/:id/request-verification",
+    gate,
+    consultationMutatePostLimiter,
+    async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const adminId = (req as any).userId as number;
+      if (!id) return res.status(400).json({ error: "Invalid id" });
+      try {
+        const conv = await loadConversation(id);
+        if (!conv) return res.status(404).json({ error: "Not found" });
+        const body =
+          "Für den nächsten Schritt benötigen wir einige Angaben zur Verifizierung. Bitte laden Sie die folgenden Dokumente hoch.";
+        const r = await (
+          await getDb().prepare(
+            `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, file_kind)
+             VALUES (?, ?, ?, 'system', 'verification_request')`
+          )
+        ).run(id, adminId, body);
+        await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
+        await bumpWorkflowInProgress(id);
+        broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: id, messageId: r.lastInsertRowid, fromAdmin: true });
+        res.json({ success: true, message_id: Number(r.lastInsertRowid) });
+      } catch (e: any) {
+        res.status(500).json({ error: e?.message || "Failed" });
+      }
+    }
+  );
+
   app.post("/api/admin/consultation/proposals", gate, consultationMutatePostLimiter, async (req: Request, res: Response) => {
     const adminId = (req as any).userId as number;
     const conversation_id = Number(req.body?.conversation_id);
@@ -847,6 +988,14 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
         )
       ).run(id);
       const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
+      await createVaultDocumentForClient({
+        clientId: Number(conv.user_id),
+        createdBy: adminId,
+        documentType: "contract",
+        contractType: "consultation_contract_upload",
+        fileUrl: fileUrlRaw,
+        title: title || "Contract",
+      });
       await logAudit?.(adminId, "CONSULTATION_CONTRACT_MESSAGE", String(id), `Contract message in consultation ${id}`);
       broadcast?.({ type: "CONSULTATION_CONTRACT_SENT", conversationId: id, messageId: r.lastInsertRowid });
       try {
@@ -865,6 +1014,9 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
     const adminId = (req as any).userId as number;
     const fileUrlRaw = req.body?.file_url != null ? String(req.body.file_url).trim().slice(0, 2000) : "";
     const label = req.body?.title != null ? String(req.body.title).trim().slice(0, 500) : "Attachment";
+    const rawKind = String(req.body?.file_kind || "general").trim().toLowerCase();
+    const fileKind = rawKind === "contract" || rawKind === "certificate" || rawKind === "verification" ? rawKind : "general";
+    const isVipContract = req.body?.is_vip_contract === true;
     if (!id) return res.status(400).json({ error: "Invalid id" });
     if (!fileUrlRaw) return res.status(400).json({ error: "file_url required" });
     const okUrl =
@@ -874,12 +1026,50 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       const conv = await loadConversation(id);
       if (!conv) return res.status(404).json({ error: "Not found" });
       if (conv.status !== "open") return res.status(400).json({ error: "Conversation is closed" });
+      let certificateId: number | null = null;
+      let effectiveKind: string = fileKind;
+      if (fileKind === "certificate") {
+        const certIdRef = `CHAT-CERT-${Date.now()}-${Number(conv.user_id)}`;
+        const certIns = await (
+          await getDb().prepare(
+            `INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash, user_id, product_id, file_url)
+             VALUES (?, ?, ?, ?, '', '', ?, ?, ?)`
+          )
+        ).run(
+          conv.masterpiece_id != null ? Number(conv.masterpiece_id) : null,
+          Number(conv.user_id),
+          certIdRef,
+          `Chat certificate upload: ${label}`,
+          Number(conv.user_id),
+          conv.masterpiece_id != null ? Number(conv.masterpiece_id) : null,
+          fileUrlRaw
+        );
+        certificateId = Number(certIns.lastInsertRowid);
+        await createVaultDocumentForClient({
+          clientId: Number(conv.user_id),
+          createdBy: adminId,
+          documentType: "certificate",
+          fileUrl: fileUrlRaw,
+          title: label || "Certificate",
+          certificateId,
+        });
+      } else if (fileKind === "contract" || isVipContract) {
+        effectiveKind = "contract";
+        await createVaultDocumentForClient({
+          clientId: Number(conv.user_id),
+          createdBy: adminId,
+          documentType: "contract",
+          contractType: isVipContract ? "vip_contract" : "consultation_contract_upload",
+          fileUrl: fileUrlRaw,
+          title: label || "Contract upload",
+        });
+      }
       const r = await (
         await getDb().prepare(
-          `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, contract_file_url)
-           VALUES (?, ?, ?, 'file', ?)`
+          `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, contract_file_url, file_kind, source_proposal_id)
+           VALUES (?, ?, ?, 'file', ?, ?, ?)`
         )
-      ).run(id, adminId, label.slice(0, 20000), fileUrlRaw);
+      ).run(id, adminId, label.slice(0, 20000), fileUrlRaw, effectiveKind, certificateId);
       await (await getDb().prepare(`UPDATE consultation_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?`)).run(id);
       await bumpWorkflowInProgress(id);
       const msg = await (await getDb().prepare(`SELECT * FROM consultation_messages WHERE id = ?`)).get(Number(r.lastInsertRowid));
@@ -894,4 +1084,32 @@ export function registerConsultationRoutes(app: Application, deps: ConsultationD
       res.status(500).json({ error: e?.message || "Failed" });
     }
   });
+
+  app.patch(
+    "/api/admin/consultation/verification-documents/:id/status",
+    gate,
+    consultationMutatePostLimiter,
+    async (req: Request, res: Response) => {
+      const id = Number(req.params.id);
+      const status = String(req.body?.status || "").trim().toLowerCase();
+      if (!id) return res.status(400).json({ error: "Invalid id" });
+      if (!["pending", "verified", "rejected"].includes(status)) return res.status(400).json({ error: "Invalid status" });
+      try {
+        const doc = (await (await getDb().prepare(`SELECT * FROM verification_documents WHERE id = ?`)).get(id)) as Record<string, any> | undefined;
+        if (!doc) return res.status(404).json({ error: "Not found" });
+        await (await getDb().prepare(`UPDATE verification_documents SET status = ? WHERE id = ?`)).run(status, id);
+        const note = status === "verified" ? "Verifizierungsdokument bestätigt." : status === "rejected" ? "Verifizierungsdokument abgelehnt. Bitte neu hochladen." : "Verifizierungsdokument steht aus.";
+        const msgIns = await (
+          await getDb().prepare(
+            `INSERT INTO consultation_messages (conversation_id, sender_id, body, message_type, file_kind)
+             VALUES (?, ?, ?, 'system', 'verification_status')`
+          )
+        ).run(Number(doc.conversation_id), (req as any).userId as number, note);
+        broadcast?.({ type: "CONSULTATION_MESSAGE", conversationId: Number(doc.conversation_id), messageId: msgIns.lastInsertRowid, fromAdmin: true });
+        res.json({ success: true });
+      } catch (e: any) {
+        res.status(500).json({ error: e?.message || "Failed" });
+      }
+    }
+  );
 }

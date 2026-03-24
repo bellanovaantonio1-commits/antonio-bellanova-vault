@@ -28,7 +28,7 @@ export type ConsultationMessageRow = {
   sender_id: number;
   body: string;
   created_at?: string;
-  /** text | contract | file (admin attachment — URL in contract_file_url) */
+  /** text | contract | file | system | verification_document */
   message_type?: string | null;
   contract_title?: string | null;
   contract_description?: string | null;
@@ -38,4 +38,16 @@ export type ConsultationMessageRow = {
   /** Agreed total from linked consultation proposal (EUR), not marketplace list price */
   contract_amount_eur?: number | null;
   source_proposal_id?: number | null;
+  /** contract | certificate | verification | general | verification_request | verification_status */
+  file_kind?: string | null;
+};
+
+export type VerificationDocumentRow = {
+  id: number;
+  user_id: number;
+  conversation_id: number;
+  type: "id" | "selfie" | "address" | "funds";
+  file_url: string;
+  status: "pending" | "verified" | "rejected";
+  created_at?: string;
 };

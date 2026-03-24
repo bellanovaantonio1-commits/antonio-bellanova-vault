@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
-import { X, Send, FileDown } from "lucide-react";
-import type { ConsultationMessageRow } from "../chat/types";
+import { X, Send, FileDown, ShieldCheck, Upload } from "lucide-react";
+import type { ConsultationMessageRow, VerificationDocumentRow } from "../chat/types";
 import type { ConsultationProposalRow } from "../proposals/types";
 import { ConsultationContractCard } from "../contracts/ConsultationContractCard";
 import { ConsultationStripeDepositForm } from "../contracts/ConsultationStripeDepositForm";
@@ -140,6 +140,7 @@ export function ConsultationChatPanel({
   };
   const [convStatus, setConvStatus] = useState<string>("open");
   const [messages, setMessages] = useState<ConsultationMessageRow[]>([]);
+  const [verificationDocs, setVerificationDocs] = useState<VerificationDocumentRow[]>([]);
   const [proposals, setProposals] = useState<ConsultationProposalRow[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
@@ -165,6 +166,15 @@ export function ConsultationChatPanel({
   const [contractFileUrl, setContractFileUrl] = useState("");
   const [fileAttachLabel, setFileAttachLabel] = useState("");
   const [fileAttachUrl, setFileAttachUrl] = useState("");
+  const [fileAttachKind, setFileAttachKind] = useState<"general" | "contract" | "certificate">("general");
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [kycBuckets, setKycBuckets] = useState<Record<"id" | "selfie" | "address" | "funds", File[]>>({
+    id: [],
+    selfie: [],
+    address: [],
+    funds: [],
+  });
+  const [metaClientUserId, setMetaClientUserId] = useState<number | null>(null);
 
   useEffect(() => {
     if (deliveryOptions.length > 0 && !deliveryOptions.some((o) => o.value === deliveryOption)) {
@@ -174,15 +184,17 @@ export function ConsultationChatPanel({
 
   const load = useCallback(async () => {
     try {
-      const [cRes, mRes, pRes] = await Promise.all([
+      const [cRes, mRes, pRes, vRes] = await Promise.all([
         fetch(`/api/consultation/conversations/${conversationId}`, { credentials: "include" }),
         fetch(`/api/consultation/conversations/${conversationId}/messages`, { credentials: "include" }),
         fetch(`/api/consultation/conversations/${conversationId}/proposals`, { credentials: "include" }),
+        fetch(`/api/consultation/conversations/${conversationId}/verification-documents`, { credentials: "include" }),
       ]);
       if (cRes.ok) {
         const c = await cRes.json();
         setConvStatus(String(c?.status || "open"));
         setMetaPieceId(c?.masterpiece_id != null ? Number(c.masterpiece_id) : null);
+        setMetaClientUserId(c?.user_id != null ? Number(c.user_id) : null);
         setMetaPieceStatus(c?.masterpiece_status != null ? String(c.masterpiece_status) : null);
         setMetaConsultationRequired(Number(c?.masterpiece_consultation_required) || 0);
         setMetaMadeToOrder(Number(c?.masterpiece_made_to_order) || 0);
@@ -192,6 +204,7 @@ export function ConsultationChatPanel({
       }
       if (mRes.ok) setMessages(await mRes.json());
       if (pRes.ok) setProposals(await pRes.json());
+      if (vRes.ok) setVerificationDocs(await vRes.json());
     } catch {
       /* ignore */
     }
@@ -218,6 +231,15 @@ export function ConsultationChatPanel({
       ),
     [messages]
   );
+  const hasVerificationRequest = useMemo(
+    () =>
+      messages.some(
+        (m) =>
+          String(m.message_type || "text") === "system" &&
+          (String(m.file_kind || "") === "verification_request" || String(m.body || "").includes("Verifizierung"))
+      ),
+    [messages]
+  );
 
   const metaGateDeposit = metaConsultationRequired === 1 || metaMadeToOrder === 1;
 
@@ -238,6 +260,9 @@ export function ConsultationChatPanel({
     setContractFileUrl("");
     setFileAttachLabel("");
     setFileAttachUrl("");
+    setFileAttachKind("general");
+    setShowVerificationModal(false);
+    setKycBuckets({ id: [], selfie: [], address: [], funds: [] });
     setProposalTitle("");
     setProposalDesc("");
     setProposalAmount("");
@@ -540,6 +565,113 @@ export function ConsultationChatPanel({
     }
   };
 
+  const fileToBase64 = async (file: File): Promise<string> =>
+    await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const raw = typeof reader.result === "string" ? reader.result : "";
+        const b64 = raw.includes(",") ? raw.split(",")[1] : raw;
+        resolve(b64);
+      };
+      reader.onerror = () => reject(new Error("File read failed"));
+      reader.readAsDataURL(file);
+    });
+
+  const uploadFileToPrivateStorage = async (file: File, clientId: number): Promise<string> => {
+    const base64 = await fileToBase64(file);
+    const upRes = await fetch("/api/private-clients/upload", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: clientId,
+        base64,
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+      }),
+    });
+    const up = await readJson(upRes);
+    if (!upRes.ok || !up?.url) throw new Error(up?.error || "Upload failed");
+    return String(up.url);
+  };
+
+  const requestVerificationFromAdmin = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/consultation/conversations/${conversationId}/request-verification`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Could not request verification", "error");
+        return;
+      }
+      notify("Verification request sent", "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const submitVerificationDocuments = async () => {
+    if (!metaClientUserId) {
+      notify("Client context missing", "error");
+      return;
+    }
+    if (kycBuckets.id.length < 2 || kycBuckets.selfie.length < 1 || kycBuckets.address.length < 1) {
+      notify("Please upload ID (front+back), selfie, and proof of address.", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const queue: Array<{ type: "id" | "selfie" | "address" | "funds"; file: File }> = [];
+      (["id", "selfie", "address", "funds"] as const).forEach((k) => {
+        kycBuckets[k].forEach((f) => queue.push({ type: k, file: f }));
+      });
+      for (const item of queue) {
+        const fileUrl = await uploadFileToPrivateStorage(item.file, metaClientUserId);
+        const res = await fetch(`/api/consultation/conversations/${conversationId}/verification-documents`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: item.type, file_url: fileUrl }),
+        });
+        const data = await readJson(res);
+        if (!res.ok) throw new Error(data.error || "Could not save verification file");
+      }
+      notify("Verification files uploaded", "success");
+      setShowVerificationModal(false);
+      setKycBuckets({ id: [], selfie: [], address: [], funds: [] });
+      await load();
+    } catch (e: any) {
+      notify(e?.message || "Upload failed", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateVerificationStatus = async (docId: number, status: "verified" | "rejected") => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/consultation/verification-documents/${docId}/status`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await readJson(res);
+      if (!res.ok) {
+        notify(data.error || "Could not update status", "error");
+        return;
+      }
+      notify(`Document marked ${status}`, "success");
+      await load();
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const sendFileFromAdmin = async () => {
     const url = fileAttachUrl.trim();
     if (!url) {
@@ -555,6 +687,7 @@ export function ConsultationChatPanel({
         body: JSON.stringify({
           file_url: url,
           title: fileAttachLabel.trim() || undefined,
+          file_kind: fileAttachKind,
         }),
       });
       const data = await readJson(res);
@@ -698,6 +831,64 @@ export function ConsultationChatPanel({
           </div>
         )}
 
+        {mode === "admin" && convStatus === "open" && (
+          <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-950/60">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void requestVerificationFromAdmin()}
+              className="w-full min-h-[40px] rounded-full text-xs font-medium bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-700 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              <ShieldCheck className="w-4 h-4" /> Verifizierung anfordern
+            </button>
+          </div>
+        )}
+
+        {mode === "admin" && verificationDocs.length > 0 && (
+          <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-950/40 space-y-2 max-h-40 overflow-y-auto">
+            <p className="text-[10px] uppercase tracking-widest text-zinc-500">Verification Documents</p>
+            {verificationDocs.map((d) => (
+              <div key={d.id} className="rounded-lg border border-zinc-700 p-2 text-[11px] text-zinc-300">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="uppercase tracking-wider text-zinc-400">{d.type}</span>
+                  <span className={`text-[10px] ${d.status === "verified" ? "text-emerald-400" : d.status === "rejected" ? "text-red-400" : "text-amber-400"}`}>{d.status}</span>
+                </div>
+                <a
+                  href={d.file_url.startsWith("/uploads/private-clients/") ? `/api/consultation/secure-file?url=${encodeURIComponent(d.file_url)}` : d.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-amber-500 hover:text-amber-400 inline-flex items-center gap-1 mt-1"
+                >
+                  <FileDown className="w-3 h-3" /> open
+                </a>
+                {d.status === "pending" && (
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" disabled={loading} onClick={() => void updateVerificationStatus(d.id, "verified")} className="flex-1 rounded-full bg-emerald-700/80 hover:bg-emerald-600 text-white px-2 py-1">
+                      Verify
+                    </button>
+                    <button type="button" disabled={loading} onClick={() => void updateVerificationStatus(d.id, "rejected")} className="flex-1 rounded-full bg-red-700/80 hover:bg-red-600 text-white px-2 py-1">
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {mode === "client" && hasVerificationRequest && convStatus === "open" && (
+          <div className="px-3 py-2 border-b border-amber-800/40 bg-amber-950/20">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => setShowVerificationModal(true)}
+              className="w-full min-h-[40px] rounded-full text-xs font-medium bg-amber-700/80 text-white hover:bg-amber-600 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+            >
+              <Upload className="w-4 h-4" /> Verifizierungsdokumente hochladen
+            </button>
+          </div>
+        )}
+
         {showStripeConsultDeposit && (
           <div className="px-3 py-3 border-b border-amber-800/40 bg-zinc-950/95 space-y-2 shrink-0">
             <p className="text-[10px] uppercase tracking-widest text-amber-500/90">{str.proceedDepositTitle}</p>
@@ -760,6 +951,11 @@ export function ConsultationChatPanel({
             const mine = Number(m.sender_id) === Number(currentUserId);
             if (String(m.message_type || "text") === "file") {
               const href = m.contract_file_url || "";
+              const secureHref =
+                href.startsWith("/uploads/private-clients/") ? `/api/consultation/secure-file?url=${encodeURIComponent(href)}` : href;
+              const kind = String(m.file_kind || "general");
+              const badge =
+                kind === "contract" ? "Contract" : kind === "certificate" ? "Certificate" : kind === "verification" ? "Verification" : "File";
               return (
                 <div key={m.id} className={`flex w-full ${mine ? "justify-end" : "justify-start"}`}>
                   <div
@@ -769,10 +965,11 @@ export function ConsultationChatPanel({
                         : "rounded-bl-md bg-zinc-800 text-zinc-200 border-zinc-700"
                     }`}
                   >
+                    <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1">{badge}</p>
                     <p className="text-xs font-medium text-zinc-300 mb-1">{m.body || "Attachment"}</p>
                     {href ? (
                       <a
-                        href={href}
+                        href={secureHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-amber-500/95 hover:text-amber-400 text-xs font-medium"
@@ -784,6 +981,15 @@ export function ConsultationChatPanel({
                     {m.created_at && (
                       <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
                     )}
+                  </div>
+                </div>
+              );
+            }
+            if (String(m.message_type || "text") === "system") {
+              return (
+                <div key={m.id} className="flex justify-center">
+                  <div className="max-w-[92%] rounded-xl px-3 py-2 text-xs text-zinc-300 bg-zinc-800/80 border border-zinc-700">
+                    {m.body}
                   </div>
                 </div>
               );
@@ -946,6 +1152,15 @@ export function ConsultationChatPanel({
         {mode === "admin" && convStatus === "open" && (
           <div className="border-t border-zinc-800 px-3 py-2 space-y-2 bg-zinc-950/55">
             <p className="text-[10px] uppercase tracking-widest text-zinc-500">{str.sendFileHeading}</p>
+            <select
+              value={fileAttachKind}
+              onChange={(e) => setFileAttachKind(e.target.value as any)}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
+            >
+              <option value="general">General file</option>
+              <option value="contract">Contract (store in Vault Contracts)</option>
+              <option value="certificate">Certificate (auto-store in Vault Certificates)</option>
+            </select>
             <input
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-200"
               placeholder={str.fileLabelPlaceholder}
@@ -1026,6 +1241,93 @@ export function ConsultationChatPanel({
           </div>
         )}
       </div>
+
+      {showVerificationModal && mode === "client" && (
+        <div className="absolute inset-0 z-[130] flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-black/85" onClick={() => setShowVerificationModal(false)} />
+          <div className="relative w-full max-w-xl rounded-2xl border border-zinc-700 bg-zinc-900 p-4 sm:p-5 space-y-3 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm uppercase tracking-widest text-amber-500/90">Verifizierung</h4>
+              <button type="button" className="text-zinc-400 hover:text-white" onClick={() => setShowVerificationModal(false)}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Für den nächsten Schritt benötigen wir einige Angaben zur Verifizierung. Bitte laden Sie die folgenden Dokumente hoch.
+            </p>
+            {(["id", "selfie", "address", "funds"] as const).map((kind) => {
+              const required = kind !== "funds";
+              const label =
+                kind === "id"
+                  ? "Ausweis/Reisepass (Vorder- und Rückseite)"
+                  : kind === "selfie"
+                  ? "Selfie (Gesichtsverifikation)"
+                  : kind === "address"
+                  ? "Adressnachweis (z. B. Rechnung)"
+                  : "Herkunft der Mittel (optional)";
+              const files = kycBuckets[kind];
+              return (
+                <div key={kind} className="rounded-xl border border-zinc-700 bg-zinc-950/60 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-zinc-200">{label}</p>
+                    {required ? <span className="text-[10px] text-amber-500">Pflicht</span> : <span className="text-[10px] text-zinc-500">Optional</span>}
+                  </div>
+                  <label className="block border border-dashed border-zinc-600 rounded-xl p-3 text-center cursor-pointer hover:border-amber-600/60">
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const picked = Array.from(e.target.files || []);
+                        if (picked.length === 0) return;
+                        setKycBuckets((prev) => ({ ...prev, [kind]: [...prev[kind], ...picked] }));
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const dropped = Array.from(e.dataTransfer?.files || []);
+                        if (dropped.length === 0) return;
+                        setKycBuckets((prev) => ({ ...prev, [kind]: [...prev[kind], ...dropped] }));
+                      }}
+                    >
+                      <p className="text-xs text-zinc-400 inline-flex items-center gap-2"><Upload className="w-4 h-4" /> Drag & Drop oder klicken</p>
+                    </div>
+                  </label>
+                  {files.length > 0 && (
+                    <div className="space-y-1">
+                      {files.map((f, idx) => (
+                        <div key={`${f.name}-${idx}`} className="flex items-center justify-between text-[11px] text-zinc-300">
+                          <span className="truncate pr-2">{f.name}</span>
+                          <button
+                            type="button"
+                            className="text-zinc-500 hover:text-red-400"
+                            onClick={() =>
+                              setKycBuckets((prev) => ({ ...prev, [kind]: prev[kind].filter((_, i) => i !== idx) }))
+                            }
+                          >
+                            Entfernen
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => void submitVerificationDocuments()}
+              className="w-full min-h-[42px] rounded-full bg-amber-700/90 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-50"
+            >
+              Dokumente hochladen
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

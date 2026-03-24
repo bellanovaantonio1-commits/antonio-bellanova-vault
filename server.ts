@@ -1904,6 +1904,39 @@ await db.exec(`
     /* column exists */
   }
   try {
+    await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN file_kind TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS verification_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      conversation_id INTEGER NOT NULL,
+      type TEXT NOT NULL, -- id, selfie, address, funds
+      file_url TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending, verified, rejected
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(conversation_id) REFERENCES consultation_conversations(id)
+    );
+  `);
+  try {
+    await (await db.prepare("ALTER TABLE certificates ADD COLUMN user_id INTEGER")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE certificates ADD COLUMN product_id INTEGER")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
+    await (await db.prepare("ALTER TABLE certificates ADD COLUMN file_url TEXT")).run();
+  } catch (_) {
+    /* column exists */
+  }
+  try {
     await (await db.prepare("ALTER TABLE asset_views ADD COLUMN ip_address TEXT")).run();
   } catch (_) {
     /* column exists */
