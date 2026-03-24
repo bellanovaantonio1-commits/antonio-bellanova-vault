@@ -13392,7 +13392,7 @@ export default function App() {
                     <div className="space-y-6 flex-1">
                       <div className="space-y-2">
                         <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('description')}</p>
-                        <p className="text-zinc-400 leading-relaxed">{getPieceLocalized(selectedPiece, 'description')}</p>
+                        <p className="text-zinc-400 leading-relaxed whitespace-pre-wrap break-words">{getPieceLocalized(selectedPiece, 'description')}</p>
                       </div>
 
                       <div className="grid grid-cols-2 gap-6">
