@@ -4887,10 +4887,12 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
       // Initialize Escrow only if not already present
       const existingEscrow = await (await db.prepare("SELECT id FROM escrow_transactions WHERE masterpiece_id = ?")).get(masterpieceId);
       if (!existingEscrow) {
-        await (await db.prepare(`
-        INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
-        VALUES (?, ?, 1, ?, 'HELD', datetime('now', '+2 days'))
-        `)).run(masterpieceId, user.id, piece.valuation);
+        const escrowInsertSql = db.isMySQL
+          ? `INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+             VALUES (?, ?, 1, ?, 'HELD', DATE_ADD(NOW(), INTERVAL 2 DAY))`
+          : `INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+             VALUES (?, ?, 1, ?, 'HELD', datetime('now', '+2 days'))`;
+        await (await db.prepare(escrowInsertSql)).run(masterpieceId, user.id, piece.valuation);
       }
       break;
     case 'delivered':
@@ -8571,10 +8573,12 @@ app.post("/api/resale/accept", async (req, res) => {
   await (await db.prepare("UPDATE masterpieces SET status = 'escrow_pending' WHERE id = ?")).run(negotiation.masterpiece_id);
   
   // Create Escrow Transaction
-  await (await db.prepare(`
-    INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
-    VALUES (?, ?, ?, ?, 'HELD', datetime('now', '+2 days'))
-  `)).run(negotiation.masterpiece_id, negotiation.buyer_id, negotiation.seller_id, negotiation.offered_price);
+  const resaleEscrowInsertSql = db.isMySQL
+    ? `INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+       VALUES (?, ?, ?, ?, 'HELD', DATE_ADD(NOW(), INTERVAL 2 DAY))`
+    : `INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+       VALUES (?, ?, ?, ?, 'HELD', datetime('now', '+2 days'))`;
+  await (await db.prepare(resaleEscrowInsertSql)).run(negotiation.masterpiece_id, negotiation.buyer_id, negotiation.seller_id, negotiation.offered_price);
 
   await updateProvenance(negotiation.masterpiece_id, 'vip_event', `Resale offer of ${negotiation.offered_price} EUR accepted. Escrow initiated.`);
   
