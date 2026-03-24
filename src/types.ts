@@ -119,6 +119,8 @@ export interface Contract {
   version: number;
   parent_id: number | null;
   metadata?: string; // JSON string
+  signature_method?: 'typed' | 'drawn' | 'email' | string | null;
+  signature_data?: string | null;
   created_at: string;
 }
 

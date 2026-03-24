@@ -1898,6 +1898,16 @@ await db.exec(`
   } catch (_) {
     /* column exists */
   }
+try {
+  await (await db.prepare("ALTER TABLE contracts ADD COLUMN signature_method TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE contracts ADD COLUMN signature_data TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
   try {
     await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN source_proposal_id INTEGER")).run();
   } catch (_) {
@@ -7444,7 +7454,7 @@ app.post("/api/contracts/sign", async (req, res) => {
     if (!contractId || isNaN(contractId)) {
       return res.status(400).json({ error: "Ungültige Vertrags-ID." });
     }
-    if (!["typed", "drawn", "email"].includes(method) || !data) {
+    if (!["typed", "drawn"].includes(method) || !data) {
       return res.status(400).json({ error: "Bitte Signaturmethode wählen und gültige Signatur angeben." });
     }
     if (method === "drawn" && data.length < 100) {
@@ -7467,7 +7477,11 @@ app.post("/api/contracts/sign", async (req, res) => {
       return res.status(403).json({ error: "Sie sind nicht berechtigt, diesen Vertrag zu unterzeichnen." });
     }
 
-    await (await db.prepare("UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP WHERE id = ?")).run(contractId);
+    await (
+      await db.prepare(
+        "UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP, signature_method = ?, signature_data = ? WHERE id = ?"
+      )
+    ).run(method, data, contractId);
     addClientTimeline(contract.user_id, 'contract_signed', `Contract signed (${contract.type})`, String(contractId));
 
   if (contract.type === 'vip') {

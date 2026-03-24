@@ -3194,12 +3194,10 @@ function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { con
 }
 
 const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLang = 'en' }: any) => {
-  const [method, setMethod] = useState<'typed' | 'drawn' | 'email'>('typed');
+  const [method, setMethod] = useState<'typed' | 'drawn'>('typed');
   const [typedName, setTypedName] = useState('');
   const [drawnData, setDrawnData] = useState('');
-  const [emailVerified, setEmailVerified] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleSign = () => {
@@ -3208,7 +3206,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
       setLocalError(t ? (t('confirm_review') || 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.') : 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.');
       return;
     }
-    const data = method === 'typed' ? typedName.trim() : method === 'drawn' ? drawnData : 'verified-email';
+    const data = method === 'typed' ? typedName.trim() : drawnData;
     if (method === 'typed' && data.length < 2) {
       setLocalError(t ? (t('auth.full_legal_name') || 'Bitte geben Sie Ihren vollständigen Namen ein.') : 'Bitte geben Sie Ihren vollständigen Namen ein.');
       return;
@@ -3217,17 +3215,12 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
       setLocalError(t ? (t('clear_signature') ? 'Bitte zeichnen Sie Ihre Signatur.' : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.') : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.');
       return;
     }
-    if (method === 'email' && !emailVerified) {
-      setLocalError(t ? (t('auth.verification_code_sent') || 'Bitte bestätigen Sie Ihre E-Mail.') : 'Bitte bestätigen Sie Ihre E-Mail.');
-      return;
-    }
     onSign(contract.id, method, data);
   };
 
   const canSign = hasReviewed && (
     (method === 'typed' && typedName.length > 2) ||
-    (method === 'drawn' && drawnData.length > 100) ||
-    (method === 'email' && emailVerified)
+    (method === 'drawn' && drawnData.length > 100)
   );
 
   return (
@@ -3277,7 +3270,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
 
           <div className="space-y-6">
             <div className="flex gap-2 p-1 bg-zinc-950 rounded-xl border border-zinc-800">
-              {(['typed', 'drawn', 'email'] as const).map((m) => (
+              {(['typed', 'drawn'] as const).map((m) => (
                 <button
                   key={m}
                   onClick={() => setMethod(m)}
@@ -3309,28 +3302,6 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
                 </div>
               )}
 
-              {method === 'email' && (
-                <div className="space-y-6 text-center animate-in fade-in slide-in-from-bottom-2">
-                  <div className="p-8 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-4">
-                    <Mail className="w-12 h-12 text-amber-500 mx-auto opacity-50" />
-                    <p className="text-zinc-400 text-sm">{t('auth.verification_code_sent')}</p>
-                    <Button 
-                      variant="outline" 
-                      className="mx-auto" 
-                      disabled={isVerifying}
-                      onClick={() => {
-                        setIsVerifying(true);
-                        setTimeout(() => {
-                          setIsVerifying(false);
-                          setEmailVerified(true);
-                        }, 1500);
-                      }}
-                    >
-                      {isVerifying ? t('auth.sending') : emailVerified ? t('auth.verified') : t('auth.send_verification_code')}
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -8311,6 +8282,15 @@ export default function App() {
                                     <CheckCircle className="w-4 h-4" /> {t('signed')}
                                   </div>
                                   <p className="text-[9px] text-zinc-600 uppercase tracking-widest">{new Date(contract.signed_at!).toLocaleDateString()}</p>
+                                  {contract.signature_method === 'drawn' && typeof contract.signature_data === 'string' && contract.signature_data.startsWith('data:image/') ? (
+                                    <img
+                                      src={contract.signature_data}
+                                      alt="Client signature"
+                                      className="mt-1 h-8 max-w-[120px] object-contain opacity-90"
+                                    />
+                                  ) : contract.signature_method === 'typed' && contract.signature_data ? (
+                                    <p className="mt-1 text-[11px] text-zinc-300 font-serif italic">{contract.signature_data}</p>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>
