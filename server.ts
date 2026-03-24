@@ -5854,7 +5854,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
   const adminId = getSessionUserId(req);
   const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
   if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { document_type, contract_type, certificate_type, client_id, project_id } = req.body || {};
+  const { document_type, contract_type, certificate_type, client_id, project_id, masterpiece_id } = req.body || {};
   if (!client_id) return res.status(400).json({ error: "client_id required" });
   if (!document_type || !['contract', 'invoice', 'certificate'].includes(document_type)) return res.status(400).json({ error: "document_type must be contract, invoice, or certificate" });
   if (document_type === 'contract' && (!contract_type || !CONTRACT_TYPES.includes(contract_type as any))) return res.status(400).json({ error: "contract_type required and must be one of: " + CONTRACT_TYPES.join(', ') });
@@ -5865,6 +5865,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
   let project: any = null;
   let masterpiece: any = null;
   let vaultId = '';
+  const selectedMasterpieceId = masterpiece_id ? Number(masterpiece_id) : null;
 
   if (project_id) {
     project = await (await db.prepare(`
@@ -5877,6 +5878,12 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
       vaultId = project.vault_id || project.masterpiece_serial || (project.masterpiece_id ? (await (await db.prepare("SELECT serial_id FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any)?.serial_id : '') || '';
       if (project.masterpiece_id) masterpiece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any;
     }
+  }
+
+  if (!masterpiece && selectedMasterpieceId && Number.isFinite(selectedMasterpieceId) && selectedMasterpieceId > 0) {
+    masterpiece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(selectedMasterpieceId) as any;
+    if (!masterpiece) return res.status(404).json({ error: "Masterpiece not found" });
+    if (!vaultId) vaultId = masterpiece.serial_id || '';
   }
 
   const docRef = `${(contract_type || document_type).toUpperCase().slice(0, 3)}-${Date.now()}-${client_id}`;
@@ -5896,7 +5903,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
     const ins = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, ?, ?, ?, 'draft')
-    `)).run(client.id, project?.masterpiece_id || null, contract_type, docRef, content);
+    `)).run(client.id, project?.masterpiece_id || selectedMasterpieceId || null, contract_type, docRef, content);
     contractId = ins.lastInsertRowid as number;
   } else if (document_type === 'invoice') {
     content = generateAdminContractContent('purchase_agreement', client, project, masterpiece);
@@ -5904,10 +5911,10 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
     const ins = await (await db.prepare(`
       INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status)
       VALUES (?, ?, ?, ?, ?, 'draft')
-    `)).run(client.id, project?.masterpiece_id || null, 'invoice', docRef, content);
+    `)).run(client.id, project?.masterpiece_id || selectedMasterpieceId || null, 'invoice', docRef, content);
     contractId = ins.lastInsertRowid as number;
   } else if (document_type === 'certificate') {
-    const piece = masterpiece || (project?.masterpiece_id ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any : null);
+    const piece = masterpiece || (project?.masterpiece_id ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(project.masterpiece_id) as any : (selectedMasterpieceId ? await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(selectedMasterpieceId) as any : null));
     const certType = (req.body as any).certificate_type || 'ownership';
     const certTitle = CERTIFICATE_TYPES[certType] || CERTIFICATE_TYPES.ownership;
     const certId = `CERT-${Date.now()}-${client.id}`;
@@ -5927,7 +5934,7 @@ app.post("/api/admin/documents/generate", requireAuth, requireAdmin, async (req,
     const certIns = await (await db.prepare(`
       INSERT INTO certificates (masterpiece_id, owner_id, cert_id, content, signature, blockchain_hash)
       VALUES (?, ?, ?, ?, ?, ?)
-    `)).run(project?.masterpiece_id || null, client.id, certId, content, 'Antonio Bellanova Atelier', null);
+    `)).run(project?.masterpiece_id || selectedMasterpieceId || null, client.id, certId, content, 'Antonio Bellanova Atelier', null);
     certificateId = certIns.lastInsertRowid as number;
   }
 

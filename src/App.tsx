@@ -12239,6 +12239,17 @@ export default function App() {
                             ))}
                           </select>
                         </div>
+                        {adminDocFormType === 'contract' && adminDocSubType === 'deposit_agreement' && (
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">Meisterstück für Anzahlungsvertrag (optional)</label>
+                            <select id="admin-doc-masterpiece" className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                              <option value="">— Keines —</option>
+                              {masterpieces.map((m: any) => (
+                                <option key={m.id} value={m.id}>{m.title} ({m.serial_id})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                       <Button variant="primary" onClick={async () => {
                         const docType = adminDocFormType;
@@ -12246,6 +12257,7 @@ export default function App() {
                         const certificateType = docType === 'certificate' ? adminDocSubType : undefined;
                         const clientId = (document.getElementById('admin-doc-client') as HTMLSelectElement)?.value;
                         const projectId = (document.getElementById('admin-doc-project') as HTMLSelectElement)?.value;
+                        const masterpieceId = (document.getElementById('admin-doc-masterpiece') as HTMLSelectElement | null)?.value;
                         if (!clientId) { notifyUser('Kunde erforderlich', 'error'); return; }
                         if (docType === 'contract' && !contractType) { notifyUser('Vertragsart erforderlich', 'error'); return; }
                         const res = await fetch('/api/admin/documents/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
@@ -12253,7 +12265,8 @@ export default function App() {
                           contract_type: docType === 'contract' ? contractType : undefined,
                           certificate_type: docType === 'certificate' ? certificateType : undefined,
                           client_id: Number(clientId),
-                          project_id: projectId ? Number(projectId) : undefined
+                          project_id: projectId ? Number(projectId) : undefined,
+                          masterpiece_id: (docType === 'contract' && contractType === 'deposit_agreement' && masterpieceId) ? Number(masterpieceId) : undefined
                         }), credentials: 'include' });
                         if (res.ok) {
                           const data = await res.json();
