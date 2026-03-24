@@ -13890,17 +13890,7 @@ export default function App() {
                           {(() => {
                             const pieceTitle = masterpieces.find(m => m.id === selectedCert.masterpiece_id)?.title || '—';
                             const ownerName = (selectedCert as any).owner_name || user?.name || '—';
-                            const raw = String(selectedCert.content || '');
-                            const plain = raw
-                              .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-                              .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-                              .replace(/<[^>]+>/g, ' ')
-                              .replace(/&nbsp;/gi, ' ')
-                              .replace(/&amp;/gi, '&')
-                              .replace(/&lt;/gi, '<')
-                              .replace(/&gt;/gi, '>')
-                              .replace(/\s+/g, ' ')
-                              .trim();
+                            const plain = certificateModalSummaryFromHtml(String(selectedCert.content || '')).slice(0, 1200);
                             return `ECHTHEITSZERTIFIKAT
 -------------------
 ID: ${selectedCert.cert_id}
@@ -13908,7 +13898,7 @@ STÜCK: ${pieceTitle}
 BESITZER: ${ownerName}
 DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
 
-${plain ? plain.slice(0, 1200) : ''}`;
+${plain}`;
                           })()}
                         </div>
                       </div>
@@ -14029,6 +14019,50 @@ const COLLECTOR_BADGE_STYLES: Record<string, string> = {
 };
 function getCollectorBadgeClasses(level: string): string {
   return COLLECTOR_BADGE_STYLES[level] || COLLECTOR_BADGE_STYLES.collector;
+}
+
+/** Plain-text summary for certificate modal: no raw HTML entities, no legal footer, no blockchain placeholder noise. */
+function certificateModalSummaryFromHtml(rawHtml: string): string {
+  let s = String(rawHtml || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
+  s = s
+    .replace(/&#x2[Bb]6;/g, '\u2022')
+    .replace(/&#8226;/g, '\u2022')
+    .replace(/&bull;/gi, '\u2022')
+    .replace(/&mdash;/gi, '\u2014')
+    .replace(/&ndash;/gi, '\u2013')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;/g, "'")
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+  s = s.replace(/\bPENDING_VERIFICATION\b/gi, '').trim();
+  s = s.replace(/Blockchain:\s*[^\n\r]*/gi, '');
+  const legalStarts = [
+    'Governing Law:',
+    'Anwendbares Recht:',
+    'Legge applicabile:',
+    'Droit applicable',
+    'Ley aplicable:',
+    'Lei aplicável:',
+    'القانون الحاكم:',
+  ];
+  let cut = -1;
+  for (const m of legalStarts) {
+    const i = s.indexOf(m);
+    if (i >= 0 && (cut < 0 || i < cut)) cut = i;
+  }
+  if (cut >= 0) s = s.slice(0, cut);
+  s = s.replace(/DSGVO\/GDPR:[\s\S]*$/i, '').trim();
+  s = s.replace(/USt-IdNr\.[\s\S]*$/i, '').trim();
+  s = s.replace(/Scan zur Verifizierung|SCANNEN ZUR ECHTHEITSPRÜFUNG/gi, '').trim();
+  s = s.replace(/\n+/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n /g, '\n').trim();
+  return s;
 }
 
 /** Consultation-first / made-to-order: no direct buy on marketplace until consultation + contract + deposit (or admin unlock). */
