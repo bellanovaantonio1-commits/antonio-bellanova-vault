@@ -6020,6 +6020,16 @@ app.get("/api/documents/:id/download", async (req, res) => {
       const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
       if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
     }
+    // For file-based vault docs (e.g. KYC uploads), return the actual file instead of an HTML wrapper.
+    // This avoids broken local links when users open downloaded HTML offline.
+    if (vd.file_path && String(vd.file_path).trim()) {
+      const fp = String(vd.file_path).trim();
+      if (fp.startsWith('/uploads/private-clients/')) {
+        return res.redirect(`/api/consultation/secure-file?url=${encodeURIComponent(fp)}`);
+      }
+      if (fp.startsWith('/')) return res.redirect(fp);
+      if (fp.startsWith('http://') || fp.startsWith('https://')) return res.redirect(fp);
+    }
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${vd.doc_ref || 'Document'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${vd.content || ''}</body></html>`;
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${(vd.doc_ref || 'document')}.html"`);
