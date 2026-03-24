@@ -5573,8 +5573,8 @@ export default function App() {
     }
   };
 
-  const handleUpdateWorkflow = async (pieceId: number, step: string) => {
-    if (!user) return;
+  const handleUpdateWorkflow = async (pieceId: number, step: string): Promise<boolean> => {
+    if (!user) return false;
     setLoading(true);
     try {
       const res = await fetch('/api/admin/workflow/update', {
@@ -5587,8 +5587,10 @@ export default function App() {
       if (res.ok) {
         fetchData();
         notifyUser("Workflow-Schritt aktualisiert.", "success");
+        return true;
       } else {
         notifyUser(data.error || t('errors.generic'), 'error');
+        return false;
       }
     } finally {
       setLoading(false);
@@ -12977,7 +12979,17 @@ export default function App() {
                         <input type="text" placeholder="Kontoinhaber (z. B. Antonio Bellanova Atelier)" value={adminBankConfig.account_holder ?? adminBankConfig.accountHolder ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, account_holder: e.target.value, accountHolder: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <input type="text" placeholder="IBAN" value={adminBankConfig.iban ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, iban: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
                         <input type="text" placeholder="BIC" value={adminBankConfig.bic ?? ''} onChange={e => setAdminBankConfig((c: any) => ({ ...c, bic: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
-                        <Button variant="outline" className="text-xs" onClick={async () => { await fetch('/api/admin/bank-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(adminBankConfig) }); notifyUser(t('admin.bank_config_saved'), 'success'); }}>{t('admin.save_button')}</Button>
+                        <Button variant="outline" className="text-xs" onClick={async () => {
+                          const res = await fetch('/api/admin/bank-config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(adminBankConfig),
+                            credentials: 'include'
+                          });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) notifyUser(t('admin.bank_config_saved'), 'success');
+                          else notifyUser(data.error || t('errors.generic'), 'error');
+                        }}>{t('admin.save_button')}</Button>
                       </Card>
                       <Card className="p-4 space-y-3">
                         <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.resale_revenue')}</h4>
@@ -14422,11 +14434,17 @@ const WorkflowTimeline = ({ masterpieceId, onAction }: { masterpieceId: number, 
   );
 };
 
-const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpdate: (id: number, step: string) => Promise<void>, key?: any }) => {
+const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpdate: (id: number, step: string) => Promise<boolean>, key?: any }) => {
   const [workflow, setWorkflow] = useState<PurchaseWorkflow | null>(null);
 
+  const fetchWorkflow = async () => {
+    const res = await fetch(`/api/workflow/${piece.id}`);
+    const data = await res.json();
+    setWorkflow(data);
+  };
+
   useEffect(() => {
-    fetch(`/api/workflow/${piece.id}`).then(res => res.json()).then(setWorkflow);
+    fetchWorkflow();
   }, [piece.id]);
 
   if (!workflow) return null;
@@ -14457,21 +14475,29 @@ const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpd
         </div>
       </div>
       <div className="space-y-4">
-        {steps.map(step => {
+        {steps.map((step, idx) => {
           const isDone = !!(workflow as any)[step.key];
+          const previousStepDone = idx === 0 ? true : !!(workflow as any)[steps[idx - 1].key];
+          const isLocked = !isDone && !previousStepDone;
           return (
             <div key={step.id} className="flex items-center justify-between group">
               <div className="flex items-center gap-3">
                 <div className={`w-1.5 h-1.5 rounded-full ${isDone ? 'bg-amber-500' : 'bg-zinc-800'}`} />
-                <span className={`text-xs transition-colors ${isDone ? 'text-zinc-500 line-through' : 'text-zinc-300 group-hover:text-zinc-100'}`}>{step.label}</span>
+                <span className={`text-xs transition-colors ${isDone ? 'text-zinc-500 line-through' : isLocked ? 'text-zinc-600' : 'text-zinc-300 group-hover:text-zinc-100'}`}>{step.label}</span>
               </div>
               <button 
-                onClick={() => !isDone && onUpdate(piece.id, step.id)}
-                disabled={!!isDone}
+                onClick={async () => {
+                  if (isDone || isLocked) return;
+                  const ok = await onUpdate(piece.id, step.id);
+                  if (ok) await fetchWorkflow();
+                }}
+                disabled={!!isDone || isLocked}
                 className={`w-6 h-6 rounded-lg border transition-all flex items-center justify-center ${
                   isDone 
                     ? 'bg-amber-500 border-amber-500 text-black' 
-                    : 'border-zinc-800 hover:border-amber-500/50 bg-zinc-900/50'
+                    : isLocked
+                      ? 'border-zinc-900 bg-zinc-900/40 opacity-50 cursor-not-allowed'
+                      : 'border-zinc-800 hover:border-amber-500/50 bg-zinc-900/50'
                 }`}
               >
                 {isDone ? <CheckCircle className="w-3.5 h-3.5" /> : <Plus className="w-3 h-3 text-zinc-600" />}

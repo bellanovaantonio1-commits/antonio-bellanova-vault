@@ -4768,7 +4768,7 @@ async function mintNFT(masterpieceId: number, ownerId: number): Promise<string> 
   return tokenId;
 }
 
-app.post("/api/admin/workflow/update", async (req, res) => {
+app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, res) => {
   try {
   const { masterpieceId, step, adminId } = req.body;
     if (!masterpieceId || !step) return res.status(400).json({ error: "masterpieceId und step erforderlich." });
@@ -6411,11 +6411,11 @@ app.get("/api/admin/sales", async (req, res) => {
 
 // Admin: bank config (simple key-value store)
 // (table created during server startup after db initialization)
-app.get("/api/admin/bank-config", async (req, res) => {
+app.get("/api/admin/bank-config", requireAuth, requireAdmin, async (req, res) => {
   const row = await (await db.prepare("SELECT value FROM admin_config WHERE key = 'bank_config'")).get();
   res.json(row ? JSON.parse(row.value) : {});
 });
-app.post("/api/admin/bank-config", async (req, res) => {
+app.post("/api/admin/bank-config", requireAuth, requireAdmin, async (req, res) => {
   const value = JSON.stringify(req.body || {});
   await (await db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")).run(value);
   res.json({ success: true });
