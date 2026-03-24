@@ -6416,8 +6416,19 @@ app.get("/api/admin/bank-config", requireAuth, requireAdmin, async (req, res) =>
   res.json(row ? JSON.parse(row.value) : {});
 });
 app.post("/api/admin/bank-config", requireAuth, requireAdmin, async (req, res) => {
-  const value = JSON.stringify(req.body || {});
+  const payload = req.body || {};
+  const value = JSON.stringify(payload);
   await (await db.prepare("INSERT INTO admin_config (key, value) VALUES ('bank_config', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")).run(value);
+  const iban = String(payload?.iban || '').trim();
+  if (iban) {
+    // Backfill old placeholder entries so customers see the configured IBAN in existing open payment items.
+    await (await db.prepare(`
+      UPDATE payments
+      SET iban = ?
+      WHERE (iban IS NULL OR TRIM(iban) = '' OR iban LIKE 'Bitte in Admin unter Bank-Konfiguration eintragen%')
+        AND status IN ('pending', 'awaiting_payment')
+    `)).run(iban);
+  }
   res.json({ success: true });
 });
 
