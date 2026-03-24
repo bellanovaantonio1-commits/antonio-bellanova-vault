@@ -2229,6 +2229,29 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     paymentIban: 'IBAN',
     paymentBic: 'BIC',
     paymentReference: 'Verwendungszweck',
+    serialLabel: 'Seriennummer',
+    marginPrivateVault: 'Atelier · Privater Tresor',
+    marginHaute: 'Haute Joaillerie · Köln',
+    membershipStatusActive: 'Aktiv',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Zum Verifizieren scannen',
+    registryQrLabel: 'Register',
+    legalShippingBody: 'Gefahr/Übergang gemäß Bestellung.',
+    legalCustomsBody: 'Empfänger, sofern nicht anders vereinbart.',
+    legalArbitrationBody: 'ICC/DIS Köln.',
+    legalExportBody: 'Der Kunde bestätigt die Einhaltung der Exportvorschriften.',
+    status_available: 'VERFÜGBAR',
+    status_reserved: 'RESERVIERT',
+    status_sold: 'VERKAUFT',
+    status_auction: 'AUKTION',
+    status_resell_pending: 'WIEDERVERKAUF AUSSTEHEND',
+    status_resale_review: 'WIEDERVERKAUF PRÜFUNG',
+    status_fractional_open: 'ANTEILE OFFEN',
+    status_fractional_full: 'ANTEILE VOLL',
+    status_fractional_resale: 'ANTEILS-WIEDERVERKAUF',
+    status_private_viewing: 'PRIVATE VORSCHAU',
+    status_archived_private_collection: 'ARCHIV / PRIVATE SAMMLUNG',
+    status_escrow_pending: 'TREUHAND AUSSTEHEND',
   },
   en: {
     documentRef: 'Document Ref',
@@ -2262,6 +2285,29 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     paymentIban: 'IBAN',
     paymentBic: 'BIC',
     paymentReference: 'Reference',
+    serialLabel: 'Serial number',
+    marginPrivateVault: 'Atelier · Private Vault',
+    marginHaute: 'Haute Joaillerie · Cologne',
+    membershipStatusActive: 'Active',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Scan to verify',
+    registryQrLabel: 'Registry',
+    legalShippingBody: 'Risk/title per order.',
+    legalCustomsBody: 'Recipient unless agreed.',
+    legalArbitrationBody: 'ICC/DIS Cologne.',
+    legalExportBody: 'Client warrants compliance with export regulations.',
+    status_available: 'AVAILABLE',
+    status_reserved: 'RESERVED',
+    status_sold: 'SOLD',
+    status_auction: 'AUCTION',
+    status_resell_pending: 'RESELL PENDING',
+    status_resale_review: 'RESELL REVIEW',
+    status_fractional_open: 'FRACTIONAL OPEN',
+    status_fractional_full: 'FRACTIONAL FULL',
+    status_fractional_resale: 'FRACTIONAL RESALE',
+    status_private_viewing: 'PRIVATE VIEWING',
+    status_archived_private_collection: 'ARCHIVED / PRIVATE COLLECTION',
+    status_escrow_pending: 'ESCROW PENDING',
   },
   it: {
     documentRef: 'Rif. documento',
@@ -2295,6 +2341,29 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     paymentIban: 'IBAN',
     paymentBic: 'BIC',
     paymentReference: 'Causale',
+    serialLabel: 'Numero seriale',
+    marginPrivateVault: 'Atelier · Caveau privato',
+    marginHaute: 'Alta gioielleria · Colonia',
+    membershipStatusActive: 'Attivo',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Scansiona per verificare',
+    registryQrLabel: 'Registro',
+    legalShippingBody: 'Rischio/titolo secondo ordine.',
+    legalCustomsBody: 'Destinatario salvo diverso accordo.',
+    legalArbitrationBody: 'ICC/DIS Colonia.',
+    legalExportBody: 'Il cliente dichiara il rispetto delle normative di esportazione.',
+    status_available: 'DISPONIBILE',
+    status_reserved: 'RISERVATO',
+    status_sold: 'VENDUTO',
+    status_auction: 'ASTA',
+    status_resell_pending: 'RIVENDITA IN ATTESA',
+    status_resale_review: 'RIVENDITA IN REVISIONE',
+    status_fractional_open: 'FRAZIONI APERTE',
+    status_fractional_full: 'FRAZIONI COMPLETE',
+    status_fractional_resale: 'RIVENDITA FRAZIONI',
+    status_private_viewing: 'VISIONE PRIVATA',
+    status_archived_private_collection: 'ARCHIVIATO / COLLEZIONE PRIVATA',
+    status_escrow_pending: 'DEPOSITO IN ATTESA',
   },
   fr: {
     documentRef: 'Réf. document',
@@ -2323,6 +2392,34 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Client :',
     atelierDirector: 'Directeur Atelier — Signature numérique',
     footerGdpr: 'RGPD : selon les Conditions de la plateforme. Enregistrer en PDF.',
+    paymentDetails: 'Coordonnées de paiement',
+    paymentAccountHolder: 'Titulaire du compte',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Référence',
+    serialLabel: 'Numéro de série',
+    marginPrivateVault: 'Atelier · Coffre privé',
+    marginHaute: 'Haute joaillerie · Cologne',
+    membershipStatusActive: 'Actif',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Scanner pour vérifier',
+    registryQrLabel: 'Registre',
+    legalShippingBody: 'Risque/titre selon commande.',
+    legalCustomsBody: 'Destinataire sauf accord contraire.',
+    legalArbitrationBody: 'ICC/DIS Cologne.',
+    legalExportBody: 'Le client garantit le respect des réglementations d’exportation.',
+    status_available: 'DISPONIBLE',
+    status_reserved: 'RÉSERVÉ',
+    status_sold: 'VENDU',
+    status_auction: 'ENCHÈRES',
+    status_resell_pending: 'REVENTE EN ATTENTE',
+    status_resale_review: 'REVENTE EN EXAMEN',
+    status_fractional_open: 'FRACTIONS OUVERTES',
+    status_fractional_full: 'FRACTIONS COMPLÈTES',
+    status_fractional_resale: 'REVENTE DE FRACTIONS',
+    status_private_viewing: 'VUE PRIVÉE',
+    status_archived_private_collection: 'ARCHIVÉ / COLLECTION PRIVÉE',
+    status_escrow_pending: 'SÉQUESTRE EN ATTENTE',
   },
   es: {
     documentRef: 'Ref. documento',
@@ -2351,6 +2448,34 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Cliente:',
     atelierDirector: 'Director Atelier — Firma digital',
     footerGdpr: 'RGPD: según Términos de la plataforma. Guardar como PDF.',
+    paymentDetails: 'Datos de pago',
+    paymentAccountHolder: 'Titular de la cuenta',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Referencia',
+    serialLabel: 'Número de serie',
+    marginPrivateVault: 'Atelier · Bóveda privada',
+    marginHaute: 'Alta joyería · Colonia',
+    membershipStatusActive: 'Activo',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Escanear para verificar',
+    registryQrLabel: 'Registro',
+    legalShippingBody: 'Riesgo/título según pedido.',
+    legalCustomsBody: 'Destinatario salvo acuerdo distinto.',
+    legalArbitrationBody: 'ICC/DIS Colonia.',
+    legalExportBody: 'El cliente declara el cumplimiento de la normativa de exportación.',
+    status_available: 'DISPONIBLE',
+    status_reserved: 'RESERVADO',
+    status_sold: 'VENDIDO',
+    status_auction: 'SUBASTA',
+    status_resell_pending: 'REVENTA PENDIENTE',
+    status_resale_review: 'REVENTA EN REVISIÓN',
+    status_fractional_open: 'FRACCIONES ABIERTAS',
+    status_fractional_full: 'FRACCIONES COMPLETAS',
+    status_fractional_resale: 'REVENTA FRACCIONAL',
+    status_private_viewing: 'VISTA PRIVADA',
+    status_archived_private_collection: 'ARCHIVADO / COLECCIÓN PRIVADA',
+    status_escrow_pending: 'DEPÓSITO PENDIENTE',
   },
   pt: {
     documentRef: 'Ref. documento',
@@ -2379,6 +2504,34 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'Cliente:',
     atelierDirector: 'Diretor Atelier — Assinatura digital',
     footerGdpr: 'RGPD: conforme Termos da plataforma. Guardar como PDF.',
+    paymentDetails: 'Dados de pagamento',
+    paymentAccountHolder: 'Titular da conta',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'Referência',
+    serialLabel: 'Número de série',
+    marginPrivateVault: 'Atelier · Cofre privado',
+    marginHaute: 'Alta joalharia · Colónia',
+    membershipStatusActive: 'Ativo',
+    blockchainLineLabel: 'Blockchain',
+    scanVerifyQr: 'Digitalizar para verificar',
+    registryQrLabel: 'Registo',
+    legalShippingBody: 'Risco/título conforme encomenda.',
+    legalCustomsBody: 'Destinatário salvo acordo em contrário.',
+    legalArbitrationBody: 'ICC/DIS Colónia.',
+    legalExportBody: 'O cliente declara o cumprimento das normas de exportação.',
+    status_available: 'DISPONÍVEL',
+    status_reserved: 'RESERVADO',
+    status_sold: 'VENDIDO',
+    status_auction: 'LEILÃO',
+    status_resell_pending: 'REVENDA PENDENTE',
+    status_resale_review: 'REVENDA EM ANÁLISE',
+    status_fractional_open: 'FRAÇÕES ABERTAS',
+    status_fractional_full: 'FRAÇÕES COMPLETAS',
+    status_fractional_resale: 'REVENDA FRACIONADA',
+    status_private_viewing: 'VISÃO PRIVADA',
+    status_archived_private_collection: 'ARQUIVADO / COLEÇÃO PRIVADA',
+    status_escrow_pending: 'DEPÓSITO PENDENTE',
   },
   ar: {
     documentRef: 'مرجع المستند',
@@ -2407,6 +2560,34 @@ const CONTRACT_LABELS: Record<ContractLang, Record<string, string>> = {
     client: 'العميل:',
     atelierDirector: 'مدير الأتلييه — التوقيع الرقمي',
     footerGdpr: 'حماية البيانات: وفقاً لشروط المنصة. حفظ كـ PDF.',
+    paymentDetails: 'تفاصيل الدفع',
+    paymentAccountHolder: 'صاحب الحساب',
+    paymentIban: 'IBAN',
+    paymentBic: 'BIC',
+    paymentReference: 'المرجع',
+    serialLabel: 'الرقم التسلسلي',
+    marginPrivateVault: 'الأتلييه · الخزينة الخاصة',
+    marginHaute: 'الجواهر الفاخرة · كولونيا',
+    membershipStatusActive: 'نشط',
+    blockchainLineLabel: 'سلسلة الكتل',
+    scanVerifyQr: 'امسح للتحقق',
+    registryQrLabel: 'السجل',
+    legalShippingBody: 'المخاطر/الملكية وفق الطلب.',
+    legalCustomsBody: 'المستلم ما لم يُتفق خلاف ذلك.',
+    legalArbitrationBody: 'ICC/DIS كولونيا.',
+    legalExportBody: 'يُقر العميل بالامتثال لقواعد التصدير.',
+    status_available: 'متاح',
+    status_reserved: 'محجوز',
+    status_sold: 'مباع',
+    status_auction: 'مزاد',
+    status_resell_pending: 'إعادة بيع معلقة',
+    status_resale_review: 'مراجعة إعادة البيع',
+    status_fractional_open: 'أسهم مفتوحة',
+    status_fractional_full: 'أسهم مكتملة',
+    status_fractional_resale: 'إعادة بيع الأسهم',
+    status_private_viewing: 'معاينة خاصة',
+    status_archived_private_collection: 'مؤرشف / مجموعة خاصة',
+    status_escrow_pending: 'ضمان معلق',
   },
 };
 
@@ -2416,8 +2597,65 @@ function getContractLang(lang: string | undefined | null): ContractLang {
   return 'en';
 }
 
-/** Stored contracts / certificates for legal & shipping: always English. UI may request translated preview via ?lang=. */
-const OFFICIAL_CONTRACT_LANG: ContractLang = 'en';
+function parseMasterpieceI18nJson(raw: unknown): Record<string, string> | null {
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) return raw as Record<string, string>;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      const o = JSON.parse(t);
+      if (o && typeof o === "object" && !Array.isArray(o)) return o as Record<string, string>;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function pickI18nField(map: Record<string, string> | null, lang: ContractLang, fallback: string): string {
+  const fb = (fallback && String(fallback).trim()) || "";
+  if (!map) return fb || "—";
+  const order: ContractLang[] = [lang, "en", "de", "it", "fr", "es", "pt", "ar"];
+  for (const k of order) {
+    const v = map[k];
+    if (v != null && String(v).trim() !== "") return String(v).trim();
+  }
+  const first = Object.values(map).find((v) => v != null && String(v).trim() !== "");
+  return first ? String(first).trim() : fb || "—";
+}
+
+function localizedPieceDescription(piece: any, lang: ContractLang): string {
+  if (!piece) return "";
+  const map = parseMasterpieceI18nJson(piece.description_i18n);
+  if (map) return pickI18nField(map, lang, piece.description || "");
+  const col = piece[`description_${lang}`];
+  if (col != null && String(col).trim() !== "") return String(col).trim();
+  return String(piece.description || "").trim();
+}
+
+function localizedPieceMaterials(piece: any, lang: ContractLang): string {
+  if (!piece) return "—";
+  const map = parseMasterpieceI18nJson(piece.materials_i18n);
+  return pickI18nField(map, lang, piece.materials || "");
+}
+
+function localizedPieceGemstones(piece: any, lang: ContractLang): string {
+  if (!piece) return "—";
+  const map = parseMasterpieceI18nJson(piece.gemstones_i18n);
+  return pickI18nField(map, lang, piece.gemstones || "");
+}
+
+function formatPieceStatusForContract(raw: string | undefined | null, L: Record<string, string>): string {
+  const s = String(raw || "").toLowerCase().trim();
+  if (!s) return "—";
+  const key = `status_${s.replace(/-/g, "_")}`;
+  if (L[key]) return L[key];
+  return s.replace(/_/g, " ").toUpperCase();
+}
+
+/** Default language for generated HTML when no user / query language is available. */
+const OFFICIAL_CONTRACT_LANG: ContractLang = "en";
 
 // Contract body templates per language (placeholders: piece.title, piece.serial_id, piece.valuation, piece.deposit_pct, user.name, depositAmount, balanceDue, regId, blockchainHash, pct)
 const CONTRACT_BODIES_EN = {
@@ -2572,11 +2810,12 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   const isVipAgreement = !!(options.isVipAgreement || (options.title && String(options.title).toUpperCase().includes('VIP MEMBERSHIP')));
   const title = options.title || type;
   const pieceTitle = (piece && piece.title) ? piece.title : '—';
-  const pieceMaterials = (piece && piece.materials) ? piece.materials : '—';
-  const pieceGemstones = (piece && piece.gemstones) ? piece.gemstones : '—';
-  const pieceValuation = (piece && piece.valuation != null) ? Number(piece.valuation).toLocaleString() : '—';
-  const pieceStatus = (piece && piece.status) ? piece.status : '—';
-  const pieceDescription = (piece && piece.description) ? piece.description.substring(0, 220) : '';
+  const pieceMaterials = piece ? localizedPieceMaterials(piece, lang) : '—';
+  const pieceGemstones = piece ? localizedPieceGemstones(piece, lang) : '—';
+  const pieceValuation = (piece && piece.valuation != null) ? Number(piece.valuation).toLocaleString(locale) : '—';
+  const pieceStatus = formatPieceStatusForContract(piece?.status, L as Record<string, string>);
+  const pieceDescriptionRaw = piece ? localizedPieceDescription(piece, lang) : '';
+  const pieceDescription = pieceDescriptionRaw ? pieceDescriptionRaw.substring(0, 220) : '';
   const pieceImage = (piece && piece.image_url) ? String(piece.image_url).trim() : '';
   const hasPiece = !isVipAgreement && piece && (piece.title || piece.serial_id);
   const blockchainHash = (piece && piece.blockchain_hash) ? piece.blockchain_hash : 'PENDING_VERIFICATION';
@@ -2600,7 +2839,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
           <div>
             <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
             <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.membershipFee || 'Membership Fee'}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${L.membershipFeePerYear || '15,000 EUR / year'}</div></div>
-            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">Active</div></div>
+            <div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${(L as any).membershipStatusActive || 'Active'}</div></div>
             </div>
             </div>
       </div>`
@@ -2614,7 +2853,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
               <div>
             <div style="font-size: 8px; letter-spacing: 1px; color: ${LUXURY_GOLD}; text-transform: uppercase; margin-bottom: 8px;">${L.financialSummary}</div>
             <div style="margin-bottom: 6px;"><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.totalValuation}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${pieceValuation} EUR</div></div>
-            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString()} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
+            ${isInvoice ? `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.balanceDue}</div><div style="font-size: 14px; font-weight: 600; color: ${LUXURY_GOLD};">${Number(options.balanceDue || 0).toLocaleString(locale)} EUR</div></div>` : `<div><div style="font-size: 9px; color: ${LUXURY_MUTED};">${L.status}</div><div style="font-size: 10px; color: ${LUXURY_TEXT}; text-transform: uppercase; letter-spacing: 1px;">${pieceStatus}</div></div>`}
               </div>
               </div>
       </div>`;
@@ -2624,7 +2863,7 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
         ${productImageBlock}
         <div style="text-align: center;">
           <h2 style="font-size: 18px; font-weight: 400; margin-bottom: 4px; color: ${LUXURY_TEXT};">${pieceTitle}</h2>
-          <div style="font-size: 8px; letter-spacing: 3px; color: ${LUXURY_GOLD}; text-transform: uppercase;">Serial: ${serialNumber}</div>
+          <div style="font-size: 8px; letter-spacing: 3px; color: ${LUXURY_GOLD}; text-transform: uppercase;">${(L as any).serialLabel || 'Serial'}: ${serialNumber}</div>
           ${pieceDescription ? `<p style="font-size: 11px; color: ${LUXURY_MUTED}; font-style: italic; margin-top: 8px; line-height: 1.5;">${pieceDescription}${pieceDescription.length >= 220 ? '…' : ''}</p>` : ''}
           </div>
       </div>`;
@@ -2632,8 +2871,8 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   return `
     <div style="font-family: 'Georgia', 'Times New Roman', serif; padding: 40px 36px; color: ${LUXURY_TEXT}; background: ${LUXURY_BG}; max-width: 720px; margin: auto; position: relative; line-height: 1.5; box-sizing: border-box;">
       <div style="position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-18deg); font-size: 56px; letter-spacing: 8px; color: ${LUXURY_GOLD_DIM}; text-transform: uppercase; white-space: nowrap; pointer-events: none; font-weight: 300;">Antonio Bellanova</div>
-      <div style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 8px; letter-spacing: 3px; color: ${LUXURY_MUTED}; text-transform: uppercase; white-space: nowrap;">Atelier • Private Vault</div>
-      <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%) rotate(90deg); font-size: 8px; letter-spacing: 3px; color: ${LUXURY_MUTED}; text-transform: uppercase; white-space: nowrap;">Haute Joaillerie • Köln</div>
+      <div style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%) rotate(-90deg); font-size: 8px; letter-spacing: 3px; color: ${LUXURY_MUTED}; text-transform: uppercase; white-space: nowrap;">${(L as any).marginPrivateVault || 'Atelier · Private Vault'}</div>
+      <div style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%) rotate(90deg); font-size: 8px; letter-spacing: 3px; color: ${LUXURY_MUTED}; text-transform: uppercase; white-space: nowrap;">${(L as any).marginHaute || 'Haute Joaillerie · Köln'}</div>
 
       <div style="text-align: center; margin-bottom: 28px; border-bottom: 1px solid ${LUXURY_GOLD_DIM}; padding-bottom: 18px;">
         <div style="font-size: 9px; letter-spacing: 8px; color: ${LUXURY_GOLD}; margin-bottom: 8px; text-transform: uppercase;">Antonio Bellanova</div>
@@ -2669,15 +2908,15 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
       <div style="margin-top: 36px; border-top: 1px solid ${LUXURY_GOLD_DIM}; padding-top: 18px;">
         <div style="display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px;">
           <div style="width: 36px; height: 36px; border: 1px solid ${LUXURY_GOLD}; border-radius: 50%; line-height: 36px; text-align: center; font-size: 9px; color: ${LUXURY_GOLD}; letter-spacing: 1px; font-weight: 700;">AB</div>
-          ${(options.certificateVerifyUrl ? options.certificateVerifyUrl : options.registryId) ? `<div style="text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(options.certificateVerifyUrl || options.registryUrl || options.registryId)}" width="64" height="64" alt="${options.certificateVerifyUrl ? 'Verify' : 'Registry'}" style="border: 1px solid ${LUXURY_GOLD_DIM};" /><div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 2px;">${options.certificateVerifyUrl ? 'Scan zur Verifizierung' : 'Registry: ' + options.registryId}</div></div>` : ''}
+          ${(options.certificateVerifyUrl ? options.certificateVerifyUrl : options.registryId) ? `<div style="text-align: center;"><img src="https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(options.certificateVerifyUrl || options.registryUrl || options.registryId)}" width="64" height="64" alt="${options.certificateVerifyUrl ? ((L as any).scanVerifyQr || 'Verify') : ((L as any).registryQrLabel || 'Registry')}" style="border: 1px solid ${LUXURY_GOLD_DIM};" /><div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 2px;">${options.certificateVerifyUrl ? ((L as any).scanVerifyQr || 'Scan to verify') : ((L as any).registryQrLabel || 'Registry') + ': ' + options.registryId}</div></div>` : ''}
         </div>
-        <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px;">Blockchain: ${blockchainHash}</div>
+        <div style="font-size: 7px; color: ${LUXURY_MUTED}; letter-spacing: 1px;">${(L as any).blockchainLineLabel || 'Blockchain'}: ${blockchainHash}</div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px; line-height: 1.5; text-align: left; max-width: 640px; margin-left: auto; margin-right: auto;">
           <strong style="color: ${LUXURY_GOLD};">${L.governingLaw}</strong> ${L.jurisdiction} &bull;
-          <strong style="color: ${LUXURY_GOLD};">${L.shipping}</strong> Risk/title per order. &bull;
-          <strong style="color: ${LUXURY_GOLD};">${L.customs}</strong> Recipient unless agreed. &bull;
-          <strong style="color: ${LUXURY_GOLD};">${L.arbitration}</strong> ICC/DIS Cologne. &bull;
-          <strong style="color: ${LUXURY_GOLD};">${L.export}</strong> Client warrants compliance.
+          <strong style="color: ${LUXURY_GOLD};">${L.shipping}</strong> ${(L as any).legalShippingBody || ''} &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.customs}</strong> ${(L as any).legalCustomsBody || ''} &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.arbitration}</strong> ${(L as any).legalArbitrationBody || ''} &bull;
+          <strong style="color: ${LUXURY_GOLD};">${L.export}</strong> ${(L as any).legalExportBody || ''}
         </div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">Antonio Bellanova Atelier · Ahorstraße 8, 50765 Köln · USt-IdNr.: ${UST_IDNR}</div>
         <div style="font-size: 6px; color: ${LUXURY_MUTED}; margin-top: 8px;">${L.footerGdpr}</div>
@@ -2686,16 +2925,17 @@ function generateLuxuryDocument(type: string, content: string, user: any, piece:
   `;
 }
 
-/** Regenerates contract HTML from DB row. Omit `lang` or use official language → English (stored legal text). Pass `lang` for UI preview only (not persisted). Certificates always use English body/labels. */
+/** Regenerates contract HTML from DB row. Language: explicit `lang` query, else contract owner's `user.language`, else English. */
 async function regenerateContractContent(c: any, lang?: string): Promise<string | null> {
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(c.user_id) as any;
   if (!user) return null;
   const piece = c.masterpiece_id ? (await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(c.masterpiece_id) as any) : null;
   const docRef = c.doc_ref || await nextContractRef(c.type);
   const dummyPiece = { id: 0, title: '—', serial_id: '—', materials: '—', gemstones: '—', valuation: 0, status: '—', description: '', image_url: '', blockchain_hash: '—' };
+  const userLang = getContractLang(user?.language);
   const previewLang =
-    typeof lang === 'string' && lang.trim() !== '' ? getContractLang(lang) : OFFICIAL_CONTRACT_LANG;
-  const L: ContractLang = c.type === 'certificate' ? OFFICIAL_CONTRACT_LANG : previewLang;
+    typeof lang === 'string' && lang.trim() !== '' ? getContractLang(lang) : userLang;
+  const L: ContractLang = previewLang;
 
   switch (c.type) {
     case 'deposit':
@@ -2756,6 +2996,37 @@ async function regenerateContractContent(c: any, lang?: string): Promise<string 
     default:
       return null;
   }
+}
+
+/** Regenerates certificate HTML (certificates table) in owner language or ?lang=. */
+async function regenerateCertificateHtml(cert: any, lang?: string): Promise<string | null> {
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(cert.owner_id) as any;
+  if (!user) return null;
+  const piece = cert.masterpiece_id
+    ? ((await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(cert.masterpiece_id)) as any)
+    : null;
+  if (!piece) return null;
+  const docRef = cert.cert_id || (await nextContractRef("certificate"));
+  const userLang = getContractLang(user?.language);
+  const L =
+    typeof lang === "string" && lang.trim() !== "" ? getContractLang(lang) : userLang;
+  const regId = piece.registry_id || "REG-PENDING";
+  const certT = CONTRACT_BODIES[L].certificate;
+  const certVars = {
+    piece: { ...piece },
+    user,
+    regId,
+    blockchainHash: piece.blockchain_hash || cert.blockchain_hash || "AB-SECURE-HASH-772",
+  };
+  const certContent = applyContractVars(certT.body, certVars);
+  return generateLuxuryDocument(certT.title, certContent, user, piece, {
+    docRef,
+    title: certT.title,
+    registryId: regId,
+    registryUrl: `/registry/masterpiece/${piece.id}`,
+    lang: L,
+    certificateVerifyUrl: docRef ? `${BASE_URL}/verify/${docRef}` : undefined,
+  });
 }
 
 async function notifyUser(userId: number, message: string, type: string = 'info') {
@@ -6341,7 +6612,7 @@ app.patch("/api/admin/service-requests/:id", async (req, res) => {
   res.json({ success: true });
 });
 
-// Contract preview in chosen language (UI only; DB `content` stays official English). Certificates always English.
+// Contract preview in chosen language (UI). Same templates as authorized download regeneration.
 app.get("/api/contracts/:id/preview", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -6361,14 +6632,12 @@ app.get("/api/contracts/:id/preview", async (req, res) => {
     const html = await regenerateContractContent(c, langQ || undefined);
     if (!html) return res.status(422).json({ error: "Preview not available for this contract type" });
     const officialLang = OFFICIAL_CONTRACT_LANG;
-    const isCertificate = c.type === "certificate";
+    const effectiveLang = getContractLang(langQ || undefined);
     res.json({
       content: html,
       officialLang,
-      /** True when this document is always generated in English (certificate of authenticity). */
-      certificateOfficialOnly: isCertificate,
-      /** True when the viewer asked for a non-English preview (only applies when regenerate supports that language). */
-      isTranslationPreview: !isCertificate && !!langQ && getContractLang(langQ) !== OFFICIAL_CONTRACT_LANG,
+      certificateOfficialOnly: false,
+      isTranslationPreview: !!langQ && effectiveLang !== OFFICIAL_CONTRACT_LANG,
     });
   } catch (err: any) {
     console.error("[contracts/preview]", err);
@@ -6378,23 +6647,57 @@ app.get("/api/contracts/:id/preview", async (req, res) => {
 
 // Contract/Certificate premium download (HTML for Print to PDF)
 app.get("/api/contracts/:id/download", async (req, res) => {
-  const c = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(req.params.id) as any;
-  if (!c) return res.status(404).send("Contract not found");
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || 'Contract'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${c.content || ''}</body></html>`;
-  const filename = `Antonio-Bellanova-${String(c.doc_ref || c.id).replace(/\s/g, '-')}.html`;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.send(html);
+  try {
+    const c = await (await db.prepare("SELECT * FROM contracts WHERE id = ?")).get(req.params.id) as any;
+    if (!c) return res.status(404).send("Contract not found");
+    let bodyHtml = c.content || "";
+    const sessionUserId = getSessionUserId(req);
+    const langQ = typeof req.query.lang === "string" ? req.query.lang.trim() : "";
+    if (!noSessionUserId(sessionUserId) && sessionUserId !== GUEST_USER_ID) {
+      const requester = (await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(sessionUserId)) as { role?: string } | undefined;
+      const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
+      if (Number(c.user_id) === Number(sessionUserId) || isAdmin) {
+        const owner = (await (await db.prepare("SELECT language FROM users WHERE id = ?")).get(c.user_id)) as { language?: string } | undefined;
+        const regenerated = await regenerateContractContent(c, langQ || owner?.language || undefined);
+        if (regenerated) bodyHtml = regenerated;
+      }
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${c.doc_ref || "Contract"}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${bodyHtml}</body></html>`;
+    const filename = `Antonio-Bellanova-${String(c.doc_ref || c.id).replace(/\s/g, "-")}.html`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(html);
+  } catch (err: any) {
+    console.error("[contracts/download]", err);
+    res.status(500).send("Download failed");
+  }
 });
 
 app.get("/api/certificates/download/:id", async (req, res) => {
-  const cert = await (await db.prepare("SELECT * FROM certificates WHERE id = ?")).get(req.params.id) as any;
-  if (!cert) return res.status(404).send("Certificate not found");
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${cert.cert_id || 'Certificate'}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${cert.content || ''}</body></html>`;
-  const filename = `Antonio-Bellanova-${String(cert.cert_id || cert.id).replace(/\s/g, '-')}.html`;
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.send(html);
+  try {
+    const cert = await (await db.prepare("SELECT * FROM certificates WHERE id = ?")).get(req.params.id) as any;
+    if (!cert) return res.status(404).send("Certificate not found");
+    let bodyHtml = cert.content || "";
+    const sessionUserId = getSessionUserId(req);
+    const langQ = typeof req.query.lang === "string" ? req.query.lang.trim() : "";
+    if (!noSessionUserId(sessionUserId) && sessionUserId !== GUEST_USER_ID) {
+      const requester = (await (await db.prepare("SELECT role FROM users WHERE id = ?")).get(sessionUserId)) as { role?: string } | undefined;
+      const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
+      if (Number(cert.owner_id) === Number(sessionUserId) || isAdmin) {
+        const owner = (await (await db.prepare("SELECT language FROM users WHERE id = ?")).get(cert.owner_id)) as { language?: string } | undefined;
+        const regenerated = await regenerateCertificateHtml(cert, langQ || owner?.language || undefined);
+        if (regenerated) bodyHtml = regenerated;
+      }
+    }
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${cert.cert_id || "Certificate"}</title><style>body{margin:0;background:#0d0d0d;}</style></head><body>${bodyHtml}</body></html>`;
+    const filename = `Antonio-Bellanova-${String(cert.cert_id || cert.id).replace(/\s/g, "-")}.html`;
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(html);
+  } catch (err: any) {
+    console.error("[certificates/download]", err);
+    res.status(500).send("Download failed");
+  }
 });
 
 // Admin: sales overview (name, email, country/address)

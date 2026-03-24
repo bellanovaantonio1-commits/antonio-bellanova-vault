@@ -110,6 +110,7 @@
   "contract.reading_language": "Leer contrato (idioma)",
   "contract.official_english_notice": "La versión vinculante para envío y entrega está en inglés. Esta vista es para su comprensión en el idioma elegido.",
   "contract.certificate_english_only": "Certificado: solo inglés (oficial)",
+  "contract.certificate_localized_notice": "Certificado: elija el idioma de visualización arriba. Materiales, piedras y etiquetas siguen su idioma y las traducciones guardadas.",
   "contract.preview_loading": "Cargando documento…",
   "contract.read_document": "Leer",
   "contract.close_reader": "Cerrar",

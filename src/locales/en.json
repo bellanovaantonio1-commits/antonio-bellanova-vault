@@ -134,6 +134,7 @@
   "contract.reading_language": "Read contract (language)",
   "contract.official_english_notice": "The binding version for shipping and handover is in English. This view is for your understanding in your chosen language.",
   "contract.certificate_english_only": "Certificate: English only (official)",
+  "contract.certificate_localized_notice": "Certificate: choose display language above. Materials, gemstones, and all labels follow your language and stored translations.",
   "contract.preview_loading": "Loading document…",
   "contract.read_document": "Read",
   "contract.close_reader": "Close",

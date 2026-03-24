@@ -134,6 +134,7 @@
   "contract.reading_language": "Vertrag lesen (Sprache)",
   "contract.official_english_notice": "Die verbindliche Fassung für Versand und Übergabe ist auf Englisch. Diese Ansicht dient dem Verständnis in Ihrer gewählten Sprache.",
   "contract.certificate_english_only": "Zertifikat: nur Englisch (Original)",
+  "contract.certificate_localized_notice": "Zertifikat: Wählen Sie die Anzeigesprache oben. Materialien, Edelsteine und alle Bezeichnungen folgen Ihrer Sprache und den im System hinterlegten Übersetzungen.",
   "contract.preview_loading": "Dokument wird geladen…",
   "contract.read_document": "Lesen",
   "contract.close_reader": "Schließen",

@@ -110,6 +110,7 @@
   "contract.reading_language": "قراءة العقد (اللغة)",
   "contract.official_english_notice": "النسخة الملزمة للشحن والتسليم باللغة الإنجليزية. هذا العرض للفهم بلغتك المختارة.",
   "contract.certificate_english_only": "الشهادة: الإنجليزية فقط (رسمية)",
+  "contract.certificate_localized_notice": "الشهادة: اختر لغة العرض أعلاه. تتبع المواد والأحجار الكريمة وجميع التسميات لغتك والترجمات المخزنة.",
   "contract.preview_loading": "جاري تحميل المستند…",
   "contract.read_document": "قراءة",
   "contract.close_reader": "إغلاق",

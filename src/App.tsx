@@ -3130,7 +3130,7 @@ function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { con
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const isCert = contractType === 'certificate';
-  const effectiveLang = isCert ? 'en' : readLang;
+  const effectiveLang = readLang;
 
   useEffect(() => {
     setReadLang(defaultLang);
@@ -3161,23 +3161,21 @@ function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { con
 
   return (
     <div className="space-y-3">
-      {!isCert ? (
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('contract.reading_language')}</p>
-          <select
-            value={readLang}
-            onChange={(e) => setReadLang(e.target.value)}
-            className="bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-zinc-200 px-2 py-1.5 max-w-[200px]"
-            aria-label={t('contract.reading_language')}
-          >
-            {CONTRACT_PREVIEW_LANGS.map((l) => (
-              <option key={l.code} value={l.code}>{l.label}</option>
-            ))}
-          </select>
-        </div>
-      ) : null}
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500">{t('contract.reading_language')}</p>
+        <select
+          value={readLang}
+          onChange={(e) => setReadLang(e.target.value)}
+          className="bg-zinc-950 border border-zinc-700 rounded-lg text-xs text-zinc-200 px-2 py-1.5 max-w-[200px]"
+          aria-label={t('contract.reading_language')}
+        >
+          {CONTRACT_PREVIEW_LANGS.map((l) => (
+            <option key={l.code} value={l.code}>{l.label}</option>
+          ))}
+        </select>
+      </div>
       <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
-        {isCert ? t('contract.certificate_english_only') : t('contract.official_english_notice')}
+        {isCert ? t('contract.certificate_localized_notice') : t('contract.official_english_notice')}
       </p>
       {loading && <p className="text-xs text-zinc-500">{t('contract.preview_loading')}</p>}
       {err && <p className="text-xs text-red-400" role="alert">{err}</p>}
@@ -8180,7 +8178,7 @@ export default function App() {
                                 <p className="text-xs text-zinc-500">{new Date(contract.created_at!).toLocaleDateString()}</p>
                               </div>
                             </div>
-                            <a href={`/api/contracts/${contract.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
+                            <a href={`/api/contracts/${contract.id}/download?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
                           </Card>
                         ))}
                         {vaultData.certs?.map((cert: Certificate) => (
@@ -8192,7 +8190,7 @@ export default function App() {
                                 <p className="text-xs text-zinc-500">{new Date(cert.created_at!).toLocaleDateString()}</p>
                       </div>
                             </div>
-                            <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
+                            <a href={`/api/certificates/download/${cert.id}?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="shrink-0"><Button variant="outline" size="sm"><FileDown className="w-4 h-4" /> {t('download')}</Button></a>
                           </Card>
                         ))}
                         {(vaultData.vault_documents || []).filter((vd: any) => !vaultData.contracts?.some((c: Contract) => c.id === vd.contract_id) && !vaultData.certs?.some((cert: Certificate) => cert.id === vd.certificate_id)).map((vd: any) => (
@@ -9012,11 +9010,11 @@ export default function App() {
                   <div className="space-y-4">
                     <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">{t('contracts')}</h4>
                     {(myPrivateDocuments.contracts || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine Verträge.</p> : (myPrivateDocuments.contracts || []).map((c: any) => (
-                      <Card key={c.id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{c.type} — {c.doc_ref}</span><a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
+                      <Card key={c.id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{c.type} — {c.doc_ref}</span><a href={`/api/contracts/${c.id}/download?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
                     ))}
                     <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('certificates')}</h4>
                     {(myPrivateDocuments.certificates || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine Zertifikate.</p> : (myPrivateDocuments.certificates || []).map((cert: any) => (
-                      <Card key={cert.cert_id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{cert.cert_id}</span><a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
+                      <Card key={cert.cert_id} className="p-3 flex items-center justify-between"><span className="text-sm text-zinc-200">{cert.cert_id}</span><a href={`/api/certificates/download/${cert.id}?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="text-amber-500 text-xs">Download</a></Card>
                     ))}
                     <h4 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mt-6">{t('private_clients.other_docs') || 'Sonstige Dokumente'}</h4>
                     {(myPrivateDocuments.documents || []).length === 0 ? <p className="text-zinc-500 text-sm italic">Keine.</p> : (myPrivateDocuments.documents || []).map((d: any) => (
@@ -12031,7 +12029,7 @@ export default function App() {
                                 <p className="text-sm text-zinc-200 truncate">{c.type} · {c.user_name}</p>
                                 <p className="text-[10px] text-zinc-500 font-mono">{c.doc_ref}</p>
                               </div>
-                              <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                              <a href={`/api/contracts/${c.id}/download?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
                           {(adminDocuments.contracts || []).length === 0 && <p className="text-zinc-500 text-xs italic">Keine Verträge</p>}
@@ -12046,7 +12044,7 @@ export default function App() {
                                 <p className="text-sm text-zinc-200 truncate">{c.user_name}</p>
                                 <p className="text-[10px] text-zinc-500 font-mono">{c.doc_ref}</p>
                               </div>
-                              <a href={`/api/contracts/${c.id}/download`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                              <a href={`/api/contracts/${c.id}/download?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
                           {(adminDocuments.contracts || []).filter((c: any) => c.type === 'invoice').length === 0 && <p className="text-zinc-500 text-xs italic">Keine Rechnungen</p>}
@@ -12061,7 +12059,7 @@ export default function App() {
                                 <p className="text-sm text-zinc-200 truncate">{cert.owner_name} · {cert.piece_title || cert.serial_id}</p>
                                 <p className="text-[10px] text-zinc-500 font-mono">{cert.cert_id}</p>
                               </div>
-                              <a href={`/api/certificates/download/${cert.id}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
+                              <a href={`/api/certificates/download/${cert.id}?lang=${encodeURIComponent(language)}`} target="_blank" rel="noopener noreferrer" className="shrink-0 text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                             </div>
                           ))}
                           {(adminDocuments.certificates || []).length === 0 && <p className="text-zinc-500 text-xs italic">Keine Zertifikate</p>}
@@ -13837,7 +13835,7 @@ export default function App() {
                 </div>
                 <div className="p-4 border-t border-zinc-800 bg-zinc-950 shrink-0 flex gap-2">
                   <a
-                    href={`/api/contracts/${contractToRead.id}/download`}
+                    href={`/api/contracts/${contractToRead.id}/download?lang=${encodeURIComponent(language)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1"
@@ -13875,7 +13873,7 @@ export default function App() {
                     <div className="space-y-2">
                       <h3 className="text-3xl font-serif italic text-amber-500">{t('cert.title')}</h3>
                       <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">Antonio Bellanova Atelier</p>
-                      <p className="text-[11px] text-amber-200/70 border border-amber-500/20 bg-amber-500/5 rounded-lg px-3 py-2 max-w-md">{t('contract.certificate_english_only')}</p>
+                      <p className="text-[11px] text-amber-200/70 border border-amber-500/20 bg-amber-500/5 rounded-lg px-3 py-2 max-w-md">{t('contract.certificate_localized_notice')}</p>
                     </div>
                     <button onClick={() => setSelectedCert(null)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
                       <Plus className="w-6 h-6 text-zinc-500 rotate-45" />
@@ -13918,7 +13916,7 @@ ${plain}`;
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-zinc-600 text-center">{t('scan_verify')}</p>
                       </div>
-                      <Button className="w-full py-2 text-sm" onClick={() => window.open(`/api/certificates/download/${selectedCert.id}`, '_blank', 'noopener,noreferrer')}>
+                      <Button className="w-full py-2 text-sm" onClick={() => window.open(`/api/certificates/download/${selectedCert.id}?lang=${encodeURIComponent(language)}`, '_blank', 'noopener,noreferrer')}>
                         <Download className="w-4 h-4" /> {t('download_pdf')}
                       </Button>
                     </div>
