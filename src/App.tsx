@@ -8305,16 +8305,6 @@ export default function App() {
                               <Button variant="outline" size="sm" className="text-xs" title={t('contract.read_document')} onClick={() => setContractToRead(contract)}>
                                 <Eye className="w-4 h-4" /> {t('contract.read_document')}
                               </Button>
-                              <Button variant="ghost" className="p-2 text-zinc-400 hover:text-amber-500" title={t('contract.download_pdf_title')} onClick={() => {
-                                const piece = contract.masterpiece_id
-                                  ? (vaultData.pieces.find((p: Masterpiece) => p.id === contract.masterpiece_id) || masterpieces.find(m => m.id === contract.masterpiece_id))
-                                  : undefined;
-                                const title = contract.type === 'deposit_resale' ? t('resale.deposit_contract_title') : (contract.type && typeof contract.type === 'string' ? contract.type : 'Contract') + (contract.type === 'invoice' ? '' : ' Agreement');
-                                const docRef = contract.doc_ref != null ? String(contract.doc_ref) : undefined;
-                                const fileName = `Antonio-Bellanova-${docRef || `Vertrag-${contract.id}`}.pdf`;
-                                downloadPDF(title, contract.content || '', piece, { docRef, fileName, contractType: contract.type });
-                              }}><FileDown className="w-5 h-5" /></Button>
-                              
                               {contract.status === 'signed' ? (
                                 <div className="flex flex-col items-end">
                                   <div className="flex items-center gap-2 text-emerald-500 text-[10px] font-bold uppercase tracking-widest mb-1">
@@ -13827,8 +13817,18 @@ export default function App() {
                 <div className="p-5 overflow-y-auto flex-1 min-h-0">
                   <ContractHtmlPreview contractId={contractToRead.id} contractType={contractToRead.type} defaultLang={language} t={t} />
                 </div>
-                <div className="p-4 border-t border-zinc-800 bg-zinc-950 shrink-0">
-                  <Button variant="ghost" className="w-full" onClick={() => setContractToRead(null)}>{t('contract.close_reader')}</Button>
+                <div className="p-4 border-t border-zinc-800 bg-zinc-950 shrink-0 flex gap-2">
+                  <a
+                    href={`/api/contracts/${contractToRead.id}/download`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1"
+                  >
+                    <Button variant="outline" className="w-full">
+                      <FileDown className="w-4 h-4" /> {t('download')}
+                    </Button>
+                  </a>
+                  <Button variant="ghost" className="flex-1" onClick={() => setContractToRead(null)}>{t('contract.close_reader')}</Button>
                 </div>
               </motion.div>
             </div>
