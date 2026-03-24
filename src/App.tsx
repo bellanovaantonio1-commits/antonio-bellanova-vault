@@ -12073,9 +12073,35 @@ export default function App() {
                       <div className="space-y-2">
                         {(adminDocuments.vault_documents || []).map((vd: any) => (
                           <div key={vd.id} className="flex items-center justify-between gap-4 py-2 border-b border-zinc-800/50">
-                            <div>
-                              <p className="text-sm text-zinc-200">{vd.document_type} {vd.contract_type ? `· ${vd.contract_type}` : ''} · {vd.client_name}</p>
-                              <p className="text-[10px] text-zinc-500 font-mono">{vd.doc_ref} · Vault: {vd.vault_id || '—'}</p>
+                            <div className="min-w-0">
+                              {(() => {
+                                const docType = String(vd.document_type || '').toLowerCase();
+                                const docTypeLabel =
+                                  docType === 'contract' ? 'Vertrag'
+                                  : docType === 'certificate' ? 'Zertifikat'
+                                  : docType === 'verification' ? 'Verifizierung'
+                                  : vd.document_type || 'Dokument';
+                                const subtypeLabel = vd.contract_type
+                                  ? String(vd.contract_type).replace(/_/g, ' ')
+                                  : (docType === 'verification' && vd.title ? String(vd.title).split('•')[1]?.trim() : '');
+                                const fileName = vd.file_path
+                                  ? decodeURIComponent(String(vd.file_path).split('/').pop() || '')
+                                  : '';
+                                return (
+                                  <>
+                                    <p className="text-sm text-zinc-200 truncate">
+                                      <span className="font-semibold">{docTypeLabel}</span>
+                                      {subtypeLabel ? <span className="text-zinc-400"> · {subtypeLabel}</span> : null}
+                                      <span className="text-zinc-500"> · {vd.client_name}</span>
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500 font-mono truncate">
+                                      {vd.doc_ref}
+                                      {fileName ? ` · ${fileName}` : ''}
+                                      {vd.created_at ? ` · ${new Date(vd.created_at).toLocaleDateString('de-DE')}` : ''}
+                                    </p>
+                                  </>
+                                );
+                              })()}
                             </div>
                             <a href={`/api/documents/${vd.id}/download`} target="_blank" rel="noopener noreferrer" className="text-amber-500 hover:text-amber-400"><FileDown className="w-4 h-4" /></a>
                           </div>
