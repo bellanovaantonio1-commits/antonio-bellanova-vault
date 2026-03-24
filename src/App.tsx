@@ -13887,14 +13887,29 @@ export default function App() {
                       <div className="space-y-2">
                         <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('cert_details')}</p>
                         <div className="bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto">
-                          {selectedCert.content || `
-ECHTHEITSZERTIFIKAT
+                          {(() => {
+                            const pieceTitle = masterpieces.find(m => m.id === selectedCert.masterpiece_id)?.title || '—';
+                            const ownerName = (selectedCert as any).owner_name || user?.name || '—';
+                            const raw = String(selectedCert.content || '');
+                            const plain = raw
+                              .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                              .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                              .replace(/<[^>]+>/g, ' ')
+                              .replace(/&nbsp;/gi, ' ')
+                              .replace(/&amp;/gi, '&')
+                              .replace(/&lt;/gi, '<')
+                              .replace(/&gt;/gi, '>')
+                              .replace(/\s+/g, ' ')
+                              .trim();
+                            return `ECHTHEITSZERTIFIKAT
 -------------------
 ID: ${selectedCert.cert_id}
-STÜCK: ${masterpieces.find(m => m.id === selectedCert.masterpiece_id)?.title}
-BESITZER: ${user.name}
+STÜCK: ${pieceTitle}
+BESITZER: ${ownerName}
 DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
-                          `}
+
+${plain ? plain.slice(0, 1200) : ''}`;
+                          })()}
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -13913,7 +13928,9 @@ DATUM: ${new Date(selectedCert.created_at).toLocaleDateString()}
                         </div>
                         <p className="text-[10px] uppercase tracking-widest text-zinc-600 text-center">{t('scan_verify')}</p>
                       </div>
-                      <Button className="w-full py-2 text-sm"><Download className="w-4 h-4" /> {t('download_pdf')}</Button>
+                      <Button className="w-full py-2 text-sm" onClick={() => window.open(`/api/certificates/download/${selectedCert.id}`, '_blank', 'noopener,noreferrer')}>
+                        <Download className="w-4 h-4" /> {t('download_pdf')}
+                      </Button>
                     </div>
                   </div>
                 </div>
