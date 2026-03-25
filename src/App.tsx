@@ -8435,6 +8435,7 @@ export default function App() {
                             {payments.map(pay => {
                               const isAwaiting = pay.status === 'pending' || pay.status === 'awaiting_deposit' || pay.status === 'awaiting_payment';
                               const contractLocked = vaultData.contracts.some((c: any) => c.masterpiece_id === pay.masterpiece_id && c.status === 'draft');
+                              const paymentPiece = masterpieces.find((m: any) => m.id === pay.masterpiece_id);
                               return (
                               <Card key={pay.id} className="flex flex-wrap items-center justify-between gap-4">
                                 <div className="flex items-center gap-4">
@@ -8444,6 +8445,11 @@ export default function App() {
                                   <div>
                                     <h4 className="font-medium text-zinc-200">{pay.reference}</h4>
                                     <p className="text-xs text-zinc-500">{pay.type === 'deposit' ? t('deposit') : t('full_payment')} • {new Date(pay.created_at).toLocaleDateString()}</p>
+                                    {paymentPiece && (
+                                      <p className="text-[11px] text-zinc-500 mt-0.5">
+                                        {paymentPiece.title} {paymentPiece.category ? `• Klasse: ${paymentPiece.category}` : ''}
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                                 <div className="text-right space-y-2 flex items-center gap-3">
@@ -14576,6 +14582,7 @@ const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpd
         <div className="space-y-1">
           <h4 className="text-sm font-bold text-zinc-100">{piece.title}</h4>
           <p className="text-[10px] text-zinc-500 font-mono">{piece.serial_id}</p>
+          {piece.category && <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Klasse: {piece.category}</p>}
         </div>
         <div className="flex items-center gap-2">
           {(workflow as any).production_priority === 'high' && (
