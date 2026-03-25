@@ -8957,6 +8957,19 @@ app.put("/api/admin/drops/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+app.delete("/api/admin/drops/:id", async (req, res) => {
+  const adminId = getSessionUserId(req);
+  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
+  const dropId = Number(req.params.id);
+  if (!dropId || Number.isNaN(dropId)) return res.status(400).json({ error: "Ungültige Drop-ID." });
+  const row = await (await db.prepare("SELECT id FROM drops WHERE id = ?")).get(dropId);
+  if (!row) return res.status(404).json({ error: "Drop nicht gefunden." });
+  await (await db.prepare("DELETE FROM drop_pieces WHERE drop_id = ?")).run(dropId);
+  await (await db.prepare("DELETE FROM drops WHERE id = ?")).run(dropId);
+  res.json({ success: true });
+});
+
 app.post("/api/admin/drops/:id/pieces", async (req, res) => {
   const adminId = getSessionUserId(req);
   const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;

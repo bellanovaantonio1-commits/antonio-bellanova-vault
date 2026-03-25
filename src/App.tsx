@@ -7760,9 +7760,33 @@ export default function App() {
                             <Badge variant={ended ? 'default' : d.status === 'live' ? 'emerald' : 'amber'}>{ended ? t('drops.ended') : d.status}</Badge>
                             {countdownStr && <span className="text-amber-500/90">{t('drops.countdown')} {countdownStr}</span>}
                           </div>
-                          <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetch(`/api/drops/${d.id}/pieces`).then(r => r.json()).then((pieces: any[]) => { if (pieces.length) setSelectedPiece(pieces[0]); })}>
-                            {t('view')}
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetch(`/api/drops/${d.id}/pieces`).then(r => r.json()).then((pieces: any[]) => { if (pieces.length) setSelectedPiece(pieces[0]); })}>
+                              {t('view')}
+                            </Button>
+                            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === UserRole.ADMIN) && (
+                              <Button
+                                variant="danger"
+                                size="sm"
+                                className="text-xs shrink-0"
+                                onClick={async () => {
+                                  const ok = window.confirm(`Drop "${d.title}" wirklich entfernen?`);
+                                  if (!ok) return;
+                                  const r = await fetch(`/api/admin/drops/${d.id}`, { method: 'DELETE', credentials: 'include' });
+                                  const data = await r.json().catch(() => ({}));
+                                  if (r.ok) {
+                                    setDropsList(prev => prev.filter((x: any) => x.id !== d.id));
+                                    setAdminDropsList(prev => prev.filter((x: any) => x.id !== d.id));
+                                    notifyUser('Drop entfernt.', 'success');
+                                  } else {
+                                    notifyUser(data.error || t('errors.generic'), 'error');
+                                  }
+                                }}
+                              >
+                                Entfernen
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </Card>
                     );
@@ -11532,6 +11556,26 @@ export default function App() {
                                   <option value="">{t('admin.add_piece_to_drop')}…</option>
                                   {masterpieces.map(p => <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>)}
                                 </select>
+                                <Button
+                                  variant="danger"
+                                  className="py-1.5 px-3 text-xs"
+                                  onClick={async () => {
+                                    const ok = window.confirm(`Drop "${d.title}" wirklich entfernen?`);
+                                    if (!ok) return;
+                                    const r = await fetch(`/api/admin/drops/${d.id}`, { method: 'DELETE', credentials: 'include' });
+                                    const data = await r.json().catch(() => ({}));
+                                    if (r.ok) {
+                                      setAdminDropsList((prev: any[]) => prev.filter((x: any) => x.id !== d.id));
+                                      const pub = await fetch('/api/drops', { credentials: 'include' }).then(rr => rr.ok ? rr.json() : []);
+                                      setDropsList(Array.isArray(pub) ? pub : []);
+                                      notifyUser('Drop entfernt.', 'success');
+                                    } else {
+                                      notifyUser(data.error || t('errors.generic'), 'error');
+                                    }
+                                  }}
+                                >
+                                  Entfernen
+                                </Button>
                               </div>
                             </li>
                           ))}
