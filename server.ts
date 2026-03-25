@@ -6424,6 +6424,26 @@ app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) =>
   res.json(rest);
 });
 
+/** Admin sets a new password for an admin/super_admin account (e.g. colleague locked out). Requires caller's own password. */
+app.post("/api/admin/admins/:id/set-password", requireAuth, requireAdmin, async (req, res) => {
+  const operatorId = (req as any).userId as number;
+  const targetId = Number(req.params.id);
+  if (!targetId || Number.isNaN(targetId)) return res.status(400).json({ error: "Ungültige Nutzer-ID." });
+  const { operatorPassword, newPassword } = req.body || {};
+  if (!operatorPassword || !newPassword || typeof newPassword !== "string" || newPassword.length < 6)
+    return res.status(400).json({ error: "Ihr Passwort und neues Passwort (min. 6 Zeichen) erforderlich." });
+  const operator = await (await db.prepare("SELECT id, password FROM users WHERE id = ?")).get(operatorId) as { id: number; password: string } | undefined;
+  if (!operator || !checkPassword(String(operatorPassword), operator.password || ""))
+    return res.status(400).json({ error: "Ihr Passwort ist falsch." });
+  const target = await (await db.prepare("SELECT id, role, email FROM users WHERE id = ?")).get(targetId) as { id: number; role: string; email: string } | undefined;
+  if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
+  if (target.role !== "admin" && target.role !== "super_admin")
+    return res.status(400).json({ error: "Nur für Admin-Konten." });
+  await (await db.prepare("UPDATE users SET password = ?, force_password_change = 0 WHERE id = ?")).run(hashPassword(newPassword), targetId);
+  try { await logAudit(operatorId, "ADMIN_PASSWORD_RESET", String(targetId), target.email || ""); } catch (_) {}
+  res.json({ success: true });
+});
+
 // Admin: set collector level (collector | vip | private_collector | grand_collector | legacy_collector)
 app.patch("/api/admin/users/:id/collector-level", requireAuth, requireAdmin, async (req, res) => {
   const id = Number(req.params.id);

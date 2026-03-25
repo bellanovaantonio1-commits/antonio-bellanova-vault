@@ -943,6 +943,14 @@ const TRANSLATIONS: any = {
     "errors.load_failed": "Server vorübergehend nicht erreichbar. Bitte Seite erneut laden.",
     "admin.bank_config_saved": "Bank-Konfiguration gespeichert.",
     "admin.bank_config_title": "Bank-Konfiguration",
+    "admin.account_access_title": "Admin-Zugang",
+    "admin.account_access_hint": "Eigenes Passwort: Profil oben rechts oder hier. Für einen weiteren Admin-Account neues Passwort unten setzen (Bestätigung mit Ihrem Passwort).",
+    "admin.reset_other_admin_title": "Passwort für anderen Admin",
+    "admin.reset_other_admin_pick": "Admin wählen…",
+    "admin.operator_password_placeholder": "Ihr aktuelles Passwort (Bestätigung)",
+    "admin.operator_password_required": "Bitte Ihr Passwort zur Bestätigung eingeben.",
+    "admin.reset_other_admin_submit": "Neues Passwort setzen",
+    "admin.password_reset_done": "Passwort wurde geändert.",
     "admin.maintenance_mode": "Wartungsmodus",
     "admin.maintenance_mode_desc": "Kunden sehen eine Wartungsmeldung statt der Plattform.",
     "admin.field_category": "Kategorie",
@@ -1935,6 +1943,14 @@ const TRANSLATIONS: any = {
     "errors.load_failed": "Server temporarily unavailable. Please refresh the page.",
     "admin.bank_config_saved": "Bank configuration saved.",
     "admin.bank_config_title": "Bank configuration",
+    "admin.account_access_title": "Admin access",
+    "admin.account_access_hint": "Change your own password via your profile (top right) or below. To set a new password for another admin account, use the form (confirm with your password).",
+    "admin.reset_other_admin_title": "Password for another admin",
+    "admin.reset_other_admin_pick": "Select admin…",
+    "admin.operator_password_placeholder": "Your current password (confirmation)",
+    "admin.operator_password_required": "Enter your password to confirm.",
+    "admin.reset_other_admin_submit": "Set new password",
+    "admin.password_reset_done": "Password has been updated.",
     "admin.maintenance_mode": "Maintenance mode",
     "admin.maintenance_mode_desc": "Customers see a maintenance message instead of the platform.",
     "admin.field_category": "Category",
@@ -2807,6 +2823,14 @@ const TRANSLATIONS: any = {
     "errors.generic": "Si è verificato un errore.",
     "admin.bank_config_saved": "Configurazione banca salvata.",
     "admin.bank_config_title": "Configurazione banca",
+    "admin.account_access_title": "Accesso admin",
+    "admin.account_access_hint": "Password propria: profilo in alto a destra o qui sotto. Per un altro account admin, impostare la nuova password (conferma con la tua password).",
+    "admin.reset_other_admin_title": "Password per altro admin",
+    "admin.reset_other_admin_pick": "Seleziona admin…",
+    "admin.operator_password_placeholder": "La tua password attuale (conferma)",
+    "admin.operator_password_required": "Inserisci la tua password per confermare.",
+    "admin.reset_other_admin_submit": "Imposta nuova password",
+    "admin.password_reset_done": "Password aggiornata.",
     "admin.maintenance_mode": "Modalità manutenzione",
     "admin.maintenance_mode_desc": "I clienti vedono un messaggio di manutenzione al posto della piattaforma.",
     "admin.field_category": "Categoria",
@@ -3611,6 +3635,10 @@ export default function App() {
   const [adminBankConfig, setAdminBankConfig] = useState<any>({});
   const [maintenanceMode, setMaintenanceMode] = useState<boolean>(false);
   const [showMaintenanceAfterLoginAttempt, setShowMaintenanceAfterLoginAttempt] = useState<boolean>(false);
+  const [adminSetPwTargetId, setAdminSetPwTargetId] = useState<string>('');
+  const [adminSetPwNew, setAdminSetPwNew] = useState('');
+  const [adminSetPwOwn, setAdminSetPwOwn] = useState('');
+  const [adminSetPwSubmitting, setAdminSetPwSubmitting] = useState(false);
   const [consultationPanel, setConsultationPanel] = useState<{
     id: number;
     title?: string;
@@ -7039,7 +7067,12 @@ export default function App() {
               </select>
             </div>
             <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title={t('shortcuts.title')}>?</button>
-            <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setShowNotificationPrefsModal(true)}
+              className="group flex items-center gap-4 rounded-xl pl-2 pr-1 py-1 -mr-1 hover:bg-white/5 transition-colors text-left"
+              aria-label={t('settings') || 'Einstellungen'}
+            >
               <div className="text-right hidden sm:block">
                 <div className="flex items-center gap-2 justify-end">
                 <p className="text-sm font-medium text-zinc-200">{user.name}</p>
@@ -7068,10 +7101,10 @@ export default function App() {
                   return <p className="text-[10px] uppercase tracking-widest text-amber-500">{collectorLevelLabel(level)}</p>;
                 })()}
               </div>
-              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center ring-2 ring-transparent hover:ring-amber-500/20 transition-all">
+              <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center ring-2 ring-transparent transition-all group-hover:ring-amber-500/30">
                 <UserIcon className="w-5 h-5 text-zinc-400" />
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
@@ -7370,6 +7403,10 @@ export default function App() {
                         <>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.account_type_atelier') || 'Account Type: Atelier'}</span></div>
                           <div className="flex justify-between items-center text-xs"><span className="text-zinc-500">{t('identity.system_role_administrator') || 'System Role: Administrator'}</span><span className="text-zinc-200 font-medium">Admin</span></div>
+                          <div className="flex flex-col gap-2 pt-3 border-t border-amber-500/20 w-full">
+                            <Button variant="outline" size="sm" className="w-full text-xs" onClick={() => setShowPasswordChangeModal(true)}>{t('notifications.change_password')}</Button>
+                            <Button variant="ghost" size="sm" className="w-full text-xs text-zinc-400" onClick={() => setShowNotificationPrefsModal(true)}>{t('common.settings')}</Button>
+                          </div>
                         </>
                       ) : (
                         <>
@@ -13295,6 +13332,38 @@ export default function App() {
                           <Button variant="outline" className="text-xs" onClick={async () => { const r = await fetch('/api/admin/auctions/export'); const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'auctions-export.csv'; a.click(); }}>{t('admin.export_auctions_csv')}</Button>
                           <Button variant="outline" className="text-xs" onClick={async () => { try { const r = await fetch('/api/admin/backup'); if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || t('errors.backup_failed')); } const blob = await r.blob(); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `antonio-bellanova-vault-${new Date().toISOString().slice(0, 10)}.db`; a.click(); URL.revokeObjectURL(a.href); notifyUser(t('admin.backup_success'), 'success'); } catch (err) { notifyUser(err instanceof Error ? err.message : t('errors.backup_failed'), 'error'); } }}>{t('admin.backup_db')}</Button>
                         </div>
+                      </Card>
+                      <Card className="p-4 space-y-3">
+                        <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.account_access_title')}</h4>
+                        <p className="text-xs text-zinc-500">{t('admin.account_access_hint')}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" className="text-xs" onClick={() => setShowPasswordChangeModal(true)}>{t('notifications.change_password')}</Button>
+                          <Button variant="ghost" className="text-xs text-zinc-400" onClick={() => setShowNotificationPrefsModal(true)}>{t('common.settings')}</Button>
+                        </div>
+                        <p className="text-[10px] uppercase tracking-widest text-zinc-600 pt-2 border-t border-zinc-800">{t('admin.reset_other_admin_title')}</p>
+                        <select value={adminSetPwTargetId} onChange={e => setAdminSetPwTargetId(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200">
+                          <option value="">{t('admin.reset_other_admin_pick')}</option>
+                          {(allUsers || []).filter((u: any) => u.role === 'admin' || u.role === 'super_admin').map((u: any) => (
+                            <option key={u.id} value={String(u.id)}>{u.name || u.email} ({u.role})</option>
+                          ))}
+                        </select>
+                        <input type="password" autoComplete="new-password" placeholder={t('settings.new_password')} value={adminSetPwNew} onChange={e => setAdminSetPwNew(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
+                        <input type="password" autoComplete="current-password" placeholder={t('admin.operator_password_placeholder')} value={adminSetPwOwn} onChange={e => setAdminSetPwOwn(e.target.value)} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg py-2 px-3 text-sm text-zinc-200" />
+                        <Button variant="primary" className="text-xs" disabled={adminSetPwSubmitting || !adminSetPwTargetId} onClick={async () => {
+                          const id = Number(adminSetPwTargetId);
+                          if (!id) return;
+                          if (adminSetPwNew.length < 6) { notifyUser(t('settings.password_min_length'), 'error'); return; }
+                          if (!adminSetPwOwn) { notifyUser(t('admin.operator_password_required'), 'error'); return; }
+                          setAdminSetPwSubmitting(true);
+                          try {
+                            const res = await fetch(`/api/admin/admins/${id}/set-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ operatorPassword: adminSetPwOwn, newPassword: adminSetPwNew }), credentials: 'include' });
+                            const data = await res.json().catch(() => ({}));
+                            if (res.ok) {
+                              notifyUser(t('admin.password_reset_done'), 'success');
+                              setAdminSetPwNew(''); setAdminSetPwOwn('');
+                            } else notifyUser(data.error || t('errors.generic'), 'error');
+                          } finally { setAdminSetPwSubmitting(false); }
+                        }}>{adminSetPwSubmitting ? t('settings.changing_password') : t('admin.reset_other_admin_submit')}</Button>
                       </Card>
                       <Card className="p-4 space-y-3">
                         <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-widest">{t('admin.maintenance_mode')}</h4>
