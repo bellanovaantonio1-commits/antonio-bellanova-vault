@@ -2887,6 +2887,14 @@ function requestIp(req: express.Request): string {
   return xff || xrip || socketIp || "unknown";
 }
 
+function toDbDateTime(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input);
+  if (!Number.isFinite(d.getTime())) return "";
+  return db.isMySQL
+    ? d.toISOString().slice(0, 19).replace("T", " ")
+    : d.toISOString();
+}
+
 function stripHtmlForPdf(html: string): string {
   return String(html || "")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -8826,9 +8834,10 @@ app.get("/api/drops", async (req, res) => {
   const canSeeVipDrops = canAccessVipContent(user && !(user as any).is_guest ? user : null);
   const now = new Date();
   const nowMs = now.getTime();
+  const nowDb = toDbDateTime(new Date());
   const rows = await (await db.prepare(`
     SELECT * FROM drops WHERE end_at > ? ORDER BY release_at ASC
-  `)).all(now.toISOString()) as any[];
+  `)).all(nowDb) as any[];
   const allowed = rows.filter(d => {
     if (d.status === "ended") return false;
     if (isVipOnlyDrop(d) && !canSeeVipDrops) return false;
@@ -8908,10 +8917,10 @@ app.post("/api/admin/drops", async (req, res) => {
     const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
     if (!admin || (admin.role !== "admin" && admin.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
     const { title, description, image_url, release_at, end_at, tier_access, vip_early_access } = req.body || {};
-    const releaseStr = release_at || new Date().toISOString();
-    const endStr = end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    const rMs = new Date(releaseStr).getTime();
-    const eMs = new Date(endStr).getTime();
+    const releaseRaw = release_at || new Date().toISOString();
+    const endRaw = end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const rMs = new Date(releaseRaw).getTime();
+    const eMs = new Date(endRaw).getTime();
     if (!Number.isFinite(rMs) || !Number.isFinite(eMs)) {
       return res.status(400).json({ error: "Ungültiges Start- oder Enddatum." });
     }
@@ -8921,6 +8930,8 @@ app.post("/api/admin/drops", async (req, res) => {
     const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : "[]";
     const status = eMs < Date.now() ? "ended" : rMs > Date.now() ? "upcoming" : "live";
     const vipEarly = vip_early_access ? 1 : 0;
+    const releaseStr = toDbDateTime(new Date(rMs));
+    const endStr = toDbDateTime(new Date(eMs));
     const r = await (await db.prepare(`
     INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, vip_early_access, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -8940,10 +8951,13 @@ app.put("/api/admin/drops/:id", async (req, res) => {
   const row = await (await db.prepare("SELECT * FROM drops WHERE id = ?")).get(req.params.id);
   if (!row) return res.status(404).json({ error: "Not found" });
   const tierAccess = tier_access != null ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : (row as any).tier_access;
+  const releaseDb = release_at ? toDbDateTime(release_at) : null;
+  const endDb = end_at ? toDbDateTime(end_at) : null;
+  if ((release_at && !releaseDb) || (end_at && !endDb)) return res.status(400).json({ error: "Ungültiges Start- oder Enddatum." });
   await (await db.prepare(`
     UPDATE drops SET title = COALESCE(?, title), description = COALESCE(?, description), image_url = COALESCE(?, image_url),
     release_at = COALESCE(?, release_at), end_at = COALESCE(?, end_at), tier_access = COALESCE(?, tier_access), status = COALESCE(?, status), vip_early_access = COALESCE(?, vip_early_access), updated_at = CURRENT_TIMESTAMP WHERE id = ?
-  `)).run(title, description, image_url, release_at, end_at, tierAccess, status, vip_early_access != null ? (vip_early_access ? 1 : 0) : null, req.params.id);
+  `)).run(title, description, image_url, releaseDb, endDb, tierAccess, status, vip_early_access != null ? (vip_early_access ? 1 : 0) : null, req.params.id);
   res.json({ success: true });
 });
 
