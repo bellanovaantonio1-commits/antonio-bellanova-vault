@@ -10924,7 +10924,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.pending_purchases')}</h3>
                     <div className="space-y-4">
-                      {masterpieces.filter(p => p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').map(piece => {
+                      {masterpieces.filter(p => p.status === 'reserved').map(piece => {
                         const contract = adminContracts.find(
                           (c: { masterpiece_id?: number; type?: string }) =>
                             c.masterpiece_id === piece.id && (c.type === 'deposit' || c.type === 'deposit_resale')
@@ -10954,7 +10954,7 @@ export default function App() {
                           </Card>
                         );
                       })}
-                      {masterpieces.filter(p => p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
+                      {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
                     </div>
                     <div className="pt-6 border-t border-zinc-800/80">
                       <p className="text-sm text-zinc-400 mb-3">{t('consultation_admin_inbox_title')}</p>
@@ -10968,7 +10968,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.active_workflows')}</h3>
                     <div className="space-y-6">
-                      {masterpieces.filter(p => p.status === 'sold' || p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').map(piece => (
+                      {masterpieces.filter(p => p.status === 'sold' || p.status === 'reserved').map(piece => (
                         <AdminWorkflowChecklist key={piece.id} piece={piece} onUpdate={handleUpdateWorkflow} />
                       ))}
                     </div>
