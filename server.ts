@@ -12,6 +12,7 @@ import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
 import multer from "multer";
 import Stripe from "stripe";
+import { jsPDF } from "jspdf";
 import { fileURLToPath } from "url";
 import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
@@ -1912,6 +1913,66 @@ try {
 } catch (_) {
   /* column exists */
 }
+try {
+  await (await db.prepare("ALTER TABLE contracts ADD COLUMN immutable_pdf_url TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE contracts ADD COLUMN signing_ip TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE contracts ADD COLUMN legal_binding_lang TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN escrow_status TEXT DEFAULT 'pending'")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN escrow_provider TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN escrow_account_details TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN transaction_id TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN client_id TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_confirmed_at DATETIME")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_confirmation_note TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN delivery_signature TEXT")).run();
+} catch (_) {
+  /* column exists */
+}
+try {
+  await (await db.prepare("ALTER TABLE purchase_workflow ADD COLUMN kyc_verified_at DATETIME")).run();
+} catch (_) {
+  /* column exists */
+}
   try {
     await (await db.prepare("ALTER TABLE consultation_messages ADD COLUMN source_proposal_id INTEGER")).run();
   } catch (_) {
@@ -1933,6 +1994,21 @@ try {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id),
       FOREIGN KEY(conversation_id) REFERENCES consultation_conversations(id)
+    );
+  `);
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS kyc_documents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      masterpiece_id INTEGER,
+      doc_type TEXT NOT NULL, -- id, proof_of_address, proof_of_funds
+      file_url TEXT NOT NULL,
+      verified_by INTEGER,
+      verified_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id),
+      FOREIGN KEY(masterpiece_id) REFERENCES masterpieces(id),
+      FOREIGN KEY(verified_by) REFERENCES users(id)
     );
   `);
   try {
@@ -2802,6 +2878,102 @@ function applyContractVars(template: string, vars: Record<string, string | numbe
     const val = key.split('.').reduce((o: any, k: string) => o?.[k], vars as any);
     return val != null ? String(val) : '—';
   });
+}
+
+function requestIp(req: express.Request): string {
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const xrip = String(req.headers["x-real-ip"] || "").trim();
+  const socketIp = (req.socket?.remoteAddress || "").trim();
+  return xff || xrip || socketIp || "unknown";
+}
+
+function stripHtmlForPdf(html: string): string {
+  return String(html || "")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+\n/g, "\n")
+    .replace(/\n\s+/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function ensureContractsStorageDir(): string {
+  const dir = path.join(uploadsDocumentsDir, "contracts");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function writeSignedContractPdf(params: {
+  contractId: number;
+  docRef: string;
+  englishHtml: string;
+  signatureMethod: string;
+  signatureData: string;
+  signedAtIso: string;
+  signerName: string;
+  signerEmail: string;
+  signerIp: string;
+}): string {
+  const plain = stripHtmlForPdf(params.englishHtml);
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  const left = 48;
+  const width = 500;
+  let y = 48;
+  const write = (text: string, size = 10, gap = 14) => {
+    doc.setFont("times", "normal");
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(text, width);
+    for (const line of lines) {
+      if (y > 790) {
+        doc.addPage();
+        y = 48;
+      }
+      doc.text(line, left, y);
+      y += gap;
+    }
+  };
+
+  doc.setFont("times", "bold");
+  doc.setFontSize(14);
+  doc.text("SIGNED CONTRACT RECORD (LEGALLY BINDING ENGLISH VERSION)", left, y);
+  y += 24;
+  write(`Document ID: ${params.docRef}`, 10, 13);
+  write(`Contract ID: ${params.contractId}`, 10, 13);
+  write(`Signed at (UTC): ${params.signedAtIso}`, 10, 13);
+  write(`Signer: ${params.signerName} <${params.signerEmail}>`, 10, 13);
+  write(`Signer IP: ${params.signerIp}`, 10, 13);
+  write(`Signature method: ${params.signatureMethod}`, 10, 13);
+  write(`Digital signature payload: ${params.signatureData.substring(0, 5000)}`, 9, 12);
+  y += 8;
+  doc.setFont("times", "bold");
+  doc.text("Contract Text (English, binding):", left, y);
+  y += 16;
+  write(plain, 10, 13);
+
+  const dir = ensureContractsStorageDir();
+  const safeRef = String(params.docRef || params.contractId).replace(/[^\w.-]+/g, "-");
+  const filename = `${safeRef}-signed.pdf`;
+  const abs = path.join(dir, filename);
+  const pdfBytes = doc.output("arraybuffer");
+  fs.writeFileSync(abs, Buffer.from(pdfBytes));
+  return `/uploads/documents/contracts/${filename}`;
+}
+
+async function ensureWorkflowLinking(masterpieceId: number, userId: number): Promise<{ transactionId: string; clientId: string }> {
+  const row = await (await db.prepare("SELECT transaction_id, client_id FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId) as any;
+  const transactionId = row?.transaction_id || `TX-${masterpieceId}-${Date.now()}`;
+  const clientId = row?.client_id || `CL-${userId}`;
+  await (await db.prepare(`
+    UPDATE purchase_workflow
+    SET transaction_id = COALESCE(transaction_id, ?), client_id = COALESCE(client_id, ?)
+    WHERE masterpiece_id = ?
+  `)).run(transactionId, clientId, masterpieceId);
+  return { transactionId, clientId };
 }
 
 /** Fills description_de, description_en, ... for a masterpiece. Called once on create. When OPENAI_API_KEY is set, can be extended to call AI translation. */
@@ -4930,10 +5102,12 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
     // 1. Update status & workflow (with delivery_option from buy intent); collector level production priority
     const cl = (user.collector_level || user.role || '') as string;
     const productionPriority = (cl === 'grand_collector' || cl === 'legacy_collector') ? 'high' : (cl === 'private_collector' || isVipActive(user)) ? 'high' : 'standard';
+    const workflowTransactionId = `TX-${masterpieceId}-${Date.now()}`;
+    const workflowClientId = `CL-${user.id}`;
     await (await db.prepare(`
-      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option, production_priority)
-      VALUES (?, ?, 'RESERVED', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?, ?)
-    `)).run(masterpieceId, user.id, adminId, deliveryOption, productionPriority);
+      INSERT INTO purchase_workflow (masterpiece_id, user_id, status, approved_at, approved_by, deposit_contract_sent_at, delivery_option, production_priority, escrow_status, transaction_id, client_id)
+      VALUES (?, ?, 'AWAITING_SIGNATURE', CURRENT_TIMESTAMP, ?, CURRENT_TIMESTAMP, ?, ?, 'pending', ?, ?)
+    `)).run(masterpieceId, user.id, adminId, deliveryOption, productionPriority, workflowTransactionId, workflowClientId);
 
     // 2. Generate Documents
     const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
@@ -4949,8 +5123,13 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
     };
     const depositContent = applyContractVars(depositT.body, depositVars);
     const depositHtml = generateLuxuryDocument(depositT.title, depositContent, user, piece, { docRef, title: depositT.title, lang: OFFICIAL_CONTRACT_LANG });
-    const contractRun = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(
-      user.id, masterpieceId, docRef, depositHtml
+    const contractMeta = JSON.stringify({
+      transaction_id: workflowTransactionId,
+      client_id: workflowClientId,
+      legal_binding_lang: OFFICIAL_CONTRACT_LANG,
+    });
+    const contractRun = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'deposit', ?, ?, 'draft', ?)")).run(
+      user.id, masterpieceId, docRef, depositHtml, contractMeta
     );
     const contractId = Number(contractRun.lastInsertRowid);
     createActivityNotification(user.id, 'new_contract', String(contractId), 'Contract ready for signature');
@@ -5162,6 +5341,31 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
   let message = "";
 
   switch (step) {
+    case 'cancelled':
+    case 'customer_cancelled':
+      updateField = "completed_at";
+      newStatus = "CANCELLED";
+      message = `Purchase workflow for ${piece.title} cancelled. Open payment requests were removed.`;
+      await (await db.prepare(`
+        UPDATE payments
+        SET status = 'cancelled'
+        WHERE masterpiece_id = ?
+          AND status IN ('pending', 'awaiting_deposit', 'awaiting_payment')
+      `)).run(masterpieceId);
+      await (await db.prepare(`
+        UPDATE invoices
+        SET status = 'cancelled'
+        WHERE user_id = ?
+          AND type IN ('deposit', 'final_payment')
+          AND status IN ('pending', 'awaiting_payment')
+      `)).run(user.id);
+      await (await db.prepare("UPDATE purchase_workflow SET escrow_status = 'pending' WHERE masterpiece_id = ?")).run(masterpieceId);
+      await (await db.prepare("UPDATE escrow_transactions SET status = 'REFUNDED' WHERE masterpiece_id = ? AND status IN ('PENDING','HELD','FUNDED')")).run(masterpieceId);
+      if (piece.status !== 'sold') {
+        await logMasterpieceStatusChange(masterpieceId, 'available', adminId ?? null);
+        await (await db.prepare("UPDATE masterpieces SET status = 'available' WHERE id = ?")).run(masterpieceId);
+      }
+      break;
     case 'deposit_invoice_sent': {
       updateField = "deposit_invoice_sent_at";
       newStatus = "DEPOSIT_INVOICE_SENT";
@@ -5184,9 +5388,10 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
     }
     case 'deposit_paid':
       updateField = "deposit_paid_at";
-      newStatus = "PRODUCTION_STARTED";
-      message = `Deposit for ${piece.title} received. Handcrafted production has officially commenced.`;
+      newStatus = "DEPOSIT_RECEIVED";
+      message = `Deposit for ${piece.title} received. Escrow payment instructions are now active.`;
       await (await db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'deposit'")).run(masterpieceId);
+      await (await db.prepare("UPDATE purchase_workflow SET escrow_status = 'pending' WHERE masterpiece_id = ?")).run(masterpieceId);
       await logMasterpieceStatusChange(masterpieceId, 'reserved', adminId ?? null);
       await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(masterpieceId);
       break;
@@ -5218,8 +5423,10 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
         escrowEnabled: true,
         lang: OFFICIAL_CONTRACT_LANG,
       });
-      await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')")).run(
-        user.id, masterpieceId, invRef, invHtml
+      const workflowLink = await ensureWorkflowLinking(masterpieceId, user.id);
+      const invMeta = JSON.stringify({ transaction_id: workflowLink.transactionId, client_id: workflowLink.clientId, legal_binding_lang: OFFICIAL_CONTRACT_LANG });
+      await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'invoice', ?, ?, 'draft', ?)")).run(
+        user.id, masterpieceId, invRef, invHtml, invMeta
       );
       
       const bankFull = getBankConfig();
@@ -5252,8 +5459,10 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
           escrowEnabled: true,
           lang: OFFICIAL_CONTRACT_LANG,
         });
-        await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'invoice', ?, ?, 'draft')")).run(
-          user.id, masterpieceId, invRef, invHtml
+        const workflowLink = await ensureWorkflowLinking(masterpieceId, user.id);
+        const invMeta = JSON.stringify({ transaction_id: workflowLink.transactionId, client_id: workflowLink.clientId, legal_binding_lang: OFFICIAL_CONTRACT_LANG });
+        await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status, metadata) VALUES (?, ?, 'invoice', ?, ?, 'draft', ?)")).run(
+          user.id, masterpieceId, invRef, invHtml, invMeta
         );
         if (!existingFullPayment) {
           const bankFull = getBankConfig();
@@ -5272,7 +5481,7 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
     case 'final_payment_paid':
     case 'final_payment_pending':
       updateField = "final_payment_pending_at";
-      newStatus = "FUNDS_HELD";
+      newStatus = "ESCROW_FUNDED";
       message = `Final payment received. Funds are now held in Escrow. Preparing for delivery.`;
       await (await db.prepare("UPDATE payments SET status = 'paid' WHERE masterpiece_id = ? AND type = 'full'")).run(masterpieceId);
       // Initialize Escrow only if not already present
@@ -5285,12 +5494,21 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
              VALUES (?, ?, 1, ?, 'HELD', datetime('now', '+2 days'))`;
         await (await db.prepare(escrowInsertSql)).run(masterpieceId, user.id, piece.valuation);
       }
+      await (await db.prepare("UPDATE escrow_transactions SET status = 'FUNDED' WHERE masterpiece_id = ?")).run(masterpieceId);
+      await (await db.prepare("UPDATE purchase_workflow SET escrow_status = 'funded' WHERE masterpiece_id = ?")).run(masterpieceId);
       break;
     case 'delivered':
     case 'ready_for_delivery':
       updateField = "ready_for_delivery_at";
-      newStatus = "DELIVERED";
+      newStatus = "READY_FOR_DELIVERY";
       message = `Your masterpiece ${piece.title} has been delivered. Please confirm receipt in your Vault to release escrow.`;
+      break;
+    case 'release_funds':
+      updateField = "completed_at";
+      newStatus = "COMPLETED";
+      message = `Escrow funds for ${piece.title} released after delivery confirmation.`;
+      await (await db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?")).run(masterpieceId);
+      await (await db.prepare("UPDATE purchase_workflow SET escrow_status = 'released', delivery_confirmed_at = COALESCE(delivery_confirmed_at, CURRENT_TIMESTAMP) WHERE masterpiece_id = ?")).run(masterpieceId);
       break;
     case 'completed':
       updateField = "completed_at";
@@ -5299,6 +5517,7 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
       
       // Release Escrow
       await (await db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?")).run(masterpieceId);
+      await (await db.prepare("UPDATE purchase_workflow SET escrow_status = 'released' WHERE masterpiece_id = ?")).run(masterpieceId);
       await logMasterpieceStatusChange(masterpieceId, 'sold', adminId ?? null);
 await (await db.prepare("UPDATE masterpieces SET current_owner_id = ?, status = 'sold', purchase_price = COALESCE(purchase_price, valuation), estimated_market_value = COALESCE(estimated_market_value, valuation) WHERE id = ?")).run(user.id, masterpieceId);
 
@@ -5388,6 +5607,28 @@ app.get("/api/admin/masterpieces/:id/status-history", requireAuth, requireAdmin,
 app.get("/api/escrow/:masterpieceId", async (req, res) => {
   const escrow = await (await db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? ORDER BY created_at DESC LIMIT 1")).get(req.params.masterpieceId);
   res.json(escrow || null);
+});
+
+app.post("/api/admin/workflow/delivery-confirm", requireAuth, requireAdmin, async (req, res) => {
+  const masterpieceId = Number(req.body?.masterpieceId);
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "masterpieceId required" });
+  const note = String(req.body?.note || "").trim();
+  const deliverySignature = String(req.body?.deliverySignature || "").trim();
+  const releaseFunds = req.body?.releaseFunds === true;
+  await (await db.prepare(`
+    UPDATE purchase_workflow
+    SET delivery_confirmed_at = CURRENT_TIMESTAMP,
+        delivery_confirmation_note = ?,
+        delivery_signature = ?,
+        status = CASE WHEN ? THEN 'COMPLETED' ELSE 'READY_FOR_DELIVERY' END,
+        escrow_status = CASE WHEN ? THEN 'released' ELSE COALESCE(escrow_status, 'funded') END,
+        completed_at = CASE WHEN ? THEN COALESCE(completed_at, CURRENT_TIMESTAMP) ELSE completed_at END
+    WHERE masterpiece_id = ?
+  `)).run(note || null, deliverySignature || null, releaseFunds ? 1 : 0, releaseFunds ? 1 : 0, releaseFunds ? 1 : 0, masterpieceId);
+  if (releaseFunds) {
+    await (await db.prepare("UPDATE escrow_transactions SET status = 'RELEASED' WHERE masterpiece_id = ?")).run(masterpieceId);
+  }
+  res.json({ success: true });
 });
 
 async function closeEndedAuctions(): Promise<void> {
@@ -6778,7 +7019,8 @@ app.get("/api/contracts/:id/download", async (req, res) => {
       const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
       if (Number(c.user_id) === Number(sessionUserId) || isAdmin) {
         const owner = (await (await db.prepare("SELECT language FROM users WHERE id = ?")).get(c.user_id)) as { language?: string } | undefined;
-        const regenerated = await regenerateContractContent(c, langQ || owner?.language || undefined);
+        const targetLang = c.type === "certificate" ? (langQ || owner?.language || undefined) : OFFICIAL_CONTRACT_LANG;
+        const regenerated = await regenerateContractContent(c, targetLang);
         if (regenerated) bodyHtml = regenerated;
       }
     }
@@ -6855,6 +7097,95 @@ app.post("/api/admin/bank-config", requireAuth, requireAdmin, async (req, res) =
     `)).run(iban);
   }
   res.json({ success: true });
+});
+
+app.post("/api/admin/escrow/:masterpieceId/config", requireAuth, requireAdmin, async (req, res) => {
+  const masterpieceId = Number(req.params.masterpieceId);
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece id" });
+  const provider = String(req.body?.provider || "").trim();
+  const accountDetails = String(req.body?.account_details || "").trim();
+  const status = String(req.body?.status || "").trim().toLowerCase();
+  const allowed = new Set(["pending", "funded", "released"]);
+  const escrowStatus = allowed.has(status) ? status : "pending";
+  await (await db.prepare(`
+    UPDATE purchase_workflow
+    SET escrow_provider = ?, escrow_account_details = ?, escrow_status = ?
+    WHERE masterpiece_id = ?
+  `)).run(provider || null, accountDetails || null, escrowStatus, masterpieceId);
+  if (escrowStatus === "funded") {
+    await (await db.prepare("UPDATE purchase_workflow SET status = 'READY_FOR_DELIVERY' WHERE masterpiece_id = ?")).run(masterpieceId);
+  }
+  if (escrowStatus === "released") {
+    await (await db.prepare("UPDATE purchase_workflow SET status = 'COMPLETED', completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE masterpiece_id = ?")).run(masterpieceId);
+  }
+  await (await db.prepare(`
+    INSERT INTO escrow_transactions (masterpiece_id, buyer_id, seller_id, amount, status, dispute_window_ends)
+    SELECT pw.masterpiece_id, pw.user_id, 1, COALESCE(m.valuation, 0),
+      CASE WHEN ? = 'released' THEN 'RELEASED' WHEN ? = 'funded' THEN 'FUNDED' ELSE 'PENDING' END,
+      ${db.isMySQL ? "DATE_ADD(NOW(), INTERVAL 2 DAY)" : "datetime('now', '+2 days')"}
+    FROM purchase_workflow pw
+    LEFT JOIN masterpieces m ON m.id = pw.masterpiece_id
+    WHERE pw.masterpiece_id = ?
+      AND NOT EXISTS (SELECT 1 FROM escrow_transactions et WHERE et.masterpiece_id = pw.masterpiece_id)
+  `)).run(escrowStatus, escrowStatus, masterpieceId);
+  res.json({ success: true, escrow_status: escrowStatus });
+});
+
+app.get("/api/escrow/instructions/:masterpieceId", requireAuth, async (req, res) => {
+  const masterpieceId = Number(req.params.masterpieceId);
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece id" });
+  const sessionUserId = (req as any).userId as number;
+  const requester = (req as any).user as any;
+  const wf = await (await db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId) as any;
+  if (!wf) return res.status(404).json({ error: "Workflow not found" });
+  const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
+  if (!isAdmin && Number(wf.user_id) !== Number(sessionUserId)) return res.status(403).json({ error: "Forbidden" });
+  const bankCfg = await getBankConfig();
+  const escrow = await (await db.prepare("SELECT * FROM escrow_transactions WHERE masterpiece_id = ? ORDER BY created_at DESC LIMIT 1")).get(masterpieceId) as any;
+  res.json({
+    escrow_status: wf.escrow_status || "pending",
+    provider: wf.escrow_provider || bankCfg?.escrow_provider || "",
+    account_details: wf.escrow_account_details || bankCfg?.escrow_account_details || "",
+    reference: `ESCROW-${masterpieceId}`,
+    transaction_id: wf.transaction_id || null,
+    client_id: wf.client_id || null,
+    ledger_status: escrow?.status || null,
+  });
+});
+
+app.post("/api/kyc/documents", requireAuth, async (req, res) => {
+  const userId = (req as any).userId as number;
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const masterpieceId = req.body?.masterpiece_id != null ? Number(req.body.masterpiece_id) : null;
+  const docType = String(req.body?.doc_type || "").trim();
+  const fileUrl = String(req.body?.file_url || "").trim();
+  if (!docType || !["id", "proof_of_address", "proof_of_funds"].includes(docType)) return res.status(400).json({ error: "Invalid doc_type" });
+  if (!fileUrl) return res.status(400).json({ error: "file_url required" });
+  await (await db.prepare("INSERT INTO kyc_documents (user_id, masterpiece_id, doc_type, file_url) VALUES (?, ?, ?, ?)")).run(userId, masterpieceId, docType, fileUrl);
+  res.json({ success: true });
+});
+
+app.get("/api/kyc/documents/:masterpieceId", requireAuth, async (req, res) => {
+  const masterpieceId = Number(req.params.masterpieceId);
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece id" });
+  const requester = (req as any).user as any;
+  const isAdmin = requester?.role === "admin" || requester?.role === "super_admin";
+  const wf = await (await db.prepare("SELECT user_id, kyc_verified_at FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId) as any;
+  if (!wf) return res.status(404).json({ error: "Workflow not found" });
+  if (!isAdmin && Number(wf.user_id) !== Number((req as any).userId)) return res.status(403).json({ error: "Forbidden" });
+  const rows = await (await db.prepare("SELECT id, doc_type, file_url, verified_at, created_at FROM kyc_documents WHERE masterpiece_id = ? AND user_id = ? ORDER BY created_at DESC")).all(masterpieceId, wf.user_id);
+  res.json({ docs: rows, kyc_verified: !!wf.kyc_verified_at, kyc_verified_at: wf.kyc_verified_at || null });
+});
+
+app.post("/api/admin/kyc/verify", requireAuth, requireAdmin, async (req, res) => {
+  const masterpieceId = Number(req.body?.masterpiece_id);
+  if (!masterpieceId || Number.isNaN(masterpieceId)) return res.status(400).json({ error: "Invalid masterpiece id" });
+  const adminId = (req as any).userId as number;
+  const wf = await (await db.prepare("SELECT user_id FROM purchase_workflow WHERE masterpiece_id = ?")).get(masterpieceId) as any;
+  if (!wf) return res.status(404).json({ error: "Workflow not found" });
+  await (await db.prepare("UPDATE purchase_workflow SET kyc_verified_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ?")).run(masterpieceId);
+  await (await db.prepare("UPDATE kyc_documents SET verified_by = ?, verified_at = CURRENT_TIMESTAMP WHERE masterpiece_id = ? AND user_id = ? AND verified_at IS NULL")).run(adminId, masterpieceId, wf.user_id);
+  res.json({ success: true, kyc_verified: true });
 });
 
 // Maintenance mode (public read; admin write)
@@ -7945,11 +8276,15 @@ app.post("/api/contracts/sign", async (req, res) => {
     const contractId = Number(req.body?.contractId);
     const method = String(req.body?.method || "").trim();
     const data = typeof req.body?.data === "string" ? req.body.data : "";
+    const acceptEnglishBinding = req.body?.acceptEnglishBinding === true;
     if (!contractId || isNaN(contractId)) {
       return res.status(400).json({ error: "Ungültige Vertrags-ID." });
     }
     if (!["typed", "drawn"].includes(method) || !data) {
       return res.status(400).json({ error: "Bitte Signaturmethode wählen und gültige Signatur angeben." });
+    }
+    if (!acceptEnglishBinding) {
+      return res.status(400).json({ error: "Bitte bestätigen Sie die rechtlich bindende englische Fassung vor der Unterzeichnung." });
     }
     if (method === "drawn" && data.length < 100) {
       return res.status(400).json({ error: "Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld." });
@@ -7971,11 +8306,61 @@ app.post("/api/contracts/sign", async (req, res) => {
       return res.status(403).json({ error: "Sie sind nicht berechtigt, diesen Vertrag zu unterzeichnen." });
     }
 
+    const signer = await (await db.prepare("SELECT id, name, email FROM users WHERE id = ?")).get(contract.user_id) as any;
+    const englishHtml = (await regenerateContractContent(contract, OFFICIAL_CONTRACT_LANG)) || contract.content || "";
+    const signedAtIso = new Date().toISOString();
+    const signerIp = requestIp(req);
+    const immutablePdfUrl = writeSignedContractPdf({
+      contractId,
+      docRef: contract.doc_ref || String(contractId),
+      englishHtml,
+      signatureMethod: method,
+      signatureData: data,
+      signedAtIso,
+      signerName: signer?.name || "Unknown",
+      signerEmail: signer?.email || "unknown@example.com",
+      signerIp,
+    });
     await (
       await db.prepare(
-        "UPDATE contracts SET status = 'signed', signed_at = CURRENT_TIMESTAMP, signature_method = ?, signature_data = ? WHERE id = ?"
+        "UPDATE contracts SET content = ?, status = 'signed', signed_at = CURRENT_TIMESTAMP, signature_method = ?, signature_data = ?, immutable_pdf_url = ?, signing_ip = ?, legal_binding_lang = 'en' WHERE id = ?"
       )
-    ).run(method, data, contractId);
+    ).run(englishHtml, method, data, immutablePdfUrl, signerIp, contractId);
+
+    if (contract.masterpiece_id && contract.user_id) {
+      const link = await ensureWorkflowLinking(Number(contract.masterpiece_id), Number(contract.user_id));
+      const cMetaRaw = String(contract.metadata || "").trim();
+      let cMeta: Record<string, any> = {};
+      try { cMeta = cMetaRaw ? JSON.parse(cMetaRaw) : {}; } catch { cMeta = {}; }
+      cMeta.transaction_id = link.transactionId;
+      cMeta.client_id = link.clientId;
+      cMeta.legal_binding_lang = "en";
+      cMeta.immutable_pdf_url = immutablePdfUrl;
+      await (await db.prepare("UPDATE contracts SET metadata = ? WHERE id = ?")).run(JSON.stringify(cMeta), contractId);
+
+      if (contract.type === "deposit" || contract.type === "invoice") {
+        const siblings = await (await db.prepare(`
+          SELECT id, metadata FROM contracts
+          WHERE masterpiece_id = ? AND user_id = ? AND type IN ('deposit','invoice')
+        `)).all(contract.masterpiece_id, contract.user_id) as any[];
+        for (const s of siblings) {
+          let m: Record<string, any> = {};
+          try { m = s.metadata ? JSON.parse(s.metadata) : {}; } catch { m = {}; }
+          m.transaction_id = link.transactionId;
+          m.client_id = link.clientId;
+          await (await db.prepare("UPDATE contracts SET metadata = ? WHERE id = ?")).run(JSON.stringify(m), s.id);
+        }
+      }
+    }
+
+    if (contract.type === "deposit" && contract.masterpiece_id) {
+      await (await db.prepare(`
+        UPDATE purchase_workflow
+        SET status = 'DEPOSIT_PENDING', escrow_status = COALESCE(escrow_status, 'pending')
+        WHERE masterpiece_id = ?
+      `)).run(contract.masterpiece_id);
+    }
+
     addClientTimeline(contract.user_id, 'contract_signed', `Contract signed (${contract.type})`, String(contractId));
 
   if (contract.type === 'vip') {

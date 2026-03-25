@@ -3177,11 +3177,9 @@ function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { con
           ))}
         </select>
       </div>
-      {isCert && (
-        <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
-          {t('contract.certificate_localized_notice')}
-        </p>
-      )}
+      <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
+        {isCert ? t('contract.certificate_localized_notice') : t('contract.official_english_notice')}
+      </p>
       {loading && <p className="text-xs text-zinc-500">{t('contract.preview_loading')}</p>}
       {err && <p className="text-xs text-red-400" role="alert">{err}</p>}
       {!loading && !err && previewHtml ? (
@@ -3206,7 +3204,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
   const handleSign = () => {
     setLocalError(null);
     if (!hasReviewed) {
-      setLocalError(t ? (t('confirm_review') || 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.') : 'Bitte bestätigen Sie, dass Sie alle Dokumente gelesen haben.');
+      setLocalError("Please confirm the legally binding English version before signing.");
       return;
     }
     const data = method === 'typed' ? typedName.trim() : drawnData;
@@ -3218,7 +3216,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
       setLocalError(t ? (t('clear_signature') ? 'Bitte zeichnen Sie Ihre Signatur.' : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.') : 'Bitte zeichnen Sie Ihre Signatur im dafür vorgesehenen Feld.');
       return;
     }
-    onSign(contract.id, method, data);
+    onSign(contract.id, method, data, true);
   };
 
   const canSign = hasReviewed && (
@@ -3265,7 +3263,7 @@ const SignatureModal = ({ contract, onClose, onSign, t, signError, defaultReadLa
                     {hasReviewed && <Check className="w-3 h-3 text-white" />}
                   </div>
                   <input type="checkbox" className="hidden" checked={hasReviewed} onChange={(e) => setHasReviewed(e.target.checked)} />
-                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors uppercase tracking-widest font-semibold">{t('confirm_review')}</span>
+                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors uppercase tracking-widest font-semibold">I confirm that I have read and agree to the legally binding English version of this agreement.</span>
                 </label>
               </div>
             </div>
@@ -5946,9 +5944,9 @@ export default function App() {
 
   const [showCeremony, setShowCeremony] = useState<Masterpiece | null>(null);
 
-  const handleSignContract = async (contractId: number, method: string, data: string) => {
+  const handleSignContract = async (contractId: number, method: string, data: string, acceptEnglishBinding = false) => {
     setContractSignError(null);
-    if (!data || (method === 'drawn' && data.length < 100) || (method === 'typed' && data.trim().length < 2)) {
+    if (!acceptEnglishBinding || !data || (method === 'drawn' && data.length < 100) || (method === 'typed' && data.trim().length < 2)) {
       setContractSignError("Bitte prüfen Sie die Checkbox und geben Sie eine gültige Signatur ein.");
       notifyUser("Bitte prüfen Sie die Checkbox und geben Sie eine gültige Signatur ein.", "error");
       return;
@@ -5958,7 +5956,7 @@ export default function App() {
       const res = await fetch('/api/contracts/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contractId, method, data }),
+        body: JSON.stringify({ contractId, method, data, acceptEnglishBinding }),
         credentials: 'include'
       });
       const result = await res.json().catch(() => ({}));
@@ -14617,6 +14615,22 @@ const AdminWorkflowChecklist = ({ piece, onUpdate }: { piece: Masterpiece, onUpd
             </div>
           );
         })}
+        {workflow.status !== 'COMPLETED' && workflow.status !== 'CANCELLED' && (
+          <div className="pt-4 border-t border-zinc-900">
+            <Button
+              variant="danger"
+              className="w-full py-2 text-[10px] uppercase tracking-widest font-bold"
+              onClick={async () => {
+                const ok = window.confirm('Kunde storniert? Offene Zahlungsaufforderungen werden entfernt.');
+                if (!ok) return;
+                const done = await onUpdate(piece.id, 'customer_cancelled');
+                if (done) await fetchWorkflow();
+              }}
+            >
+              Kunde storniert · Zahlungsaufforderungen entfernen
+            </Button>
+          </div>
+        )}
         {workflow.status === 'COMPLETED' && (
           <div className="pt-4 border-t border-zinc-900">
             <Button variant="outline" className="w-full py-2 text-[10px] uppercase tracking-widest font-bold" onClick={() => (window as any).handleGenerateCertificate(piece.id)}>
