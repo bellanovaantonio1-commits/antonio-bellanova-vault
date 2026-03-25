@@ -3177,9 +3177,11 @@ function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { con
           ))}
         </select>
       </div>
-      <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
-        {isCert ? t('contract.certificate_localized_notice') : t('contract.official_english_notice')}
-      </p>
+      {isCert && (
+        <p className="text-[11px] text-amber-200/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 leading-relaxed">
+          {t('contract.certificate_localized_notice')}
+        </p>
+      )}
       {loading && <p className="text-xs text-zinc-500">{t('contract.preview_loading')}</p>}
       {err && <p className="text-xs text-red-400" role="alert">{err}</p>}
       {!loading && !err && previewHtml ? (
