@@ -615,6 +615,7 @@ const TRANSLATIONS: any = {
     "admin.drop_end_at": "Ende (Datum/Uhrzeit)",
     "admin.drop_create_btn": "Drop erstellen",
     "admin.drop_created": "Drop erstellt.",
+    "admin.drop_invalid_dates": "Bitte gültiges Start- und Enddatum wählen.",
     "admin.drops_list": "Aktuelle Drops",
     "admin.add_piece_to_drop": "Stück zum Drop hinzufügen",
     "admin.piece_added_to_drop": "Stück zum Drop hinzugefügt.",
@@ -1568,6 +1569,7 @@ const TRANSLATIONS: any = {
     "admin.drop_end_at": "End (date/time)",
     "admin.drop_create_btn": "Create drop",
     "admin.drop_created": "Drop created.",
+    "admin.drop_invalid_dates": "Please choose valid start and end date/time.",
     "admin.drops_list": "Current drops",
     "admin.add_piece_to_drop": "Add piece to drop",
     "admin.piece_added_to_drop": "Piece added to drop.",
@@ -2469,6 +2471,7 @@ const TRANSLATIONS: any = {
     "admin.drop_end_at": "Fine (data/ora)",
     "admin.drop_create_btn": "Crea drop",
     "admin.drop_created": "Drop creato.",
+    "admin.drop_invalid_dates": "Seleziona data/ora di inizio e fine valide.",
     "admin.drops_list": "Drop attuali",
     "admin.add_piece_to_drop": "Aggiungi opera al drop",
     "admin.piece_added_to_drop": "Opera aggiunta al drop.",
@@ -11460,6 +11463,17 @@ export default function App() {
                       <Button variant="primary" disabled={loading} onClick={async () => {
                         setLoading(true);
                         try {
+                          const toIso = (local: string, fallback: () => string) => {
+                            if (!local || !String(local).trim()) return fallback();
+                            const d = new Date(local);
+                            return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+                          };
+                          const release_at = toIso(adminDropForm.release_at, () => new Date().toISOString());
+                          const end_at = toIso(adminDropForm.end_at, () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
+                          if (!release_at || !end_at) {
+                            notifyUser(t('admin.drop_invalid_dates') || 'Bitte gültiges Start- und Enddatum wählen.', 'error');
+                            return;
+                          }
                           const res = await fetch('/api/admin/drops', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -11467,21 +11481,29 @@ export default function App() {
                               title: adminDropForm.title || 'Drop',
                               description: adminDropForm.description || '',
                               image_url: adminDropForm.image_url || null,
-                              release_at: adminDropForm.release_at ? new Date(adminDropForm.release_at).toISOString() : new Date().toISOString(),
-                              end_at: adminDropForm.end_at ? new Date(adminDropForm.end_at).toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+                              release_at,
+                              end_at,
+                              tier_access: [],
                             }),
                             credentials: 'include'
                           });
-                          const data = await res.json().catch(() => ({}));
+                          let data: { error?: string } = {};
+                          try {
+                            const raw = await res.text();
+                            if (raw) data = JSON.parse(raw);
+                          } catch { /* ignore */ }
                           if (res.ok) {
                             setAdminDropForm({ title: '', description: '', image_url: '', release_at: '', end_at: '' });
                             const list = await fetch('/api/admin/drops', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
                             setAdminDropsList(list);
-                            setDropsList(list.filter((d: any) => new Date(d.end_at) > new Date()));
+                            const pub = await fetch('/api/drops', { credentials: 'include' }).then(r => r.ok ? r.json() : []);
+                            setDropsList(Array.isArray(pub) ? pub : []);
                             notifyUser(t('admin.drop_created'), 'success');
                           } else {
-                            notifyUser(data.error || t('errors.generic'), 'error');
+                            notifyUser(data.error || res.statusText || t('errors.generic'), 'error');
                           }
+                        } catch (e: any) {
+                          notifyUser(e?.message || t('errors.generic'), 'error');
                         } finally { setLoading(false); }
                       }}>{t('admin.drop_create_btn')}</Button>
                     </Card>

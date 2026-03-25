@@ -2661,11 +2661,11 @@ const OFFICIAL_CONTRACT_LANG: ContractLang = "en";
 const CONTRACT_BODIES_EN = {
   deposit: {
     title: 'Deposit Agreement',
-    body: 'This binding instrument confirms the formal reservation of the Masterpiece identified as "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of {{piece.valuation}} EUR.\n\nA non-refundable commitment deposit of {{depositAmount}} EUR ({{depositPct}}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.',
+    body: 'This binding instrument confirms the formal reservation of the Masterpiece identified as "{{piece.title}}" (Serial: {{piece.serial_id}}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of {{piece.valuation}} EUR.\n\nA non-refundable commitment deposit of {{depositAmount}} EUR ({{depositPct}}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nPAYMENT STRUCTURE\nThis agreement is part of a structured transaction consisting of a deposit agreement and a final settlement via escrow.\nA non-refundable deposit of typically 40-50% of the total amount (in this transaction: {{depositPct}}%) is payable directly to the seller\'s business account and is used to initiate production and secure materials.\nThe remaining balance of typically 50-60% is to be transferred to the designated escrow account before delivery.\n\nESCROW PROCESSING\nEscrow holder: Notary / licensed escrow provider / designated bank escrow office (to be named in writing before final transfer).\nEscrow account details: To be provided in writing before due date (placeholder until designation).\nThe escrow agent acts as an independent third party.\nFunds are held neutrally until all release conditions are met.\n\nRELEASE CONDITIONS\nEscrow funds are released only after successful delivery or personal handover and buyer confirmation.\nConfirmation may be documented by written confirmation and/or a signed delivery record.\n\nTRANSFER OF OWNERSHIP\nOwnership remains with the seller until full payment has been completed and escrow funds have been released.\n\nDELIVERY AND HANDOVER\nDelivery is made by personal handover or secure shipment.\nIn case of shipment, transport must be fully insured and handled by a specialized high-value logistics provider.\nDelivery location must be agreed in writing.\n\nDEFAULT AND BREACH\nIf the buyer fails to transfer the remaining balance on time, the deposit remains with the seller.\nIf the seller fails to deliver in accordance with this agreement, the buyer may claim the escrow funds subject to escrow terms.\n\nIDENTITY VERIFICATION AND COMPLIANCE\nBefore completion, the buyer shall provide valid ID/passport, proof of address, and proof of funds where required.\nThe transaction is processed in compliance with applicable German anti-money laundering law (AML/KYC).\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.',
   },
   invoice: {
     title: 'Final Invoice',
-    body: 'FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "{{piece.title}}".\n\nTotal Valuation: {{piece.valuation}} EUR\nDeposit Paid: {{depositPaid}} EUR\nRemaining Balance: {{balanceDue}} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.',
+    body: 'FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "{{piece.title}}".\n\nTotal Valuation: {{piece.valuation}} EUR\nDeposit Paid: {{depositPaid}} EUR\nRemaining Balance: {{balanceDue}} EUR\n\nThis agreement is part of a structured transaction consisting of a deposit agreement and a final settlement via escrow.\n\nPAYMENT STRUCTURE\nThe deposit already paid (typically 40-50%) is non-refundable and was paid to the seller\'s business account for production start and material allocation.\nThe remaining balance (typically 50-60%) must be transferred to the designated escrow account before delivery.\n\nESCROW PROCESSING\nEscrow holder: Notary / licensed escrow provider / designated bank escrow office (to be named in writing before final transfer).\nEscrow account details: To be provided in writing before due date (placeholder until designation).\nThe escrow agent acts as an independent third party.\nEscrow funds are held neutrally until release conditions are met.\n\nRELEASE CONDITIONS\nEscrow funds are released only after successful delivery or personal handover and buyer confirmation.\nConfirmation may be documented by written confirmation and/or a signed delivery record.\n\nTRANSFER OF OWNERSHIP\nOwnership transfer occurs only after full payment completion and escrow release.\n\nDELIVERY AND HANDOVER\nDelivery is made by personal handover or secure shipment.\nShipped handover must be fully insured and handled by a specialized high-value logistics provider.\nDelivery location must be agreed in writing.\n\nDEFAULT AND BREACH\nIf the buyer fails to pay the remaining balance, the already paid deposit remains with the seller.\nIf the seller fails to deliver as agreed, the buyer may claim escrow funds subject to escrow terms.\n\nIDENTITY VERIFICATION AND COMPLIANCE\nBefore completion, the buyer shall provide valid ID/passport, proof of address, and proof of funds where required.\nThe transaction is processed in compliance with applicable German anti-money laundering law (AML/KYC).\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.',
   },
   certificate: {
     title: 'Certificate of Authenticity',
@@ -2689,11 +2689,11 @@ const CONTRACT_BODIES: Record<ContractLang, Record<string, { title: string; body
   de: {
     deposit: {
       title: 'Anzahlungsvereinbarung',
-      body: 'Diese verbindliche Urkunde bestätigt die formale Reservierung des Meisterstücks „{{piece.title}}" (Seriennr.: {{piece.serial_id}}).\n\nMit Unterzeichnung anerkennt der Kunde die Verpflichtung zum Erwerb des genannten Objekts zu einer Gesamtbewertung von {{piece.valuation}} EUR.\n\nEin nicht erstattungsfähiger Anzahlungsbetrag von {{depositAmount}} EUR ({{depositPct}} % der Gesamtbewertung) ist erforderlich, um die maßgeschneiderte Produktionsphase einzuleiten und das Objekt im Antonio Bellanova Vault zu sichern.\n\nNach Eingang der Mittel beginnt das Atelier mit der handgefertigten Realisierung. Das Eigentum verbleibt beim Atelier bis zur Endabrechnung.\n\nWEITERVERKAUFSEMPFEHLUNG: Der Kunde wird angehalten, einen künftigen Weiterverkauf über die Plattform Antonio Bellanova Vault abzuwickeln. Ein plattformseitiger Weiterverkauf gewährleistet Registeraktualisierung, Ausstellung eines neuen Echtheitszertifikats, Fortbestand der Garantie und Erhalt von Prestige-Score und Servicehistorie. Diese Vorteile gelten nicht bei Übertragungen außerhalb der Plattform.',
+      body: 'Diese verbindliche Urkunde bestätigt die formale Reservierung des Meisterstücks „{{piece.title}}" (Seriennr.: {{piece.serial_id}}).\n\nMit Unterzeichnung anerkennt der Kunde die Verpflichtung zum Erwerb des genannten Objekts zu einer Gesamtbewertung von {{piece.valuation}} EUR.\n\nEin nicht erstattungsfähiger Anzahlungsbetrag von {{depositAmount}} EUR ({{depositPct}} % der Gesamtbewertung) ist erforderlich, um die maßgeschneiderte Produktionsphase einzuleiten und das Objekt im Antonio Bellanova Vault zu sichern.\n\nNach Eingang der Mittel beginnt das Atelier mit der handgefertigten Realisierung. Das Eigentum verbleibt beim Atelier bis zur Endabrechnung.\n\nZAHLUNGSSTRUKTUR\nDiese Vereinbarung ist Teil einer strukturierten Transaktion bestehend aus Anzahlungsvereinbarung und finaler Abwicklung über Treuhand.\nEine nicht erstattungsfähige Anzahlung von typischerweise 40-50 % des Gesamtbetrags (in dieser Transaktion: {{depositPct}} %) wird direkt auf das Geschäftskonto des Verkäufers gezahlt und dient der Produktionsaufnahme sowie Materialbindung.\nDer verbleibende Restbetrag von typischerweise 50-60 % ist vor Lieferung auf das benannte Treuhandkonto zu überweisen.\n\nTREUHANDABWICKLUNG\nTreuhänder: Notar / lizenzierter Treuhanddienstleister / benannte Bank-Treuhandstelle (wird vor finaler Zahlung schriftlich benannt).\nTreuhandkonto: Wird vor Fälligkeit schriftlich mitgeteilt (Platzhalter bis Benennung).\nDer Treuhänder handelt als unabhängige dritte Partei.\nDie Treuhand verwahrt die Mittel neutral bis zum Eintritt der Freigabebedingungen.\n\nFREIGABEBEDINGUNGEN\nDie Freigabe der Treuhandmittel erfolgt ausschließlich nach erfolgreicher Lieferung oder persönlicher Übergabe sowie Bestätigung durch den Käufer.\nDie Bestätigung kann durch schriftliche Freigabe und/oder ein unterzeichnetes Übergabeprotokoll erfolgen.\n\nEIGENTUMSÜBERGANG\nDas Eigentum verbleibt beim Verkäufer, bis die vollständige Zahlung erbracht und die Treuhandmittel freigegeben wurden.\n\nLIEFERUNG UND ÜBERGABE\nDie Übergabe erfolgt durch persönliche Aushändigung oder gesicherten Versand.\nBei Versand erfolgt die Zustellung vollversichert über einen spezialisierten Logistikdienstleister für Hochwertgüter.\nDer Lieferort wird schriftlich zwischen den Parteien abgestimmt.\n\nVERZUG UND VERTRAGSBRUCH\nKommt der Käufer der fristgerechten Zahlung des Restbetrags nicht nach, verbleibt die Anzahlung beim Verkäufer.\nKommt der Verkäufer seiner Lieferpflicht nicht vertragsgemäß nach, ist der Käufer berechtigt, die Treuhandmittel nach Maßgabe der Treuhandbedingungen zu beanspruchen.\n\nIDENTITÄTSPRÜFUNG UND COMPLIANCE\nVor Abschluss hat der Käufer einen gültigen Ausweis/Reisepass, einen Adressnachweis sowie bei Bedarf einen Herkunfts- bzw. Mittelherkunftsnachweis vorzulegen.\nDie Transaktion erfolgt in Übereinstimmung mit den geltenden deutschen Geldwäschevorschriften (AML/KYC).\n\nWEITERVERKAUFSEMPFEHLUNG: Der Kunde wird angehalten, einen künftigen Weiterverkauf über die Plattform Antonio Bellanova Vault abzuwickeln. Ein plattformseitiger Weiterverkauf gewährleistet Registeraktualisierung, Ausstellung eines neuen Echtheitszertifikats, Fortbestand der Garantie und Erhalt von Prestige-Score und Servicehistorie. Diese Vorteile gelten nicht bei Übertragungen außerhalb der Plattform.',
     },
     invoice: {
       title: 'Schlussrechnung',
-      body: 'SCHLUSSRECHNUNG FÜR DEN ERWERB\n\nDiese Rechnung stellt die Endabrechnung für das Meisterstück „{{piece.title}}" dar.\n\nGesamtbewertung: {{piece.valuation}} EUR\nAnzahlung: {{depositPaid}} EUR\nRestbetrag: {{balanceDue}} EUR\n\nDie Zahlung ist innerhalb von 14 Tagen fällig, um die Treuhand-Freigabe und Lieferphase einzuleiten. Die Eigentumsübertragung erfolgt nach erfolgreicher Treuhand-Freigabe.',
+      body: 'SCHLUSSRECHNUNG FÜR DEN ERWERB\n\nDiese Rechnung stellt die Endabrechnung für das Meisterstück „{{piece.title}}" dar.\n\nGesamtbewertung: {{piece.valuation}} EUR\nAnzahlung: {{depositPaid}} EUR\nRestbetrag: {{balanceDue}} EUR\n\nDiese Vereinbarung ist Teil einer strukturierten Transaktion bestehend aus Anzahlungsvereinbarung und finaler Abwicklung über Treuhand.\n\nZAHLUNGSSTRUKTUR\nDie bereits geleistete Anzahlung (typischerweise 40-50 %) ist nicht erstattungsfähig und wurde auf das Geschäftskonto des Verkäufers zur Produktionsaufnahme und Materialbindung gezahlt.\nDer verbleibende Restbetrag (typischerweise 50-60 %) ist vor Lieferung auf das benannte Treuhandkonto zu überweisen.\n\nTREUHANDABWICKLUNG\nTreuhänder: Notar / lizenzierter Treuhanddienstleister / benannte Bank-Treuhandstelle (wird vor finaler Zahlung schriftlich benannt).\nTreuhandkonto: Wird vor Fälligkeit schriftlich mitgeteilt (Platzhalter bis Benennung).\nDer Treuhänder handelt als unabhängige dritte Partei.\nDie Treuhand verwahrt die Mittel neutral bis zum Eintritt der Freigabebedingungen.\n\nFREIGABEBEDINGUNGEN\nDie Freigabe der Treuhandmittel erfolgt ausschließlich nach erfolgreicher Lieferung oder persönlicher Übergabe sowie Bestätigung durch den Käufer.\nDie Bestätigung kann durch schriftliche Freigabe und/oder ein unterzeichnetes Übergabeprotokoll erfolgen.\n\nEIGENTUMSÜBERGANG\nDer Eigentumsübergang erfolgt erst nach vollständigem Zahlungseingang und Freigabe der Treuhandmittel.\n\nLIEFERUNG UND ÜBERGABE\nDie Übergabe erfolgt durch persönliche Aushändigung oder gesicherten Versand.\nBei Versand erfolgt die Zustellung vollversichert über einen spezialisierten Logistikdienstleister für Hochwertgüter.\nDer Lieferort wird schriftlich zwischen den Parteien abgestimmt.\n\nVERZUG UND VERTRAGSBRUCH\nKommt der Käufer der fristgerechten Zahlung des Restbetrags nicht nach, verbleibt die bereits geleistete Anzahlung beim Verkäufer.\nKommt der Verkäufer seiner Lieferpflicht nicht vertragsgemäß nach, ist der Käufer berechtigt, die Treuhandmittel nach Maßgabe der Treuhandbedingungen zu beanspruchen.\n\nIDENTITÄTSPRÜFUNG UND COMPLIANCE\nVor Abschluss hat der Käufer einen gültigen Ausweis/Reisepass, einen Adressnachweis sowie bei Bedarf einen Herkunfts- bzw. Mittelherkunftsnachweis vorzulegen.\nDie Transaktion erfolgt in Übereinstimmung mit den geltenden deutschen Geldwäschevorschriften (AML/KYC).\n\nDie Zahlung ist innerhalb von 14 Tagen fällig, um die Treuhand-Freigabe und Lieferphase einzuleiten. Die Eigentumsübertragung erfolgt nach erfolgreicher Treuhand-Freigabe.',
     },
     certificate: {
       title: 'Echtheits- und Eigentumszertifikat',
@@ -3900,6 +3900,7 @@ app.get("/api/masterpieces", async (req, res) => {
         ? ((await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any)
         : null;
     const isVip = user ? isVipActive(user) : false;
+    const isAdminUser = isAtelierAdminUser(user);
     let pieces: any[];
     if (search && search.length >= 2) {
       const term = "%" + search + "%";
@@ -3908,15 +3909,34 @@ app.get("/api/masterpieces", async (req, res) => {
       pieces = await (await db.prepare("SELECT * FROM masterpieces")).all();
     }
     const now = Date.now();
+    const nowIso = new Date().toISOString();
+    const dropBindings = isAdminUser ? new Map<number, any[]>() : await loadActiveDropBindingsByMasterpiece(nowIso);
     pieces = pieces.filter((p: any) => {
       if (Number(p.private_gallery) === 1 && !canAccessPrivateGallery(user)) return false;
-      if (!p.product_release_date) return true;
-      const release = new Date(p.product_release_date).getTime();
-      // Invalid / zero dates from MySQL etc. must not hide all pieces from the API.
-      if (!Number.isFinite(release)) return true;
-      const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
-      if (isVip && p.vip_early_access) return now >= vipRelease;
-      return now >= release;
+      if (!p.product_release_date) {
+        /* continue to drop gate */
+      } else {
+        const release = new Date(p.product_release_date).getTime();
+        // Invalid / zero dates from MySQL etc. must not hide all pieces from the API.
+        if (!Number.isFinite(release)) {
+          /* continue */
+        } else {
+          const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
+          if (isVip && p.vip_early_access) {
+            if (now < vipRelease) return false;
+          } else if (now < release) {
+            return false;
+          }
+        }
+      }
+      if (!isAdminUser) {
+        const linked = dropBindings.get(p.id);
+        if (linked && linked.length > 0) {
+          const visibleInDrop = linked.some((d) => isDropLiveForUser(d, user, now));
+          if (!visibleInDrop) return false;
+        }
+      }
+      return true;
     });
     res.json(pieces);
   } catch (e: any) {
@@ -3949,6 +3969,40 @@ app.get("/api/search", async (req, res) => {
   if (minPrice != null && !Number.isNaN(minPrice)) pieces = pieces.filter((p: any) => Number(p.valuation) >= minPrice);
   if (maxPrice != null && !Number.isNaN(maxPrice)) pieces = pieces.filter((p: any) => Number(p.valuation) <= maxPrice);
   if (rarity) pieces = pieces.filter((p: any) => p.rarity === rarity);
+
+  const searchUserId =
+    req.query.userId !== undefined && req.query.userId !== "" ? Number(req.query.userId as string) : null;
+  const searchUser =
+    searchUserId !== null && !Number.isNaN(searchUserId) && searchUserId !== GUEST_USER_ID
+      ? ((await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(searchUserId)) as any)
+      : searchUserId === GUEST_USER_ID
+        ? getGuestUserPayload()
+        : null;
+  const searchNow = Date.now();
+  const searchNowIso = new Date().toISOString();
+  const searchDropBindings = isAtelierAdminUser(searchUser) ? new Map<number, any[]>() : await loadActiveDropBindingsByMasterpiece(searchNowIso);
+  const searchIsVip = searchUser ? isVipActive(searchUser) : false;
+  pieces = pieces.filter((p: any) => {
+    if (Number(p.private_gallery) === 1 && !canAccessPrivateGallery(searchUser)) return false;
+    if (p.product_release_date) {
+      const release = new Date(p.product_release_date).getTime();
+      if (Number.isFinite(release)) {
+        const vipRelease = p.vip_early_access ? release - 48 * 60 * 60 * 1000 : release;
+        if (searchIsVip && p.vip_early_access) {
+          if (searchNow < vipRelease) return false;
+        } else if (searchNow < release) {
+          return false;
+        }
+      }
+    }
+    if (!isAtelierAdminUser(searchUser)) {
+      const linked = searchDropBindings.get(p.id);
+      if (linked && linked.length > 0) {
+        if (!linked.some((d) => isDropLiveForUser(d, searchUser, searchNow))) return false;
+      }
+    }
+    return true;
+  });
 
   if (sort === "price_asc") pieces.sort((a: any, b: any) => (Number(a.valuation) || 0) - (Number(b.valuation) || 0));
   else if (sort === "price_desc") pieces.sort((a: any, b: any) => (Number(b.valuation) || 0) - (Number(a.valuation) || 0));
@@ -4712,6 +4766,27 @@ app.post("/api/marketplace/buy", async (req, res) => {
       return res.status(400).json({ error: "Stück ist nicht verfügbar." });
     }
 
+    const buyNowIso = new Date().toISOString();
+    const buyNowMs = Date.now();
+    const dropRowsForBuy = (await (
+      await db.prepare(`
+      SELECT d.release_at, d.end_at, d.tier_access, d.status, COALESCE(d.vip_early_access, 0) as vip_early_access
+      FROM drop_pieces dp
+      INNER JOIN drops d ON d.id = dp.drop_id
+      WHERE dp.masterpiece_id = ? AND d.end_at > ? AND (d.status IS NULL OR d.status != 'ended')
+    `)
+    ).all(mid, buyNowIso)) as any[];
+    if (dropRowsForBuy.length > 0) {
+      const dropLive = dropRowsForBuy.some((d) => isDropLiveForUser(d, user, buyNowMs));
+      if (!dropLive) {
+        return res.status(403).json({
+          error:
+            "Dieses Stück ist einem Drop zugeordnet und ist außerhalb des aktiven Drop-Zeitfensters nicht käuflich.",
+          code: "DROP_NOT_LIVE",
+        });
+      }
+    }
+
     const requiresConsultationFirst =
       isConsultationFlowEnabled() &&
       (Number(piece.consultation_required) === 1 || Number((piece as any).made_to_order) === 1);
@@ -4840,9 +4915,16 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
     const depositAmount = (piece.valuation * piece.deposit_pct) / 100;
     const docRef = await nextContractRef('deposit');
     
-    // Deposit Contract
-    const depositContent = `This binding instrument confirms the formal reservation of the Masterpiece identified as "${piece.title}" (Serial: ${piece.serial_id}).\n\nBy executing this agreement, the Client acknowledges a commitment to the acquisition of the aforementioned asset at a total valuation of ${piece.valuation.toLocaleString()} EUR.\n\nA non-refundable commitment deposit of ${depositAmount.toLocaleString()} EUR (${piece.deposit_pct}% of total valuation) is required to initiate the bespoke production phase and secure the asset within the Antonio Bellanova Vault.\n\nUpon receipt of funds, the Atelier shall commence the handcrafted realization of the piece. Ownership remains with the Atelier until final settlement.\n\nRESALE RECOMMENDATION: The Client is encouraged to conduct any future resale of this asset through the Antonio Bellanova Vault platform. Platform resale ensures Registry update, issuance of a new Certificate of Authenticity, continuity of warranty benefits, and preservation of Prestige Score and linked Service History. These benefits do not apply to transfers made outside the platform.`;
-    const depositHtml = generateLuxuryDocument("Deposit Agreement", depositContent, user, piece, { docRef, title: "Deposit Agreement", lang: OFFICIAL_CONTRACT_LANG });
+    // Deposit Contract (use canonical template for legal consistency)
+    const depositT = CONTRACT_BODIES[OFFICIAL_CONTRACT_LANG].deposit;
+    const depositVars = {
+      piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() },
+      user,
+      depositAmount: Number(depositAmount).toLocaleString(),
+      depositPct: piece.deposit_pct || 10,
+    };
+    const depositContent = applyContractVars(depositT.body, depositVars);
+    const depositHtml = generateLuxuryDocument(depositT.title, depositContent, user, piece, { docRef, title: depositT.title, lang: OFFICIAL_CONTRACT_LANG });
     const contractRun = await (await db.prepare("INSERT INTO contracts (user_id, masterpiece_id, type, doc_ref, content, status) VALUES (?, ?, 'deposit', ?, ?, 'draft')")).run(
       user.id, masterpieceId, docRef, depositHtml
     );
@@ -5097,10 +5179,17 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
       // Generate Final Invoice
       const balanceDue = piece.valuation - (piece.valuation * piece.deposit_pct / 100);
       const invRef = await nextContractRef('invoice');
-      const invContent = `FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "${piece.title}".\n\nTotal Valuation: ${piece.valuation.toLocaleString()} EUR\nDeposit Paid: ${(piece.valuation * piece.deposit_pct / 100).toLocaleString()} EUR\nRemaining Balance: ${balanceDue.toLocaleString()} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.`;
-      const invHtml = generateLuxuryDocument("Final Invoice", invContent, user, piece, { 
+      const invT = CONTRACT_BODIES[OFFICIAL_CONTRACT_LANG].invoice;
+      const invVars = {
+        piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() },
+        user,
+        balanceDue: Number(balanceDue).toLocaleString(),
+        depositPaid: Number(piece.valuation * piece.deposit_pct / 100).toLocaleString(),
+      };
+      const invContent = applyContractVars(invT.body, invVars);
+      const invHtml = generateLuxuryDocument(invT.title, invContent, user, piece, { 
         docRef: invRef, 
-        title: "Final Invoice",
+        title: invT.title,
         balanceDue,
         escrowEnabled: true,
         lang: OFFICIAL_CONTRACT_LANG,
@@ -5124,10 +5213,17 @@ app.post("/api/admin/workflow/update", requireAuth, requireAdmin, async (req, re
       const existingFullPayment = await (await db.prepare("SELECT id FROM payments WHERE masterpiece_id = ? AND type = 'full' ORDER BY id DESC LIMIT 1")).get(masterpieceId) as any;
       if (!existingInvoiceContract && balanceDue > 0) {
         const invRef = await nextContractRef('invoice');
-        const invContent = `FINAL INVOICE FOR ACQUISITION\n\nThis invoice represents the final settlement for the Masterpiece "${piece.title}".\n\nTotal Valuation: ${piece.valuation.toLocaleString()} EUR\nDeposit Paid: ${(piece.valuation * piece.deposit_pct / 100).toLocaleString()} EUR\nRemaining Balance: ${balanceDue.toLocaleString()} EUR\n\nPayment is due within 14 days to initiate the Escrow Release and Delivery phase. Ownership transfer will be executed upon successful escrow release.`;
-        const invHtml = generateLuxuryDocument("Final Invoice", invContent, user, piece, {
+        const invT = CONTRACT_BODIES[OFFICIAL_CONTRACT_LANG].invoice;
+        const invVars = {
+          piece: { ...piece, valuation: Number(piece.valuation).toLocaleString() },
+          user,
+          balanceDue: Number(balanceDue).toLocaleString(),
+          depositPaid: Number(piece.valuation * piece.deposit_pct / 100).toLocaleString(),
+        };
+        const invContent = applyContractVars(invT.body, invVars);
+        const invHtml = generateLuxuryDocument(invT.title, invContent, user, piece, {
           docRef: invRef,
-          title: "Final Invoice",
+          title: invT.title,
           balanceDue,
           escrowEnabled: true,
           lang: OFFICIAL_CONTRACT_LANG,
@@ -8258,6 +8354,59 @@ function isVipOnlyDrop(d: { vip_early_access?: number; tier_access?: string }): 
   return tiers.some((t: string) => t === "vip" || t === "legacy_collector");
 }
 
+/** Same visibility window as GET /api/drops: tier, VIP early access, release vs end. */
+function isDropLiveForUser(
+  drop: { release_at: string; end_at: string; tier_access?: string; status?: string; vip_early_access?: number },
+  user: any | null,
+  nowMs: number
+): boolean {
+  if (!drop || drop.status === "ended") return false;
+  const endMs = new Date(drop.end_at).getTime();
+  if (!Number.isFinite(endMs) || nowMs >= endMs) return false;
+  const u = user && !(user as any).is_guest && user.id !== GUEST_USER_ID ? user : null;
+  const canSeeVipDrops = canAccessVipContent(u);
+  if (isVipOnlyDrop(drop) && !canSeeVipDrops) return false;
+  const releaseMs = new Date(drop.release_at).getTime();
+  if (!Number.isFinite(releaseMs)) return false;
+  const isVip = user ? isVipActive(user) : false;
+  const vipReleaseMs = drop.vip_early_access ? releaseMs - 48 * 60 * 60 * 1000 : releaseMs;
+  const visibleAt = isVip && drop.vip_early_access ? vipReleaseMs : releaseMs;
+  if (nowMs < visibleAt) return false;
+  let tiers: string[] = [];
+  try {
+    tiers = drop.tier_access ? JSON.parse(drop.tier_access) : [];
+  } catch {
+    tiers = [];
+  }
+  const tier = u ? getPrestigeTier(u) : "client";
+  if (tiers.length === 0) return true;
+  return tiers.includes(tier);
+}
+
+/** Pieces linked to a not-yet-ended drop (still in “drop campaign”). */
+async function loadActiveDropBindingsByMasterpiece(nowIso: string): Promise<Map<number, any[]>> {
+  const rows = (await (
+    await db.prepare(`
+    SELECT dp.masterpiece_id, d.release_at, d.end_at, d.tier_access, d.status, COALESCE(d.vip_early_access, 0) as vip_early_access
+    FROM drop_pieces dp
+    INNER JOIN drops d ON d.id = dp.drop_id
+    WHERE d.end_at > ? AND (d.status IS NULL OR d.status != 'ended')
+  `)
+  ).all(nowIso)) as any[];
+  const map = new Map<number, any[]>();
+  for (const row of rows) {
+    const mid = row.masterpiece_id;
+    const { masterpiece_id: _m, ...drop } = row;
+    if (!map.has(mid)) map.set(mid, []);
+    map.get(mid)!.push(drop);
+  }
+  return map;
+}
+
+function isAtelierAdminUser(user: any | null): boolean {
+  return !!(user && (user.role === "admin" || user.role === "super_admin"));
+}
+
 app.get("/api/drops", async (req, res) => {
   const userId = getSessionUserId(req);
   const user = userId && userId !== GUEST_USER_ID
@@ -8305,6 +8454,14 @@ app.get("/api/drops/:id/pieces", async (req, res) => {
     ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any)
     : null;
   if (isVipOnlyDrop(drop) && !canAccessVipContent(user)) return res.status(403).json({ error: "Forbidden", reason: "VIP drops are only visible to VIP and Legacy Collector roles." });
+  let adminPreview = false;
+  if (userId && userId !== GUEST_USER_ID) {
+    const ru = user as any;
+    adminPreview = ru && (ru.role === "admin" || ru.role === "super_admin");
+  }
+  if (!adminPreview && !isDropLiveForUser(drop, user, Date.now())) {
+    return res.json([]);
+  }
   const pieces = await (await db.prepare(`
     SELECT m.* FROM drop_pieces dp JOIN masterpieces m ON m.id = dp.masterpiece_id WHERE dp.drop_id = ?
   `)).all(req.params.id);
@@ -8337,18 +8494,33 @@ app.post("/api/admin/upload/image", async (req, res) => {
 });
 
 app.post("/api/admin/drops", async (req, res) => {
-  const adminId = getSessionUserId(req);
-  const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
-  if (!admin || (admin.role !== 'admin' && admin.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
-  const { title, description, image_url, release_at, end_at, tier_access, vip_early_access } = req.body;
-  const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : '[]';
-  const status = new Date(end_at) < new Date() ? 'ended' : (new Date(release_at) > new Date() ? 'upcoming' : 'live');
-  const vipEarly = vip_early_access ? 1 : 0;
-  const r = await (await db.prepare(`
+  try {
+    const adminId = getSessionUserId(req);
+    const admin = adminId ? (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId) as any) : null;
+    if (!admin || (admin.role !== "admin" && admin.role !== "super_admin")) return res.status(403).json({ error: "Forbidden" });
+    const { title, description, image_url, release_at, end_at, tier_access, vip_early_access } = req.body || {};
+    const releaseStr = release_at || new Date().toISOString();
+    const endStr = end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const rMs = new Date(releaseStr).getTime();
+    const eMs = new Date(endStr).getTime();
+    if (!Number.isFinite(rMs) || !Number.isFinite(eMs)) {
+      return res.status(400).json({ error: "Ungültiges Start- oder Enddatum." });
+    }
+    if (eMs <= rMs) {
+      return res.status(400).json({ error: "Ende muss nach dem Start liegen." });
+    }
+    const tierAccess = tier_access ? JSON.stringify(Array.isArray(tier_access) ? tier_access : [tier_access]) : "[]";
+    const status = eMs < Date.now() ? "ended" : rMs > Date.now() ? "upcoming" : "live";
+    const vipEarly = vip_early_access ? 1 : 0;
+    const r = await (await db.prepare(`
     INSERT INTO drops (title, description, image_url, release_at, end_at, tier_access, status, vip_early_access, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-  `)).run(title || 'Drop', description || '', image_url || null, release_at || new Date().toISOString(), end_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), tierAccess, status, vipEarly);
-  res.json({ id: r.lastInsertRowid, success: true });
+  `)).run(title || "Drop", description || "", image_url || null, releaseStr, endStr, tierAccess, status, vipEarly);
+    res.json({ id: r.lastInsertRowid, success: true });
+  } catch (e: any) {
+    console.error("[POST /api/admin/drops]", e?.message || e);
+    return res.status(500).json({ error: e?.message || "Drop konnte nicht angelegt werden." });
+  }
 });
 
 app.put("/api/admin/drops/:id", async (req, res) => {
