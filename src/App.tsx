@@ -5524,6 +5524,31 @@ export default function App() {
     }
   };
 
+  const handleReserve = async (pieceId: number) => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/marketplace/reserve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id, masterpieceId: pieceId }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notifyUser(t('piece_reserved') || 'Stück reserviert', 'success');
+        fetchData();
+      } else {
+        if (res.status === 403 && data.code === 'GUEST_RESTRICTED') setShowAccountRequiredModal(true);
+        else notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } catch {
+      notifyUser(t('errors.network') || t('errors.generic'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openConsultationForPiece = async (piece: Masterpiece) => {
     if (!user || isGuestSessionUser(user)) {
       setShowAccountRequiredModal(true);
@@ -7553,6 +7578,7 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                         } : undefined}
                         onBuy={!consultFirst ? (user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                        onReserve={(user.role === UserRole.GUEST || (user as any).is_guest) ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleReserve(piece.id)}
                         onConsultation={consultFirst ? openConsultationForPiece : undefined}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
@@ -7591,6 +7617,7 @@ export default function App() {
                             .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id)));
                         } : undefined}
                         onBuy={user && !consultFirst ? () => handleBuy(piece.id) : undefined}
+                        onReserve={user ? () => handleReserve(piece.id) : undefined}
                         onConsultation={consultFirst ? openConsultationForPiece : undefined}
                         onViewDetails={(p) => setSelectedPiece(p)}
                       />
@@ -7676,6 +7703,7 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={!consultFirst ? (!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                            onReserve={!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleReserve(piece.id)}
                             onConsultation={consultFirst ? openConsultationForPiece : undefined}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
@@ -7733,6 +7761,7 @@ export default function App() {
                                 .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
                             } : undefined}
                             onBuy={!consultFirst ? (user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
+                            onReserve={user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleReserve(piece.id)}
                             onConsultation={consultFirst ? openConsultationForPiece : undefined}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
@@ -13652,6 +13681,9 @@ export default function App() {
                               <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
                                 <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
                               </Button>
+                              <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleReserve(selectedPiece.id); closePieceDetail(); }}>
+                                {t('piece_reserved') || 'Reservieren'}
+                              </Button>
                             </>
                           ) : (
                             <>
@@ -13669,6 +13701,9 @@ export default function App() {
                               </div>
                               <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
                                 <ShoppingBag className="w-5 h-5" /> {t('marketplace.cta_purchase_request')}
+                              </Button>
+                              <Button variant="ghost" className="w-full py-3 text-sm border border-zinc-700" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleReserve(selectedPiece.id); closePieceDetail(); }}>
+                                {t('piece_reserved') || 'Reservieren'}
                               </Button>
                             </>
                           )}
@@ -14176,7 +14211,7 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false }: { piece: Masterpiece, onBuy?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean }) => {
+const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false }: { piece: Masterpiece, onBuy?: () => void, onReserve?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean }) => {
   const showConsultationCta = !!onConsultation && consultationFirstPiece;
   const showDirectBuy = !!onBuy && !consultationFirstPiece;
   return (
@@ -14192,7 +14227,7 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
         <Badge variant="amber">{getRarityLabel ? getRarityLabel(piece.rarity) : piece.rarity}</Badge>
         {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>{t ? t('piece.blockchain_verified') : 'Verifiziert'}</Badge>}
       </div>
-      {piece.status === 'reserved' && (
+      {(piece.status === 'reserved' || piece.status === 'reserved_client' || piece.status === 'reserved_vip') && (
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center">
           <Badge variant="amber">{t ? t('reserved') : 'Reserved'}</Badge>
         </div>
@@ -14229,6 +14264,11 @@ const PieceCard = ({ piece, onBuy, onViewDetails, hideAction, extraAction, t, ge
       {!hideAction && piece.status === 'available' && showDirectBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
           <ShoppingBag className="w-4 h-4" /> {t ? t('marketplace.cta_purchase_request') : 'Send purchase request'}
+        </Button>
+      )}
+      {!hideAction && piece.status === 'available' && onReserve && (
+        <Button variant="ghost" className="w-full py-2 text-xs mt-2 border border-zinc-700" onClick={onReserve}>
+          {t ? (t('piece_reserved') || 'Reservieren') : 'Reservieren'}
         </Button>
       )}
       {extraAction}

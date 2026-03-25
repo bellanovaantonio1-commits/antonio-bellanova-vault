@@ -5083,6 +5083,62 @@ app.post("/api/marketplace/buy", async (req, res) => {
   }
 });
 
+app.post("/api/marketplace/reserve", async (req, res) => {
+  try {
+    const sessionUid = getSessionUserId(req);
+    if (noSessionUserId(sessionUid) || sessionUid === GUEST_USER_ID) {
+      return res.status(403).json({ error: "Bitte mit einem vollständigen Konto anmelden.", code: "GUEST_RESTRICTED" });
+    }
+    const { userId, masterpieceId } = req.body || {};
+    const uid = Number(userId);
+    const mid = Number(masterpieceId);
+    if (!uid || !mid || Number.isNaN(uid) || Number.isNaN(mid)) {
+      return res.status(400).json({ error: "userId und masterpieceId sind erforderlich." });
+    }
+    if (Number(sessionUid) !== uid) {
+      return res.status(403).json({ error: "Die Anfrage stimmt nicht mit Ihrer Sitzung überein." });
+    }
+    const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(uid) as any;
+    if (!user) return res.status(404).json({ error: "Benutzer nicht gefunden." });
+    const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(mid) as any;
+    if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+    if (piece.status && !["available", "reserved", "reserved_client"].includes(String(piece.status))) {
+      return res.status(400).json({ error: "Stück kann aktuell nicht reserviert werden." });
+    }
+
+    const existing = await (await db.prepare("SELECT * FROM purchase_workflow WHERE masterpiece_id = ?")).get(mid) as any;
+    if (existing && Number(existing.user_id) !== uid && !["CANCELLED", "COMPLETED"].includes(String(existing.status || ""))) {
+      return res.status(409).json({ error: "Dieses Stück ist bereits für einen anderen Kunden im Workflow." });
+    }
+    if (existing && Number(existing.user_id) === uid && !["CANCELLED", "COMPLETED"].includes(String(existing.status || ""))) {
+      return res.json({ success: true, already_reserved: true, masterpieceId: mid });
+    }
+
+    if (existing) {
+      await (await db.prepare(`
+        UPDATE purchase_workflow
+        SET user_id = ?, status = 'RESERVATION_REQUESTED', approved_at = NULL, approved_by = NULL, completed_at = NULL
+        WHERE masterpiece_id = ?
+      `)).run(uid, mid);
+    } else {
+      await (await db.prepare(`
+        INSERT INTO purchase_workflow (masterpiece_id, user_id, status, escrow_status, transaction_id, client_id)
+        VALUES (?, ?, 'RESERVATION_REQUESTED', 'pending', ?, ?)
+      `)).run(mid, uid, `TX-${mid}-${Date.now()}`, `CL-${uid}`);
+    }
+
+    await logMasterpieceStatusChange(mid, "reserved", uid);
+    await (await db.prepare("UPDATE masterpieces SET status = 'reserved' WHERE id = ?")).run(mid);
+    await updateProvenance(mid, "vip_event", `Reservation requested by user ${uid}.`);
+    notifyUser(uid, "Reservierung registriert. Das Atelier prüft den nächsten Schritt.", "success");
+    broadcast({ type: "PIECE_RESERVED", masterpieceId: mid, userId: uid });
+    return res.json({ success: true, masterpieceId: mid });
+  } catch (err: any) {
+    console.error("[marketplace/reserve]", err);
+    return res.status(500).json({ error: err?.message || "Reservierung fehlgeschlagen." });
+  }
+});
+
 app.post("/api/admin/approve-purchase", async (req, res) => {
   const { masterpieceId, approve, adminId } = req.body;
   
