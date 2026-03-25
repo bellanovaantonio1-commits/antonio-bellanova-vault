@@ -17,7 +17,13 @@ export default defineConfig(({mode}) => {
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
-      allowedHosts: ['vault.antoniobellanova.com', 'localhost', '.antoniobellanova.com'],
+      allowedHosts: [
+        'vault.antoniobellanova.com',
+        'antoniobellanova.com',
+        'www.antoniobellanova.com',
+        'localhost',
+        '.antoniobellanova.com',
+      ],
       proxy: {
         '/api': { target: 'http://localhost:3000', changeOrigin: true },
       },
