@@ -5246,6 +5246,38 @@ app.post("/api/admin/approve-purchase", async (req, res) => {
   res.json({ success: true });
 });
 
+app.post("/api/admin/release-reservation", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { masterpieceId } = req.body || {};
+    const mid = Number(masterpieceId);
+    if (!mid || Number.isNaN(mid)) return res.status(400).json({ error: "masterpieceId erforderlich." });
+    const adminId = Number(getSessionUserId(req) || 0);
+
+    const piece = await (await db.prepare("SELECT id, title, status FROM masterpieces WHERE id = ?")).get(mid) as any;
+    if (!piece) return res.status(404).json({ error: "Stück nicht gefunden." });
+
+    await (await db.prepare("UPDATE masterpieces SET status = 'available' WHERE id = ?")).run(mid);
+    await (await db.prepare(`
+      UPDATE purchase_workflow
+      SET status = 'CANCELLED', completed_at = CURRENT_TIMESTAMP
+      WHERE masterpiece_id = ? AND status NOT IN ('COMPLETED', 'CANCELLED')
+    `)).run(mid);
+    await (await db.prepare(`
+      UPDATE payments
+      SET status = 'cancelled'
+      WHERE masterpiece_id = ? AND status IN ('pending', 'awaiting_deposit', 'awaiting_escrow')
+    `)).run(mid);
+
+    await logMasterpieceStatusChange(mid, "available", adminId || null);
+    await updateProvenance(mid, "vip_event", "Reservation released by admin.");
+    broadcast({ type: "RESERVATION_RELEASED", masterpieceId: mid });
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error("[admin/release-reservation]", err);
+    return res.status(500).json({ error: err?.message || "Reservierung konnte nicht freigegeben werden." });
+  }
+});
+
 function consultationEmailNotificationsEnabled(): boolean {
   const v = String(process.env.CONSULTATION_EMAIL_NOTIFICATIONS ?? "").trim().toLowerCase();
   return v === "true" || v === "1" || v === "yes";

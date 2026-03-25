@@ -5599,6 +5599,29 @@ export default function App() {
     }
   };
 
+  const handleReleaseReservation = async (pieceId: number) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/release-reservation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ masterpieceId: pieceId }),
+        credentials: 'include'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notifyUser('Reservierung freigegeben.', 'success');
+        fetchData();
+      } else {
+        notifyUser(data.error || t('errors.generic'), 'error');
+      }
+    } catch {
+      notifyUser(t('errors.network') || t('errors.generic'), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleUpdateWorkflow = async (pieceId: number, step: string): Promise<boolean> => {
     if (!user) return false;
     setLoading(true);
@@ -10854,7 +10877,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.pending_purchases')}</h3>
                     <div className="space-y-4">
-                      {masterpieces.filter(p => p.status === 'reserved').map(piece => {
+                      {masterpieces.filter(p => p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').map(piece => {
                         const contract = adminContracts.find(
                           (c: { masterpiece_id?: number; type?: string }) =>
                             c.masterpiece_id === piece.id && (c.type === 'deposit' || c.type === 'deposit_resale')
@@ -10866,6 +10889,7 @@ export default function App() {
                               <div>
                                 <p className="text-sm font-medium text-zinc-200">{piece.title}</p>
                                 <p className="text-xs text-zinc-500">{piece.valuation.toLocaleString()} €</p>
+                                <p className="text-[10px] uppercase text-amber-500/80">Reserviert</p>
                                 {contract && (
                                   <div className="mt-1">
                                     <Badge variant={contract.status === 'signed' ? 'emerald' : 'amber'}>
@@ -10878,11 +10902,12 @@ export default function App() {
                             <div className="flex gap-2">
                               <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract}>{t('admin.approve')}</Button>
                               <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, false, user.id)}>{t('admin.reject')}</Button>
+                              <Button variant="ghost" className="py-1.5 px-3 text-xs border border-zinc-700" onClick={() => handleReleaseReservation(piece.id)}>Freigeben</Button>
                             </div>
                           </Card>
                         );
                       })}
-                      {masterpieces.filter(p => p.status === 'reserved').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
+                      {masterpieces.filter(p => p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').length === 0 && <p className="text-zinc-600 text-sm italic">{t('admin.no_pending_purchases')}</p>}
                     </div>
                     <div className="pt-6 border-t border-zinc-800/80">
                       <p className="text-sm text-zinc-400 mb-3">{t('consultation_admin_inbox_title')}</p>
@@ -10896,7 +10921,7 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.active_workflows')}</h3>
                     <div className="space-y-6">
-                      {masterpieces.filter(p => p.status === 'sold' || p.status === 'reserved').map(piece => (
+                      {masterpieces.filter(p => p.status === 'sold' || p.status === 'reserved' || p.status === 'reserved_client' || p.status === 'reserved_vip').map(piece => (
                         <AdminWorkflowChecklist key={piece.id} piece={piece} onUpdate={handleUpdateWorkflow} />
                       ))}
                     </div>
