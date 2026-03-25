@@ -605,6 +605,10 @@ const TRANSLATIONS: any = {
     "admin.tab_fractional": "Anteils-Angebote",
     "admin.tab_drops": "Exklusive Drops",
     "admin.tab_reservations": "Reservierungen",
+    "admin.reservations_intro": "Alle aktuell reservierten Stücke. Bei Bedarf kann ein Stück sofort wieder freigegeben werden.",
+    "admin.no_reserved_pieces": "Keine reservierten Stücke.",
+    "admin.release": "Freigeben",
+    "admin.reservation_released": "Reservierung freigegeben.",
     "admin.drop_create_title": "Neuer Drop",
     "admin.drop_title_label": "Titel",
     "admin.drop_description_label": "Beschreibung",
@@ -790,6 +794,9 @@ const TRANSLATIONS: any = {
     "piece.remove_from_favorites": "Aus Favoriten entfernen",
     "common.signed": "Unterzeichnet",
     "vip.contact_for_details": "Bitte kontaktieren Sie Antonio Bellanova für VIP-Details.",
+    "vip.membership_required": "VIP-Mitgliedschaft erforderlich",
+    "vip.membership_hint": "Exklusive Vorteile und Concierge-Services sind VIP-Mitgliedern vorbehalten. Beantragen Sie eine Mitgliedschaft, um diese Funktionen freizuschalten.",
+    "vip.exclusive_benefits": "Exklusive VIP-Vorteile",
     "vip.benefit_early_access": "Zugang und Gebote bei privaten Auktionen 48 Stunden vor dem Start.",
     "vip.private_previews": "Private Vorschauen",
     "vip.benefit_previews": "Einladungen zu exklusiven Preview-Events in Köln und Mailand.",
@@ -1560,6 +1567,10 @@ const TRANSLATIONS: any = {
     "admin.tab_fractional": "Fractional offers",
     "admin.tab_drops": "Exclusive Drops",
     "admin.tab_reservations": "Reservations",
+    "admin.reservations_intro": "All currently reserved pieces. If needed, a piece can be released immediately.",
+    "admin.no_reserved_pieces": "No reserved pieces.",
+    "admin.release": "Release",
+    "admin.reservation_released": "Reservation released.",
     "admin.drop_create_title": "New Drop",
     "admin.drop_title_label": "Title",
     "admin.drop_description_label": "Description",
@@ -1782,6 +1793,9 @@ const TRANSLATIONS: any = {
     "piece.remove_from_favorites": "Remove from favorites",
     "common.signed": "Signed",
     "vip.contact_for_details": "Please contact Antonio Bellanova for VIP application details.",
+    "vip.membership_required": "VIP membership required",
+    "vip.membership_hint": "Exclusive benefits and concierge services are reserved for our VIP members. Apply for membership to unlock these features.",
+    "vip.exclusive_benefits": "VIP Exclusive Benefits",
     "vip.benefit_early_access": "View and bid on private auctions 48 hours before the general public.",
     "vip.private_previews": "Private Previews",
     "vip.benefit_previews": "Receive invitations to exclusive physical previews in Cologne and Milan.",
@@ -1824,6 +1838,7 @@ const TRANSLATIONS: any = {
     "view.vault": "Vault",
     "view.private_gallery": "Private Gallery",
     "view.private_clients": "Messages",
+    "private_clients.menu": "Messages",
     "view.admin": "Management",
     "view.portfolio": "Portfolio",
     "view.fractional": "Shares",
@@ -2463,6 +2478,10 @@ const TRANSLATIONS: any = {
     "admin.tab_fractional": "Offerte quote",
     "admin.tab_drops": "Drop esclusivi",
     "admin.tab_reservations": "Prenotazioni",
+    "admin.reservations_intro": "Tutti i pezzi attualmente prenotati. Se necessario, un pezzo puo essere subito rimesso disponibile.",
+    "admin.no_reserved_pieces": "Nessun pezzo prenotato.",
+    "admin.release": "Rendi disponibile",
+    "admin.reservation_released": "Prenotazione rilasciata.",
     "admin.drop_create_title": "Nuovo drop",
     "admin.drop_title_label": "Titolo",
     "admin.drop_description_label": "Descrizione",
@@ -2651,6 +2670,9 @@ const TRANSLATIONS: any = {
     "piece.remove_from_favorites": "Rimuovi dai preferiti",
     "common.signed": "Firmato",
     "vip.contact_for_details": "Contatta Antonio Bellanova per i dettagli VIP.",
+    "vip.membership_required": "Membership VIP richiesta",
+    "vip.membership_hint": "Vantaggi esclusivi e servizi concierge sono riservati ai membri VIP. Richiedi la membership per sbloccare queste funzioni.",
+    "vip.exclusive_benefits": "Vantaggi esclusivi VIP",
     "vip.benefit_early_access": "Accesso e offerte 48 ore prima del pubblico.",
     "vip.private_previews": "Anteprime private",
     "vip.benefit_previews": "Inviti a preview esclusive a Colonia e Milano.",
@@ -2692,6 +2714,7 @@ const TRANSLATIONS: any = {
     "view.vault": "Caveau",
     "view.private_gallery": "Galleria privata",
     "view.private_clients": "Messaggi",
+    "private_clients.menu": "Messaggi",
     "view.admin": "Gestione",
     "view.portfolio": "Portafoglio",
     "view.fractional": "Quote",
@@ -5621,7 +5644,7 @@ export default function App() {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        notifyUser('Reservierung freigegeben.', 'success');
+        notifyUser(t('admin.reservation_released') || 'Reservierung freigegeben.', 'success');
         fetchData();
       } else {
         notifyUser(data.error || t('errors.generic'), 'error');
@@ -8872,8 +8895,8 @@ export default function App() {
                       {user.role !== 'vip' ? (
                         <Card className="text-center py-12 space-y-4">
                           <Diamond className="w-12 h-12 text-zinc-800 mx-auto" />
-                          <h4 className="text-xl font-serif italic">VIP Membership Required</h4>
-                          <p className="text-zinc-500 max-w-md mx-auto">Exclusive benefits and concierge services are reserved for our VIP members. Apply for membership to unlock these features.</p>
+                          <h4 className="text-xl font-serif italic">{t('vip.membership_required') || 'VIP Membership Required'}</h4>
+                          <p className="text-zinc-500 max-w-md mx-auto">{t('vip.membership_hint') || 'Exclusive benefits and concierge services are reserved for our VIP members. Apply for membership to unlock these features.'}</p>
                           <Button variant="outline" onClick={() => notifyUser(t('vip.contact_for_details'), 'success')}>{t('common.learn_more')}</Button>
                         </Card>
                       ) : (
@@ -8884,7 +8907,7 @@ export default function App() {
                                 <Diamond className="w-6 h-6 text-amber-500" />
                               </div>
                               <div>
-                                <h4 className="text-xl font-serif italic">VIP Exclusive Benefits</h4>
+                                <h4 className="text-xl font-serif italic">{t('vip.exclusive_benefits') || 'VIP Exclusive Benefits'}</h4>
                                 <p className="text-xs text-zinc-500 uppercase tracking-widest">Antonio Bellanova Atelier</p>
                               </div>
                             </div>
@@ -10133,9 +10156,7 @@ export default function App() {
                 {(adminTab === 'reservations') && (
                   <section className="space-y-4">
                     <h3 className="text-2xl font-serif italic text-zinc-100">{t('admin.tab_reservations') || 'Reservierungen'}</h3>
-                    <p className="text-sm text-zinc-500">
-                      Alle aktuell reservierten Stücke. Bei Bedarf kann ein Stück sofort wieder freigegeben werden.
-                    </p>
+                    <p className="text-sm text-zinc-500">{t('admin.reservations_intro') || 'Alle aktuell reservierten Stücke. Bei Bedarf kann ein Stück sofort wieder freigegeben werden.'}</p>
                     <div className="space-y-3">
                       {masterpieces
                         .filter((p: any) => ['reserved', 'reserved_client', 'reserved_vip'].includes(String(p.status || '')))
@@ -10155,13 +10176,13 @@ export default function App() {
                                 className="py-1.5 px-3 text-xs border border-zinc-700"
                                 onClick={() => handleReleaseReservation(piece.id)}
                               >
-                                Freigeben
+                                {t('admin.release') || 'Freigeben'}
                               </Button>
                             </div>
                           </Card>
                         ))}
                       {masterpieces.filter((p: any) => ['reserved', 'reserved_client', 'reserved_vip'].includes(String(p.status || ''))).length === 0 && (
-                        <p className="text-zinc-600 text-sm italic">Keine reservierten Stücke.</p>
+                        <p className="text-zinc-600 text-sm italic">{t('admin.no_reserved_pieces') || 'Keine reservierten Stücke.'}</p>
                       )}
                     </div>
                   </section>
@@ -10949,7 +10970,7 @@ export default function App() {
                             <div className="flex gap-2">
                               <Button variant="outline" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, true, user.id)} disabled={!contract}>{t('admin.approve')}</Button>
                               <Button variant="danger" className="py-1.5 px-3 text-xs" onClick={() => handleApprovePurchase(piece.id, false, user.id)}>{t('admin.reject')}</Button>
-                              <Button variant="ghost" className="py-1.5 px-3 text-xs border border-zinc-700" onClick={() => handleReleaseReservation(piece.id)}>Freigeben</Button>
+                              <Button variant="ghost" className="py-1.5 px-3 text-xs border border-zinc-700" onClick={() => handleReleaseReservation(piece.id)}>{t('admin.release') || 'Freigeben'}</Button>
                             </div>
                           </Card>
                         );
