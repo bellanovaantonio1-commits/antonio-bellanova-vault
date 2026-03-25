@@ -64,6 +64,32 @@ const wss = new WebSocketServer({ server });
 const PORT = Number(process.env.PORT) || 3000;
 const BASE_URL = (process.env.APP_URL || process.env.BASE_URL || 'https://vault.antoniobellanova.com').replace(/\/$/, '');
 let db: DbInterface;
+
+/** SEO: IONOS & Crawler erwarten oft /sitemap.xml und /robots.txt (SPA hat sonst nur eine URL). */
+app.get("/sitemap.xml", (_req, res) => {
+  const base = BASE_URL;
+  const paths = ["/"];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${paths
+  .map(
+    (p) => `  <url>
+    <loc>${base}${p}</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>`
+  )
+  .join("\n")}
+</urlset>`;
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.send(xml);
+});
+
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain; charset=utf-8").send(
+    `User-agent: *\nAllow: /\nSitemap: ${BASE_URL}/sitemap.xml\n`
+  );
+});
 /** Wired after `sendMail` is defined (see bottom of mail section). */
 let stripeWebhookSendMail: StripeWebhookSendMail | null = null;
 
