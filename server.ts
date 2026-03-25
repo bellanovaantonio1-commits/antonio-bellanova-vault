@@ -8841,10 +8841,6 @@ app.get("/api/drops", async (req, res) => {
   const allowed = rows.filter(d => {
     if (d.status === "ended") return false;
     if (isVipOnlyDrop(d) && !canSeeVipDrops) return false;
-    const releaseMs = new Date(d.release_at).getTime();
-    const vipReleaseMs = (d.vip_early_access ? releaseMs - 48 * 60 * 60 * 1000 : releaseMs);
-    const visibleAt = (isVip && d.vip_early_access) ? vipReleaseMs : releaseMs;
-    if (nowMs < visibleAt) return false;
     let tiers: string[] = [];
     try { tiers = d.tier_access ? JSON.parse(d.tier_access) : []; } catch { tiers = []; }
     if (tiers.length === 0) return true;
