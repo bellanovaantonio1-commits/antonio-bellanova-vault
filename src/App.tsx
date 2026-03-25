@@ -13303,8 +13303,25 @@ export default function App() {
                 <span className="text-amber-500/60">{t('footer.private_vault_tag')}</span>
               </div>
             </div>
-            <div className="mt-4 pt-4 border-t border-zinc-800/50 text-[9px] text-zinc-600 uppercase tracking-wider">
-              {t('compliance.footer') || 'Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access requests as per Privacy Policy.'}
+            <div className="mt-4 pt-4 border-t border-zinc-800/50 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+              <p className="text-[9px] text-zinc-600 uppercase tracking-wider flex-1 min-w-0">
+                {t('compliance.footer') || 'Governing law: Germany. Jurisdiction: Cologne. GDPR compliant. Consent and data access requests as per Privacy Policy.'}
+              </p>
+              <a
+                href="https://www.jamesedition.com/?utm_source=widget&utm_medium=referral&utm_campaign=608259"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 opacity-45 hover:opacity-70 transition-opacity duration-300 self-start sm:self-auto"
+                aria-label="JamesEdition — Approved Business"
+              >
+                <img
+                  src="https://assets.jamesedition.com/widget-white-logo.png"
+                  alt=""
+                  className="max-w-[100px] sm:max-w-[120px] h-auto w-auto"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
             </div>
           </footer>
         )}
