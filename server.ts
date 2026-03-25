@@ -5083,7 +5083,7 @@ app.post("/api/marketplace/buy", async (req, res) => {
   }
 });
 
-app.post("/api/marketplace/reserve", async (req, res) => {
+app.post("/api/marketplace/reserve", requireAuth, requireAdmin, async (req, res) => {
   try {
     const sessionUid = getSessionUserId(req);
     if (noSessionUserId(sessionUid) || sessionUid === GUEST_USER_ID) {
