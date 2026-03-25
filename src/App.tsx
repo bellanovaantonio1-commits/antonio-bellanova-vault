@@ -626,6 +626,16 @@ const TRANSLATIONS: any = {
     "admin.piece_added_to_drop": "Stück zum Drop hinzugefügt.",
     "admin.no_drops": "Keine Drops angelegt.",
     "admin.tab_appointments": "Termine",
+    "admin.tab_customers": "Kunden",
+    "admin.tab_vip_members": "VIP-Mitglieder",
+    "admin.tab_projects": "Projekte",
+    "admin.tab_documents": "Dokumente",
+    "admin.tab_contract_generator": "Vertragsgenerator",
+    "admin.tab_collector_rooms": "Collector Rooms",
+    "admin.tab_stone_library": "Steinbibliothek",
+    "admin.tab_deal_rooms": "Deal Rooms",
+    "admin.tab_collector_reputation": "Reputation",
+    "admin.tab_investor_dashboard": "Investor-Dashboard",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Begünstigte",
     "admin.concierge": "Concierge-Anfragen",
@@ -785,6 +795,8 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Mehr erfahren",
     "common.pdf": "PDF",
     "common.serial_id": "Seriennummer",
+    "history": "Verlauf",
+    "contracts.none_active": "Keine aktiven Vereinbarungen gefunden.",
     "piece.rarity_unique": "Unikat",
     "piece.rarity_limited": "Limitiert",
     "piece.rarity_rare": "Selten",
@@ -1588,6 +1600,16 @@ const TRANSLATIONS: any = {
     "admin.piece_added_to_drop": "Piece added to drop.",
     "admin.no_drops": "No drops created yet.",
     "admin.tab_appointments": "Appointments",
+    "admin.tab_customers": "Customers",
+    "admin.tab_vip_members": "VIP members",
+    "admin.tab_projects": "Projects",
+    "admin.tab_documents": "Documents",
+    "admin.tab_contract_generator": "Contract generator",
+    "admin.tab_collector_rooms": "Collector Rooms",
+    "admin.tab_stone_library": "Stone Library",
+    "admin.tab_deal_rooms": "Deal Rooms",
+    "admin.tab_collector_reputation": "Reputation",
+    "admin.tab_investor_dashboard": "Investor Dashboard",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiaries",
     "admin.concierge": "Concierge Requests",
@@ -1784,6 +1806,8 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Learn More",
     "common.pdf": "PDF",
     "common.serial_id": "Serial ID",
+    "history": "History",
+    "contracts.none_active": "No active agreements found.",
     "piece.rarity_unique": "Unique",
     "piece.rarity_limited": "Limited",
     "piece.rarity_rare": "Rare",
@@ -2499,6 +2523,16 @@ const TRANSLATIONS: any = {
     "admin.piece_added_to_drop": "Opera aggiunta al drop.",
     "admin.no_drops": "Nessun drop creato.",
     "admin.tab_appointments": "Appuntamenti",
+    "admin.tab_customers": "Clienti",
+    "admin.tab_vip_members": "Membri VIP",
+    "admin.tab_projects": "Progetti",
+    "admin.tab_documents": "Documenti",
+    "admin.tab_contract_generator": "Generatore contratti",
+    "admin.tab_collector_rooms": "Collector Rooms",
+    "admin.tab_stone_library": "Libreria pietre",
+    "admin.tab_deal_rooms": "Deal Rooms",
+    "admin.tab_collector_reputation": "Reputation",
+    "admin.tab_investor_dashboard": "Dashboard investitori",
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiari",
     "admin.concierge": "Richieste Concierge",
@@ -2661,6 +2695,8 @@ const TRANSLATIONS: any = {
     "common.learn_more": "Scopri di più",
     "common.pdf": "PDF",
     "common.serial_id": "Numero di serie",
+    "history": "Cronologia",
+    "contracts.none_active": "Nessun accordo attivo trovato.",
     "piece.rarity_unique": "Unico",
     "piece.rarity_limited": "Limitato",
     "piece.rarity_rare": "Raro",
@@ -3859,6 +3895,38 @@ export default function App() {
 
   const RARITY_KEYS: Record<string, string> = { Unique: 'piece.rarity_unique', Unikat: 'piece.rarity_unique', Limitiert: 'piece.rarity_limited', Limited: 'piece.rarity_limited', Selten: 'piece.rarity_rare', Rare: 'piece.rarity_rare' };
   const getPieceRarityLabel = (rarity: string) => t(RARITY_KEYS[rarity] || rarity);
+  const adminTabLabel = (tab: string): string => {
+    if (tab === 'overview') return t('admin.tab_overview');
+    if (tab === 'audience') return t('admin.tab_audience');
+    if (tab === 'inventory') return t('admin.tab_inventory');
+    if (tab === 'consultation_chats') return t('admin.tab_consultation_chats');
+    if (tab === 'users') return t('admin.tab_users');
+    if (tab === 'kunden') return t('admin.tab_customers');
+    if (tab === 'resale') return t('admin.tab_resale');
+    if (tab === 'fractional') return t('admin.tab_fractional');
+    if (tab === 'drops') return t('admin.tab_drops');
+    if (tab === 'reservations') return t('admin.tab_reservations');
+    if (tab === 'appointments') return t('admin.tab_appointments');
+    if (tab === 'advisors') return t('admin.advisors') || 'Advisors';
+    if (tab === 'vip_members') return t('admin.tab_vip_members');
+    if (tab === 'projects') return t('admin.tab_projects');
+    if (tab === 'documents') return t('admin.tab_documents');
+    if (tab === 'contract-generator') return t('admin.tab_contract_generator');
+    if (tab === 'intelligence') return t('admin.tab_intelligence');
+    if (tab === 'legacy') return t('admin.tab_legacy');
+    if (tab === 'vault_requests') return t('admin.tab_vault_requests') || 'Vault requests';
+    if (tab === 'concierge') return t('admin.concierge') || 'Concierge';
+    if (tab === 'private_clients') return t('admin.private_clients') || 'Private Clients';
+    if (tab === 'collector_rooms') return t('admin.tab_collector_rooms');
+    if (tab === 'stone_library') return t('admin.tab_stone_library');
+    if (tab === 'deal_rooms') return t('admin.tab_deal_rooms');
+    if (tab === 'collector_reputation') return t('admin.tab_collector_reputation');
+    if (tab === 'investor_dashboard') return t('admin.tab_investor_dashboard');
+    if (tab === 'prospects') return t('admin.prospects') || 'Prospects';
+    if (tab === 'registry') return t('admin.registry') || 'Registry';
+    if (tab === 'payments') return t('admin.payments_invoices') || 'Payments & Invoices';
+    return t('admin.tab_settings');
+  };
 
   const getPieceImages = (piece: { image_url?: string; image_urls?: string }) => {
     if (!piece) return [];
@@ -7626,6 +7694,7 @@ export default function App() {
                         key={piece.id} 
                         piece={piece} 
                         t={t}
+                        activeLang={language}
                         consultationFirstPiece={consultFirst}
                         priceLabel={getPiecePriceDisplay(piece, user).label}
                         isFavorite={user ? favoriteIds.includes(piece.id) : false}
@@ -7665,6 +7734,7 @@ export default function App() {
                         key={piece.id}
                         piece={piece}
                         t={t}
+                        activeLang={language}
                         consultationFirstPiece={consultFirst}
                         priceLabel={getPiecePriceDisplay(piece, user).label}
                         isFavorite={user ? favoriteIds.includes(piece.id) : false}
@@ -7751,6 +7821,7 @@ export default function App() {
                       key={piece.id} 
                       piece={piece} 
                             t={t}
+                            activeLang={language}
                             consultationFirstPiece={consultFirst}
                             priceLabel={getPiecePriceDisplay(piece, user).label}
                             isFavorite={user ? favoriteIds.includes(piece.id) : false}
@@ -7773,7 +7844,7 @@ export default function App() {
                       {filterMasterpieces(masterpieces, 'available').length === 0 && (
                     <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
                       <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-                          <p className="text-zinc-500">{(filterSearch || filterRarity) ? 'Keine Treffer.' : t('marketplace.no_pieces')}</p>
+                          <p className="text-zinc-500">{(filterSearch || filterRarity) ? t('search.no_results') : t('marketplace.no_pieces')}</p>
                     </div>
                       )}
                     </>
@@ -8265,7 +8336,7 @@ export default function App() {
                           return (
                           <div key={piece.id} className="space-y-4">
                             <div className="flex flex-col gap-2">
-                              <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} priceLabel={getPiecePriceDisplay(piece, user).label} />
+                              <PieceCard piece={piece} hideAction onViewDetails={setSelectedPiece} t={t} activeLang={language} priceLabel={getPiecePriceDisplay(piece, user).label} />
                               {(purchase != null || estVal != null) && (
                                 <div className="text-[10px] uppercase tracking-wider text-zinc-500 space-y-0.5 px-1">
                                   {purchase != null && <p>Purchase: {purchase.toLocaleString('de-DE')} €</p>}
@@ -8423,7 +8494,7 @@ export default function App() {
                           
                           {/* Version History Mini-Timeline */}
                           <div className="px-6 py-3 bg-zinc-950/50 border-t border-zinc-800/30 flex items-center gap-4 overflow-x-auto scrollbar-hide">
-                            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">History:</span>
+                            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-bold">{t('history')}</span>
                             {[...Array(contract.version)].map((_, i) => (
                               <div key={i} className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full ${i + 1 === contract.version ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-zinc-800'}`} />
@@ -8434,7 +8505,7 @@ export default function App() {
                           </div>
                         </Card>
                       ))}
-                      {vaultData.contracts.length === 0 && <EmptyState icon={FileText} text="No active agreements found." />}
+                      {vaultData.contracts.length === 0 && <EmptyState icon={FileText} text={t('contracts.none_active') || 'No active agreements found.'} />}
                       </div>
                     </div>
                   )}
@@ -8445,6 +8516,7 @@ export default function App() {
                           key={piece.id} 
                           piece={piece} 
                           t={t}
+                          activeLang={language}
                           priceLabel={getPiecePriceDisplay(piece, user).label}
                           hideAction 
                           onViewDetails={setSelectedPiece}
@@ -10149,7 +10221,7 @@ export default function App() {
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
                   {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'reservations', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'audience' ? t('admin.tab_audience') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'reservations' ? (t('admin.tab_reservations') || 'Reservierungen') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
+                      {adminTabLabel(tab)}
                     </button>
                   ))}
                 </div>
@@ -14308,9 +14380,21 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false }: { piece: Masterpiece, onBuy?: () => void, onReserve?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean }) => {
+const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false, activeLang = 'de' }: { piece: Masterpiece, onBuy?: () => void, onReserve?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean, activeLang?: string }) => {
   const showConsultationCta = !!onConsultation && consultationFirstPiece;
   const showDirectBuy = !!onBuy && !consultationFirstPiece;
+  const desc = (() => {
+    const raw = (piece as any)?.description_i18n;
+    const fallback = piece.description || '';
+    if (!raw) return fallback;
+    try {
+      const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const lang = String(activeLang || 'de').slice(0, 2);
+      return (obj && typeof obj === 'object' && (obj[lang] ?? obj.en ?? obj.de)) || fallback;
+    } catch {
+      return fallback;
+    }
+  })();
   return (
   <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
     <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
@@ -14338,7 +14422,7 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
         <h4 className="font-medium text-zinc-200 cursor-pointer hover:text-amber-500 transition-colors" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
         <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-zinc-500 italic text-sm' : 'text-amber-500/90 font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
       </div>
-      <p className="text-xs text-zinc-500 line-clamp-2">{piece.description}</p>
+      <p className="text-xs text-zinc-500 line-clamp-2">{desc}</p>
       {detailsHint && (
         <p className="text-[11px] text-zinc-500 mt-1">{detailsHint}</p>
       )}
