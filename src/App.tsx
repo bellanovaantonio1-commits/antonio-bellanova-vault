@@ -3727,7 +3727,10 @@ export default function App() {
     let out = Array.isArray(list) ? list : [];
     // DB/MySQL may leave status NULL; treat as "available" for Marktplatz
     if (statusFilter === 'available') {
-      out = out.filter(p => !p.status || String(p.status).trim() === '' || p.status === 'available');
+      out = out.filter(p => {
+        const s = String(p.status || '').trim();
+        return s === '' || s === 'available' || s === 'reserved' || s === 'reserved_client' || s === 'reserved_vip';
+      });
     } else if (statusFilter) {
       out = out.filter(p => p.status === statusFilter);
     }
@@ -7590,7 +7593,7 @@ export default function App() {
                 <div className="space-y-4">
                   <h4 className="text-sm uppercase tracking-widest text-zinc-500 font-bold">{t('featured')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {masterpieces.filter(p => p.status === 'available').slice(0, 3).map(piece => {
+                    {masterpieces.filter(p => ['available', 'reserved', 'reserved_client', 'reserved_vip'].includes(String(p.status || ''))).slice(0, 3).map(piece => {
                       const consultFirst = pieceRequiresConsultationFirst(piece);
                       return (
                       <PieceCard 
