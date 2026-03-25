@@ -7216,7 +7216,19 @@ export default function App() {
                     <h4 className="text-lg font-serif italic relative z-10">{t('dashboard.activity_center') || 'Activity'}</h4>
                     <p className="text-sm text-zinc-500 relative z-10">{t('dashboard.activity_center_desc') || 'Important updates and actions for you.'}</p>
                     <ul className="space-y-3 relative z-10">
-                      {dashboardActivity.filter((n: any) => ['new_contract', 'new_room', 'new_message', 'new_offer'].includes(n.type)).slice(0, 10).map((n: any) => {
+                      {dashboardActivity
+                        .filter((n: any) => ['new_contract', 'new_room', 'new_message', 'new_offer'].includes(n.type))
+                        .filter((n: any) => {
+                          if (n.type !== 'new_contract') return true;
+                          const refIdNum = Number(n.reference_id);
+                          if (Number.isFinite(refIdNum) && refIdNum > 0) {
+                            const c = (vaultData.contracts || []).find((x: any) => Number(x.id) === refIdNum);
+                            return !!c && c.status === 'draft';
+                          }
+                          return (vaultData.contracts || []).some((x: any) => x.status === 'draft');
+                        })
+                        .slice(0, 10)
+                        .map((n: any) => {
                         const refId = n.reference_id;
                         const onSignContract = () => { setView('vault'); setVaultTab('contracts'); };
                         const onOpenRoom = () => {
