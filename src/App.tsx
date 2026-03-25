@@ -868,6 +868,10 @@ const TRANSLATIONS: any = {
     "private_clients.conversations": "Konversationen",
     "private_clients.projects": "Projekte",
     "private_clients.stone_requests": "Steinanfragen",
+    "private_clients.stone_request_tab": "Steinanfrage",
+    "private_clients.stone_request_title": "Steinanfrage",
+    "private_clients.stone_request_hint": "Beschreiben Sie Ihren Wunsch (z. B. 10 Karat Burma-Rubin).",
+    "private_clients.stone_request_sent": "Anfrage gesendet.",
     "private_clients.open_conversation": "Konversation öffnen",
     "private_clients.select_conversation": "Konversation auswählen",
     "private_clients.production": "Produktion",
@@ -1034,6 +1038,12 @@ const TRANSLATIONS: any = {
     "deal.document_s": "Dokument(e)",
     "deal.chat": "Chat",
     "deal.production_updates": "Produktionsupdates",
+    "deal.room_status_active": "Aktiv",
+    "deal.room_status_completed": "Abgeschlossen",
+    "deal.room_status_pending": "Ausstehend",
+    "deal.room_status_cancelled": "Storniert",
+    "private_clients.deal_room_badge": "Deal-Raum",
+    "private_clients.collector_room_badge": "Sammlerraum",
     "activity.view_message": "Nachricht ansehen",
     "activity.new_offer": "Neues Angebot verfügbar",
     "activity.review_offer": "Angebot prüfen",
@@ -2007,6 +2017,12 @@ const TRANSLATIONS: any = {
     "deal.document_s": "document(s)",
     "deal.chat": "Chat",
     "deal.production_updates": "Production updates",
+    "deal.room_status_active": "Active",
+    "deal.room_status_completed": "Completed",
+    "deal.room_status_pending": "Pending",
+    "deal.room_status_cancelled": "Cancelled",
+    "private_clients.deal_room_badge": "Deal room",
+    "private_clients.collector_room_badge": "Collector room",
     "activity.view_message": "View Message",
     "activity.new_offer": "New offer available",
     "activity.review_offer": "Review Offer",
@@ -2495,6 +2511,12 @@ const TRANSLATIONS: any = {
     "deal.document_s": "documento/i",
     "deal.chat": "Chat",
     "deal.production_updates": "Aggiornamenti produzione",
+    "deal.room_status_active": "Attivo",
+    "deal.room_status_completed": "Completato",
+    "deal.room_status_pending": "In attesa",
+    "deal.room_status_cancelled": "Annullato",
+    "private_clients.deal_room_badge": "Deal room",
+    "private_clients.collector_room_badge": "Sala collezionista",
     "admin.tab_overview": "Panoramica",
     "admin.tab_inventory": "Inventario",
     "admin.tab_users": "Utenti",
@@ -3854,6 +3876,14 @@ export default function App() {
   };
   const uiLocale =
     ({ de: 'de-DE', en: 'en-GB', it: 'it-IT', fr: 'fr-FR', es: 'es-ES', pt: 'pt-PT', ar: 'ar-SA' } as Record<string, string>)[language] || 'en-GB';
+
+  const roomCardStatusLabel = (raw: string | undefined) => {
+    const s = String(raw || 'active').toLowerCase().trim().replace(/-/g, '_').replace(/\s+/g, '_');
+    const key = `deal.room_status_${s}`;
+    const tr = t(key);
+    if (tr !== key) return tr;
+    return raw ? String(raw) : t('deal.room_status_active');
+  };
 
   const lang = (language || 'de').toLowerCase().slice(0, 2);
   const getPieceLocalized = (piece: any, field: 'description' | 'materials' | 'gemstones'): string => {
@@ -9332,12 +9362,12 @@ export default function App() {
                               <Card key={r.id} className="overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors p-0" onClick={() => openRoom('collector', r.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('collector', r.id)}>
                                 <div className="aspect-[4/3] bg-zinc-900 relative">
                                   {r.image_url ? <img src={r.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-amber-500/10 to-zinc-900 flex items-center justify-center"><Diamond className="w-12 h-12 text-amber-500/30" /></div>}
-                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">Collector Room</span>
-                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{r.status || 'Active'}</span>
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">{t('private_clients.collector_room_badge')}</span>
+                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{roomCardStatusLabel(r.status)}</span>
                                 </div>
                                 <div className="p-4">
                                   <p className="font-medium text-zinc-200">{r.project_title}</p>
-                                  <p className="text-xs text-zinc-500 mt-1">Status: {r.status || 'Active'}</p>
+                                  <p className="text-xs text-zinc-500 mt-1">{t('deal.status')}: {roomCardStatusLabel(r.status)}</p>
                                 </div>
                               </Card>
                             ))}
@@ -9345,13 +9375,13 @@ export default function App() {
                               <Card key={d.id} className="overflow-hidden cursor-pointer hover:border-amber-500/40 transition-colors p-0" onClick={() => openRoom('deal', d.id)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && openRoom('deal', d.id)}>
                                 <div className="aspect-[4/3] bg-zinc-900 relative">
                                   {d.image_url ? <img src={d.image_url} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gradient-to-br from-amber-500/10 to-zinc-900 flex items-center justify-center"><Diamond className="w-12 h-12 text-amber-500/30" /></div>}
-                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">Deal Room</span>
-                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{d.status || 'Active'}</span>
+                                  <span className="absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-zinc-900/80 text-amber-400 border border-amber-500/30">{t('private_clients.deal_room_badge')}</span>
+                                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] text-zinc-300 bg-zinc-900/80">{roomCardStatusLabel(d.status)}</span>
                                 </div>
                                 <div className="p-4">
                                   <p className="font-medium text-zinc-200">{d.project_title}</p>
-                                  <p className="text-amber-500/90 font-semibold mt-1">{d.price != null ? `€${Number(d.price).toLocaleString('de-DE')}` : '—'}</p>
-                                  <p className="text-xs text-zinc-500">Status: {d.status || 'Active'}</p>
+                                  <p className="text-amber-500/90 font-semibold mt-1">{d.price != null ? `€${Number(d.price).toLocaleString(uiLocale)}` : '—'}</p>
+                                  <p className="text-xs text-zinc-500">{t('deal.status')}: {roomCardStatusLabel(d.status)}</p>
                                 </div>
                               </Card>
                             ))}
