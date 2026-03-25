@@ -604,6 +604,7 @@ const TRANSLATIONS: any = {
     "admin.tab_resale": "Wiederverkauf",
     "admin.tab_fractional": "Anteils-Angebote",
     "admin.tab_drops": "Exklusive Drops",
+    "admin.tab_reservations": "Reservierungen",
     "admin.drop_create_title": "Neuer Drop",
     "admin.drop_title_label": "Titel",
     "admin.drop_description_label": "Beschreibung",
@@ -1558,6 +1559,7 @@ const TRANSLATIONS: any = {
     "admin.tab_resale": "Resale",
     "admin.tab_fractional": "Fractional offers",
     "admin.tab_drops": "Exclusive Drops",
+    "admin.tab_reservations": "Reservations",
     "admin.drop_create_title": "New Drop",
     "admin.drop_title_label": "Title",
     "admin.drop_description_label": "Description",
@@ -2460,6 +2462,7 @@ const TRANSLATIONS: any = {
     "admin.tab_resale": "Rivendita",
     "admin.tab_fractional": "Offerte quote",
     "admin.tab_drops": "Drop esclusivi",
+    "admin.tab_reservations": "Prenotazioni",
     "admin.drop_create_title": "Nuovo drop",
     "admin.drop_title_label": "Titolo",
     "admin.drop_description_label": "Descrizione",
@@ -3616,7 +3619,7 @@ export default function App() {
   const [contactFormSent, setContactFormSent] = useState(false);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'reservations' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -10121,12 +10124,48 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
+                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'reservations', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'audience' ? t('admin.tab_audience') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
+                      {tab === 'overview' ? t('admin.tab_overview') : tab === 'audience' ? t('admin.tab_audience') : tab === 'inventory' ? t('admin.tab_inventory') : tab === 'consultation_chats' ? t('admin.tab_consultation_chats') : tab === 'users' ? t('admin.tab_users') : tab === 'kunden' ? 'Kunden' : tab === 'resale' ? t('admin.tab_resale') : tab === 'fractional' ? t('admin.tab_fractional') : tab === 'drops' ? t('admin.tab_drops') : tab === 'reservations' ? (t('admin.tab_reservations') || 'Reservierungen') : tab === 'appointments' ? t('admin.tab_appointments') : tab === 'advisors' ? (t('admin.advisors') || 'Advisors') : tab === 'vip_members' ? 'VIP Members' : tab === 'projects' ? 'Projekte' : tab === 'documents' ? 'Dokumente' : tab === 'contract-generator' ? 'Vertragsgenerator' : tab === 'intelligence' ? t('admin.tab_intelligence') : tab === 'legacy' ? t('admin.tab_legacy') : tab === 'vault_requests' ? (t('admin.tab_vault_requests') || 'Tresor-Anfragen') : tab === 'concierge' ? (t('admin.concierge') || 'Concierge-Anfragen') : tab === 'private_clients' ? (t('admin.private_clients') || 'Private Clients') : tab === 'collector_rooms' ? 'Collector Rooms' : tab === 'stone_library' ? 'Steinbibliothek' : tab === 'deal_rooms' ? 'Deal Rooms' : tab === 'collector_reputation' ? 'Reputation' : tab === 'investor_dashboard' ? 'Investor-Dashboard' : tab === 'prospects' ? (t('admin.prospects') || 'Prospects') : tab === 'registry' ? (t('admin.registry') || 'Bellanova Registry') : tab === 'payments' ? (t('admin.payments_invoices') || 'Payments & Invoices') : t('admin.tab_settings')}
                     </button>
                   ))}
                 </div>
+                {(adminTab === 'reservations') && (
+                  <section className="space-y-4">
+                    <h3 className="text-2xl font-serif italic text-zinc-100">{t('admin.tab_reservations') || 'Reservierungen'}</h3>
+                    <p className="text-sm text-zinc-500">
+                      Alle aktuell reservierten Stücke. Bei Bedarf kann ein Stück sofort wieder freigegeben werden.
+                    </p>
+                    <div className="space-y-3">
+                      {masterpieces
+                        .filter((p: any) => ['reserved', 'reserved_client', 'reserved_vip'].includes(String(p.status || '')))
+                        .map((piece: any) => (
+                          <Card key={piece.id} className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {piece.image_url && <img src={piece.image_url} className="w-12 h-12 rounded-xl object-cover" />}
+                              <div className="min-w-0">
+                                <p className="text-sm text-zinc-100 truncate">{piece.title}</p>
+                                <p className="text-xs text-zinc-500">ID: {piece.serial_id || piece.id}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline">{t('reserved') || 'Reserviert'}</Badge>
+                              <Button
+                                variant="ghost"
+                                className="py-1.5 px-3 text-xs border border-zinc-700"
+                                onClick={() => handleReleaseReservation(piece.id)}
+                              >
+                                Freigeben
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      {masterpieces.filter((p: any) => ['reserved', 'reserved_client', 'reserved_vip'].includes(String(p.status || ''))).length === 0 && (
+                        <p className="text-zinc-600 text-sm italic">Keine reservierten Stücke.</p>
+                      )}
+                    </div>
+                  </section>
+                )}
                 {(adminTab === 'audience') && (
                   <div className="space-y-8">
                     <div className="flex flex-wrap items-center justify-between gap-4">
@@ -14263,7 +14302,7 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
       <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
         <Badge variant="amber">{getRarityLabel ? getRarityLabel(piece.rarity) : piece.rarity}</Badge>
         {(piece.status === 'reserved' || piece.status === 'reserved_client' || piece.status === 'reserved_vip') && (
-          <Badge variant="outline">{t ? t('reserved') : 'Reserved'}</Badge>
+          <Badge variant="amber">{t ? t('reserved') : 'Reserved'}</Badge>
         )}
         {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>{t ? t('piece.blockchain_verified') : 'Verifiziert'}</Badge>}
       </div>
