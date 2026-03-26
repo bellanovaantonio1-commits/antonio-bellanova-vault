@@ -3690,6 +3690,9 @@ export default function App() {
   const lastPlatformVisitKeyRef = useRef<string>('');
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem('vault-recently-viewed') || '[]'); } catch { return []; } });
   const [dropsList, setDropsList] = useState<any[]>([]);
+  const [selectedDropPreview, setSelectedDropPreview] = useState<any | null>(null);
+  const [selectedDropPieces, setSelectedDropPieces] = useState<any[]>([]);
+  const [dropPreviewLoading, setDropPreviewLoading] = useState(false);
   const [registryData, setRegistryData] = useState<Record<number, any>>({});
   const [performanceData, setPerformanceData] = useState<Record<number, any>>({});
   const [showRegistryInModal, setShowRegistryInModal] = useState(false);
@@ -7997,7 +8000,25 @@ export default function App() {
                             {countdownStr && <span className="text-amber-500/90">{t('drops.countdown')} {countdownStr}</span>}
                           </div>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => fetch(`/api/drops/${d.id}/pieces`).then(r => r.json()).then((pieces: any[]) => { if (pieces.length) setSelectedPiece(pieces[0]); })}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full text-xs"
+                              onClick={async () => {
+                                setSelectedDropPreview(d);
+                                setSelectedDropPieces([]);
+                                setDropPreviewLoading(true);
+                                try {
+                                  const r = await fetch(`/api/drops/${d.id}/pieces`, { credentials: 'include' });
+                                  const pieces = r.ok ? await r.json() : [];
+                                  setSelectedDropPieces(Array.isArray(pieces) ? pieces : []);
+                                } catch {
+                                  setSelectedDropPieces([]);
+                                } finally {
+                                  setDropPreviewLoading(false);
+                                }
+                              }}
+                            >
                               {t('view')}
                             </Button>
                             {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === UserRole.ADMIN) && (
@@ -13702,6 +13723,70 @@ export default function App() {
             </div>
           </footer>
         )}
+
+        {/* Drop Preview Modal */}
+        <AnimatePresence>
+          {selectedDropPreview && (
+            <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/85 backdrop-blur-sm"
+                onClick={() => { setSelectedDropPreview(null); setSelectedDropPieces([]); setDropPreviewLoading(false); }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden"
+              >
+                {selectedDropPreview.image_url && (
+                  <img src={selectedDropPreview.image_url} alt="" className="w-full aspect-video object-cover" />
+                )}
+                <div className="p-5 sm:p-6 space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="text-2xl font-serif italic text-zinc-100">{selectedDropPreview.title}</h4>
+                      {selectedDropPreview.description && (
+                        <p className="text-sm text-zinc-400 mt-1">{selectedDropPreview.description}</p>
+                      )}
+                    </div>
+                    <Badge variant="amber">{selectedDropPreview.status || 'upcoming'}</Badge>
+                  </div>
+
+                  {dropPreviewLoading ? (
+                    <p className="text-sm text-zinc-500">{t('loading.please_wait')}</p>
+                  ) : selectedDropPieces.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs uppercase tracking-widest text-zinc-500">{selectedDropPieces.length} Stück im Drop</p>
+                      <Button
+                        variant="primary"
+                        className="w-full"
+                        onClick={() => {
+                          setSelectedPiece(selectedDropPieces[0]);
+                          setSelectedDropPreview(null);
+                        }}
+                      >
+                        {t('view')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500">Für diesen Drop sind aktuell noch keine Stücke sichtbar.</p>
+                  )}
+
+                  <Button
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => { setSelectedDropPreview(null); setSelectedDropPieces([]); setDropPreviewLoading(false); }}
+                  >
+                    {t('close')}
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Piece Details Modal */}
         <AnimatePresence>
