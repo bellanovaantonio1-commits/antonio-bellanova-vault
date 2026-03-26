@@ -65,6 +65,36 @@ const PORT = Number(process.env.PORT) || 3000;
 const BASE_URL = (process.env.APP_URL || process.env.BASE_URL || 'https://vault.antoniobellanova.com').replace(/\/$/, '');
 let db: DbInterface;
 
+function xmlEscape(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function toAbsoluteUrl(url: unknown): string {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith("/")) return `${BASE_URL}${raw}`;
+  return `${BASE_URL}/${raw.replace(/^\.?\//, "")}`;
+}
+
+function inferJewelryType(piece: any): string {
+  const hay = `${piece?.category || ""} ${piece?.title || ""}`.toLowerCase();
+  if (hay.includes("ring")) return "Ring";
+  if (hay.includes("necklace")) return "Necklace";
+  if (hay.includes("pendant")) return "Pendant";
+  if (hay.includes("earring")) return "Earring";
+  if (hay.includes("bracelet")) return "Bracelet";
+  if (hay.includes("brooch")) return "Brooch";
+  if (hay.includes("anklet")) return "Anklet";
+  if (hay.includes("gem")) return "Gemstone";
+  return "Other";
+}
+
 /** SEO: IONOS & Crawler erwarten oft /sitemap.xml und /robots.txt (SPA hat sonst nur eine URL). */
 app.get("/sitemap.xml", (_req, res) => {
   const base = BASE_URL;
@@ -89,6 +119,84 @@ app.get("/robots.txt", (_req, res) => {
   res.type("text/plain; charset=utf-8").send(
     `User-agent: *\nAllow: /\nSitemap: ${BASE_URL}/sitemap.xml\n`
   );
+});
+
+/** JamesEdition Jewelry XML feed (public URL for import automation). */
+app.get("/feeds/jamesedition.xml", async (_req, res) => {
+  const dealerId = String(process.env.JAMESEDITION_DEALER_ID || process.env.JAMES_EDITION_DEALER_ID || "0000").trim();
+  const dealerName = process.env.JAMESEDITION_DEALER_NAME || "Antonio Bellanova Vault";
+  const feedReference = process.env.JAMESEDITION_FEED_REFERENCE || "antonio-bellanova-jewelry-feed";
+  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+
+  const rows = await (await db.prepare(`
+    SELECT id, serial_id, title, category, description, materials, gemstones, valuation, image_url, status
+    FROM masterpieces
+    WHERE COALESCE(status, 'available') IN ('available', 'reserved_client', 'reserved')
+    ORDER BY id DESC
+  `)).all() as any[];
+
+  const advertsXml = rows
+    .map((piece) => {
+      const imageUrl = toAbsoluteUrl(piece.image_url);
+      if (!imageUrl) return "";
+      const ref = (piece.serial_id || `AB-${piece.id}`).toString().replace(/[^\w-]/g, "_");
+      const title = piece.title || `Masterpiece ${piece.id}`;
+      const description = piece.description || "";
+      const price = Number(piece.valuation) > 0 ? Math.round(Number(piece.valuation)) : 0;
+      const por = price <= 0 ? "yes" : "no";
+      const mainStone = (piece.gemstones || "").toString().split(",")[0]?.trim() || "Other";
+      const mainMaterial = (piece.materials || "").toString().split(",")[0]?.trim() || "Other";
+      const jewelryType = inferJewelryType(piece);
+      return `    <advert reference="${xmlEscape(ref)}" category="jewelry">
+      <preowned>no</preowned>
+      <type>sale</type>
+      <brand>Antonio Bellanova</brand>
+      <model>${xmlEscape(title)}</model>
+      <year>${new Date().getFullYear()}</year>
+      <price_on_request>${por}</price_on_request>
+      <price currency="EUR" vat_included="VAT Excluded">${price}</price>
+      <location>
+        <country>Germany</country>
+        <region>Bavaria</region>
+        <city>Munich</city>
+        <zip>80331</zip>
+        <address>Antonio Bellanova Atelier</address>
+      </location>
+      <headline>${xmlEscape(title)}</headline>
+      <description>${xmlEscape(description)}</description>
+      <jewelry_type>${xmlEscape(jewelryType)}</jewelry_type>
+      <main_stone>${xmlEscape(mainStone)}</main_stone>
+      <main_material>${xmlEscape(mainMaterial)}</main_material>
+      <media>
+        <image>
+          <image_url>${xmlEscape(imageUrl)}</image_url>
+        </image>
+      </media>
+    </advert>`;
+    })
+    .filter(Boolean)
+    .join("\n");
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<jameslist_feed version="3.7">
+  <feed_information>
+    <reference>${xmlEscape(feedReference)}</reference>
+    <title>${xmlEscape(dealerName)} - Jewelry Feed</title>
+    <description>Luxury jewelry listings from ${xmlEscape(dealerName)}</description>
+    <created>${now}</created>
+    <updated>${now}</updated>
+  </feed_information>
+  <dealer>
+    <id>${xmlEscape(dealerId)}</id>
+    <name>${xmlEscape(dealerName)}</name>
+  </dealer>
+  <adverts>
+${advertsXml}
+  </adverts>
+</jameslist_feed>`;
+
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.send(xml);
 });
 /** Wired after `sendMail` is defined (see bottom of mail section). */
 let stripeWebhookSendMail: StripeWebhookSendMail | null = null;
