@@ -78,6 +78,8 @@ export interface Masterpiece {
   consultation_required?: number;
   /** 1 = made-to-order: no direct marketplace buy; consultation + contract + deposit flow (same buy gate as consultation_required when flow enabled). */
   made_to_order?: number;
+  /** Target audience for marketplace filters: male | female | unisex (default unisex). */
+  gender?: 'male' | 'female' | 'unisex';
 }
 
 export interface Auction {

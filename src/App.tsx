@@ -906,6 +906,16 @@ const TRANSLATIONS: any = {
     "notifications.empty_subtitle": "Sie sind auf dem neuesten Stand",
     "settings.shortcuts_title": "Tastaturkürzel",
     "marketplace.filter_placeholder": "Suche (Titel, Serial, Kategorie)",
+    "marketplace.gender_all": "Alle",
+    "marketplace.gender_men": "Männer",
+    "marketplace.gender_women": "Frauen",
+    "marketplace.gender_unisex": "Unisex",
+    "admin.target_audience": "Zielgruppe",
+    "admin.gender_male": "Mann",
+    "admin.gender_female": "Frau",
+    "admin.gender_unisex_opt": "Unisex",
+    "admin.gender_suggestion": "Vorschlag aus Beschreibung",
+    "admin.gender_apply_suggestion": "Übernehmen",
     "vault.portfolio_pdf_btn": "Portfolio als PDF",
     "concierge.service_title": "Concierge Service",
     "shortcuts.close_modal": "Modals schließen",
@@ -1906,6 +1916,16 @@ const TRANSLATIONS: any = {
     "notifications.empty_subtitle": "You are up to date",
     "settings.shortcuts_title": "Keyboard shortcuts",
     "marketplace.filter_placeholder": "Search (title, serial, category)",
+    "marketplace.gender_all": "All",
+    "marketplace.gender_men": "Men",
+    "marketplace.gender_women": "Women",
+    "marketplace.gender_unisex": "Unisex",
+    "admin.target_audience": "Target audience",
+    "admin.gender_male": "Men",
+    "admin.gender_female": "Women",
+    "admin.gender_unisex_opt": "Unisex",
+    "admin.gender_suggestion": "Suggestion from description",
+    "admin.gender_apply_suggestion": "Apply",
     "vault.portfolio_pdf_btn": "Portfolio as PDF",
     "concierge.service_title": "Concierge Service",
     "shortcuts.close_modal": "Close modals",
@@ -2814,6 +2834,16 @@ const TRANSLATIONS: any = {
     "notifications.empty_subtitle": "Sei aggiornato",
     "settings.shortcuts_title": "Scorciatoie da tastiera",
     "marketplace.filter_placeholder": "Cerca (titolo, seriale, categoria)",
+    "marketplace.gender_all": "Tutti",
+    "marketplace.gender_men": "Uomini",
+    "marketplace.gender_women": "Donne",
+    "marketplace.gender_unisex": "Unisex",
+    "admin.target_audience": "Pubblico",
+    "admin.gender_male": "Uomo",
+    "admin.gender_female": "Donna",
+    "admin.gender_unisex_opt": "Unisex",
+    "admin.gender_suggestion": "Suggerimento dal testo",
+    "admin.gender_apply_suggestion": "Applica",
     "vault.portfolio_pdf_btn": "Portfolio in PDF",
     "concierge.service_title": "Servizio Concierge",
     "errors.invalid_credentials": "Credenziali non valide.",
@@ -3234,6 +3264,19 @@ const CONTRACT_PREVIEW_LANGS: { code: string; label: string }[] = [
   { code: 'pt', label: 'Português' },
   { code: 'ar', label: 'العربية' },
 ];
+
+/** Admin hint only: suggest gender from description keywords (never auto-saved). */
+function suggestGenderFromDescription(...parts: (string | undefined)[]): 'male' | 'female' | null {
+  const t = parts.filter(Boolean).join(' ').toLowerCase();
+  if (!t.trim()) return null;
+  const maleRe = /(massiv|maskulin|masculin|gentleman|men'?s|\bmänner\b|\bherren\b|\bherr\b|for him|\buomo\b)/;
+  const femaleRe = /(fein|elegant|femin|damen|ladies|women'?s|\bfrauen\b|for her|\bdonna\b|signora)/;
+  const m = maleRe.test(t);
+  const f = femaleRe.test(t);
+  if (m && !f) return 'male';
+  if (f && !m) return 'female';
+  return null;
+}
 
 function ContractHtmlPreview({ contractId, contractType, defaultLang, t }: { contractId: number; contractType?: string; defaultLang: string; t: (k: string) => string }) {
   const [readLang, setReadLang] = useState(defaultLang);
@@ -3684,6 +3727,7 @@ export default function App() {
   const [fractionalOfferForm, setFractionalOfferForm] = useState({ masterpieceId: '' as number | '', available_pct: 20, price_per_pct: '' as number | '' });
   const [filterSearch, setFilterSearch] = useState('');
   const [filterRarity, setFilterRarity] = useState('');
+  const [marketplaceGenderFilter, setMarketplaceGenderFilter] = useState<'all' | 'male' | 'female' | 'unisex'>('all');
   const [filterMarketScope, setFilterMarketScope] = useState<'all' | 'favorites' | 'recent'>('all');
   const [sortMarket, setSortMarket] = useState<'newest' | 'price_asc' | 'price_desc' | 'title'>('newest');
   const assetViewStartRef = useRef<number | null>(null);
@@ -3865,6 +3909,16 @@ export default function App() {
     }
     if (filterMarketScope === 'favorites' && user) out = out.filter(p => favoriteIds.includes(p.id));
     if (filterMarketScope === 'recent' && user) out = out.filter(p => recentlyViewedIds.includes(p.id));
+    if (marketplaceGenderFilter !== 'all') {
+      out = out.filter((p) => {
+        const pg = String((p as Masterpiece).gender || 'unisex').toLowerCase();
+        const g = pg === 'male' || pg === 'female' || pg === 'unisex' ? pg : 'unisex';
+        if (marketplaceGenderFilter === 'unisex') return g === 'unisex';
+        if (marketplaceGenderFilter === 'male') return g === 'male' || g === 'unisex';
+        if (marketplaceGenderFilter === 'female') return g === 'female' || g === 'unisex';
+        return true;
+      });
+    }
     if (sortMarket === 'price_asc') out = [...out].sort((a, b) => (Number(a.valuation) || 0) - (Number(b.valuation) || 0));
     else if (sortMarket === 'price_desc') out = [...out].sort((a, b) => (Number(b.valuation) || 0) - (Number(a.valuation) || 0));
     else if (sortMarket === 'title') out = [...out].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
@@ -4144,6 +4198,10 @@ export default function App() {
       estimated_market_value: (editingPiece as any).estimated_market_value ?? '',
       consultation_required: Number((editingPiece as Masterpiece).consultation_required) === 1,
       made_to_order: Number((editingPiece as Masterpiece).made_to_order) === 1,
+      gender: ((): 'male' | 'female' | 'unisex' => {
+        const g = String((editingPiece as any).gender || 'unisex').toLowerCase();
+        return g === 'male' || g === 'female' || g === 'unisex' ? g : 'unisex';
+      })(),
     });
   }, [editingPiece]);
 
@@ -4184,6 +4242,7 @@ export default function App() {
           image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined,
           consultation_required: !!editPieceForm.consultation_required,
           made_to_order: !!editPieceForm.made_to_order,
+          gender: editPieceForm.gender === 'male' || editPieceForm.gender === 'female' || editPieceForm.gender === 'unisex' ? editPieceForm.gender : 'unisex',
         })
       });
       if (res.ok) {
@@ -4233,6 +4292,7 @@ export default function App() {
     pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden',
     consultation_required: false as boolean,
     made_to_order: true as boolean,
+    gender: 'unisex' as 'male' | 'female' | 'unisex',
   });
   const [newAuction, setNewAuction] = useState({
     masterpieceId: '', startPrice: '', endTime: '', vipOnly: false
@@ -5560,6 +5620,7 @@ export default function App() {
           pricing_mode: (newPiece as any).pricing_mode ?? 'fixed',
           consultation_required: !!(newPiece as any).consultation_required,
           made_to_order: (newPiece as any).made_to_order !== false,
+          gender: (newPiece as any).gender === 'male' || (newPiece as any).gender === 'female' || (newPiece as any).gender === 'unisex' ? (newPiece as any).gender : 'unisex',
         })
       });
       if (res.ok) {
@@ -5588,6 +5649,7 @@ export default function App() {
           pricing_mode: 'fixed',
           consultation_required: false,
           made_to_order: true,
+          gender: 'unisex',
         });
         fetchData();
       } else {
@@ -7856,6 +7918,24 @@ export default function App() {
                       <Download className="w-4 h-4" /> {t('marketplace.pdf_modal_title')}
                     </Button>
                   </div>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center" role="tablist" aria-label={t('admin.target_audience')}>
+                  {(['all', 'male', 'female', 'unisex'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={marketplaceGenderFilter === key}
+                      onClick={() => setMarketplaceGenderFilter(key)}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold uppercase tracking-wider transition-colors ${
+                        marketplaceGenderFilter === key
+                          ? 'border border-amber-500/80 text-amber-400 bg-zinc-900/90 shadow-[0_0_0_1px_rgba(245,158,11,0.25)]'
+                          : 'border border-zinc-700 text-zinc-400 bg-zinc-950/80 hover:border-zinc-500'
+                      }`}
+                    >
+                      {key === 'all' ? t('marketplace.gender_all') : key === 'male' ? t('marketplace.gender_men') : key === 'female' ? t('marketplace.gender_women') : t('marketplace.gender_unisex')}
+                    </button>
+                  ))}
                 </div>
                 {showMarketplacePdfModal && (
                   <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80" onClick={() => setShowMarketplacePdfModal(false)}>
@@ -10652,6 +10732,30 @@ export default function App() {
                               <Input label="Geschätzter Marktwert (€)" type="number" value={editPieceForm.estimated_market_value ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, estimated_market_value: e.target.value }))} />
                             </div>
                             <div className="space-y-1.5">
+                              <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.target_audience')}</label>
+                              <select
+                                value={editPieceForm.gender ?? 'unisex'}
+                                onChange={(e) => setEditPieceForm((f: any) => ({ ...f, gender: e.target.value }))}
+                                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50"
+                              >
+                                <option value="male">{t('admin.gender_male')}</option>
+                                <option value="female">{t('admin.gender_female')}</option>
+                                <option value="unisex">{t('admin.gender_unisex_opt')}</option>
+                              </select>
+                              {(() => {
+                                const sug = suggestGenderFromDescription(editPieceForm.description, editPieceForm.description_en, editPieceForm.description_it);
+                                if (!sug || sug === (editPieceForm.gender ?? 'unisex')) return null;
+                                return (
+                                  <p className="text-xs text-zinc-500 mt-1">
+                                    {t('admin.gender_suggestion')}: {sug === 'male' ? t('admin.gender_male') : t('admin.gender_female')}
+                                    <button type="button" className="ml-2 text-amber-500 hover:text-amber-400 underline-offset-2 hover:underline" onClick={() => setEditPieceForm((f: any) => ({ ...f, gender: sug }))}>
+                                      {t('admin.gender_apply_suggestion')}
+                                    </button>
+                                  </p>
+                                );
+                              })()}
+                            </div>
+                            <div className="space-y-1.5">
                               <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Preisanzeige</label>
                               <select value={editPieceForm.pricing_mode ?? 'fixed'} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, pricing_mode: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50">
                                 <option value="fixed">{t('pricing.mode_fixed')}</option>
@@ -10741,6 +10845,30 @@ export default function App() {
                           <div className="grid grid-cols-2 gap-4">
                             <Input label="Titel" value={newPiece.title} onChange={(e: any) => setNewPiece({ ...newPiece, title: e.target.value })} />
                             <Input label="Kategorie" value={newPiece.category} onChange={(e: any) => setNewPiece({ ...newPiece, category: e.target.value })} />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.target_audience')}</label>
+                            <select
+                              value={(newPiece as any).gender ?? 'unisex'}
+                              onChange={(e) => setNewPiece({ ...newPiece, gender: e.target.value as 'male' | 'female' | 'unisex' } as any)}
+                              className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-3 px-4 text-zinc-200 focus:outline-none focus:border-amber-600/50"
+                            >
+                              <option value="male">{t('admin.gender_male')}</option>
+                              <option value="female">{t('admin.gender_female')}</option>
+                              <option value="unisex">{t('admin.gender_unisex_opt')}</option>
+                            </select>
+                            {(() => {
+                              const sug = suggestGenderFromDescription(newPiece.description, (newPiece as any).description_en, (newPiece as any).description_it);
+                              if (!sug || sug === ((newPiece as any).gender ?? 'unisex')) return null;
+                              return (
+                                <p className="text-xs text-zinc-500 mt-1">
+                                  {t('admin.gender_suggestion')}: {sug === 'male' ? t('admin.gender_male') : t('admin.gender_female')}
+                                  <button type="button" className="ml-2 text-amber-500 hover:text-amber-400 underline-offset-2 hover:underline" onClick={() => setNewPiece({ ...newPiece, gender: sug } as any)}>
+                                    {t('admin.gender_apply_suggestion')}
+                                  </button>
+                                </p>
+                              );
+                            })()}
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <Input label="Seriennummer" value={newPiece.serial_id} onChange={(e: any) => setNewPiece({ ...newPiece, serial_id: e.target.value })} />

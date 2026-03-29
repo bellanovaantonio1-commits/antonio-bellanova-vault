@@ -122,7 +122,7 @@ app.get("/robots.txt", (_req, res) => {
 });
 
 /** JamesEdition Jewelry XML feed (public URL for import automation). */
-app.get("/feeds/jamesedition.xml", async (_req, res) => {
+const jamesEditionFeedHandler = async (_req: express.Request, res: express.Response) => {
   const dealerId = String(process.env.JAMESEDITION_DEALER_ID || process.env.JAMES_EDITION_DEALER_ID || "0000").trim();
   const dealerName = process.env.JAMESEDITION_DEALER_NAME || "Antonio Bellanova Vault";
   const feedReference = process.env.JAMESEDITION_FEED_REFERENCE || "antonio-bellanova-jewelry-feed";
@@ -197,7 +197,9 @@ ${advertsXml}
 
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
   res.send(xml);
-});
+};
+app.get("/feeds/jamesedition.xml", jamesEditionFeedHandler);
+app.get("/api/feeds/jamesedition.xml", jamesEditionFeedHandler);
 /** Wired after `sendMail` is defined (see bottom of mail section). */
 let stripeWebhookSendMail: StripeWebhookSendMail | null = null;
 
@@ -357,6 +359,7 @@ async function runSchema(db: DbInterface) {
     rarity_score INTEGER DEFAULT 0,
     blockchain_hash TEXT,
     nft_token_id TEXT,
+    gender TEXT DEFAULT 'unisex', -- male | female | unisex
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(current_owner_id) REFERENCES users(id)
   );
@@ -1716,6 +1719,8 @@ try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18
 try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN description_i18n TEXT")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN materials_i18n TEXT")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN gemstones_i18n TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN gender TEXT")).run(); } catch (e) {}
+try { await (await db.prepare("UPDATE masterpieces SET gender = 'unisex' WHERE gender IS NULL OR TRIM(COALESCE(gender, '')) = ''")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN private_viewing_expires_at DATETIME")).run(); } catch (e) {}
 for (const code of ['de', 'en', 'it', 'fr', 'es', 'pt', 'ar']) {
   try { await (await db.prepare(`ALTER TABLE masterpieces ADD COLUMN description_${code} TEXT`)).run(); } catch (e) {}
@@ -4227,6 +4232,23 @@ app.get("/api/resale/marketplace", async (req, res) => {
   res.json(pieces);
 });
 
+function normalizeMasterpieceGender(raw: unknown): "male" | "female" | "unisex" {
+  const g = String(raw ?? "").toLowerCase().trim();
+  if (g === "male" || g === "female" || g === "unisex") return g;
+  return "unisex";
+}
+
+/** Marketplace filter: male/female include unisex; tab "unisex" shows only unisex. */
+function masterpieceMatchesGenderQuery(pieceGender: unknown, filter: string): boolean {
+  const pg = normalizeMasterpieceGender(pieceGender);
+  const f = filter.toLowerCase().trim();
+  if (!f || f === "all") return true;
+  if (f === "unisex") return pg === "unisex";
+  if (f === "male") return pg === "male" || pg === "unisex";
+  if (f === "female") return pg === "female" || pg === "unisex";
+  return true;
+}
+
 app.get("/api/masterpieces", async (req, res) => {
   try {
     await expirePrivateViewing();
@@ -4276,11 +4298,21 @@ app.get("/api/masterpieces", async (req, res) => {
       }
       return true;
     });
+    const genderFilter = (req.query.gender as string)?.trim();
+    if (genderFilter) {
+      pieces = pieces.filter((p: any) => masterpieceMatchesGenderQuery(p.gender, genderFilter));
+    }
     res.json(pieces);
   } catch (e: any) {
     console.error("[GET /api/masterpieces]", e?.message || e);
     res.status(500).json({ error: "Could not load masterpieces" });
   }
+});
+
+/** Alias: same as GET /api/masterpieces (supports ?gender=male|female|unisex&userId=…). */
+app.get("/api/products", (req, res) => {
+  const qs = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+  res.redirect(307, `/api/masterpieces${qs}`);
 });
 
 // Extended search: q, category, minPrice, maxPrice, rarity, sort (newest | price_asc | price_desc | title)
@@ -4341,6 +4373,11 @@ app.get("/api/search", async (req, res) => {
     }
     return true;
   });
+
+  const searchGender = (req.query.gender as string)?.trim();
+  if (searchGender) {
+    pieces = pieces.filter((p: any) => masterpieceMatchesGenderQuery(p.gender, searchGender));
+  }
 
   if (sort === "price_asc") pieces.sort((a: any, b: any) => (Number(a.valuation) || 0) - (Number(b.valuation) || 0));
   else if (sort === "price_desc") pieces.sort((a: any, b: any) => (Number(b.valuation) || 0) - (Number(a.valuation) || 0));
@@ -4518,16 +4555,17 @@ app.post("/api/admin/import/pdf", requireAuth, requireAdmin, async (req, res, ne
 });
 
 app.post("/api/admin/masterpieces", async (req, res) => {
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder, gender: bodyGender } = req.body;
   const serial_id = bodySerial && String(bodySerial).trim() ? String(bodySerial).trim() : await nextProductSerial(category || 'GEN');
   const pricing_mode = ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : 'fixed';
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
   const image_url = bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : '');
+  const gender = normalizeMasterpieceGender(bodyGender);
   try {
     const result = await (await db.prepare(`
-      INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)).run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url);
+      INSERT INTO masterpieces (title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url, gender)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)).run(title, serial_id, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url, gender);
     const id = Number(result.lastInsertRowid);
     try {
       await (await db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?")).run(pricing_mode, hide_price, id);
@@ -4588,14 +4626,15 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
   const existing = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!existing) return res.status(404).json({ error: "Masterpiece not found" });
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, consultation_required: bodyConsultationRequired, made_to_order: bodyMadeToOrder, gender: bodyGender } = req.body;
   const serial_id = bodySerial != null && String(bodySerial).trim() ? String(bodySerial).trim() : existing.serial_id;
   const pricing_mode = bodyPricingMode && ['fixed', 'starting_from', 'price_on_request', 'hidden'].includes(bodyPricingMode) ? bodyPricingMode : (existing.pricing_mode || 'fixed');
   const hide_price = pricing_mode === 'hidden' ? 1 : 0;
   const image_url = bodyImageUrl !== undefined ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls.length > 0 ? bodyImageUrls[0] : existing.image_url);
+  const genderVal = bodyGender !== undefined ? normalizeMasterpieceGender(bodyGender) : normalizeMasterpieceGender(existing.gender);
   try {
     await (await db.prepare(`
-      UPDATE masterpieces SET title = ?, serial_id = ?, category = ?, description = ?, materials = ?, gemstones = ?, valuation = ?, rarity = ?, production_time = ?, cert_data = ?, deposit_pct = ?, image_url = ?
+      UPDATE masterpieces SET title = ?, serial_id = ?, category = ?, description = ?, materials = ?, gemstones = ?, valuation = ?, rarity = ?, production_time = ?, cert_data = ?, deposit_pct = ?, image_url = ?, gender = ?
       WHERE id = ?
     `)).run(
       title !== undefined ? title : existing.title,
@@ -4610,6 +4649,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
       cert_data !== undefined ? cert_data : existing.cert_data,
       deposit_pct !== undefined ? Number(deposit_pct) : existing.deposit_pct,
       image_url,
+      genderVal,
       id
     );
     try { await (await db.prepare("UPDATE masterpieces SET pricing_mode = ?, hide_price = ? WHERE id = ?")).run(pricing_mode, hide_price, id); } catch (_) {}
@@ -4678,6 +4718,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (body.product_release_date !== undefined) { updates.push('product_release_date = ?'); values.push(body.product_release_date ? str(body.product_release_date) : null); }
   if (body.consultation_required !== undefined) { updates.push('consultation_required = ?'); values.push(body.consultation_required ? 1 : 0); }
   if (body.made_to_order !== undefined) { updates.push('made_to_order = ?'); values.push(body.made_to_order ? 1 : 0); }
+  if (body.gender !== undefined) { updates.push('gender = ?'); values.push(normalizeMasterpieceGender(body.gender)); }
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
@@ -4696,7 +4737,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (!id || Number.isNaN(id)) return res.status(400).json({ error: "Invalid masterpiece ID" });
   const piece = await (await db.prepare("SELECT * FROM masterpieces WHERE id = ?")).get(id) as any;
   if (!piece) return res.status(404).json({ error: "Masterpiece not found" });
-  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, purchase_price: bodyPurchasePrice, estimated_market_value: bodyEstimatedMarketValue } = req.body;
+  const { title, serial_id: bodySerial, category, description, materials, gemstones, valuation, rarity, production_time, cert_data, deposit_pct, image_url: bodyImageUrl, image_urls: bodyImageUrls, pricing_mode: bodyPricingMode, price_visibility_rules: bodyPriceVisibility, description_i18n: bodyDescI18n, materials_i18n: bodyMaterialsI18n, gemstones_i18n: bodyGemstonesI18n, purchase_price: bodyPurchasePrice, estimated_market_value: bodyEstimatedMarketValue, gender: bodyGender } = req.body;
   const updates: string[] = [];
   const values: any[] = [];
   if (title !== undefined) { updates.push("title = ?"); values.push(title); }
@@ -4713,6 +4754,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (bodyImageUrl !== undefined) { updates.push("image_url = ?"); values.push(bodyImageUrl != null ? String(bodyImageUrl) : (Array.isArray(bodyImageUrls) && bodyImageUrls?.length > 0 ? bodyImageUrls[0] : piece.image_url)); }
   if (bodyPurchasePrice !== undefined) { updates.push("purchase_price = ?"); values.push(bodyPurchasePrice === null || bodyPurchasePrice === '' ? null : Number(bodyPurchasePrice)); }
   if (bodyEstimatedMarketValue !== undefined) { updates.push("estimated_market_value = ?"); values.push(bodyEstimatedMarketValue === null || bodyEstimatedMarketValue === '' ? null : Number(bodyEstimatedMarketValue)); }
+  if (bodyGender !== undefined) { updates.push("gender = ?"); values.push(normalizeMasterpieceGender(bodyGender)); }
   if (updates.length > 0) {
     await (await db.prepare(`UPDATE masterpieces SET ${updates.join(", ")} WHERE id = ?`)).run(...values, id);
   }
