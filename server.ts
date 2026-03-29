@@ -12471,7 +12471,7 @@ app.get("/api/ai/sales-context/:userId", async (req, res) => {
   res.json(await buildSalesContext(userId));
 });
 
-app.post("/api/ai/jewelry-design/generate", requireAuth, requireNotGuest, jewelryDesignGenerateLimiter, async (req, res) => {
+app.post("/api/ai/jewelry-design/generate", requireAuth, requireAdmin, jewelryDesignGenerateLimiter, async (req, res) => {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
@@ -12576,7 +12576,7 @@ Respond with JSON only that satisfies the schema.`;
   }
 });
 
-app.post("/api/ai/jewelry-design/query", requireAuth, requireNotGuest, jewelryDesignQueryLimiter, async (req, res) => {
+app.post("/api/ai/jewelry-design/query", requireAuth, requireAdmin, jewelryDesignQueryLimiter, async (req, res) => {
   const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) {
     return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
