@@ -12471,10 +12471,63 @@ app.get("/api/ai/sales-context/:userId", async (req, res) => {
   res.json(await buildSalesContext(userId));
 });
 
+/** Which vendor serves parametric jewelry design (text + image). */
+function resolveJewelryAiBackend(): "openai" | "gemini" | null {
+  const explicit = String(process.env.JEWELRY_AI_BACKEND || "auto").toLowerCase().trim();
+  const hasOai = !!String(process.env.OPENAI_API_KEY || "").trim();
+  const hasGem = !!String(process.env.GEMINI_API_KEY || "").trim();
+  if (explicit === "openai") return hasOai ? "openai" : null;
+  if (explicit === "gemini") return hasGem ? "gemini" : null;
+  if (explicit !== "auto" && explicit) return null;
+  if (hasGem) return "gemini";
+  if (hasOai) return "openai";
+  return null;
+}
+
+/** User-facing message for Gemini / OpenAI failures (avoids dumping raw JSON in the UI). */
+function formatAiVendorError(err: unknown): { http: number; error: string } {
+  const anyErr = err as { status?: number; message?: string; error?: { message?: string } };
+  const status = typeof anyErr?.status === "number" ? anyErr.status : undefined;
+  const raw = String(anyErr?.message || anyErr?.error?.message || err || "");
+  const oneLine = raw.replace(/\s+/g, " ").trim();
+  const u = oneLine.toUpperCase();
+
+  if (
+    status === 429 ||
+    u.includes("RESOURCE_EXHAUSTED") ||
+    /\b429\b/.test(oneLine) ||
+    u.includes("QUOTA") ||
+    u.includes("EXCEEDED YOUR CURRENT QUOTA") ||
+    u.includes("RATE_LIMIT") ||
+    u.includes("TOO MANY REQUESTS")
+  ) {
+    return {
+      http: 429,
+      error:
+        "API-Limite / Kontingent erreicht (429). Bei Gemini: Google AI Studio / Billing prüfen. Bei OpenAI: Limits und Abrechnung unter platform.openai.com. Später erneut versuchen.",
+    };
+  }
+  if (
+    status === 401 ||
+    status === 403 ||
+    u.includes("API_KEY_INVALID") ||
+    u.includes("INVALID API KEY") ||
+    u.includes("PERMISSION_DENIED") ||
+    u.includes("INCORRECT API KEY")
+  ) {
+    return { http: 403, error: "API-Schlüssel ungültig oder ohne Berechtigung für dieses Modell." };
+  }
+  const short = oneLine.length > 420 ? `${oneLine.slice(0, 420)}…` : oneLine;
+  return { http: 502, error: short || "KI-Anfrage fehlgeschlagen." };
+}
+
 app.post("/api/ai/jewelry-design/generate", requireAuth, requireAdmin, jewelryDesignGenerateLimiter, async (req, res) => {
-  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
+  const backend = resolveJewelryAiBackend();
+  if (!backend) {
+    return res.status(503).json({
+      error:
+        "KI-Design nicht konfiguriert. Setzen Sie GEMINI_API_KEY und/oder OPENAI_API_KEY. Optional: JEWELRY_AI_BACKEND=openai|gemini|auto — Standard auto: Gemini wenn gesetzt, sonst OpenAI (ChatGPT/DALL·E).",
+    });
   }
   const userId = (req as any).userId as number;
   const { brief, persist_gallery } = req.body || {};
@@ -12486,63 +12539,108 @@ app.post("/api/ai/jewelry-design/generate", requireAuth, requireAdmin, jewelryDe
     return res.status(400).json({ error: "Brief is too long." });
   }
   const persist = persist_gallery === true || persist_gallery === 1 || persist_gallery === "1";
-  const specModel = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
-  const imageModel = String(process.env.GEMINI_IMAGE_MODEL || "imagen-4.0-generate-001").trim();
+  const geminiSpecModel = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
+  const geminiImageModel = String(process.env.GEMINI_IMAGE_MODEL || "imagen-4.0-generate-001").trim();
+  const openaiSpecModel = String(process.env.OPENAI_JEWELRY_SPEC_MODEL || "gpt-4o-mini").trim();
+  const openaiImageModel = String(process.env.OPENAI_JEWELRY_IMAGE_MODEL || "dall-e-3").trim();
 
   try {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey });
+    let spec: Record<string, unknown>;
+    let imageBase64: string | null = null;
+    const imageMimeType = "image/png";
+    let imageError: string | null = null;
 
-    const specPrompt = `${PARAMETRIC_SPEC_SYSTEM_INSTRUCTION}
+    if (backend === "openai") {
+      const OpenAI = (await import("openai")).default;
+      const oaKey = String(process.env.OPENAI_API_KEY || "").trim();
+      const client = new OpenAI({ apiKey: oaKey });
+      const schemaHint = JSON.stringify(JEWELRY_PARAMETRIC_JSON_SCHEMA);
+      const completion = await client.chat.completions.create({
+        model: openaiSpecModel,
+        temperature: 0.25,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: `${PARAMETRIC_SPEC_SYSTEM_INSTRUCTION}\n\nRespond with one JSON object only (no markdown). It must match this JSON Schema:\n${schemaHint}`,
+          },
+          { role: "user", content: `Client brief:\n${textBrief}` },
+        ],
+      });
+      const specText = completion.choices[0]?.message?.content?.trim() || "";
+      try {
+        spec = JSON.parse(specText) as Record<string, unknown>;
+      } catch {
+        console.error("[jewelry-design] OpenAI invalid JSON spec:", specText?.slice?.(0, 500));
+        return res.status(502).json({ error: "The model did not return a valid parametric specification." });
+      }
+      const imagePrompt = buildJewelryImagePromptFromSpec(textBrief, spec);
+      const dallePrompt = imagePrompt.length > 3900 ? `${imagePrompt.slice(0, 3880)}…` : imagePrompt;
+      try {
+        const imgRes = await client.images.generate({
+          model: openaiImageModel,
+          prompt: dallePrompt,
+          n: 1,
+          size: "1024x1024",
+          response_format: "b64_json",
+        });
+        const b64 = imgRes.data?.[0]?.b64_json;
+        imageBase64 = typeof b64 === "string" && b64.length > 64 ? b64 : null;
+        if (!imageBase64) imageError = "DALL·E returned no image (check model and account image access).";
+      } catch (imgErr: unknown) {
+        console.error("[jewelry-design] OpenAI images.generate:", imgErr);
+        imageError =
+          (imgErr as { message?: string })?.message || "Image generation failed (OpenAI images API).";
+      }
+    } else {
+      const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      const specPrompt = `${PARAMETRIC_SPEC_SYSTEM_INSTRUCTION}
 
 Client brief:
 ${textBrief}
 
 Respond with JSON only that satisfies the schema.`;
-
-    const specResponse = await ai.models.generateContent({
-      model: specModel,
-      contents: specPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseJsonSchema: JEWELRY_PARAMETRIC_JSON_SCHEMA,
-      },
-    });
-
-    const specText = extractTextFromGenerateContentResponse(specResponse);
-    let spec: Record<string, unknown>;
-    try {
-      spec = JSON.parse(specText) as Record<string, unknown>;
-    } catch {
-      console.error("[jewelry-design] invalid JSON spec:", specText?.slice?.(0, 500));
-      return res.status(502).json({ error: "The model did not return a valid parametric specification." });
-    }
-
-    const imagePrompt = buildJewelryImagePromptFromSpec(textBrief, spec);
-    let imageBase64: string | null = null;
-    let imageMimeType = "image/png";
-    let imageError: string | null = null;
-    try {
-      const imgResp = await ai.models.generateImages({
-        model: imageModel,
-        prompt: imagePrompt,
+      const specResponse = await ai.models.generateContent({
+        model: geminiSpecModel,
+        contents: specPrompt,
         config: {
-          numberOfImages: 1,
-          aspectRatio: "1:1",
-          outputMimeType: "image/png",
-          negativePrompt: "blurry, low quality, cartoon, plastic, floating, watermark, text, logo, hands, mannequin, busy background",
+          responseMimeType: "application/json",
+          responseJsonSchema: JEWELRY_PARAMETRIC_JSON_SCHEMA,
         },
       });
-      const bytes = (imgResp as any)?.generatedImages?.[0]?.image?.imageBytes;
-      if (typeof bytes === "string" && bytes.length > 64) {
-        imageBase64 = bytes;
-      } else {
-        const rai = (imgResp as any)?.generatedImages?.[0]?.raiFilteredReason;
-        imageError = rai || "Image generation returned no bytes (check model access / safety filters).";
+      const specText = extractTextFromGenerateContentResponse(specResponse);
+      try {
+        spec = JSON.parse(specText) as Record<string, unknown>;
+      } catch {
+        console.error("[jewelry-design] invalid JSON spec:", specText?.slice?.(0, 500));
+        return res.status(502).json({ error: "The model did not return a valid parametric specification." });
       }
-    } catch (imgErr: any) {
-      console.error("[jewelry-design] generateImages:", imgErr?.message || imgErr);
-      imageError = imgErr?.message || "Image generation failed (Imagen may be unavailable for this API key).";
+      const imagePrompt = buildJewelryImagePromptFromSpec(textBrief, spec);
+      try {
+        const imgResp = await ai.models.generateImages({
+          model: geminiImageModel,
+          prompt: imagePrompt,
+          config: {
+            numberOfImages: 1,
+            aspectRatio: "1:1",
+            outputMimeType: "image/png",
+            negativePrompt: "blurry, low quality, cartoon, plastic, floating, watermark, text, logo, hands, mannequin, busy background",
+          },
+        });
+        const bytes = (imgResp as any)?.generatedImages?.[0]?.image?.imageBytes;
+        if (typeof bytes === "string" && bytes.length > 64) {
+          imageBase64 = bytes;
+        } else {
+          const rai = (imgResp as any)?.generatedImages?.[0]?.raiFilteredReason;
+          imageError = rai || "Image generation returned no bytes (check model access / safety filters).";
+        }
+      } catch (imgErr: unknown) {
+        console.error("[jewelry-design] generateImages:", imgErr);
+        imageError =
+          (imgErr as { message?: string })?.message || "Image generation failed (Imagen may be unavailable for this API key).";
+      }
     }
 
     let galleryId: number | null = null;
@@ -12559,8 +12657,8 @@ Respond with JSON only that satisfies the schema.`;
           )
         ).run(userId, url, desc, JSON.stringify(spec));
         galleryId = Number(r.lastInsertRowid) || null;
-      } catch (persistErr: any) {
-        console.error("[jewelry-design] persist gallery:", persistErr?.message || persistErr);
+      } catch (persistErr: unknown) {
+        console.error("[jewelry-design] persist gallery:", persistErr);
       }
     }
 
@@ -12570,16 +12668,20 @@ Respond with JSON only that satisfies the schema.`;
       imageError,
       galleryId,
     });
-  } catch (e: any) {
-    console.error("[jewelry-design] generate:", e?.message || e);
-    res.status(502).json({ error: e?.message || "Design generation failed." });
+  } catch (e: unknown) {
+    console.error("[jewelry-design] generate:", e);
+    const { http, error } = formatAiVendorError(e);
+    res.status(http).json({ error });
   }
 });
 
 app.post("/api/ai/jewelry-design/query", requireAuth, requireAdmin, jewelryDesignQueryLimiter, async (req, res) => {
-  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
-  if (!apiKey) {
-    return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
+  const backend = resolveJewelryAiBackend();
+  if (!backend) {
+    return res.status(503).json({
+      error:
+        "KI-Design nicht konfiguriert. Setzen Sie GEMINI_API_KEY und/oder OPENAI_API_KEY (siehe JEWELRY_AI_BACKEND).",
+    });
   }
   const { question, spec } = req.body || {};
   const q = typeof question === "string" ? question.trim() : "";
@@ -12589,7 +12691,8 @@ app.post("/api/ai/jewelry-design/query", requireAuth, requireAdmin, jewelryDesig
   if (!spec || typeof spec !== "object") {
     return res.status(400).json({ error: "spec object required (the parametric JSON from generation)." });
   }
-  const model = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
+  const geminiModel = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
+  const openaiModel = String(process.env.OPENAI_JEWELRY_SPEC_MODEL || "gpt-4o-mini").trim();
   const system = `You are a gemologist and high-jewelry technical assistant for Antonio Bellanova Atelier.
 
 Rules:
@@ -12599,19 +12702,38 @@ Rules:
 - Professional, concise tone. No emojis.`;
 
   try {
+    if (backend === "openai") {
+      const OpenAI = (await import("openai")).default;
+      const client = new OpenAI({ apiKey: String(process.env.OPENAI_API_KEY || "").trim() });
+      const completion = await client.chat.completions.create({
+        model: openaiModel,
+        temperature: 0.2,
+        messages: [
+          { role: "system", content: system },
+          {
+            role: "user",
+            content: `parametric_spec:\n${JSON.stringify(spec)}\n\nClient question:\n${q}`,
+          },
+        ],
+      });
+      const text = completion.choices[0]?.message?.content?.trim() || "I cannot answer from the specification provided.";
+      res.json({ answer: text });
+      return;
+    }
     const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: String(process.env.GEMINI_API_KEY || "").trim() });
     const response = await ai.models.generateContent({
-      model,
+      model: geminiModel,
       contents: `${system}\n\nparametric_spec:\n${JSON.stringify(spec)}\n\nClient question:\n${q}`,
     });
     const text =
       extractTextFromGenerateContentResponse(response) ||
       "I cannot answer from the specification provided.";
     res.json({ answer: text });
-  } catch (e: any) {
-    console.error("[jewelry-design] query:", e?.message || e);
-    res.status(502).json({ error: e?.message || "Query failed." });
+  } catch (e: unknown) {
+    console.error("[jewelry-design] query:", e);
+    const { http, error } = formatAiVendorError(e);
+    res.status(http).json({ error });
   }
 });
 
