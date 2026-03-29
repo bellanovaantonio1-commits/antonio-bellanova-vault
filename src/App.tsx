@@ -868,6 +868,18 @@ const TRANSLATIONS: any = {
     "private_clients.conversations": "Konversationen",
     "private_clients.projects": "Projekte",
     "private_clients.stone_requests": "Steinanfragen",
+    "private_clients.ai_design": "KI-Design",
+    "private_clients.ai_design_subtitle": "Parametrische High-Jewelry-Entwürfe: technische Daten und Visual werden gemeinsam aus Ihrem Brief erzeugt.",
+    "private_clients.ai_design_brief_label": "Design-Brief",
+    "private_clients.ai_design_brief_placeholder": "z. B. Gelbgold-Ring mit ovalem Fancy-Yellow-Hauptstein, schlichter Kranz aus Brillanten …",
+    "private_clients.ai_design_generate": "Design generieren",
+    "private_clients.ai_design_technical": "Technische Spezifikation (intern)",
+    "private_clients.ai_design_image_error": "Bildgenerierung",
+    "private_clients.ai_design_persist": "In meiner Design-Galerie speichern (mit Spezifikation)",
+    "private_clients.ai_design_question_placeholder": "z. B. Wie groß ist der Mittelstein?",
+    "private_clients.ai_design_ask": "Aus Spezifikation beantworten",
+    "private_clients.ai_design_need_spec": "Bitte zuerst ein Design generieren.",
+    "private_clients.ai_design_saved_gallery": "In Galerie gespeichert.",
     "private_clients.stone_request_tab": "Steinanfrage",
     "private_clients.stone_request_title": "Steinanfrage",
     "private_clients.stone_request_hint": "Beschreiben Sie Ihren Wunsch (z. B. 10 Karat Burma-Rubin).",
@@ -3815,7 +3827,19 @@ export default function App() {
   const [selectedPrivateConversation, setSelectedPrivateConversation] = useState<any>(null);
   const [privateClientMessages, setPrivateClientMessages] = useState<any[]>([]);
   const [privateClientMessageText, setPrivateClientMessageText] = useState('');
-  const [clientViewSubTab, setClientViewSubTab] = useState<'messages' | 'projects' | 'documents' | 'stone_request' | 'production' | 'rooms'>('messages');
+  const [clientViewSubTab, setClientViewSubTab] = useState<
+    'messages' | 'projects' | 'documents' | 'stone_request' | 'production' | 'rooms' | 'ai_design'
+  >('messages');
+  const [jewelryDesignBrief, setJewelryDesignBrief] = useState('');
+  const [jewelryDesignLoading, setJewelryDesignLoading] = useState(false);
+  const [jewelryDesignSpec, setJewelryDesignSpec] = useState<Record<string, unknown> | null>(null);
+  const [jewelryDesignImageUrl, setJewelryDesignImageUrl] = useState<string | null>(null);
+  const [jewelryDesignImageErr, setJewelryDesignImageErr] = useState<string | null>(null);
+  const [jewelryDesignGalleryId, setJewelryDesignGalleryId] = useState<number | null>(null);
+  const [jewelryDesignQuery, setJewelryDesignQuery] = useState('');
+  const [jewelryDesignAnswer, setJewelryDesignAnswer] = useState('');
+  const [jewelryDesignQueryLoading, setJewelryDesignQueryLoading] = useState(false);
+  const [jewelryPersistGallery, setJewelryPersistGallery] = useState(false);
   const [myProductionPieces, setMyProductionPieces] = useState<any[]>([]);
   const [myPrivateConversations, setMyPrivateConversations] = useState<any[]>([]);
   const [myPrivateProjects, setMyPrivateProjects] = useState<any[]>([]);
@@ -9308,9 +9332,9 @@ export default function App() {
                 <h3 className="text-3xl font-serif italic text-amber-500/90">{t('private_clients.menu') || 'Nachrichten'}</h3>
                 <p className="text-zinc-500">{t('private_clients.subtitle') || 'Ihre Nachrichten, Projekte und Dokumente.'}</p>
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['messages', 'projects', 'documents', 'stone_request', 'production', 'rooms'] as const).map(sub => (
+                  {(['messages', 'projects', 'documents', 'stone_request', 'ai_design', 'production', 'rooms'] as const).map(sub => (
                     <button key={sub} type="button" onClick={() => setClientViewSubTab(sub)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider ${clientViewSubTab === sub ? 'bg-amber-500/20 text-amber-500 border border-amber-500/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {sub === 'messages' ? (t('private_clients.messages') || 'Nachrichten') : sub === 'projects' ? (t('private_clients.my_projects') || 'Meine Projekte') : sub === 'documents' ? (t('private_clients.my_documents') || 'Meine Dokumente') : sub === 'stone_request' ? (t('private_clients.stone_request_tab') || 'Steinanfrage') : sub === 'production' ? (t('private_clients.production') || 'Produktion') : (t('private_clients.my_rooms') || 'Meine Räume')}
+                      {sub === 'messages' ? (t('private_clients.messages') || 'Nachrichten') : sub === 'projects' ? (t('private_clients.my_projects') || 'Meine Projekte') : sub === 'documents' ? (t('private_clients.my_documents') || 'Meine Dokumente') : sub === 'stone_request' ? (t('private_clients.stone_request_tab') || 'Steinanfrage') : sub === 'ai_design' ? (t('private_clients.ai_design') || 'KI-Design') : sub === 'production' ? (t('private_clients.production') || 'Produktion') : (t('private_clients.my_rooms') || 'Meine Räume')}
                     </button>
                   ))}
                 </div>
@@ -9362,6 +9386,135 @@ export default function App() {
                         <div><p className="font-medium text-zinc-200">{p.title}</p><p className="text-xs text-zinc-500">{p.project_type} · {p.status}</p></div>
                       </Card>
                     ))}
+                  </div>
+                )}
+                {clientViewSubTab === 'ai_design' && (
+                  <div className="space-y-6 max-w-3xl">
+                    <p className="text-sm text-zinc-500">{t('private_clients.ai_design_subtitle') || 'Parametric high-jewelry: technical spec and visual are produced together from your brief.'}</p>
+                    <Card className="p-6 border-amber-500/20 space-y-4">
+                      <label className="block text-xs uppercase tracking-widest text-amber-600/90">{t('private_clients.ai_design_brief_label') || 'Design brief'}</label>
+                      <textarea
+                        value={jewelryDesignBrief}
+                        onChange={(e) => setJewelryDesignBrief(e.target.value)}
+                        rows={5}
+                        placeholder={t('private_clients.ai_design_brief_placeholder') || ''}
+                        className="w-full bg-zinc-950 border border-zinc-700 rounded-xl py-3 px-4 text-sm text-zinc-200 focus:outline-none focus:border-amber-600/40"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          className="rounded border-zinc-600 text-amber-600 focus:ring-amber-500/40"
+                          checked={jewelryPersistGallery}
+                          onChange={(e) => setJewelryPersistGallery(e.target.checked)}
+                        />
+                        <span>{t('private_clients.ai_design_persist') || 'Save to my design gallery (with spec)'}</span>
+                      </label>
+                      <Button
+                        variant="primary"
+                        disabled={jewelryDesignLoading || jewelryDesignBrief.trim().length < 12}
+                        onClick={async () => {
+                          setJewelryDesignLoading(true);
+                          setJewelryDesignImageErr(null);
+                          setJewelryDesignAnswer('');
+                          try {
+                            const res = await fetch('/api/ai/jewelry-design/generate', {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ brief: jewelryDesignBrief.trim(), persist_gallery: jewelryPersistGallery }),
+                            });
+                            const data = await res.json().catch(() => ({}));
+                            if (!res.ok) {
+                              notifyUser(data.error || t('errors.generic'), 'error');
+                              return;
+                            }
+                            setJewelryDesignSpec(data.spec && typeof data.spec === 'object' ? data.spec : null);
+                            if (data.image?.dataBase64 && data.image?.mimeType) {
+                              setJewelryDesignImageUrl(`data:${data.image.mimeType};base64,${data.image.dataBase64}`);
+                            } else {
+                              setJewelryDesignImageUrl(null);
+                            }
+                            setJewelryDesignImageErr(data.imageError || null);
+                            setJewelryDesignGalleryId(data.galleryId != null ? Number(data.galleryId) : null);
+                            if (data.galleryId) {
+                              notifyUser(t('private_clients.ai_design_saved_gallery') || 'Saved to gallery.', 'success');
+                            }
+                          } catch (e: unknown) {
+                            notifyUser((e as Error)?.message || t('errors.generic'), 'error');
+                          } finally {
+                            setJewelryDesignLoading(false);
+                          }
+                        }}
+                      >
+                        {jewelryDesignLoading ? '…' : t('private_clients.ai_design_generate') || 'Generate design'}
+                      </Button>
+                    </Card>
+                    {jewelryDesignImageUrl && (
+                      <Card className="p-4 border-zinc-800 overflow-hidden">
+                        <img src={jewelryDesignImageUrl} alt="" className="w-full max-h-[min(70vh,520px)] object-contain mx-auto rounded-lg bg-black" />
+                      </Card>
+                    )}
+                    {jewelryDesignImageErr && !jewelryDesignImageUrl && (
+                      <p className="text-sm text-amber-600/90">
+                        {t('private_clients.ai_design_image_error') || 'Image'}: {jewelryDesignImageErr}
+                      </p>
+                    )}
+                    {jewelryDesignSpec && (
+                      <Card className="p-6 border-zinc-800 space-y-3">
+                        <h4 className="text-xs uppercase tracking-widest text-zinc-500">{t('private_clients.ai_design_technical') || 'Technical specification'}</h4>
+                        <pre className="text-[11px] text-zinc-400 overflow-x-auto whitespace-pre-wrap break-words max-h-64 overflow-y-auto bg-zinc-950/80 p-3 rounded-lg border border-zinc-800">
+                          {JSON.stringify(jewelryDesignSpec, null, 2)}
+                        </pre>
+                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                          <input
+                            type="text"
+                            value={jewelryDesignQuery}
+                            onChange={(e) => setJewelryDesignQuery(e.target.value)}
+                            placeholder={t('private_clients.ai_design_question_placeholder') || ''}
+                            className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl py-2 px-3 text-sm text-zinc-200"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') document.getElementById('jewelry-design-ask-btn')?.click();
+                            }}
+                          />
+                          <Button
+                            id="jewelry-design-ask-btn"
+                            variant="outline"
+                            disabled={jewelryDesignQueryLoading || !jewelryDesignQuery.trim()}
+                            onClick={async () => {
+                              if (!jewelryDesignSpec) {
+                                notifyUser(t('private_clients.ai_design_need_spec') || 'Generate a design first.', 'error');
+                                return;
+                              }
+                              setJewelryDesignQueryLoading(true);
+                              setJewelryDesignAnswer('');
+                              try {
+                                const res = await fetch('/api/ai/jewelry-design/query', {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ question: jewelryDesignQuery.trim(), spec: jewelryDesignSpec }),
+                                });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) {
+                                  notifyUser(data.error || t('errors.generic'), 'error');
+                                  return;
+                                }
+                                setJewelryDesignAnswer(typeof data.answer === 'string' ? data.answer : '');
+                              } catch (e: unknown) {
+                                notifyUser((e as Error)?.message || t('errors.generic'), 'error');
+                              } finally {
+                                setJewelryDesignQueryLoading(false);
+                              }
+                            }}
+                          >
+                            {jewelryDesignQueryLoading ? '…' : t('private_clients.ai_design_ask') || 'Answer from spec'}
+                          </Button>
+                        </div>
+                        {jewelryDesignAnswer && (
+                          <p className="text-sm text-zinc-300 whitespace-pre-wrap border-t border-zinc-800 pt-3">{jewelryDesignAnswer}</p>
+                        )}
+                      </Card>
+                    )}
                   </div>
                 )}
                 {clientViewSubTab === 'stone_request' && (

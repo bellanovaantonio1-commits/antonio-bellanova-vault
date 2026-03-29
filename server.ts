@@ -18,7 +18,13 @@ import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
 import { validateServerEnv } from "./lib/validateEnv.js";
 import { registerConsultationRoutes, isConsultationFlowEnabled } from "./features/consultation/consultationRoutes.js";
-import { createIpRateLimiter } from "./lib/rateLimit.js";
+import { createIpRateLimiter, createUserOrIpRateLimiter } from "./lib/rateLimit.js";
+import {
+  JEWELRY_PARAMETRIC_JSON_SCHEMA,
+  PARAMETRIC_SPEC_SYSTEM_INSTRUCTION,
+  buildJewelryImagePromptFromSpec,
+  extractTextFromGenerateContentResponse,
+} from "./features/jewelry-design/parametricJewelryEngine.js";
 import {
   parseSessionUserIdFromCookieHeader,
   buildSetSessionCookieHeader,
@@ -261,6 +267,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 const uploadsDir = path.join(__dirname, 'uploads');
 const uploadsDropsDir = path.join(uploadsDir, 'drops');
 const uploadsDocumentsDir = path.join(uploadsDir, 'documents');
+const uploadsJewelryDesignsDir = path.join(uploadsDir, 'jewelry-designs');
 const vaultStorageDir = path.join(__dirname, 'vault-storage');
 const vaultStorageProjekteDir = path.join(vaultStorageDir, 'projekte');
 if (!fs.existsSync(uploadsDropsDir)) {
@@ -268,6 +275,9 @@ if (!fs.existsSync(uploadsDropsDir)) {
 }
 if (!fs.existsSync(uploadsDocumentsDir)) {
   fs.mkdirSync(uploadsDocumentsDir, { recursive: true });
+}
+if (!fs.existsSync(uploadsJewelryDesignsDir)) {
+  fs.mkdirSync(uploadsJewelryDesignsDir, { recursive: true });
 }
 if (!fs.existsSync(vaultStorageProjekteDir)) {
   fs.mkdirSync(vaultStorageProjekteDir, { recursive: true });
@@ -1271,6 +1281,7 @@ await db.exec(`
   );
 `);
 try { await (await db.prepare("ALTER TABLE private_client_conversations ADD COLUMN project_id INTEGER")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE private_design_gallery ADD COLUMN parametric_spec TEXT")).run(); } catch (e) {}
 
 // --- Strategic Private Advisor ---
 await db.exec(`
@@ -3528,6 +3539,8 @@ const loginRateLimiter = createIpRateLimiter({ windowMs: 15 * 60 * 1000, max: 40
 const forgotPasswordRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 8, keyPrefix: ":forgotpw" });
 const resetPasswordRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 24, keyPrefix: ":resetpw" });
 const contactRateLimiter = createIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 40, keyPrefix: ":contact" });
+const jewelryDesignGenerateLimiter = createUserOrIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 18, keyPrefix: ":jewelry-design-gen" });
+const jewelryDesignQueryLimiter = createUserOrIpRateLimiter({ windowMs: 60 * 60 * 1000, max: 60, keyPrefix: ":jewelry-design-q" });
 
 // Auth
 const USERNAME_REGEX = /^[a-zA-Z0-9_]{3,50}$/;
@@ -10442,10 +10455,20 @@ app.get("/api/private-clients/design-gallery", requireAuth, async (req, res) => 
 });
 
 app.post("/api/private-clients/design-gallery", requireAuth, requireAdmin, async (req, res) => {
-  const { client_id, image, description } = req.body || {};
+  const { client_id, image, description, parametric_spec } = req.body || {};
   const clientId = Number(client_id);
   if (!clientId || !image) return res.status(400).json({ error: "client_id und image (URL) erforderlich." });
-  const r = await (await db.prepare("INSERT INTO private_design_gallery (client_id, image, description) VALUES (?, ?, ?)")).run(clientId, String(image), description || null);
+  const specStr =
+    parametric_spec === undefined || parametric_spec === null
+      ? null
+      : typeof parametric_spec === "string"
+        ? parametric_spec
+        : JSON.stringify(parametric_spec);
+  const r = await (
+    await db.prepare(
+      "INSERT INTO private_design_gallery (client_id, image, description, parametric_spec) VALUES (?, ?, ?, ?)"
+    )
+  ).run(clientId, String(image), description || null, specStr);
   res.status(201).json({ id: r.lastInsertRowid });
 });
 
@@ -12446,6 +12469,150 @@ app.get("/api/ai/sales-context/:userId", async (req, res) => {
     return res.status(403).json({ error: "Admin only" });
   }
   res.json(await buildSalesContext(userId));
+});
+
+app.post("/api/ai/jewelry-design/generate", requireAuth, requireNotGuest, jewelryDesignGenerateLimiter, async (req, res) => {
+  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
+  }
+  const userId = (req as any).userId as number;
+  const { brief, persist_gallery } = req.body || {};
+  const textBrief = typeof brief === "string" ? brief.trim() : "";
+  if (textBrief.length < 12) {
+    return res.status(400).json({ error: "Please provide a design brief (at least 12 characters)." });
+  }
+  if (textBrief.length > 8000) {
+    return res.status(400).json({ error: "Brief is too long." });
+  }
+  const persist = persist_gallery === true || persist_gallery === 1 || persist_gallery === "1";
+  const specModel = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
+  const imageModel = String(process.env.GEMINI_IMAGE_MODEL || "imagen-4.0-generate-001").trim();
+
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+
+    const specPrompt = `${PARAMETRIC_SPEC_SYSTEM_INSTRUCTION}
+
+Client brief:
+${textBrief}
+
+Respond with JSON only that satisfies the schema.`;
+
+    const specResponse = await ai.models.generateContent({
+      model: specModel,
+      contents: specPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseJsonSchema: JEWELRY_PARAMETRIC_JSON_SCHEMA,
+      },
+    });
+
+    const specText = extractTextFromGenerateContentResponse(specResponse);
+    let spec: Record<string, unknown>;
+    try {
+      spec = JSON.parse(specText) as Record<string, unknown>;
+    } catch {
+      console.error("[jewelry-design] invalid JSON spec:", specText?.slice?.(0, 500));
+      return res.status(502).json({ error: "The model did not return a valid parametric specification." });
+    }
+
+    const imagePrompt = buildJewelryImagePromptFromSpec(textBrief, spec);
+    let imageBase64: string | null = null;
+    let imageMimeType = "image/png";
+    let imageError: string | null = null;
+    try {
+      const imgResp = await ai.models.generateImages({
+        model: imageModel,
+        prompt: imagePrompt,
+        config: {
+          numberOfImages: 1,
+          aspectRatio: "1:1",
+          outputMimeType: "image/png",
+          negativePrompt: "blurry, low quality, cartoon, plastic, floating, watermark, text, logo, hands, mannequin, busy background",
+        },
+      });
+      const bytes = (imgResp as any)?.generatedImages?.[0]?.image?.imageBytes;
+      if (typeof bytes === "string" && bytes.length > 64) {
+        imageBase64 = bytes;
+      } else {
+        const rai = (imgResp as any)?.generatedImages?.[0]?.raiFilteredReason;
+        imageError = rai || "Image generation returned no bytes (check model access / safety filters).";
+      }
+    } catch (imgErr: any) {
+      console.error("[jewelry-design] generateImages:", imgErr?.message || imgErr);
+      imageError = imgErr?.message || "Image generation failed (Imagen may be unavailable for this API key).";
+    }
+
+    let galleryId: number | null = null;
+    if (persist && imageBase64) {
+      try {
+        const name = `jd-${userId}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}.png`;
+        const filePath = path.join(uploadsJewelryDesignsDir, name);
+        fs.writeFileSync(filePath, Buffer.from(imageBase64, "base64"));
+        const url = `/uploads/jewelry-designs/${name}`;
+        const desc = textBrief.length > 600 ? `${textBrief.slice(0, 597)}…` : textBrief;
+        const r = await (
+          await db.prepare(
+            "INSERT INTO private_design_gallery (client_id, image, description, parametric_spec) VALUES (?, ?, ?, ?)"
+          )
+        ).run(userId, url, desc, JSON.stringify(spec));
+        galleryId = Number(r.lastInsertRowid) || null;
+      } catch (persistErr: any) {
+        console.error("[jewelry-design] persist gallery:", persistErr?.message || persistErr);
+      }
+    }
+
+    res.json({
+      spec,
+      image: imageBase64 ? { mimeType: imageMimeType, dataBase64: imageBase64 } : null,
+      imageError,
+      galleryId,
+    });
+  } catch (e: any) {
+    console.error("[jewelry-design] generate:", e?.message || e);
+    res.status(502).json({ error: e?.message || "Design generation failed." });
+  }
+});
+
+app.post("/api/ai/jewelry-design/query", requireAuth, requireNotGuest, jewelryDesignQueryLimiter, async (req, res) => {
+  const apiKey = String(process.env.GEMINI_API_KEY || "").trim();
+  if (!apiKey) {
+    return res.status(503).json({ error: "AI design is not configured (GEMINI_API_KEY)." });
+  }
+  const { question, spec } = req.body || {};
+  const q = typeof question === "string" ? question.trim() : "";
+  if (!q || q.length > 2000) {
+    return res.status(400).json({ error: "question required (max 2000 chars)." });
+  }
+  if (!spec || typeof spec !== "object") {
+    return res.status(400).json({ error: "spec object required (the parametric JSON from generation)." });
+  }
+  const model = String(process.env.GEMINI_DESIGN_SPEC_MODEL || "gemini-2.5-flash").trim();
+  const system = `You are a gemologist and high-jewelry technical assistant for Antonio Bellanova Atelier.
+
+Rules:
+- Answer ONLY using the provided parametric_spec JSON. Quote exact fields (dimensions_mm, carat, count, etc.) when relevant.
+- Do not invent new measurements or contradict the spec.
+- If the spec does not contain the answer, say so clearly.
+- Professional, concise tone. No emojis.`;
+
+  try {
+    const { GoogleGenAI } = await import("@google/genai");
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model,
+      contents: `${system}\n\nparametric_spec:\n${JSON.stringify(spec)}\n\nClient question:\n${q}`,
+    });
+    const text =
+      extractTextFromGenerateContentResponse(response) ||
+      "I cannot answer from the specification provided.";
+    res.json({ answer: text });
+  } catch (e: any) {
+    console.error("[jewelry-design] query:", e?.message || e);
+    res.status(502).json({ error: e?.message || "Query failed." });
+  }
 });
 
 app.post("/api/concierge/ai", async (req, res) => {
