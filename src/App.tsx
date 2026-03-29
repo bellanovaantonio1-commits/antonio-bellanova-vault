@@ -841,6 +841,12 @@ const TRANSLATIONS: any = {
     "piece.rarity_limited": "Limitiert",
     "piece.rarity_rare": "Selten",
     "piece.blockchain_verified": "Blockchain-verifiziert",
+    "piece.tab_details": "Details",
+    "piece.tab_materials": "Materialien",
+    "piece.tab_provenance": "Herkunft",
+    "piece.tab_care": "Care",
+    "piece.care_intro": "Ihr Schmuck verdient diskrete Pflege. Das Atelier begleitet Sie mit Inspektion, Service und Verwahrung — stets auf persönliche Anfrage.",
+    "piece.atelier_record": "Atelier-Eintrag",
     "piece.edition": "Edition",
     "piece.add_to_favorites": "Zu Favoriten hinzufügen",
     "piece.remove_from_favorites": "Aus Favoriten entfernen",
@@ -1932,6 +1938,12 @@ const TRANSLATIONS: any = {
     "piece.rarity_limited": "Limited",
     "piece.rarity_rare": "Rare",
     "piece.blockchain_verified": "Blockchain verified",
+    "piece.tab_details": "Details",
+    "piece.tab_materials": "Materials",
+    "piece.tab_provenance": "Provenance",
+    "piece.tab_care": "Care",
+    "piece.care_intro": "Fine jewelry deserves discreet care. The atelier supports you with inspection, service, and custody — always on private request.",
+    "piece.atelier_record": "Atelier record",
     "piece.edition": "Edition",
     "piece.add_to_favorites": "Add to favorites",
     "piece.remove_from_favorites": "Remove from favorites",
@@ -2890,6 +2902,12 @@ const TRANSLATIONS: any = {
     "piece.rarity_limited": "Limitato",
     "piece.rarity_rare": "Raro",
     "piece.blockchain_verified": "Verificato su blockchain",
+    "piece.tab_details": "Dettagli",
+    "piece.tab_materials": "Materiali",
+    "piece.tab_provenance": "Provenienza",
+    "piece.tab_care": "Care",
+    "piece.care_intro": "L’alta gioielleria merita cure discrete. L’atelier vi affianca con ispezione, service e custodia — sempre su richiesta privata.",
+    "piece.atelier_record": "Registro atelier",
     "piece.edition": "Edizione",
     "piece.add_to_favorites": "Aggiungi ai preferiti",
     "piece.remove_from_favorites": "Rimuovi dai preferiti",
@@ -3232,13 +3250,13 @@ const TRANSLATIONS: any = {
 // --- Components ---
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
-  const base = "min-h-[44px] px-6 py-3 rounded-full font-medium transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]";
+  const base = "min-h-[44px] rounded-full font-medium transition-all duration-300 ease-out flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
   const variants: any = {
-    primary: "bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-900/20 hover:shadow-amber-600/25",
-    secondary: "bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700",
-    outline: "bg-transparent border border-amber-600/50 text-amber-500 hover:bg-amber-600/10 hover:border-amber-500/60",
-    ghost: "bg-transparent text-zinc-400 hover:text-white hover:bg-white/5",
-    danger: "bg-red-600/10 text-red-500 border border-red-600/20 hover:bg-red-600/20"
+    primary: "px-7 py-3.5 bg-gradient-to-br from-[#C6A15B] to-[#D4AF37] text-black shadow-none hover:scale-[1.03] hover:opacity-90 active:scale-[0.99]",
+    secondary: "px-7 py-3.5 bg-transparent text-[#F5F5F5] border border-[rgba(255,255,255,0.08)] hover:border-[#C6A15B]/35",
+    outline: "px-7 py-3.5 bg-transparent border border-[rgba(255,255,255,0.12)] text-[#C6A15B] hover:bg-[#C6A15B]/8 hover:border-[#C6A15B]/45",
+    ghost: "px-5 py-3 bg-transparent text-[#AAAAAA] hover:text-[#F5F5F5] hover:bg-white/[0.04]",
+    danger: "px-7 py-3.5 bg-red-600/10 text-red-400 border border-red-600/25 hover:bg-red-600/18"
   };
   return (
     <button type={type} disabled={disabled} onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
@@ -3265,7 +3283,7 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon,
 );
 
 const Card = ({ children, className = '', hoverGlow, onClick, role, tabIndex }: any) => (
-  <div onClick={onClick} role={role} tabIndex={tabIndex} className={`bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/50 rounded-3xl p-6 transition-all duration-300 ${hoverGlow ? 'card-hover-glow' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}>
+  <div onClick={onClick} role={role} tabIndex={tabIndex} className={`bg-[var(--bg-secondary)]/90 backdrop-blur-xl border border-[var(--border-soft)] rounded-2xl p-6 transition-all duration-300 ease-out ${hoverGlow ? 'card-hover-glow' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}>
     {children}
   </div>
 );
@@ -3886,6 +3904,7 @@ export default function App() {
   const [performanceData, setPerformanceData] = useState<Record<number, any>>({});
   const [showRegistryInModal, setShowRegistryInModal] = useState(false);
   const [pieceModalImageIndex, setPieceModalImageIndex] = useState(0);
+  const [pieceModalTab, setPieceModalTab] = useState<'details' | 'materials' | 'provenance' | 'care'>('details');
   const [verifyCertId, setVerifyCertId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     const pathname = window.location.pathname || '';
@@ -4312,7 +4331,7 @@ export default function App() {
     doc.save(`Antonio-Bellanova-Marktplatz-${lang.toUpperCase()}-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  useEffect(() => { setPieceModalImageIndex(0); }, [selectedPiece?.id]);
+  useEffect(() => { setPieceModalImageIndex(0); setPieceModalTab('details'); }, [selectedPiece?.id]);
 
   useEffect(() => {
     if (!editingPiece) return;
@@ -7765,7 +7784,7 @@ export default function App() {
 
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
-          <div className="px-4 sm:px-6 md:px-8 pt-6 max-w-7xl mx-auto flex items-center gap-2 text-[10px] uppercase tracking-widest text-zinc-500">
+          <div className="luxury-container !pt-6 !pb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">
             <button type="button" onClick={() => setView(isGuest ? 'world' : 'dashboard')} className="hover:text-amber-500/80">{isGuest ? t('view.world') : t('dashboard')}</button>
             <span>/</span>
             {view === 'vault' ? (
@@ -7782,7 +7801,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+        <div className="luxury-container !pt-4">
           <AnimatePresence mode="wait">
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
@@ -14546,7 +14565,7 @@ export default function App() {
 
         {/* Premium Footer */}
         {user && (
-          <footer className="premium-footer mt-16 py-6 sm:py-8 px-4 sm:px-6 md:px-8 max-w-7xl mx-auto safe-area-bottom">
+          <footer className="premium-footer mt-16 luxury-container !pt-8 !pb-10 safe-area-bottom">
             <div className="flex flex-wrap items-center justify-between gap-6 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
               <div className="flex items-center gap-6">
                 <span className="font-serif italic text-amber-500/80">{t('footer.brand_legal')}</span>
@@ -14664,7 +14683,7 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.9, y: 20 }} 
                 animate={{ opacity: 1, scale: 1, y: 0 }} 
                 exit={{ opacity: 0, scale: 0.9, y: 20 }} 
-                className="relative w-full max-w-4xl bg-zinc-950 border border-zinc-800 rounded-[2.5rem] overflow-hidden shadow-2xl"
+                className="relative w-full max-w-4xl bg-[#0a0a0a] border border-[var(--border-soft)] rounded-3xl overflow-hidden shadow-none"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 h-full max-h-[90vh] overflow-y-auto">
                   <div className="aspect-square bg-zinc-900 relative">
@@ -14697,13 +14716,13 @@ export default function App() {
                       );
                     })()}
                   </div>
-                  <div className="p-4 sm:p-6 md:p-12 space-y-8 flex flex-col">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                        <h3 className="text-2xl sm:text-3xl md:text-4xl font-serif italic text-white">{selectedPiece.title}</h3>
+                  <div className="p-6 sm:p-8 md:p-12 space-y-8 flex flex-col">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="space-y-3 min-w-0">
+                        <h3 className="text-2xl sm:text-3xl md:text-4xl luxury-display text-[#F5F5F5] leading-tight">{selectedPiece.title}</h3>
                         {(() => {
                         const price = getPiecePriceDisplay(selectedPiece, user);
-                        return <p className={price.showNegotiation || price.showInquiry ? 'text-zinc-500 italic' : 'text-amber-500 text-2xl font-bold'}>{price.label}</p>;
+                        return <p className={price.showNegotiation || price.showInquiry ? 'text-[#AAAAAA] italic text-lg' : 'text-[#C6A15B] text-xl sm:text-2xl font-medium tracking-wide'}>{price.label}</p>;
                       })()}
                       </div>
                       <div className="flex items-center gap-1">
@@ -14729,110 +14748,156 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="space-y-6 flex-1">
-                      <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('description')}</p>
-                        <p className="text-zinc-400 leading-relaxed whitespace-pre-wrap break-words">{getPieceLocalized(selectedPiece, 'description')}</p>
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-[var(--border-soft)] pb-3 mb-6">
+                        {(['details', 'materials', 'provenance', 'care'] as const).map(tab => (
+                          <button
+                            key={tab}
+                            type="button"
+                            onClick={() => setPieceModalTab(tab)}
+                            className={`text-sm tracking-[0.12em] uppercase transition-colors duration-300 ease-out pb-2 -mb-px border-b-2 ${pieceModalTab === tab ? 'border-[#C6A15B] text-[#F5F5F5]' : 'border-transparent text-[#AAAAAA] hover:text-[#F5F5F5]'}`}
+                          >
+                            {t(`piece.tab_${tab}`)}
+                          </button>
+                        ))}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('materials')}</p>
-                          <p className="text-zinc-200">{getPieceLocalized(selectedPiece, 'materials')}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('gemstones')}</p>
-                          <p className="text-zinc-200">{getPieceLocalized(selectedPiece, 'gemstones')}</p>
-                        </div>
-                      </div>
+                      <div className="space-y-6 flex-1 prose-luxury">
+                        {pieceModalTab === 'details' && (
+                          <div className="space-y-3">
+                            <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] font-normal">{t('description')}</p>
+                            <p className="text-[#CCCCCC] text-[15px] sm:text-base leading-relaxed whitespace-pre-wrap break-words">{getPieceLocalized(selectedPiece, 'description')}</p>
+                          </div>
+                        )}
 
-                      <div className="space-y-2">
-                        <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-bold">{t('common.serial_id')}</p>
-                        <p className="font-mono text-xs text-zinc-400">{selectedPiece.serial_id}</p>
-                      </div>
-                      {selectedPiece.blockchain_hash && (
-                        <div className="space-y-2 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-                          <p className="text-[10px] uppercase tracking-widest text-emerald-600 font-bold flex items-center gap-1.5">
-                            <ShieldCheck className="w-3.5 h-3.5" /> {t('piece.blockchain_verified')}
-                          </p>
-                          <p className="font-mono text-[10px] text-zinc-400 break-all">{selectedPiece.blockchain_hash}</p>
-                        </div>
-                      )}
+                        {pieceModalTab === 'materials' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                            <div className="space-y-3">
+                              <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] font-normal">{t('materials')}</p>
+                              <p className="text-[#F5F5F5] text-[15px] leading-relaxed">{getPieceLocalized(selectedPiece, 'materials')}</p>
+                            </div>
+                            <div className="space-y-3">
+                              <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] font-normal">{t('gemstones')}</p>
+                              <p className="text-[#F5F5F5] text-[15px] leading-relaxed">{getPieceLocalized(selectedPiece, 'gemstones')}</p>
+                            </div>
+                          </div>
+                        )}
 
-                      {/* Registry 2.0 & Asset Performance — nur für Investoren */}
-                      {user?.role === UserRole.INVESTOR && (
-                      <div className="border-t border-zinc-800 pt-6">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setShowRegistryInModal(!showRegistryInModal);
-                            if (!showRegistryInModal && selectedPiece?.id) {
-                              if (!registryData[selectedPiece.id]) {
-                                fetch(`/api/registry/masterpiece/${selectedPiece.id}`).then(r => r.ok ? r.json() : null).then(d => d && setRegistryData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
-                              }
-                              if (!performanceData[selectedPiece.id]) {
-                                fetch(`/api/masterpieces/${selectedPiece.id}/performance`).then(r => r.ok ? r.json() : null).then(d => d && setPerformanceData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
-                              }
-                            }
-                          }}
-                          className="flex items-center justify-between w-full text-left text-sm font-medium text-zinc-300 hover:text-amber-500/90 transition-colors"
-                        >
-                          <span className="flex items-center gap-2">
-                            <BookOpen className="w-4 h-4 text-amber-500/70" />
-                            {t('registry.performance_title')}
-                          </span>
-                          <span className="text-zinc-500">{showRegistryInModal ? '−' : '+'}</span>
-                        </button>
-                        {showRegistryInModal && selectedPiece && (
-                          <div className="mt-4 space-y-6 text-sm">
-                            {registryData[selectedPiece.id] && (
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-xl bg-zinc-900/50 border border-zinc-800">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold mb-2">{t('registry.ownership_timeline')}</p>
-                                  <ul className="space-y-1.5 text-zinc-400">
-                                    {(registryData[selectedPiece.id].ownership_history_timeline || registryData[selectedPiece.id].ownership_history || []).slice(0, 5).map((o: any, i: number) => (
-                                      <li key={i}>{o.owner_name || '—'} · {o.acquired_at ? new Date(o.acquired_at).toLocaleDateString() : ''}</li>
-                                    ))}
-                                    {(!registryData[selectedPiece.id].ownership_history_timeline?.length && !registryData[selectedPiece.id].ownership_history?.length) && <li className="italic text-zinc-500">{t('registry.atelier_held')}</li>}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold mb-2">{t('registry.service_log')}</p>
-                                  <ul className="space-y-1.5 text-zinc-400">
-                                    {(registryData[selectedPiece.id].service_history_log || registryData[selectedPiece.id].service_history || []).slice(0, 3).map((s: any, i: number) => (
-                                      <li key={i}>{s.service_type} · {s.service_date ? new Date(s.service_date).toLocaleDateString() : ''}</li>
-                                    ))}
-                                    {(!registryData[selectedPiece.id].service_history_log?.length && !registryData[selectedPiece.id].service_history?.length) && <li className="italic text-zinc-500">—</li>}
-                                  </ul>
-                                </div>
-                                <div className="md:col-span-2 flex flex-wrap gap-4">
-                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.rarity')}: {registryData[selectedPiece.id].rarity_level} ({registryData[selectedPiece.id].rarity_score ?? '—'})</span>
-                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.demand_index')}: {registryData[selectedPiece.id].demand_index ?? registryData[selectedPiece.id].demand_score ?? '—'}</span>
-                                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-500/90 text-xs">{t('registry.prestige_index')}: {registryData[selectedPiece.id].prestige_index ?? registryData[selectedPiece.id].prestige_score ?? '—'}</span>
-                                  <span className="px-2 py-1 rounded bg-zinc-700/50 text-zinc-400 text-xs">{registryData[selectedPiece.id].ownership_history_badge}</span>
-                                </div>
+                        {pieceModalTab === 'provenance' && (
+                          <div className="space-y-6">
+                            <div className="space-y-2">
+                              <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] font-normal">{t('common.serial_id')}</p>
+                              <p className="font-mono text-sm text-[#CCCCCC]">{selectedPiece.serial_id}</p>
+                            </div>
+                            {selectedPiece.created_at && (
+                              <div className="space-y-2">
+                                <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] font-normal">{t('piece.atelier_record')}</p>
+                                <p className="text-sm text-[#CCCCCC]">{new Date(selectedPiece.created_at).toLocaleDateString(language === 'de' ? 'de-DE' : language === 'it' ? 'it-IT' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                               </div>
                             )}
-                            {(performanceData[selectedPiece.id] || registryData[selectedPiece.id]?.asset_performance) && (() => {
-                              const perf = performanceData[selectedPiece.id] || registryData[selectedPiece.id].asset_performance;
-                              return (
-                              <div className="p-4 rounded-xl bg-zinc-900/50 border border-zinc-800 space-y-3">
-                                <p className="text-[10px] uppercase tracking-widest text-amber-500/80 font-bold">{t('registry.asset_performance')}</p>
-                                <div className="flex flex-wrap gap-3 text-zinc-400">
-                                  <span>{t('registry.demand_score')}: {perf.indicative_demand_score ?? perf.demand_index ?? '—'}</span>
-                                  <span>{t('registry.resale_activity')}: {perf.resale_activity_level ?? '—'}</span>
-                                  <span>{t('registry.liquidity')}: {perf.liquidity_indicator ?? '—'}</span>
-                                  <span>{t('registry.views')}: {perf.views ?? perf.market_interest?.views ?? 0}</span>
-                                  <span>{t('registry.saves')}: {perf.saves ?? perf.market_interest?.saves ?? 0}</span>
-                                </div>
-                                <p className="text-[10px] text-zinc-500 italic">{perf.disclaimer ?? 'Informational only. Not financial advice.'}</p>
+                            {selectedPiece.blockchain_hash && (
+                              <div className="space-y-2 p-4 rounded-2xl bg-[#111] border border-[var(--border-soft)]">
+                                <p className="text-[11px] uppercase tracking-[0.2em] text-[#C6A15B]/90 font-normal flex items-center gap-2">
+                                  <ShieldCheck className="w-4 h-4 shrink-0" /> {t('piece.blockchain_verified')}
+                                </p>
+                                <p className="font-mono text-xs text-[#AAAAAA] break-all leading-relaxed">{selectedPiece.blockchain_hash}</p>
                               </div>
-                              );
-                            })()}
+                            )}
+
+                            {user?.role === UserRole.INVESTOR && (
+                              <div className="border-t border-[var(--border-soft)] pt-6">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setShowRegistryInModal(!showRegistryInModal);
+                                    if (!showRegistryInModal && selectedPiece?.id) {
+                                      if (!registryData[selectedPiece.id]) {
+                                        fetch(`/api/registry/masterpiece/${selectedPiece.id}`).then(r => r.ok ? r.json() : null).then(d => d && setRegistryData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
+                                      }
+                                      if (!performanceData[selectedPiece.id]) {
+                                        fetch(`/api/masterpieces/${selectedPiece.id}/performance`).then(r => r.ok ? r.json() : null).then(d => d && setPerformanceData(prev => ({ ...prev, [selectedPiece!.id]: d }))).catch(() => {});
+                                      }
+                                    }
+                                  }}
+                                  className="flex items-center justify-between w-full text-left text-sm font-medium text-[#CCCCCC] hover:text-[#C6A15B] transition-colors duration-300"
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <BookOpen className="w-4 h-4 text-[#C6A15B]/80" />
+                                    {t('registry.performance_title')}
+                                  </span>
+                                  <span className="text-[#888888]">{showRegistryInModal ? '−' : '+'}</span>
+                                </button>
+                                {showRegistryInModal && selectedPiece && (
+                                  <div className="mt-4 space-y-6 text-sm">
+                                    {registryData[selectedPiece.id] && (
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-2xl bg-[#111] border border-[var(--border-soft)]">
+                                        <div>
+                                          <p className="text-[11px] uppercase tracking-[0.2em] text-[#C6A15B]/90 font-normal mb-2">{t('registry.ownership_timeline')}</p>
+                                          <ul className="space-y-1.5 text-[#AAAAAA]">
+                                            {(registryData[selectedPiece.id].ownership_history_timeline || registryData[selectedPiece.id].ownership_history || []).slice(0, 5).map((o: any, i: number) => (
+                                              <li key={i}>{o.owner_name || '—'} · {o.acquired_at ? new Date(o.acquired_at).toLocaleDateString() : ''}</li>
+                                            ))}
+                                            {(!registryData[selectedPiece.id].ownership_history_timeline?.length && !registryData[selectedPiece.id].ownership_history?.length) && <li className="italic text-[#888888]">{t('registry.atelier_held')}</li>}
+                                          </ul>
+                                        </div>
+                                        <div>
+                                          <p className="text-[11px] uppercase tracking-[0.2em] text-[#C6A15B]/90 font-normal mb-2">{t('registry.service_log')}</p>
+                                          <ul className="space-y-1.5 text-[#AAAAAA]">
+                                            {(registryData[selectedPiece.id].service_history_log || registryData[selectedPiece.id].service_history || []).slice(0, 3).map((s: any, i: number) => (
+                                              <li key={i}>{s.service_type} · {s.service_date ? new Date(s.service_date).toLocaleDateString() : ''}</li>
+                                            ))}
+                                            {(!registryData[selectedPiece.id].service_history_log?.length && !registryData[selectedPiece.id].service_history?.length) && <li className="italic text-[#888888]">—</li>}
+                                          </ul>
+                                        </div>
+                                        <div className="md:col-span-2 flex flex-wrap gap-3">
+                                          <span className="px-2.5 py-1 rounded-full bg-[rgba(198,161,91,0.1)] text-[#C6A15B] text-xs">{t('registry.rarity')}: {registryData[selectedPiece.id].rarity_level} ({registryData[selectedPiece.id].rarity_score ?? '—'})</span>
+                                          <span className="px-2.5 py-1 rounded-full bg-[rgba(198,161,91,0.1)] text-[#C6A15B] text-xs">{t('registry.demand_index')}: {registryData[selectedPiece.id].demand_index ?? registryData[selectedPiece.id].demand_score ?? '—'}</span>
+                                          <span className="px-2.5 py-1 rounded-full bg-[rgba(198,161,91,0.1)] text-[#C6A15B] text-xs">{t('registry.prestige_index')}: {registryData[selectedPiece.id].prestige_index ?? registryData[selectedPiece.id].prestige_score ?? '—'}</span>
+                                          <span className="px-2.5 py-1 rounded-full bg-[#1a1a1a] text-[#888888] text-xs border border-[var(--border-soft)]">{registryData[selectedPiece.id].ownership_history_badge}</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {(performanceData[selectedPiece.id] || registryData[selectedPiece.id]?.asset_performance) && (() => {
+                                      const perf = performanceData[selectedPiece.id] || registryData[selectedPiece.id].asset_performance;
+                                      return (
+                                      <div className="p-4 rounded-2xl bg-[#111] border border-[var(--border-soft)] space-y-3">
+                                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#C6A15B]/90 font-normal">{t('registry.asset_performance')}</p>
+                                        <div className="flex flex-wrap gap-3 text-[#AAAAAA]">
+                                          <span>{t('registry.demand_score')}: {perf.indicative_demand_score ?? perf.demand_index ?? '—'}</span>
+                                          <span>{t('registry.resale_activity')}: {perf.resale_activity_level ?? '—'}</span>
+                                          <span>{t('registry.liquidity')}: {perf.liquidity_indicator ?? '—'}</span>
+                                          <span>{t('registry.views')}: {perf.views ?? perf.market_interest?.views ?? 0}</span>
+                                          <span>{t('registry.saves')}: {perf.saves ?? perf.market_interest?.saves ?? 0}</span>
+                                        </div>
+                                        <p className="text-xs text-[#888888] italic">{perf.disclaimer ?? 'Informational only. Not financial advice.'}</p>
+                                      </div>
+                                      );
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {pieceModalTab === 'care' && (
+                          <div className="space-y-6">
+                            <p className="text-[#CCCCCC] text-[15px] sm:text-base leading-relaxed">{t('piece.care_intro')}</p>
+                            {user && !isGuestSessionUser(user) && isLuxuryCollectorNav && (
+                              <Button variant="secondary" className="w-full sm:w-auto" onClick={() => {
+                                setServiceRequestForm((f: any) => ({ ...f, masterpieceId: selectedPiece.id }));
+                                setView('bellanova_care');
+                                closePieceDetail();
+                              }}>
+                                <Sparkles className="w-4 h-4" /> {t('view.bellanova_care')}
+                              </Button>
+                            )}
+                            {(!user || isGuestSessionUser(user)) && (
+                              <p className="text-sm text-[#888888]">{t('guest.account_required_body')}</p>
+                            )}
                           </div>
                         )}
                       </div>
-                      )}
                     </div>
 
                     <div className="pt-8 border-t border-zinc-900 space-y-4">
@@ -15303,7 +15368,7 @@ ${plain}`;
               exit={{ opacity: 0 }}
               type="button"
               onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="fixed bottom-8 right-8 z-40 w-12 h-12 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-amber-500 hover:bg-zinc-700 transition-colors shadow-lg"
+              className="fixed bottom-8 right-8 z-40 w-12 h-12 rounded-full bg-[#111] border border-[var(--border-soft)] flex items-center justify-center text-[#C6A15B] hover:border-[#C6A15B]/30 transition-all duration-300 ease-out"
               aria-label="Nach oben"
             >
               <ChevronRight className="w-5 h-5 rotate-270" />
@@ -15360,9 +15425,9 @@ ${plain}`;
 // --- Helper Components ---
 
 const NavItem = ({ active, icon: Icon, label, onClick }: any) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all group min-h-[44px] ${active ? 'bg-amber-600/10 text-amber-500' : 'text-zinc-500 hover:text-zinc-200 hover:bg-white/5'}`}>
-    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-amber-500' : 'group-hover:text-amber-500'} transition-colors`} />
-    <span className="block text-sm font-medium">{label}</span>
+  <button onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ease-out group min-h-[44px] ${active ? 'bg-[rgba(198,161,91,0.08)] text-[#D4AF37]' : 'text-[#AAAAAA] hover:text-[#F5F5F5] hover:bg-white/[0.03]'}`}>
+    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#C6A15B]' : 'text-[#888888] group-hover:text-[#C6A15B]'} transition-colors duration-300`} />
+    <span className={`block text-sm font-medium tracking-wide ${active ? '' : 'underline-offset-[6px] decoration-[#C6A15B]/0 group-hover:underline group-hover:decoration-[#C6A15B]/50'}`}>{label}</span>
   </button>
 );
 
@@ -15436,7 +15501,7 @@ function pieceRequiresConsultationFirst(p: Masterpiece): boolean {
 }
 
 const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
-  <button onClick={onClick} className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${active ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/20' : 'bg-zinc-900 text-zinc-500 hover:text-zinc-200 border border-zinc-800'}`}>
+  <button onClick={onClick} className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap border ${active ? 'bg-[rgba(198,161,91,0.12)] text-[#F5F5F5] border-[#C6A15B]/35' : 'bg-transparent text-[#AAAAAA] border-[var(--border-soft)] hover:text-[#F5F5F5] hover:border-[#C6A15B]/25'}`}>
     <Icon className="w-4 h-4" />
     {label}
   </button>
@@ -15458,9 +15523,9 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
     }
   })();
   return (
-  <Card className="group hover:border-amber-600/30 transition-all duration-300" hoverGlow>
-    <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(piece)}>
-      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-out" />
+  <Card className="group product-card transition-all duration-300 ease-out" hoverGlow={false}>
+    <div className="aspect-square rounded-2xl bg-zinc-900/80 mb-4 overflow-hidden relative cursor-pointer border border-[var(--border-soft)]" onClick={() => onViewDetails?.(piece)}>
+      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out" />
       {onToggleFavorite && (
         <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
           <Heart className={`w-5 h-5 transition-colors ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
@@ -15481,10 +15546,10 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
     </div>
     <div className="space-y-2">
       <div className="flex justify-between items-start">
-        <h4 className="font-medium text-zinc-200 cursor-pointer hover:text-amber-500 transition-colors" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
-        <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-zinc-500 italic text-sm' : 'text-amber-500/90 font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
+        <h4 className="font-medium text-[#F5F5F5] cursor-pointer hover:text-[#C6A15B] transition-colors duration-300 text-base tracking-wide" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
+        <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-[#AAAAAA] italic text-sm' : 'text-[#C6A15B] font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
       </div>
-      <p className="text-xs text-zinc-500 line-clamp-2">{desc}</p>
+      <p className="text-sm text-[#AAAAAA] line-clamp-2 leading-relaxed max-w-prose">{desc}</p>
       {detailsHint && (
         <p className="text-[11px] text-zinc-500 mt-1">{detailsHint}</p>
       )}

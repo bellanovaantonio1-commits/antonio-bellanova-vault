@@ -1,22 +1,33 @@
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,500;1,400&display=swap');
 @import "tailwindcss";
+
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --gold-primary: #c6a15b;
+  --gold-soft: #d4af37;
+  --text-primary: #f5f5f5;
+  --text-secondary: #aaaaaa;
+  --border-soft: rgba(255, 255, 255, 0.08);
+}
 
 /* Vor React-Paint / fehlendem Layout: kein „weißer Screen“ (z. B. /?view=register) */
 html,
 body,
 #root {
   min-height: 100%;
-  background-color: var(--color-luxury-bg, #050505);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
 }
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --font-serif: "Playfair Display", "Cormorant Garamond", Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --color-luxury-gold: #c5a059;
+  --color-luxury-gold: #c6a15b;
   --color-luxury-gold-muted: #a68b4b;
-  --color-luxury-bg: #050505;
-  --color-luxury-surface: #0a0a0a;
+  --color-luxury-bg: #0a0a0a;
+  --color-luxury-surface: #111111;
 }
 
 /* Premium scrollbar */
@@ -66,7 +77,74 @@ body,
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up {
-  animation: fade-in-up 0.5s ease-out forwards;
+  animation: fade-in-up 0.45s ease forwards;
+}
+
+/* Centered shell: ruhiges Atelier-Layout */
+.luxury-container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 40px 24px;
+}
+
+/* Display headlines — High Jewelry */
+.luxury-display {
+  font-family: "Playfair Display", "Cormorant Garamond", Georgia, serif;
+  font-weight: 400;
+  letter-spacing: 0.125rem;
+}
+
+/* Lesefluss: enge Zeilen nicht über die ganze Viewport-Breite */
+.prose-luxury {
+  max-width: 42rem;
+}
+@media (min-width: 768px) {
+  .prose-luxury {
+    max-width: 48rem;
+  }
+}
+
+/* Produktkarten — kein Marketplace-Glow */
+.product-card {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-soft) !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+  box-shadow: none !important;
+}
+.product-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--gold-primary) !important;
+}
+
+.btn-luxury-primary {
+  background: linear-gradient(135deg, #c6a15b, #d4af37);
+  color: #000;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-weight: 500;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+  border: none;
+  box-shadow: none;
+}
+.btn-luxury-primary:hover:not(:disabled) {
+  transform: scale(1.03);
+  opacity: 0.92;
+}
+
+.btn-luxury-secondary {
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-weight: 500;
+  transition: border-color 0.35s ease, color 0.35s ease, background 0.35s ease;
+}
+.btn-luxury-secondary:hover:not(:disabled) {
+  border-color: rgba(198, 161, 91, 0.35);
 }
 
 /* Glassmorphism */
@@ -76,9 +154,10 @@ body,
   -webkit-backdrop-filter: blur(20px);
 }
 
-/* Premium card hover glow */
+/* Dezente Kartenbetonung — kein schwerer Schatten */
 .card-hover-glow:hover {
-  box-shadow: 0 0 0 1px rgba(197, 160, 89, 0.15), 0 20px 40px -12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 1px rgba(198, 161, 91, 0.12);
+  border-color: rgba(198, 161, 91, 0.2);
 }
 
 /* Premium loading overlay */
@@ -96,8 +175,8 @@ body,
 
 /* Premium footer */
 .premium-footer {
-  background: rgba(10, 10, 10, 0.8);
-  border-top: 1px solid rgba(39, 39, 42, 0.8);
+  background: rgba(17, 17, 17, 0.92);
+  border-top: 1px solid var(--border-soft);
 }
 
 /* Serif headings premium */
@@ -109,9 +188,9 @@ body,
 /* Luxury gemstone / atelier background — darkened for readability */
 .luxury-bg {
   position: relative;
-  background-color: #050505;
+  background-color: var(--bg-primary);
   background-image:
-    linear-gradient(180deg, rgba(5, 5, 5, 0.92) 0%, rgba(5, 5, 5, 0.88) 50%, rgba(5, 5, 5, 0.94) 100%),
+    linear-gradient(180deg, rgba(10, 10, 10, 0.92) 0%, rgba(10, 10, 10, 0.88) 50%, rgba(10, 10, 10, 0.94) 100%),
     url("https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=1920&q=80");
   background-size: cover;
   background-position: center;
@@ -121,7 +200,7 @@ body,
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(197, 160, 89, 0.04) 0%, transparent 50%);
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(198, 161, 91, 0.03) 0%, transparent 50%);
   pointer-events: none;
 }
 /* Subtle diamond texture overlay */
