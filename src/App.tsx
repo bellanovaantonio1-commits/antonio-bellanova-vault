@@ -50,7 +50,8 @@ import {
   Sparkles,
   Settings,
   Crown,
-  ChevronDown
+  ChevronDown,
+  Info
 } from 'lucide-react';
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
@@ -226,7 +227,28 @@ const TRANSLATIONS: any = {
     "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
     "admin.made_to_order_piece": "Maßanfertigung (Beratung zuerst; kein Direktkauf im Marktplatz)",
     consultation_piece_chat_cta: "Private Beratung starten",
-    "piece.consultation_mto_hint": "Dieses Schmuckstück wird individuell für Sie angefertigt.",
+    "piece.consultation_mto_hint": "Dieses Schmuckstück wird individuell für Sie gefertigt.\nBeginnen Sie Ihre persönliche Beratung für Design, Material und Ausführung.",
+    "cta.lite_inquiry": "Unverbindliche Anfrage senden",
+    "cta.lite_inquiry_tooltip": "Stellen Sie eine erste Anfrage ohne direkte Beratung.",
+    "cta.inquiry_prefill_intro": "Unverbindliche Anfrage zu",
+    "consultation.brief_title": "Ihr erster Schritt",
+    "consultation.brief_intro": "Womit möchten Sie starten?",
+    "consultation.brief_wish": "Wunsch",
+    "consultation.brief_inspiration": "Inspiration",
+    "consultation.brief_reference": "Referenz",
+    "consultation.brief_notes_ph": "Kurze Beschreibung (optional)…",
+    "consultation.brief_upload": "Bild hinzufügen (optional)",
+    "consultation.brief_continue": "Zur Beratung",
+    "consultation.brief_pick": "Bitte wählen Sie eine Option.",
+    "consultation.active_banner": "Beratung aktiv",
+    "care.services_heading": "Leistungen",
+    "care.svc_maintenance": "Wartung",
+    "care.svc_cleaning": "Reinigung",
+    "care.svc_inspection": "Inspektion",
+    "care.svc_refinishing": "Aufbereitung",
+    "care.svc_certificate": "Zertifikatsprüfung",
+    "care.history_hint": "Ihre Service-Historie pro Schmuckstück erscheint hier, sobald Einträge im Atelier vorliegen.",
+    "care.vault_only_hint": "Wartung, Service und Zertifikatsfragen bündeln wir im Tresor unter Bellanova Care — getrennt von der Erwerbsberatung.",
     consultation_send_file_heading: "Datei an Kundin senden (PDF)",
     consultation_file_label_ph: "Bezeichnung (z. B. Anlage)",
     consultation_file_url_ph: "Datei-URL (https://… oder /pfad)",
@@ -1384,8 +1406,29 @@ const TRANSLATIONS: any = {
       "After the client accepts an offer, title, text and price come from your proposal (not the marketplace listing). Add the PDF URL and send.",
     "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
     "admin.made_to_order_piece": "Made-to-order (consultation first; no direct marketplace purchase)",
-    consultation_piece_chat_cta: "Start Consultation",
-    "piece.consultation_mto_hint": "This jewel is crafted individually for you.",
+    consultation_piece_chat_cta: "Start private consultation",
+    "piece.consultation_mto_hint": "This jewel is crafted individually for you.\nBegin your personal consultation on design, materials and execution.",
+    "cta.lite_inquiry": "Send a non-binding enquiry",
+    "cta.lite_inquiry_tooltip": "A first enquiry without entering a live consultation.",
+    "cta.inquiry_prefill_intro": "Non-binding enquiry regarding",
+    "consultation.brief_title": "Your first step",
+    "consultation.brief_intro": "How would you like to begin?",
+    "consultation.brief_wish": "A specific wish",
+    "consultation.brief_inspiration": "Inspiration",
+    "consultation.brief_reference": "A reference",
+    "consultation.brief_notes_ph": "Short note (optional)…",
+    "consultation.brief_upload": "Add an image (optional)",
+    "consultation.brief_continue": "Continue to consultation",
+    "consultation.brief_pick": "Please choose an option.",
+    "consultation.active_banner": "Consultation active",
+    "care.services_heading": "Services",
+    "care.svc_maintenance": "Maintenance",
+    "care.svc_cleaning": "Cleaning",
+    "care.svc_inspection": "Inspection",
+    "care.svc_refinishing": "Refinishing",
+    "care.svc_certificate": "Certificate review",
+    "care.history_hint": "Service history per piece will appear here once the Atelier has recorded visits.",
+    "care.vault_only_hint": "Maintenance, servicing and certificates are handled in your Vault under Bellanova Care — separate from acquisition consultation.",
     consultation_send_file_heading: "Send file to client (PDF)",
     consultation_file_label_ph: "Label (e.g. attachment)",
     consultation_file_url_ph: "File URL (https://… or /path)",
@@ -2471,7 +2514,28 @@ const TRANSLATIONS: any = {
     "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
     "admin.made_to_order_piece": "Su misura (prima consulenza; nessun acquisto diretto)",
     consultation_piece_chat_cta: "Avvia consulenza privata",
-    "piece.consultation_mto_hint": "Questo gioiello è realizzato individualmente per Lei.",
+    "piece.consultation_mto_hint": "Questo gioiello è realizzato su misura per Lei.\nInizi la consulenza personale su design, materiali e realizzazione.",
+    "cta.lite_inquiry": "Invia richiesta senza impegno",
+    "cta.lite_inquiry_tooltip": "Un primo contatto senza entrare subito in consulenza.",
+    "cta.inquiry_prefill_intro": "Richiesta senza impegno su",
+    "consultation.brief_title": "Il primo passo",
+    "consultation.brief_intro": "Come desidera iniziare?",
+    "consultation.brief_wish": "Desiderio",
+    "consultation.brief_inspiration": "Ispirazione",
+    "consultation.brief_reference": "Riferimento",
+    "consultation.brief_notes_ph": "Breve descrizione (facoltativo)…",
+    "consultation.brief_upload": "Aggiungi immagine (facoltativo)",
+    "consultation.brief_continue": "Vai alla consulenza",
+    "consultation.brief_pick": "Selezioni un’opzione.",
+    "consultation.active_banner": "Consulenza attiva",
+    "care.services_heading": "Servizi",
+    "care.svc_maintenance": "Manutenzione",
+    "care.svc_cleaning": "Pulizia",
+    "care.svc_inspection": "Ispezione",
+    "care.svc_refinishing": "Rifinitura",
+    "care.svc_certificate": "Verifica certificato",
+    "care.history_hint": "La cronologia assistenza per pezzo apparirà qui non appena l’atelier avrà registrato gli interventi.",
+    "care.vault_only_hint": "Manutenzione, service e certificati sono nel Tesoro sotto Bellanova Care — separati dalla consulenza d’acquisto.",
     consultation_send_file_heading: "Invia file alla cliente (PDF)",
     consultation_file_label_ph: "Etichetta (es. allegato)",
     consultation_file_url_ph: "URL file (https://… o /percorso)",
@@ -3850,7 +3914,7 @@ export default function App() {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('token') || '';
   });
-  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'vault_requests' | 'consultation' | 'settings' | 'transactions' | 'legacy_vip'>('pieces');
+  const [vaultTab, setVaultTab] = useState<'pieces' | 'documents' | 'certs' | 'contracts' | 'payments' | 'wallet' | 'invoices' | 'auctions' | 'resale' | 'service' | 'vip' | 'investor_insights' | 'dataroom' | 'legacy' | 'vault_requests' | 'consultation' | 'settings' | 'transactions' | 'legacy_vip' | 'care'>('pieces');
   const [documentsSubTab, setDocumentsSubTab] = useState<'library' | 'contracts' | 'certs' | 'invoices'>('library');
   const [headerSettingsMenuOpen, setHeaderSettingsMenuOpen] = useState(false);
   const [showVaultPrivacyModal, setShowVaultPrivacyModal] = useState(false);
@@ -3965,6 +4029,12 @@ export default function App() {
   const [consultationWsTick, setConsultationWsTick] = useState(0);
   const consultationPanelRef = useRef<typeof consultationPanel>(null);
   consultationPanelRef.current = consultationPanel;
+  const [consultationBriefPiece, setConsultationBriefPiece] = useState<Masterpiece | null>(null);
+  const [consultationBriefIntention, setConsultationBriefIntention] = useState<'wish' | 'inspiration' | 'reference' | ''>('');
+  const [consultationBriefNotes, setConsultationBriefNotes] = useState('');
+  const consultationBriefImgRef = useRef<File | null>(null);
+  const [consultationBriefImgName, setConsultationBriefImgName] = useState('');
+  const consultationBriefFileInputRef = useRef<HTMLInputElement>(null);
   const userRefForWs = useRef(user);
   userRefForWs.current = user;
   const [adminGdprRequests, setAdminGdprRequests] = useState<any[]>([]);
@@ -4061,6 +4131,7 @@ export default function App() {
   const inquiryImageRef = useRef<File | null>(null);
   const inquiryFileInputRef = useRef<HTMLInputElement>(null);
   const [inquiryImagePreview, setInquiryImagePreview] = useState<string | null>(null);
+  const [kontaktPrefillSnippet, setKontaktPrefillSnippet] = useState<string | null>(null);
 
   useEffect(() => {
     if (view !== 'kontakt') return undefined;
@@ -4078,6 +4149,7 @@ export default function App() {
     if (view !== 'kontakt' || !user?.name || !user?.email) return;
     setContactForm((prev) => ({ ...prev, name: user.name, email: user.email }));
   }, [view, user?.id, user?.name, user?.email]);
+
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
   const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'reservations' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
@@ -4815,8 +4887,7 @@ export default function App() {
     } else if (['payments', 'wallet', 'invoices', 'auctions'].includes(vaultTab)) {
       setVaultTab('transactions');
     } else if (vaultTab === 'service') {
-      setView('bellanova_care');
-      setVaultTab('pieces');
+      setVaultTab('care');
     } else if (['vip', 'legacy', 'vault_requests', 'consultation'].includes(vaultTab)) {
       setVaultTab('legacy_vip');
       if (vaultTab === 'vault_requests') {
@@ -4827,6 +4898,30 @@ export default function App() {
       setShowVaultPrivacyModal(true);
     }
   }, [user, view, vaultTab]);
+
+  useEffect(() => {
+    if (view !== 'kontakt' || !kontaktPrefillSnippet) return;
+    setContactForm((prev) => ({
+      ...prev,
+      vision: prev.vision?.trim() ? `${kontaktPrefillSnippet}\n\n${prev.vision}` : kontaktPrefillSnippet
+    }));
+    setKontaktPrefillSnippet(null);
+  }, [view, kontaktPrefillSnippet]);
+
+  useEffect(() => {
+    if (view !== 'bellanova_care' || !user) return;
+    const guest = user.role === UserRole.GUEST || (user as any).is_guest;
+    const luxury =
+      !guest &&
+      user.role !== 'admin' &&
+      (user as any).role !== 'super_admin' &&
+      user.role !== UserRole.INVESTOR &&
+      (user as any).role !== 'investor' &&
+      user.role !== UserRole.STRATEGIC_PRIVATE_ADVISOR;
+    if (!luxury) return;
+    setView('vault');
+    setVaultTab('care');
+  }, [view, user]);
 
   useEffect(() => {
     if (!showVaultPrivacyModal || !user?.id) return;
@@ -6153,7 +6248,7 @@ export default function App() {
     }
   };
 
-  const openConsultationForPiece = async (piece: Masterpiece) => {
+  const openConsultationForPiece = async (piece: Masterpiece, opts?: { initialClientMessage?: string }) => {
     if (!user || isGuestSessionUser(user)) {
       setShowAccountRequiredModal(true);
       return;
@@ -6174,13 +6269,63 @@ export default function App() {
         } else notifyUser((data as { error?: string }).error || t('errors.generic'), 'error');
         return;
       }
-      setConsultationPanel({ id: Number((data as { id?: number }).id), title: piece.title, mode: 'client' });
+      const convId = Number((data as { id?: number }).id);
+      if (opts?.initialClientMessage?.trim()) {
+        const msgRes = await fetch(`/api/consultation/conversations/${convId}/messages`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: opts.initialClientMessage.trim().slice(0, 20000) }),
+        });
+        if (!msgRes.ok) {
+          const err = await msgRes.json().catch(() => ({}));
+          notifyUser((err as { error?: string }).error || t('errors.generic'), 'error');
+        }
+      }
+      setConsultationPanel({ id: convId, title: piece.title, mode: 'client' });
+      setView('concierge');
     } catch {
       notifyUser(t('errors.network') || t('errors.generic'), 'error');
     } finally {
       setLoading(false);
     }
   };
+
+  const resetConsultationBriefForm = () => {
+    setConsultationBriefIntention('');
+    setConsultationBriefNotes('');
+    consultationBriefImgRef.current = null;
+    setConsultationBriefImgName('');
+    if (consultationBriefFileInputRef.current) consultationBriefFileInputRef.current.value = '';
+  };
+
+  const openConsultationBriefModal = (piece: Masterpiece) => {
+    if (!user || isGuestSessionUser(user)) {
+      setShowAccountRequiredModal(true);
+      return;
+    }
+    resetConsultationBriefForm();
+    setConsultationBriefPiece(piece);
+  };
+
+  const submitConsultationBrief = async () => {
+    if (!consultationBriefPiece || !user || isGuestSessionUser(user)) return;
+    if (!consultationBriefIntention) {
+      notifyUser(t('consultation.brief_pick'), 'error');
+      return;
+    }
+    const intentionKey = consultationBriefIntention === 'wish' ? 'consultation.brief_wish' : consultationBriefIntention === 'inspiration' ? 'consultation.brief_inspiration' : 'consultation.brief_reference';
+    const parts = [`${t('consultation.brief_intro')} — ${t(intentionKey)}`];
+    if (consultationBriefNotes.trim()) parts.push(consultationBriefNotes.trim());
+    if (consultationBriefImgName) parts.push(`${t('consultation.brief_upload')}: ${consultationBriefImgName}`);
+    const initialClientMessage = [`${consultationBriefPiece.title} · ${consultationBriefPiece.serial_id || ''}`, ...parts].join('\n\n');
+    await openConsultationForPiece(consultationBriefPiece, { initialClientMessage });
+    setConsultationBriefPiece(null);
+    resetConsultationBriefForm();
+  };
+
+  const liteInquiryPrefillForPiece = (piece: Masterpiece) =>
+    `${t('cta.inquiry_prefill_intro')} ${piece.title}${piece.serial_id ? ` (${piece.serial_id})` : ''}`;
 
   const handleApprovePurchase = async (pieceId: number, approve: boolean, adminId: number) => {
     setLoading(true);
@@ -7326,7 +7471,7 @@ export default function App() {
                   )}
                   <div className="pt-6 sm:pt-8 space-y-6">
                     <Button type="submit" variant="primary" className="w-full sm:w-auto min-w-[240px] !py-4" disabled={contactFormSubmitting}>
-                      {contactFormSubmitting ? t('contact.sending') : t('private_request.cta')}
+                      {contactFormSubmitting ? t('contact.sending') : t('cta.lite_inquiry')}
                     </Button>
                     <p className="text-sm text-[#888888] leading-relaxed max-w-prose whitespace-pre-line">{t('inquiry.footer_note')}</p>
                   </div>
@@ -7528,6 +7673,11 @@ export default function App() {
     user.role === UserRole.INVESTOR ||
     (user as any).role === 'investor';
   const handleNavViewChange = (viewKey: string) => {
+    if (viewKey === 'bellanova_care') {
+      setView('vault');
+      setVaultTab('care');
+      return;
+    }
     if (isGuest && viewKey === 'concierge') {
       notifyUser(t('guest.concierge_register_required') || 'Please register to use the concierge service.', 'error');
       leaveGuestSessionForAuth('register');
@@ -7550,7 +7700,6 @@ export default function App() {
   ] : isLuxuryCollectorNav ? [
     navItem('marketplace', ShoppingBag, t('nav.collection') || t('marketplace')),
     navItem('vault', ShieldCheck, t('nav.my_vault') || t('vault')),
-    navItem('bellanova_care', Sparkles, 'Bellanova Care'),
     navItem('legacy_hub', Crown, t('nav.legacy_portfolio') || 'Legacy & Portfolio'),
   ] : [
     navItem('dashboard', TrendingUp, t('dashboard')),
@@ -7635,7 +7784,14 @@ export default function App() {
             <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/5 transition-colors shrink-0" aria-label={t('view.dashboard')}>
               <Menu className="w-6 h-6 text-zinc-400" />
             </button>
-            <h2 className="text-xl font-serif italic text-white capitalize shrink-0">{(t as (k: string) => string)(`view.${view}`) || view}</h2>
+            <h2 className="text-xl font-serif italic text-white capitalize shrink-0 flex flex-wrap items-center gap-2">
+              {(t as (k: string) => string)(`view.${view}`) || view}
+              {consultationPanel?.mode === 'client' && (
+                <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border border-[#C6A15B]/35 text-[#C6A15B]/90 whitespace-nowrap font-sans not-italic">
+                  {t('consultation.active_banner')}
+                </span>
+              )}
+            </h2>
             {user && (
               <div className="relative max-w-xs w-full hidden sm:block">
                 <input
@@ -8145,7 +8301,7 @@ export default function App() {
                 {(user.role === 'vip' || user.role === UserRole.VIP || (user as any).is_vip) && (
                   <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/30"><Diamond className="w-2.5 h-2.5" /> VIP</span>
                 )}
-                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'transactions' ? (t('vault.tab_transactions') || 'Transaktionen') : vaultTab === 'legacy_vip' ? (t('vault.tab_legacy_vip') || 'Erbe & Maison') : isLuxuryCollectorNav && vaultTab === 'documents' ? `${t('vault.documents') || 'Dokumente'} · ${documentsSubTab === 'library' ? t('vault.docs_section_library') : documentsSubTab === 'contracts' ? t('vault.docs_section_contracts') : documentsSubTab === 'certs' ? t('vault.docs_section_certs') : t('vault.docs_section_invoices')}` : vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'consultation' ? (t('vault.consultation_tab') || 'Concierge') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
+                {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'transactions' ? (t('vault.tab_transactions') || 'Transaktionen') : vaultTab === 'legacy_vip' ? (t('vault.tab_legacy_vip') || 'Erbe & Maison') : isLuxuryCollectorNav && vaultTab === 'documents' ? `${t('vault.documents') || 'Dokumente'} · ${documentsSubTab === 'library' ? t('vault.docs_section_library') : documentsSubTab === 'contracts' ? t('vault.docs_section_contracts') : documentsSubTab === 'certs' ? t('vault.docs_section_certs') : t('vault.docs_section_invoices')}` : vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'care' ? t('view.bellanova_care') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'consultation' ? (t('vault.consultation_tab') || 'Concierge') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
               </>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
@@ -8442,7 +8598,7 @@ export default function App() {
                         </div>
                       </div>
                       <Button variant="primary" className="shrink-0 text-xs font-bold uppercase tracking-widest" onClick={() => setView('concierge')}>
-                        <MessageCircle className="w-4 h-4" /> {isLuxuryCollectorNav ? (t('private_request.cta') || 'Private Anfrage') : t('chat.concierge')}
+                        <MessageCircle className="w-4 h-4" /> {isLuxuryCollectorNav ? t('consultation_piece_chat_cta') : t('chat.concierge')}
                       </Button>
                     </div>
                   </Card>
@@ -8571,7 +8727,8 @@ export default function App() {
                         } : undefined}
                         onBuy={!consultFirst ? (user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
                         onReserve={(user.role === UserRole.ADMIN || (user as any).role === 'super_admin' || (user as any).role === 'admin') ? () => handleReserve(piece.id) : undefined}
-                        onConsultation={consultFirst ? openConsultationForPiece : undefined}
+                        onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                        onLiteInquiry={consultFirst ? (p) => { setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p)); setView('kontakt'); } : undefined}
                         onViewDetails={(p) => {
                           setSelectedPiece(p);
                           if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 2);
@@ -8611,7 +8768,8 @@ export default function App() {
                         } : undefined}
                         onBuy={user && !consultFirst ? () => handleBuy(piece.id) : undefined}
                         onReserve={(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') ? () => handleReserve(piece.id) : undefined}
-                        onConsultation={consultFirst ? openConsultationForPiece : undefined}
+                        onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                        onLiteInquiry={consultFirst ? (p) => { setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p)); setView('kontakt'); } : undefined}
                         onViewDetails={(p) => setSelectedPiece(p)}
                       />
                     );})
@@ -8729,7 +8887,8 @@ export default function App() {
                             } : undefined}
                             onBuy={!consultFirst ? (!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
                             onReserve={(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') ? () => handleReserve(piece.id) : undefined}
-                            onConsultation={consultFirst ? openConsultationForPiece : undefined}
+                            onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                            onLiteInquiry={consultFirst ? (p) => { setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p)); setView('kontakt'); } : undefined}
                       onViewDetails={(p) => {
                         setSelectedPiece(p);
                         if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
@@ -8787,7 +8946,8 @@ export default function App() {
                             } : undefined}
                             onBuy={!consultFirst ? (user?.role === UserRole.GUEST || (user as any)?.is_guest ? () => setShowAccountRequiredModal(true) : (user?.role === UserRole.VIEWER || user?.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
                             onReserve={(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') ? () => handleReserve(piece.id) : undefined}
-                            onConsultation={consultFirst ? openConsultationForPiece : undefined}
+                            onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                            onLiteInquiry={consultFirst ? (p) => { setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p)); setView('kontakt'); } : undefined}
                             onViewDetails={(p) => { setSelectedPiece(p); if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3); }}
                             detailsHint={isOwnPiece ? t('marketplace.details_hint') : t('resale.contract_note')}
                           />
@@ -9090,91 +9250,6 @@ export default function App() {
               </motion.div>
             )}
 
-            {view === 'bellanova_care' && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8 max-w-2xl mx-auto">
-                <div>
-                  <h3 className="text-3xl font-serif italic text-amber-500/90">{t('care.page_title')}</h3>
-                  <p className="text-zinc-500 mt-2 text-sm leading-relaxed">{t('care.page_subtitle')}</p>
-                </div>
-                <Card className="p-6 space-y-4 border-amber-500/20">
-                  <div>
-                    <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('piece') || 'Stück'} (optional)</label>
-                    <select value={serviceRequestForm.masterpieceId || ''} onChange={e => setServiceRequestForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                      <option value="">—</option>
-                      {visiblePortfolioPieces.map((p: Masterpiece) => (
-                        <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('care.category_label') || 'Kategorie'}</label>
-                    <select value={serviceRequestForm.careCategory} onChange={e => setServiceRequestForm(f => ({ ...f, careCategory: e.target.value as 'care_maintenance' | 'design_evolution' | 'private_request' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
-                      <option value="care_maintenance">{t('care.cat_care') || 'Care & Maintenance'}</option>
-                      <option value="design_evolution">{t('care.cat_design') || 'Design Evolution'}</option>
-                      <option value="private_request">{t('care.cat_private') || 'Private Requests'}</option>
-                    </select>
-                  </div>
-                  {serviceRequestForm.careCategory === 'care_maintenance' && (
-                    <>
-                      <div>
-                        <label className="block text-xs text-zinc-500 mb-1">{t('care.field_problem')}</label>
-                        <textarea value={serviceRequestForm.problem} onChange={e => setServiceRequestForm(f => ({ ...f, problem: e.target.value }))} rows={3} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-zinc-500 mb-1">{t('care.field_last_service')}</label>
-                        <input value={serviceRequestForm.lastService} onChange={e => setServiceRequestForm(f => ({ ...f, lastService: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-zinc-500 mb-1">{t('care.field_images')}</label>
-                        <textarea value={serviceRequestForm.imageNote} onChange={e => setServiceRequestForm(f => ({ ...f, imageNote: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
-                      </div>
-                    </>
-                  )}
-                  {serviceRequestForm.careCategory === 'design_evolution' && (
-                    <>
-                      <div>
-                        <label className="block text-xs text-zinc-500 mb-1">{t('care.field_change_wish')}</label>
-                        <textarea value={serviceRequestForm.changeWish} onChange={e => setServiceRequestForm(f => ({ ...f, changeWish: e.target.value }))} rows={3} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-zinc-500 mb-1">{t('care.field_reference')}</label>
-                        <textarea value={serviceRequestForm.refImageNote} onChange={e => setServiceRequestForm(f => ({ ...f, refImageNote: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
-                      </div>
-                    </>
-                  )}
-                  {serviceRequestForm.careCategory === 'private_request' && (
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-1">{t('description')}</label>
-                      <textarea value={serviceRequestForm.description} onChange={e => setServiceRequestForm(f => ({ ...f, description: e.target.value }))} rows={4} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
-                    </div>
-                  )}
-                  <Button variant="primary" className="w-full py-2.5 text-xs font-bold uppercase tracking-widest" onClick={async () => {
-                    if (!user) return;
-                    const cat = serviceRequestForm.careCategory;
-                    const payload: Record<string, string> = { category: cat };
-                    if (cat === 'care_maintenance') {
-                      payload.problem = serviceRequestForm.problem;
-                      payload.lastService = serviceRequestForm.lastService;
-                      payload.imageNote = serviceRequestForm.imageNote;
-                    } else if (cat === 'design_evolution') {
-                      payload.changeWish = serviceRequestForm.changeWish;
-                      payload.refImageNote = serviceRequestForm.refImageNote;
-                    } else {
-                      payload.note = serviceRequestForm.description;
-                    }
-                    const r = await fetch('/api/service/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: serviceRequestForm.masterpieceId || null, type: `bellanova_${cat}`, description: JSON.stringify(payload) }) });
-                    if (r.ok) {
-                      notifyUser(t('care.sent') || 'Gesendet.', 'success');
-                      setServiceRequestForm({ masterpieceId: '', type: 'restoration', description: '', careCategory: 'care_maintenance', problem: '', lastService: '', imageNote: '', changeWish: '', refImageNote: '' });
-                    } else notifyUser(t('errors.generic') || 'Fehler', 'error');
-                  }}><Send className="w-4 h-4" /> {t('care.send')}</Button>
-                </Card>
-                <Button variant="outline" className="w-full py-3 border-amber-500/40 text-amber-200" onClick={() => setView('concierge')}>
-                  <MessageCircle className="w-4 h-4" /> {t('private_request.cta')}
-                </Button>
-              </motion.div>
-            )}
-
             {view === 'legacy_hub' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
                 <div>
@@ -9310,16 +9385,6 @@ export default function App() {
                     </div>
                   ) : null;
                 })()}
-                {isLuxuryCollectorNav && (
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <Button variant="outline" size="sm" className="text-xs border-amber-500/40 text-amber-200" onClick={() => setView('concierge')}>
-                      <MessageCircle className="w-3.5 h-3.5" /> {t('private_request.cta')}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-xs text-zinc-400" onClick={() => setView('bellanova_care')}>
-                      <Sparkles className="w-3.5 h-3.5" /> Bellanova Care
-                    </Button>
-                  </div>
-                )}
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {isLuxuryCollectorNav ? (
                     <>
@@ -9333,7 +9398,7 @@ export default function App() {
                         fetch('/api/invoices', { credentials: 'include' }).then(r => r.ok ? r.json().then(setInvoicesList) : setInvoicesList([])).catch(() => setInvoicesList([]));
                       }} icon={CreditCard} />
                       <TabButton active={vaultTab === 'resale'} label={t('resale')} onClick={() => setVaultTab('resale')} icon={TrendingUp} />
-                      <TabButton active={view === 'bellanova_care'} label="Bellanova Care" onClick={() => setView('bellanova_care')} icon={Sparkles} />
+                      <TabButton active={vaultTab === 'care'} label={t('view.bellanova_care')} onClick={() => setVaultTab('care')} icon={Sparkles} />
                       <TabButton active={vaultTab === 'legacy_vip'} label={t('vault.tab_legacy_vip') || 'Erbe & Maison'} onClick={() => {
                         setVaultTab('legacy_vip');
                         fetch('/api/legacy/beneficiary', { credentials: 'include' }).then(r => r.ok && r.json().then(setClientLegacyRequests));
@@ -9434,6 +9499,101 @@ export default function App() {
                 </div>
 
                 <div className="min-h-[400px]">
+                  {isLuxuryCollectorNav && vaultTab === 'care' && (
+                    <div className="space-y-10 max-w-2xl mx-auto pb-8">
+                      <div>
+                        <h3 className="text-3xl font-serif italic text-amber-500/90">{t('care.page_title')}</h3>
+                        <p className="text-zinc-500 mt-2 text-sm leading-relaxed">{t('care.page_subtitle')}</p>
+                      </div>
+                      <Card className="p-6 border-[var(--border-soft)] space-y-4">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('care.services_heading')}</p>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-zinc-300">
+                          <li className="flex items-center border border-zinc-800/80 rounded-xl px-4 py-3 bg-zinc-900/40">{t('care.svc_maintenance')}</li>
+                          <li className="flex items-center border border-zinc-800/80 rounded-xl px-4 py-3 bg-zinc-900/40">{t('care.svc_cleaning')}</li>
+                          <li className="flex items-center border border-zinc-800/80 rounded-xl px-4 py-3 bg-zinc-900/40">{t('care.svc_inspection')}</li>
+                          <li className="flex items-center border border-zinc-800/80 rounded-xl px-4 py-3 bg-zinc-900/40">{t('care.svc_refinishing')}</li>
+                          <li className="flex items-center border border-zinc-800/80 rounded-xl px-4 py-3 bg-zinc-900/40 sm:col-span-2">{t('care.svc_certificate')}</li>
+                        </ul>
+                        <p className="text-xs text-zinc-500 pt-2 border-t border-zinc-800/60">{t('care.history_hint')}</p>
+                      </Card>
+                      <Card className="p-6 space-y-4 border-amber-500/20">
+                        <div>
+                          <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('piece') || 'Stück'} (optional)</label>
+                          <select value={serviceRequestForm.masterpieceId || ''} onChange={e => setServiceRequestForm(f => ({ ...f, masterpieceId: e.target.value ? Number(e.target.value) : '' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="">—</option>
+                            {visiblePortfolioPieces.map((p: Masterpiece) => (
+                              <option key={p.id} value={p.id}>{p.title} ({p.serial_id})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs uppercase tracking-widest text-zinc-500 mb-1">{t('care.category_label') || 'Kategorie'}</label>
+                          <select value={serviceRequestForm.careCategory} onChange={e => setServiceRequestForm(f => ({ ...f, careCategory: e.target.value as 'care_maintenance' | 'design_evolution' | 'private_request' }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                            <option value="care_maintenance">{t('care.cat_care') || 'Care & Maintenance'}</option>
+                            <option value="design_evolution">{t('care.cat_design') || 'Design Evolution'}</option>
+                            <option value="private_request">{t('care.cat_private') || 'Private Requests'}</option>
+                          </select>
+                        </div>
+                        {serviceRequestForm.careCategory === 'care_maintenance' && (
+                          <>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('care.field_problem')}</label>
+                              <textarea value={serviceRequestForm.problem} onChange={e => setServiceRequestForm(f => ({ ...f, problem: e.target.value }))} rows={3} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('care.field_last_service')}</label>
+                              <input value={serviceRequestForm.lastService} onChange={e => setServiceRequestForm(f => ({ ...f, lastService: e.target.value }))} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('care.field_images')}</label>
+                              <textarea value={serviceRequestForm.imageNote} onChange={e => setServiceRequestForm(f => ({ ...f, imageNote: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                            </div>
+                          </>
+                        )}
+                        {serviceRequestForm.careCategory === 'design_evolution' && (
+                          <>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('care.field_change_wish')}</label>
+                              <textarea value={serviceRequestForm.changeWish} onChange={e => setServiceRequestForm(f => ({ ...f, changeWish: e.target.value }))} rows={3} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-zinc-500 mb-1">{t('care.field_reference')}</label>
+                              <textarea value={serviceRequestForm.refImageNote} onChange={e => setServiceRequestForm(f => ({ ...f, refImageNote: e.target.value }))} rows={2} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                            </div>
+                          </>
+                        )}
+                        {serviceRequestForm.careCategory === 'private_request' && (
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">{t('description')}</label>
+                            <textarea value={serviceRequestForm.description} onChange={e => setServiceRequestForm(f => ({ ...f, description: e.target.value }))} rows={4} className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm resize-none" />
+                          </div>
+                        )}
+                        <Button variant="primary" className="w-full py-3 text-sm" onClick={async () => {
+                          if (!user) return;
+                          const cat = serviceRequestForm.careCategory;
+                          const payload: Record<string, string> = { category: cat };
+                          if (cat === 'care_maintenance') {
+                            payload.problem = serviceRequestForm.problem;
+                            payload.lastService = serviceRequestForm.lastService;
+                            payload.imageNote = serviceRequestForm.imageNote;
+                          } else if (cat === 'design_evolution') {
+                            payload.changeWish = serviceRequestForm.changeWish;
+                            payload.refImageNote = serviceRequestForm.refImageNote;
+                          } else {
+                            payload.note = serviceRequestForm.description;
+                          }
+                          const r = await fetch('/api/service/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: serviceRequestForm.masterpieceId || null, type: `bellanova_${cat}`, description: JSON.stringify(payload) }) });
+                          if (r.ok) {
+                            notifyUser(t('care.sent') || 'Gesendet.', 'success');
+                            setServiceRequestForm({ masterpieceId: '', type: 'restoration', description: '', careCategory: 'care_maintenance', problem: '', lastService: '', imageNote: '', changeWish: '', refImageNote: '' });
+                          } else notifyUser(t('errors.generic') || 'Fehler', 'error');
+                        }}><Send className="w-4 h-4" /> {t('care.send')}</Button>
+                      </Card>
+                      <Button variant="outline" className="w-full py-3 border-[var(--border-soft)] text-zinc-200" onClick={() => setView('concierge')}>
+                        <MessageCircle className="w-4 h-4" /> {t('consultation_piece_chat_cta')}
+                      </Button>
+                    </div>
+                  )}
                   {vaultTab === 'pieces' && (
                     <div className="space-y-8">
                       {user?.role !== 'admin' && user?.role !== 'super_admin' && (
@@ -15235,10 +15395,12 @@ export default function App() {
                         {pieceModalTab === 'care' && (
                           <div className="space-y-6">
                             <p className="text-[#CCCCCC] text-[15px] sm:text-base leading-relaxed">{t('piece.care_intro')}</p>
+                            <p className="text-sm text-[#888888] leading-relaxed">{t('care.vault_only_hint')}</p>
                             {user && !isGuestSessionUser(user) && isLuxuryCollectorNav && (
                               <Button variant="secondary" className="w-full sm:w-auto" onClick={() => {
                                 setServiceRequestForm((f: any) => ({ ...f, masterpieceId: selectedPiece.id }));
-                                setView('bellanova_care');
+                                setVaultTab('care');
+                                setView('vault');
                                 closePieceDetail();
                               }}>
                                 <Sparkles className="w-4 h-4" /> {t('view.bellanova_care')}
@@ -15300,14 +15462,25 @@ export default function App() {
                           </div>
                           {pieceRequiresConsultationFirst(selectedPiece) ? (
                             <>
-                              <p className="text-xs text-zinc-400 text-center leading-relaxed px-1">
-                                {t('consultation_bespoke_detail_hint')}
+                              <p className="text-sm text-zinc-300 text-center leading-relaxed px-1 whitespace-pre-line">
+                                {t('piece.consultation_mto_hint')}
                               </p>
-                              <p className="text-[11px] text-amber-600/85 text-center leading-relaxed px-1">{t('piece.consultation_mto_hint')}</p>
                               <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
-                              <Button className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await openConsultationForPiece(selectedPiece); closePieceDetail(); }}>
+                              <Button variant="primary" className="w-full py-4 text-base" onClick={() => { openConsultationBriefModal(selectedPiece); closePieceDetail(); }}>
                                 <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
                               </Button>
+                              <div className="flex items-stretch justify-center gap-2 w-full">
+                                <Button variant="outline" className="flex-1 py-3 text-sm border-[var(--border-soft)] text-zinc-300" onClick={() => {
+                                  setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
+                                  closePieceDetail();
+                                  setView('kontakt');
+                                }}>
+                                  {t('cta.lite_inquiry')}
+                                </Button>
+                                <span className="inline-flex items-center px-2 text-zinc-500 shrink-0" title={t('cta.lite_inquiry_tooltip')} aria-label={t('cta.lite_inquiry_tooltip')}>
+                                  <Info className="w-5 h-5" />
+                                </span>
+                              </div>
                               {(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') && (
                                 <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { await handleReserve(selectedPiece.id); closePieceDetail(); }}>
                                   {t('piece_reserved') || 'Reservieren'}
@@ -15343,24 +15516,26 @@ export default function App() {
                         </>
                       )}
                       {user && !isGuestSessionUser(user) ? (
-                        <>
-                          <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => { setView('concierge'); setChatDraft(`Anfrage zu: ${selectedPiece.title} (${selectedPiece.serial_id || ''})`); closePieceDetail(); }}>
-                            <MessageCircle className="w-4 h-4" /> {t('private_request.cta')}
-                          </Button>
-                          {isLuxuryCollectorNav && (
-                            <Button variant="ghost" className="w-full py-3 text-sm text-zinc-500 flex items-center justify-center gap-2" onClick={() => {
-                              setServiceRequestForm(f => ({ ...f, masterpieceId: selectedPiece.id }));
-                              setView('bellanova_care');
+                        !(selectedPiece.status === 'available' && pieceRequiresConsultationFirst(selectedPiece)) && (
+                          <div className="flex items-stretch justify-center gap-2 w-full">
+                            <Button variant="outline" className="flex-1 py-3 text-sm border-[var(--border-soft)] text-zinc-400" onClick={() => {
+                              setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
                               closePieceDetail();
+                              setView('kontakt');
                             }}>
-                              <Sparkles className="w-4 h-4" /> Bellanova Care
+                              {t('cta.lite_inquiry')}
                             </Button>
-                          )}
-                        </>
+                            <span className="inline-flex items-center px-2 text-zinc-500 shrink-0" title={t('cta.lite_inquiry_tooltip')} aria-label={t('cta.lite_inquiry_tooltip')}>
+                              <Info className="w-5 h-5" />
+                            </span>
+                          </div>
+                        )
                       ) : (
-                        <Button variant="ghost" className="w-full py-3 text-sm text-zinc-400 flex items-center justify-center gap-2" onClick={() => setShowAccountRequiredModal(true)}>
-                          <MessageCircle className="w-4 h-4" /> {t('private_request.cta')}
-                        </Button>
+                        !(selectedPiece.status === 'available' && pieceRequiresConsultationFirst(selectedPiece)) && (
+                          <Button variant="outline" className="w-full py-3 text-sm border-[var(--border-soft)] text-zinc-400" onClick={() => setShowAccountRequiredModal(true)}>
+                            {t('cta.lite_inquiry')}
+                          </Button>
+                        )
                       )}
                       {user?.role === UserRole.ADMIN && (
                         <>
@@ -15396,6 +15571,62 @@ export default function App() {
                 <div className="flex gap-3 mt-6">
                   <Button variant="ghost" className="flex-1" onClick={() => setDeletePieceConfirm(null)} disabled={loading}>{t('cancel')}</Button>
                   <Button variant="danger" className="flex-1" onClick={handleDeleteMasterpiece} disabled={loading}>{loading ? '…' : 'Endgültig löschen'}</Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {consultationBriefPiece && (
+            <div className="fixed inset-0 z-[105] flex items-center justify-center p-4 sm:p-6">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={() => { setConsultationBriefPiece(null); resetConsultationBriefForm(); }} />
+              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#0c0c0c] border border-[var(--border-soft)] rounded-2xl p-6 sm:p-8 shadow-2xl">
+                <h3 className="luxury-display text-xl sm:text-2xl text-[#F5F5F5] tracking-wide mb-2">{t('consultation.brief_title')}</h3>
+                <p className="text-sm text-[#888888] mb-6">{consultationBriefPiece.title}{consultationBriefPiece.serial_id ? ` · ${consultationBriefPiece.serial_id}` : ''}</p>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA] mb-3">{t('consultation.brief_intro')}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
+                  {(['wish', 'inspiration', 'reference'] as const).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setConsultationBriefIntention(key)}
+                      className={`py-3 px-3 rounded-xl text-sm border transition-colors ${consultationBriefIntention === key ? 'border-[#C6A15B]/50 bg-[rgba(198,161,91,0.08)] text-[#F5F5F5]' : 'border-[var(--border-soft)] text-[#AAAAAA] hover:border-[#C6A15B]/25'}`}
+                    >
+                      {t(`consultation.brief_${key}`)}
+                    </button>
+                  ))}
+                </div>
+                <div className="space-y-4 mb-6">
+                  <label className="block text-[11px] uppercase tracking-[0.2em] text-[#888888]">{t('consultation.brief_notes_ph')}</label>
+                  <textarea
+                    value={consultationBriefNotes}
+                    onChange={(e) => setConsultationBriefNotes(e.target.value)}
+                    rows={3}
+                    placeholder={t('consultation.brief_notes_ph')}
+                    className="w-full bg-[#111] border border-[var(--border-soft)] rounded-xl px-4 py-3 text-[#F5F5F5] text-sm resize-none focus:outline-none focus:border-[#C6A15B]/35"
+                  />
+                  <div>
+                    <input ref={consultationBriefFileInputRef} type="file" accept="image/*" className="sr-only" id="consultation-brief-upload" onChange={(ev) => {
+                      const file = ev.target.files?.[0];
+                      if (!file) return;
+                      if (!file.type.startsWith('image/')) return;
+                      consultationBriefImgRef.current = file;
+                      setConsultationBriefImgName(file.name);
+                    }} />
+                    <label htmlFor="consultation-brief-upload" className="inline-flex cursor-pointer items-center gap-2 text-xs text-[#C6A15B] border border-[var(--border-soft)] rounded-full px-4 py-2 hover:border-[#C6A15B]/35">
+                      <Upload className="w-3.5 h-3.5" /> {t('consultation.brief_upload')}
+                    </label>
+                    {consultationBriefImgName && (
+                      <span className="ml-3 text-xs text-zinc-500">{consultationBriefImgName}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-zinc-800/80">
+                  <Button variant="ghost" className="flex-1 order-2 sm:order-1" onClick={() => { setConsultationBriefPiece(null); resetConsultationBriefForm(); }}>{t('cancel')}</Button>
+                  <Button variant="primary" className="flex-1 order-1 sm:order-2 py-3" onClick={() => void submitConsultationBrief()} disabled={loading}>
+                    {loading ? '…' : t('consultation.brief_continue')}
+                  </Button>
                 </div>
               </motion.div>
             </div>
@@ -15859,8 +16090,9 @@ const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
   </button>
 );
 
-const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, consultationFirstPiece = false, activeLang = 'de' }: { piece: Masterpiece, onBuy?: () => void, onReserve?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, consultationFirstPiece?: boolean, activeLang?: string }) => {
+const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAction, t, getRarityLabel, isFavorite, onToggleFavorite, priceLabel, detailsHint, onConsultation, onLiteInquiry, consultationFirstPiece = false, activeLang = 'de' }: { piece: Masterpiece, onBuy?: () => void, onReserve?: () => void, onViewDetails?: (p: Masterpiece) => void, hideAction?: boolean, extraAction?: React.ReactNode, t?: (k: string) => string, getRarityLabel?: (r: string) => string, key?: any, isFavorite?: boolean, onToggleFavorite?: () => void, priceLabel?: string, detailsHint?: string, onConsultation?: (p: Masterpiece) => void, onLiteInquiry?: (p: Masterpiece) => void, consultationFirstPiece?: boolean, activeLang?: string }) => {
   const showConsultationCta = !!onConsultation && consultationFirstPiece;
+  const showLiteInquiry = !!onLiteInquiry && consultationFirstPiece;
   const showDirectBuy = !!onBuy && !consultationFirstPiece;
   const desc = (() => {
     const raw = (piece as any)?.description_i18n;
@@ -15915,9 +16147,19 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
         </p>
       )}
       {!hideAction && piece.status === 'available' && showConsultationCta && (
-        <Button variant="outline" className="w-full py-2 text-xs mt-4 border-amber-600/50 text-amber-500/90 hover:bg-amber-600/10" onClick={() => onConsultation?.(piece)}>
+        <Button variant="primary" className="w-full py-3 text-sm mt-4 shadow-none" onClick={() => onConsultation?.(piece)}>
           <MessageCircle className="w-4 h-4" /> {t ? t('consultation_piece_chat_cta') : 'Start Consultation'}
         </Button>
+      )}
+      {!hideAction && piece.status === 'available' && showLiteInquiry && (
+        <div className="flex items-stretch gap-2 mt-3">
+          <Button variant="outline" className="flex-1 py-2.5 text-xs border-[var(--border-soft)] text-[#AAAAAA] hover:text-[#F5F5F5]" onClick={() => onLiteInquiry?.(piece)}>
+            {t ? t('cta.lite_inquiry') : 'Enquiry'}
+          </Button>
+          <span className="inline-flex items-center px-1 text-[#666666] shrink-0 self-center" title={t ? t('cta.lite_inquiry_tooltip') : ''} aria-label={t ? t('cta.lite_inquiry_tooltip') : ''}>
+            <Info className="w-4 h-4" />
+          </span>
+        </div>
       )}
       {!hideAction && piece.status === 'available' && showDirectBuy && (
         <Button variant="outline" className="w-full py-2 text-xs mt-4" onClick={onBuy}>
