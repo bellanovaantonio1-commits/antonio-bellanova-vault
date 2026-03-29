@@ -49,7 +49,8 @@ import {
   ClipboardList,
   Sparkles,
   Settings,
-  Crown
+  Crown,
+  ChevronDown
 } from 'lucide-react';
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
@@ -962,6 +963,43 @@ const TRANSLATIONS: any = {
     "contact.error_send": "Fehler beim Senden.",
     "contact.goto_concierge": "Zum Concierge",
     "contact.intro": "Für Anfragen nutzen Sie bitte das Kontaktformular oder die Concierge-Funktion nach dem Login.",
+    "inquiry.subject_line": "Individuelle Anfertigung",
+    "inquiry.subtitle": "Jedes Schmuckstück entsteht in enger Abstimmung – abgestimmt auf Persönlichkeit, Anlass und Anspruch.",
+    "inquiry.intro": "Unsere Kreationen sind keine Produkte im klassischen Sinne.\nSie entstehen als individuelle Komposition – entwickelt, verfeinert und umgesetzt in persönlicher Abstimmung.",
+    "inquiry.field_vision": "Ihre Vorstellung",
+    "inquiry.placeholder_vision": "Beschreiben Sie Ihre Idee, Ihren Stil oder eine gewünschte Richtung…",
+    "inquiry.field_occasion": "Anlass (optional)",
+    "inquiry.select_optional": "Auswahl optional",
+    "inquiry.occ_personal": "Persönliche Anschaffung",
+    "inquiry.occ_gift": "Geschenk",
+    "inquiry.occ_special": "Besondere Gelegenheit",
+    "inquiry.occ_collection": "Sammlung / Investment",
+    "inquiry.field_style": "Stilrichtung (optional)",
+    "inquiry.st_classic": "Klassisch",
+    "inquiry.st_modern": "Modern",
+    "inquiry.st_expressive": "Ausdrucksstark",
+    "inquiry.st_understated": "Zurückhaltend",
+    "inquiry.field_budget": "Budgetrahmen (optional)",
+    "inquiry.placeholder_budget": "z. B. ab 50.000 €, 100.000 €+, offen",
+    "inquiry.field_references": "Referenzen / Inspiration (optional)",
+    "inquiry.reference_placeholder": "Links, Notizen oder Stichworte zu Ihrer Inspiration…",
+    "inquiry.reference_upload": "Bild hinzufügen",
+    "inquiry.reference_clear": "Entfernen",
+    "inquiry.reference_hint": "Ein stimmungsvolles Bild genügt — optional.",
+    "inquiry.reference_too_large": "Bitte wählen Sie ein kompakteres Bild (max. 200 KB) oder beschreiben Sie Ihre Inspiration im Text.",
+    "inquiry.footer_note": "Ihre Anfrage wird vertraulich behandelt.\nSie erhalten im nächsten Schritt eine persönliche Rückmeldung mit ersten Ansätzen und Möglichkeiten.",
+    "inquiry.submitted_title": "Ihre Anfrage wurde übermittelt",
+    "inquiry.submitted_body": "Wir prüfen Ihre Angaben und entwickeln erste Ansätze für Ihre Anfertigung.\nSie erhalten zeitnah eine persönliche Rückmeldung.",
+    "inquiry.submitted_eta": "In der Regel innerhalb von 24–48 Stunden.",
+    "inquiry.name_label": "Name",
+    "inquiry.email_label": "E-Mail",
+    "inquiry.name_placeholder": "Wie dürfen wir Sie ansprechen?",
+    "inquiry.email_placeholder": "Ihre E-Mail für die Rückmeldung",
+    "inquiry.vision_required": "Bitte beschreiben Sie kurz Ihre Vorstellung.",
+    "inquiry.contact_required": "Bitte geben Sie Name und E-Mail für die Rückmeldung an.",
+    "inquiry.contact_discrete": "Wir melden uns persönlich bei Ihnen",
+    "inquiry.another_request": "Weitere Anfrage",
+    "inquiry.channel_hint": "Nach dem Login steht Ihnen zudem ein geschützter Kanal zur Maison zur Verfügung.",
     "notifications.empty_title": "Keine Benachrichtigungen",
     "notifications.empty_subtitle": "Sie sind auf dem neuesten Stand",
     "settings.shortcuts_title": "Tastaturkürzel",
@@ -2017,6 +2055,43 @@ const TRANSLATIONS: any = {
     "contact.error_send": "Error sending message.",
     "contact.goto_concierge": "To Concierge",
     "contact.intro": "For enquiries please use the contact form or the Concierge function after login.",
+    "inquiry.subject_line": "Bespoke commission",
+    "inquiry.subtitle": "Each jewel is shaped in close dialogue — aligned with personality, occasion, and intention.",
+    "inquiry.intro": "Our creations are not conventional products.\nThey emerge as a personal composition — refined and realised through individual dialogue.",
+    "inquiry.field_vision": "Your vision",
+    "inquiry.placeholder_vision": "Describe your idea, aesthetic, or the direction you have in mind…",
+    "inquiry.field_occasion": "Occasion (optional)",
+    "inquiry.select_optional": "Optional selection",
+    "inquiry.occ_personal": "Personal acquisition",
+    "inquiry.occ_gift": "A gift",
+    "inquiry.occ_special": "A special moment",
+    "inquiry.occ_collection": "Collection / investment",
+    "inquiry.field_style": "Style direction (optional)",
+    "inquiry.st_classic": "Classic",
+    "inquiry.st_modern": "Modern",
+    "inquiry.st_expressive": "Expressive",
+    "inquiry.st_understated": "Understated",
+    "inquiry.field_budget": "Budget range (optional)",
+    "inquiry.placeholder_budget": "e.g. from €50,000, €100,000+, open",
+    "inquiry.field_references": "References / inspiration (optional)",
+    "inquiry.reference_placeholder": "Links, notes, or keywords for your inspiration…",
+    "inquiry.reference_upload": "Add an image",
+    "inquiry.reference_clear": "Remove",
+    "inquiry.reference_hint": "A single evocative image is enough — optional.",
+    "inquiry.reference_too_large": "Please choose a smaller image (max. 200 KB) or describe your inspiration in words.",
+    "inquiry.footer_note": "Your enquiry is handled in confidence.\nYou will receive a personal response with initial directions and possibilities.",
+    "inquiry.submitted_title": "Your enquiry has been received",
+    "inquiry.submitted_body": "We will review your details and outline first approaches for your commission.\nYou will hear from us personally soon.",
+    "inquiry.submitted_eta": "Typically within 24–48 hours.",
+    "inquiry.name_label": "Name",
+    "inquiry.email_label": "Email",
+    "inquiry.name_placeholder": "How should we address you?",
+    "inquiry.email_placeholder": "Your email for our reply",
+    "inquiry.vision_required": "Please share a brief description of your vision.",
+    "inquiry.contact_required": "Please provide your name and email so we can reply.",
+    "inquiry.contact_discrete": "We will reach out to you personally",
+    "inquiry.another_request": "New enquiry",
+    "inquiry.channel_hint": "After signing in, a secure channel to the Maison is also available to you.",
     "notifications.empty_title": "No notifications",
     "notifications.empty_subtitle": "You are up to date",
     "settings.shortcuts_title": "Keyboard shortcuts",
@@ -2979,6 +3054,43 @@ const TRANSLATIONS: any = {
     "contact.error_send": "Errore durante l'invio.",
     "contact.goto_concierge": "Al Concierge",
     "contact.intro": "Per richieste utilizzate il modulo di contatto o la funzione Concierge dopo l'accesso.",
+    "inquiry.subject_line": "Creazione su misura",
+    "inquiry.subtitle": "Ogni gioiello nasce da un dialogo attento — in sintonia con personalità, occasione e desiderio.",
+    "inquiry.intro": "Le nostre creazioni non sono prodotti convenzionali.\nNascono come composizione personale — sviluppata e realizzata in accordo diretto.",
+    "inquiry.field_vision": "La sua visione",
+    "inquiry.placeholder_vision": "Descriva l’idea, lo stile o la direzione desiderata…",
+    "inquiry.field_occasion": "Occasione (facoltativo)",
+    "inquiry.select_optional": "Scelta facoltativa",
+    "inquiry.occ_personal": "Acquisto personale",
+    "inquiry.occ_gift": "Regalo",
+    "inquiry.occ_special": "Momento speciale",
+    "inquiry.occ_collection": "Collezione / investimento",
+    "inquiry.field_style": "Stile (facoltativo)",
+    "inquiry.st_classic": "Classico",
+    "inquiry.st_modern": "Moderno",
+    "inquiry.st_expressive": "Espressivo",
+    "inquiry.st_understated": "Discreto",
+    "inquiry.field_budget": "Budget indicativo (facoltativo)",
+    "inquiry.placeholder_budget": "es. da 50.000 €, 100.000 €+, aperto",
+    "inquiry.field_references": "Riferimenti / ispirazione (facoltativo)",
+    "inquiry.reference_placeholder": "Link, note o parole chiave per l’ispirazione…",
+    "inquiry.reference_upload": "Aggiungi immagine",
+    "inquiry.reference_clear": "Rimuovi",
+    "inquiry.reference_hint": "Basta un’immagine evocativa — facoltativo.",
+    "inquiry.reference_too_large": "Scegliere un’immagine più leggera (max 200 KB) o descrivere l’ispirazione nel testo.",
+    "inquiry.footer_note": "La richiesta è trattata in confidenza.\nRiceverà una risposta personale con primi orientamenti e possibilità.",
+    "inquiry.submitted_title": "Richiesta inviata",
+    "inquiry.submitted_body": "Esaminiamo i dettagli e prepariamo primi approcci per la sua creazione.\nLa contatteremo a breve.",
+    "inquiry.submitted_eta": "Di solito entro 24–48 ore.",
+    "inquiry.name_label": "Nome",
+    "inquiry.email_label": "Email",
+    "inquiry.name_placeholder": "Come desidera essere chiamato/a?",
+    "inquiry.email_placeholder": "Email per la risposta",
+    "inquiry.vision_required": "Descriva brevemente la sua visione.",
+    "inquiry.contact_required": "Indichi nome ed email per la risposta.",
+    "inquiry.contact_discrete": "La contatteremo personalmente",
+    "inquiry.another_request": "Nuova richiesta",
+    "inquiry.channel_hint": "Dopo l’accesso è disponibile anche un canale protetto verso la Maison.",
     "notifications.empty_title": "Nessuna notifica",
     "notifications.empty_subtitle": "Sei aggiornato",
     "settings.shortcuts_title": "Scorciatoie da tastiera",
@@ -3934,9 +4046,38 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [offlineBannerShown, setOfflineBannerShown] = useState(false);
-  const [contactForm, setContactForm] = useState({ name: '', email: '', subject: '', message: '' });
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    vision: '',
+    occasion: '',
+    styleDirection: '',
+    budget: '',
+    referenceNote: '',
+    referenceFileName: ''
+  });
   const [contactFormSubmitting, setContactFormSubmitting] = useState(false);
   const [contactFormSent, setContactFormSent] = useState(false);
+  const inquiryImageRef = useRef<File | null>(null);
+  const inquiryFileInputRef = useRef<HTMLInputElement>(null);
+  const [inquiryImagePreview, setInquiryImagePreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view !== 'kontakt') return undefined;
+    return () => {
+      setInquiryImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      inquiryImageRef.current = null;
+      if (inquiryFileInputRef.current) inquiryFileInputRef.current.value = '';
+    };
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'kontakt' || !user?.name || !user?.email) return;
+    setContactForm((prev) => ({ ...prev, name: user.name, email: user.email }));
+  }, [view, user?.id, user?.name, user?.email]);
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
   const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'reservations' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
@@ -6913,13 +7054,38 @@ export default function App() {
 
   const legalAndContactViews = ['impressum', 'datenschutz', 'agb', 'kontakt', 'anfahrt'] as const;
   if (legalAndContactViews.includes(view as any)) {
-    const isLegal = view === 'impressum' || view === 'datenschutz' || view === 'agb';
     const titles: Record<string, string> = { impressum: t('legal.imprint'), datenschutz: t('legal.privacy'), agb: t('legal.terms'), kontakt: t('legal.contact'), anfahrt: t('legal.directions') };
+    const isKontaktLuxury = view === 'kontakt';
+    const clearInquiryImage = () => {
+      inquiryImageRef.current = null;
+      setContactForm((f) => ({ ...f, referenceFileName: '' }));
+      setInquiryImagePreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      if (inquiryFileInputRef.current) inquiryFileInputRef.current.value = '';
+    };
+    const resetInquiryForm = () => {
+      clearInquiryImage();
+      setContactForm({
+        name: user?.name && user?.email ? user.name : '',
+        email: user?.name && user?.email ? user.email : '',
+        vision: '',
+        occasion: '',
+        styleDirection: '',
+        budget: '',
+        referenceNote: '',
+        referenceFileName: ''
+      });
+    };
+    const inquirySelectClass =
+      'w-full appearance-none bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 pr-12 text-[#F5F5F5] text-[15px] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300 cursor-pointer';
     return (
-      <div className={`min-h-screen font-sans ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'} flex flex-col`}>
-        <div className="p-6 max-w-3xl mx-auto w-full flex-1">
-          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className="text-xs uppercase tracking-widest text-amber-500 hover:text-amber-400 mb-8">← {user ? t('common.back_dashboard') : t('common.back_home')}</button>
-          <h1 className="text-2xl font-serif italic mb-6">{titles[view]}</h1>
+      <div className={`min-h-screen font-sans flex flex-col ${isKontaktLuxury ? 'bg-[#0A0A0A] text-[#F5F5F5]' : theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`}>
+        <div className={isKontaktLuxury ? 'luxury-container max-w-[40rem] mx-auto w-full flex-1 !pt-10 !pb-16 sm:!pt-14 sm:!pb-20' : 'p-6 max-w-3xl mx-auto w-full flex-1'}>
+          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className={`text-[11px] uppercase tracking-[0.2em] ${isKontaktLuxury ? 'text-[#C6A15B]/90 hover:text-[#C6A15B] mb-10 sm:mb-12' : 'text-amber-500 hover:text-amber-400 mb-8'}`}>← {user ? t('common.back_dashboard') : t('common.back_home')}</button>
+          <h1 className={isKontaktLuxury ? 'luxury-display text-2xl sm:text-3xl text-[#F5F5F5] mb-5' : 'text-2xl font-serif italic mb-6'}>{view === 'kontakt' ? t('inquiry.subject_line') : titles[view]}</h1>
+          {view === 'kontakt' && <p className="text-[#AAAAAA] text-[15px] sm:text-base leading-relaxed max-w-prose mb-10 sm:mb-12">{t('inquiry.subtitle')}</p>}
           {view === 'impressum' && (
             <div className="prose prose-invert max-w-none text-sm space-y-4">
               <p><strong>Angaben gemäß § 5 TMG</strong></p>
@@ -6950,44 +7116,230 @@ export default function App() {
             </div>
           )}
           {view === 'kontakt' && (
-            <div className="space-y-6">
-              <p className="text-zinc-400">{COMPANY_INFO.name}, {COMPANY_INFO.address}</p>
-              <p className="text-sm text-zinc-500">{t('contact.intro')}</p>
+            <div className="space-y-12 sm:space-y-14">
+              <p className="text-[#CCCCCC] text-[15px] sm:text-base leading-[1.75] max-w-prose whitespace-pre-line">{t('inquiry.intro')}</p>
+              <p className="text-sm text-[#888888] leading-relaxed">{COMPANY_INFO.name}, {COMPANY_INFO.address}</p>
               {user && (
-                <Button variant="primary" className="text-sm" onClick={() => setView('concierge')}>{t('contact.goto_concierge')}</Button>
+                <div className="space-y-2 pt-2">
+                  <Button variant="secondary" className="text-sm !px-6 !py-3" onClick={() => setView('concierge')}>
+                    {t('contact.goto_concierge')}
+                  </Button>
+                  <p className="text-xs text-[#666666] tracking-wide max-w-prose">{t('inquiry.channel_hint')}</p>
+                </div>
               )}
               {!contactFormSent ? (
-                <form className="grid gap-4 max-w-md" onSubmit={async (e) => {
-                  e.preventDefault();
-                  setContactFormSubmitting(true);
-                  try {
-                    const res = await fetch('/api/contact', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(contactForm),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (res.ok && data.success) {
-                      setContactFormSent(true);
-                      setContactForm({ name: '', email: '', subject: '', message: '' });
-                      if (data.emailSent) notifyUser(t('contact.success_sent') || 'Nachricht gesendet.', 'success');
-                    } else {
-                      notifyUser(data.error || t('contact.error_send'), 'error');
+                <form
+                  className="space-y-10 sm:space-y-12"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (!contactForm.vision.trim()) {
+                      notifyUser(t('inquiry.vision_required'), 'error');
+                      return;
                     }
-                  } catch {
-                    notifyUser(t('contact.error_send'), 'error');
-                  } finally {
-                    setContactFormSubmitting(false);
-                  }
-                }}>
-                  <input type="text" placeholder={t('contact.placeholder_name')} value={contactForm.name} onChange={e => setContactForm(f => ({ ...f, name: e.target.value }))} className="input" required />
-                  <input type="email" placeholder={t('contact.placeholder_email')} value={contactForm.email} onChange={e => setContactForm(f => ({ ...f, email: e.target.value }))} className="input" required />
-                  <input type="text" placeholder={t('contact.placeholder_subject')} value={contactForm.subject} onChange={e => setContactForm(f => ({ ...f, subject: e.target.value }))} className="input" />
-                  <textarea placeholder={t('contact.placeholder_message')} value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} className="input min-h-[120px]" required />
-                  <Button type="submit" variant="primary" disabled={contactFormSubmitting}>{contactFormSubmitting ? t('contact.sending') : t('contact.send')}</Button>
+                    if (!contactForm.name.trim() || !contactForm.email.trim()) {
+                      notifyUser(t('inquiry.contact_required'), 'error');
+                      return;
+                    }
+                    const subject = t('inquiry.subject_line');
+                    let message = `${t('inquiry.field_vision')}\n${contactForm.vision.trim()}\n`;
+                    if (contactForm.occasion) {
+                      message += `\n${t('inquiry.field_occasion')}\n${t(`inquiry.occ_${contactForm.occasion}`)}\n`;
+                    }
+                    if (contactForm.styleDirection) {
+                      message += `\n${t('inquiry.field_style')}\n${t(`inquiry.st_${contactForm.styleDirection}`)}\n`;
+                    }
+                    if (contactForm.budget.trim()) {
+                      message += `\n${t('inquiry.field_budget')}\n${contactForm.budget.trim()}\n`;
+                    }
+                    if (contactForm.referenceNote.trim()) {
+                      message += `\n${t('inquiry.field_references')}\n${contactForm.referenceNote.trim()}\n`;
+                    }
+                    if (inquiryImageRef.current) {
+                      if (inquiryImageRef.current.size > 200 * 1024) {
+                        notifyUser(t('inquiry.reference_too_large'), 'error');
+                        return;
+                      }
+                      try {
+                        const dataUrl = await new Promise<string>((resolve, reject) => {
+                          const r = new FileReader();
+                          r.onload = () => resolve(String(r.result || ''));
+                          r.onerror = () => reject(new Error('read'));
+                          r.readAsDataURL(inquiryImageRef.current as Blob);
+                        });
+                        message += `\n[Bildreferenz / image reference]\n${dataUrl}\n`;
+                      } catch {
+                        notifyUser(t('contact.error_send'), 'error');
+                        return;
+                      }
+                    }
+                    setContactFormSubmitting(true);
+                    try {
+                      const res = await fetch('/api/contact', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          name: contactForm.name.trim(),
+                          email: contactForm.email.trim(),
+                          subject,
+                          message
+                        })
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      if (res.ok && data.success) {
+                        setContactFormSent(true);
+                        resetInquiryForm();
+                        if (data.emailSent) notifyUser(t('contact.success_sent') || 'Nachricht gesendet.', 'success');
+                      } else {
+                        notifyUser(data.error || t('contact.error_send'), 'error');
+                      }
+                    } catch {
+                      notifyUser(t('contact.error_send'), 'error');
+                    } finally {
+                      setContactFormSubmitting(false);
+                    }
+                  }}
+                >
+                  <div className="space-y-4">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.field_vision')}</label>
+                    <textarea
+                      value={contactForm.vision}
+                      onChange={(e) => setContactForm((f) => ({ ...f, vision: e.target.value }))}
+                      placeholder={t('inquiry.placeholder_vision')}
+                      rows={5}
+                      className="w-full bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 text-[#F5F5F5] text-[15px] placeholder:text-[#555555] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300 resize-y min-h-[140px] leading-relaxed"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.field_occasion')}</label>
+                    <div className="relative">
+                      <select
+                        value={contactForm.occasion}
+                        onChange={(e) => setContactForm((f) => ({ ...f, occasion: e.target.value }))}
+                        className={inquirySelectClass}
+                      >
+                        <option value="">{t('inquiry.select_optional')}</option>
+                        <option value="personal">{t('inquiry.occ_personal')}</option>
+                        <option value="gift">{t('inquiry.occ_gift')}</option>
+                        <option value="special">{t('inquiry.occ_special')}</option>
+                        <option value="collection">{t('inquiry.occ_collection')}</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888888]" aria-hidden />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.field_style')}</label>
+                    <div className="relative">
+                      <select
+                        value={contactForm.styleDirection}
+                        onChange={(e) => setContactForm((f) => ({ ...f, styleDirection: e.target.value }))}
+                        className={inquirySelectClass}
+                      >
+                        <option value="">{t('inquiry.select_optional')}</option>
+                        <option value="classic">{t('inquiry.st_classic')}</option>
+                        <option value="modern">{t('inquiry.st_modern')}</option>
+                        <option value="expressive">{t('inquiry.st_expressive')}</option>
+                        <option value="understated">{t('inquiry.st_understated')}</option>
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#888888]" aria-hidden />
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.field_budget')}</label>
+                    <input
+                      type="text"
+                      value={contactForm.budget}
+                      onChange={(e) => setContactForm((f) => ({ ...f, budget: e.target.value }))}
+                      placeholder={t('inquiry.placeholder_budget')}
+                      className="w-full bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 text-[#F5F5F5] text-[15px] placeholder:text-[#555555] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300"
+                    />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.field_references')}</label>
+                    <textarea
+                      value={contactForm.referenceNote}
+                      onChange={(e) => setContactForm((f) => ({ ...f, referenceNote: e.target.value }))}
+                      placeholder={t('inquiry.reference_placeholder')}
+                      rows={3}
+                      className="w-full bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 text-[#F5F5F5] text-[15px] placeholder:text-[#555555] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300 resize-y min-h-[100px] leading-relaxed"
+                    />
+                    <p className="text-xs text-[#666666]">{t('inquiry.reference_hint')}</p>
+                    <div className="flex flex-wrap items-center gap-4 pt-2">
+                      <input ref={inquiryFileInputRef} type="file" accept="image/*" className="sr-only" id="inquiry-reference-upload" onChange={(ev) => {
+                        const file = ev.target.files?.[0];
+                        if (!file) return;
+                        if (!file.type.startsWith('image/')) return;
+                        if (file.size > 200 * 1024) {
+                          notifyUser(t('inquiry.reference_too_large'), 'error');
+                          ev.target.value = '';
+                          return;
+                        }
+                        inquiryImageRef.current = file;
+                        setContactForm((f) => ({ ...f, referenceFileName: file.name }));
+                        setInquiryImagePreview((prev) => {
+                          if (prev) URL.revokeObjectURL(prev);
+                          return URL.createObjectURL(file);
+                        });
+                      }} />
+                      <label htmlFor="inquiry-reference-upload" className="inline-flex cursor-pointer items-center gap-2 text-sm text-[#C6A15B] border border-[var(--border-soft)] rounded-full px-5 py-3 transition-colors duration-300 hover:border-[#C6A15B]/35 hover:bg-[#C6A15B]/5">
+                        <Upload className="w-4 h-4" /> {t('inquiry.reference_upload')}
+                      </label>
+                      {contactForm.referenceFileName && (
+                        <button type="button" onClick={clearInquiryImage} className="text-sm text-[#888888] hover:text-[#F5F5F5] transition-colors duration-300">
+                          {t('inquiry.reference_clear')}
+                        </button>
+                      )}
+                    </div>
+                    {inquiryImagePreview && (
+                      <div className="mt-4 rounded-2xl border border-[var(--border-soft)] overflow-hidden max-w-xs bg-[#111]">
+                        <img src={inquiryImagePreview} alt="" className="w-full h-40 object-cover opacity-90" />
+                      </div>
+                    )}
+                  </div>
+                  {(!user || !String(contactForm.name || '').trim() || !String(contactForm.email || '').trim()) && (
+                    <div className="space-y-8 pt-4 border-t border-[var(--border-soft)]">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">{t('inquiry.contact_discrete')}</p>
+                      <div className="space-y-6">
+                        <div className="space-y-3">
+                          <label className="block text-[11px] uppercase tracking-[0.2em] text-[#888888]">{t('inquiry.name_label')}</label>
+                          <input
+                            type="text"
+                            value={contactForm.name}
+                            onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))}
+                            placeholder={t('inquiry.name_placeholder')}
+                            autoComplete="name"
+                            className="w-full bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 text-[#F5F5F5] text-[15px] placeholder:text-[#555555] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <label className="block text-[11px] uppercase tracking-[0.2em] text-[#888888]">{t('inquiry.email_label')}</label>
+                          <input
+                            type="email"
+                            value={contactForm.email}
+                            onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
+                            placeholder={t('inquiry.email_placeholder')}
+                            autoComplete="email"
+                            className="w-full bg-[#111] border border-[var(--border-soft)] rounded-2xl px-5 py-4 text-[#F5F5F5] text-[15px] placeholder:text-[#555555] focus:outline-none focus:border-[#C6A15B]/40 transition-colors duration-300"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="pt-6 sm:pt-8 space-y-6">
+                    <Button type="submit" variant="primary" className="w-full sm:w-auto min-w-[240px] !py-4" disabled={contactFormSubmitting}>
+                      {contactFormSubmitting ? t('contact.sending') : t('private_request.cta')}
+                    </Button>
+                    <p className="text-sm text-[#888888] leading-relaxed max-w-prose whitespace-pre-line">{t('inquiry.footer_note')}</p>
+                  </div>
                 </form>
               ) : (
-                <p className="text-amber-500/90">{t('contact.success')}</p>
+                <div className="space-y-6 pt-4 border-t border-[var(--border-soft)] max-w-prose">
+                  <h2 className="luxury-display text-xl sm:text-2xl text-[#F5F5F5] tracking-[0.12em]">{t('inquiry.submitted_title')}</h2>
+                  <p className="text-[#CCCCCC] text-[15px] leading-[1.75] whitespace-pre-line">{t('inquiry.submitted_body')}</p>
+                  <p className="text-sm text-[#888888]">{t('inquiry.submitted_eta')}</p>
+                  <button type="button" onClick={() => { setContactFormSent(false); }} className="text-[11px] uppercase tracking-[0.2em] text-[#C6A15B]/90 hover:text-[#C6A15B] pt-4">
+                    {t('inquiry.another_request')}
+                  </button>
+                </div>
               )}
             </div>
           )}
