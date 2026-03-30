@@ -283,6 +283,12 @@ const TRANSLATIONS: any = {
     "maison.admin_confirm_delete_section": "Diese Sektion wirklich löschen?",
     "maison.admin_confirm_delete_page": "Diese Seite und alle Sektionen wirklich löschen?",
     "maison.page_unavailable": "Diese Maison-Seite ist nicht verfügbar oder nicht veröffentlicht.",
+    "luxury.badge_unique": "UNIQUE",
+    "luxury.badge_limited": "LIMITIERT",
+    "luxury.badge_private_collection": "PRIVATE COLLECTION",
+    "luxury.badge_on_request": "NUR AUF ANFRAGE",
+    "luxury.story_default_1": "Jedes Stück beginnt mit einer Idee – und endet als Unikat.",
+    "luxury.story_default_2": "Nicht für viele gemacht. Sondern für den richtigen Moment.",
     consultation_send_file_heading: "Datei an Kundin senden (PDF)",
     consultation_file_label_ph: "Bezeichnung (z. B. Anlage)",
     consultation_file_url_ph: "Datei-URL (https://… oder /pfad)",
@@ -907,6 +913,9 @@ const TRANSLATIONS: any = {
     "piece.edition": "Edition",
     "piece.add_to_favorites": "Zu Favoriten hinzufügen",
     "piece.remove_from_favorites": "Aus Favoriten entfernen",
+    "piece.gallery_available": "Verfügbar",
+    "piece.gallery_sold": "Verkauft",
+    "piece.gallery_listing": "Status",
     "common.signed": "Unterzeichnet",
     "vip.contact_for_details": "Bitte kontaktieren Sie Antonio Bellanova für VIP-Details.",
     "vip.membership_required": "VIP-Mitgliedschaft erforderlich",
@@ -1494,6 +1503,12 @@ const TRANSLATIONS: any = {
     "maison.admin_confirm_delete_section": "Delete this section?",
     "maison.admin_confirm_delete_page": "Delete this page and all its sections?",
     "maison.page_unavailable": "This Maison page is unavailable or not published.",
+    "luxury.badge_unique": "UNIQUE",
+    "luxury.badge_limited": "LIMITED",
+    "luxury.badge_private_collection": "PRIVATE COLLECTION",
+    "luxury.badge_on_request": "BY APPOINTMENT",
+    "luxury.story_default_1": "Every piece begins as an idea — and becomes a one-of-one.",
+    "luxury.story_default_2": "Not made for everyone. Made for the right moment.",
     consultation_send_file_heading: "Send file to client (PDF)",
     consultation_file_label_ph: "Label (e.g. attachment)",
     consultation_file_url_ph: "File URL (https://… or /path)",
@@ -2093,6 +2108,9 @@ const TRANSLATIONS: any = {
     "piece.edition": "Edition",
     "piece.add_to_favorites": "Add to favorites",
     "piece.remove_from_favorites": "Remove from favorites",
+    "piece.gallery_available": "Available",
+    "piece.gallery_sold": "Sold",
+    "piece.gallery_listing": "Status",
     "common.signed": "Signed",
     "vip.contact_for_details": "Please contact Antonio Bellanova for VIP application details.",
     "vip.membership_required": "VIP membership required",
@@ -2632,6 +2650,12 @@ const TRANSLATIONS: any = {
     "maison.admin_confirm_delete_section": "Eliminare questa sezione?",
     "maison.admin_confirm_delete_page": "Eliminare questa pagina e tutte le sezioni?",
     "maison.page_unavailable": "Questa pagina Maison non è disponibile o non è pubblicata.",
+    "luxury.badge_unique": "UNIQUE",
+    "luxury.badge_limited": "LIMITATA",
+    "luxury.badge_private_collection": "PRIVATE COLLECTION",
+    "luxury.badge_on_request": "SU RICHIESTA",
+    "luxury.story_default_1": "Ogni pezzo nasce da un’idea — e diventa un unicum.",
+    "luxury.story_default_2": "Non per tutti. Per il momento giusto.",
     consultation_send_file_heading: "Invia file alla cliente (PDF)",
     consultation_file_label_ph: "Etichetta (es. allegato)",
     consultation_file_url_ph: "URL file (https://… o /percorso)",
@@ -3146,6 +3170,9 @@ const TRANSLATIONS: any = {
     "piece.edition": "Edizione",
     "piece.add_to_favorites": "Aggiungi ai preferiti",
     "piece.remove_from_favorites": "Rimuovi dai preferiti",
+    "piece.gallery_available": "Disponibile",
+    "piece.gallery_sold": "Venduto",
+    "piece.gallery_listing": "Stato",
     "common.signed": "Firmato",
     "vip.contact_for_details": "Contatta Antonio Bellanova per i dettagli VIP.",
     "vip.membership_required": "Membership VIP richiesta",
@@ -3522,12 +3549,13 @@ const TRANSLATIONS: any = {
 // --- Components ---
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
-  const base = "min-h-[44px] rounded-full font-medium transition-all duration-300 ease-out flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const base = "min-h-[44px] rounded-full font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed";
   const variants: any = {
-    primary: "px-7 py-3.5 bg-gradient-to-br from-[#C6A15B] to-[#D4AF37] text-black shadow-none hover:scale-[1.03] hover:opacity-90 active:scale-[0.99]",
-    secondary: "px-7 py-3.5 bg-transparent text-[#F5F5F5] border border-[rgba(255,255,255,0.08)] hover:border-[#C6A15B]/35",
-    outline: "px-7 py-3.5 bg-transparent border border-[rgba(255,255,255,0.12)] text-[#C6A15B] hover:bg-[#C6A15B]/8 hover:border-[#C6A15B]/45",
-    ghost: "px-5 py-3 bg-transparent text-[#AAAAAA] hover:text-[#F5F5F5] hover:bg-white/[0.04]",
+    primary:
+      "px-7 py-3.5 text-white bg-gradient-to-br from-[#8f7349] via-[#C6A36A] to-[#d4b87a] shadow-[0_4px_28px_-6px_rgba(198,163,106,0.45),inset_0_1px_0_rgba(255,255,255,0.12)] hover:shadow-[0_8px_36px_-8px_rgba(198,163,106,0.5)] hover:scale-[1.02] hover:brightness-[1.04] active:scale-[0.99] [text-shadow:0_1px_2px_rgba(0,0,0,0.2)] tracking-wide",
+    secondary: "px-7 py-3.5 bg-transparent text-[#FFFFFF] border border-[rgba(198,163,106,0.35)] hover:border-[rgba(198,163,106,0.55)] hover:bg-[rgba(198,163,106,0.07)]",
+    outline: "px-7 py-3.5 bg-transparent border border-[rgba(255,255,255,0.1)] text-[#C6A36A] hover:bg-[rgba(198,163,106,0.08)] hover:border-[rgba(198,163,106,0.4)]",
+    ghost: "px-5 py-3 bg-transparent text-[#A0A0A0] hover:text-[#FFFFFF] hover:bg-white/[0.04] transition-colors duration-500",
     danger: "px-7 py-3.5 bg-red-600/10 text-red-400 border border-red-600/25 hover:bg-red-600/18"
   };
   return (
@@ -3555,7 +3583,7 @@ const Input = ({ label, type = 'text', value, onChange, placeholder, icon: Icon,
 );
 
 const Card = ({ children, className = '', hoverGlow, onClick, role, tabIndex }: any) => (
-  <div onClick={onClick} role={role} tabIndex={tabIndex} className={`bg-[var(--bg-secondary)]/90 backdrop-blur-xl border border-[var(--border-soft)] rounded-2xl p-6 transition-all duration-300 ease-out ${hoverGlow ? 'card-hover-glow' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}>
+  <div onClick={onClick} role={role} tabIndex={tabIndex} className={`bg-[var(--bg-secondary)]/85 backdrop-blur-2xl border border-[var(--border-soft)] rounded-3xl p-6 shadow-[0_24px_48px_-28px_rgba(0,0,0,0.65)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${hoverGlow ? 'card-hover-glow' : ''} ${onClick ? 'cursor-pointer' : ''} ${className}`}>
     {children}
   </div>
 );
@@ -3583,19 +3611,22 @@ const PremiumEmptyState = ({ icon: Icon, title, subtitle }: { icon: any; title: 
   </div>
 );
 
-const Badge = ({ children, variant = 'default', icon: Icon }: any) => {
+const Badge = ({ children, variant = 'default', icon: Icon, className }: any) => {
   const variants: any = {
-    default: "bg-zinc-800 text-zinc-400",
-    amber: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
+    default: "bg-zinc-800/90 text-[#A0A0A0]",
+    amber: "bg-amber-500/10 text-[#d4b87a] border border-amber-500/25",
     emerald: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
     red: "bg-red-500/10 text-red-500 border border-red-500/20",
     vip: "bg-gradient-to-r from-amber-600/20 to-amber-500/10 text-amber-400 border border-amber-500/30 shadow-sm shadow-amber-900/20",
     verified: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30",
     outline: "bg-transparent border border-zinc-700 text-zinc-400",
-    zinc: "bg-zinc-800/80 text-zinc-400 border border-zinc-700"
+    zinc: "bg-zinc-800/80 text-zinc-400 border border-zinc-700",
+    luxury: "bg-white/[0.04] text-[#FFFFFF] border border-[rgba(198,163,106,0.28)] tracking-[0.14em]",
+    luxuryMuted: "bg-black/35 text-[#A0A0A0] border border-white/[0.08] tracking-[0.12em]",
+    luxuryWhisper: "bg-transparent text-[#A0A0A0] border-0 tracking-[0.2em] font-normal opacity-90",
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-widest font-bold ${variants[variant] || variants.default}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-widest font-bold ${variants[variant] || variants.default}${className ? ` ${className}` : ''}`}>
       {Icon && <Icon className="w-3 h-3" />}
       {children}
     </span>
@@ -7917,22 +7948,22 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen font-sans selection:bg-amber-500/30 ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`} data-theme={theme}>
+    <div className={`min-h-screen font-sans selection:bg-[rgba(198,163,106,0.25)] ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[var(--bg-primary)] text-[#F5F5F5]'}`} data-theme={theme}>
       {/* Desktop Sidebar (hidden on mobile) */}
-      <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-zinc-950 border-r border-zinc-900 z-50 flex-col">
-        <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/5 transition-colors">
-          <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center shrink-0">
-            <Diamond className="w-5 h-5 text-amber-500" />
+      <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-[var(--border-soft)] z-50 flex-col backdrop-blur-xl bg-[rgba(10,10,10,0.92)]">
+        <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
+          <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
+            <Diamond className="w-5 h-5 text-[#C6A36A]" />
           </div>
-          <span className="font-serif italic text-lg text-amber-500">{t('vault')}</span>
+          <span className="font-serif italic text-lg text-[#C6A36A]">{t('vault')}</span>
         </button>
         <div className="flex-1 px-4 space-y-2">
           {renderSidebarLinks()}
         </div>
-        <div className="p-4 border-t border-zinc-900">
-          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); }}>
-            <LogOut className="w-5 h-5 text-zinc-500" />
-            <span className="text-sm text-zinc-400">{t('sign_out')}</span>
+        <div className="p-4 border-t border-[var(--border-soft)]">
+          <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-500 cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); }}>
+            <LogOut className="w-5 h-5 text-[#888888]" />
+            <span className="text-sm text-[#A0A0A0]">{t('sign_out')}</span>
           </div>
         </div>
       </nav>
@@ -7942,25 +7973,25 @@ export default function App() {
         {sidebarOpen && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
-            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.2 }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-zinc-950 border-r border-zinc-900 flex flex-col md:hidden">
-              <div className="p-4 flex items-center justify-between border-b border-zinc-900">
-                <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) { goMaisonHome(); } else { setView('dashboard'); } closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/5 p-1 -m-1 transition-colors">
-                  <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center shrink-0">
-                    <Diamond className="w-5 h-5 text-amber-500" />
+            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-[rgba(10,10,10,0.96)] backdrop-blur-xl border-r border-[var(--border-soft)] flex flex-col md:hidden">
+              <div className="p-4 flex items-center justify-between border-b border-[var(--border-soft)]">
+                <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) { goMaisonHome(); } else { setView('dashboard'); } closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
+                  <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
+                    <Diamond className="w-5 h-5 text-[#C6A36A]" />
                   </div>
-                  <span className="font-serif italic text-lg text-amber-500">{t('vault')}</span>
+                  <span className="font-serif italic text-lg text-[#C6A36A]">{t('vault')}</span>
                 </button>
-                <button type="button" onClick={closeDrawer} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={t('close')}>
-                  <X className="w-5 h-5 text-zinc-400" />
+                <button type="button" onClick={closeDrawer} className="p-2 rounded-full hover:bg-white/[0.06] transition-colors" aria-label={t('close')}>
+                  <X className="w-5 h-5 text-[#A0A0A0]" />
                 </button>
               </div>
               <div className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
                 {renderSidebarLinks(closeDrawer)}
               </div>
-              <div className="p-4 border-t border-zinc-900">
-                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); closeDrawer(); }}>
-                  <LogOut className="w-5 h-5 text-zinc-500" />
-                  <span className="text-sm text-zinc-400">{t('sign_out')}</span>
+              <div className="p-4 border-t border-[var(--border-soft)]">
+                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/[0.04] transition-all duration-500 cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); closeDrawer(); }}>
+                  <LogOut className="w-5 h-5 text-[#888888]" />
+                  <span className="text-sm text-[#A0A0A0]">{t('sign_out')}</span>
                 </div>
               </div>
             </motion.div>
@@ -7970,10 +8001,10 @@ export default function App() {
 
       {/* Main Content */}
       <main className="pl-0 md:pl-64 min-h-screen luxury-bg diamond-texture relative">
-        <header className="h-20 border-b border-zinc-900 flex items-center justify-between px-4 sm:px-6 md:px-8 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
+        <header className="h-20 border-b border-[var(--border-soft)] flex items-center justify-between px-4 sm:px-6 md:px-8 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
           <div className="flex items-center gap-4 flex-1 min-w-0">
-            <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/5 transition-colors shrink-0" aria-label={t('view.dashboard')}>
-              <Menu className="w-6 h-6 text-zinc-400" />
+            <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/[0.06] transition-colors shrink-0" aria-label={t('view.dashboard')}>
+              <Menu className="w-6 h-6 text-[#A0A0A0]" />
             </button>
             <h2 className="text-xl font-serif italic text-white capitalize shrink-0 flex flex-wrap items-center gap-2">
               {view === 'maison' ? (maisonBundle?.page?.title || t('view.maison')) : ((t as (k: string) => string)(`view.${view}`) || view)}
@@ -7992,21 +8023,21 @@ export default function App() {
                   onChange={(e) => { setGlobalSearchQuery(e.target.value); setShowSearchResults(true); }}
                   onFocus={() => setShowSearchResults(true)}
                   onBlur={() => setTimeout(() => setShowSearchResults(false), 180)}
-                  className="global-search-input w-full bg-zinc-800/80 border border-zinc-700 rounded-lg py-2 pl-3 pr-8 text-sm text-zinc-200 placeholder:text-zinc-500 focus:outline-none focus:border-amber-600/50"
+                  className="global-search-input w-full bg-[#121212]/90 border border-[var(--border-soft)] rounded-xl py-2 pl-3 pr-8 text-sm text-[#F5F5F5] placeholder:text-[#666666] focus:outline-none focus:border-[rgba(198,163,106,0.35)] transition-colors duration-500"
                 />
-                <Search className="w-4 h-4 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-4 h-4 text-[#888888] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 {showSearchResults && globalSearchQuery.trim().length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#121212] border border-[var(--border-soft)] rounded-xl shadow-2xl z-50 max-h-64 overflow-y-auto backdrop-blur-xl">
                     {(() => {
                       const q = globalSearchQuery.trim().toLowerCase();
                       const filtered = masterpieces.filter(p => (p.title?.toLowerCase().includes(q) || (p.serial_id && String(p.serial_id).toLowerCase().includes(q))));
                       if (filtered.length === 0) return <p className="px-4 py-3 text-sm text-zinc-500">{t('search.no_results')}</p>;
                       return filtered.slice(0, 10).map(piece => (
-                        <button key={piece.id} type="button" onClick={() => { setView('marketplace'); setSelectedPiece(piece); setGlobalSearchQuery(''); setShowSearchResults(false); }} className="w-full text-left px-4 py-3 hover:bg-zinc-800/80 flex items-center gap-3 border-b border-zinc-800/50 last:border-0">
-                          {piece.image_url ? <img src={piece.image_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" /> : <div className="w-10 h-10 rounded bg-zinc-800 shrink-0" />}
+                        <button key={piece.id} type="button" onClick={() => { setView('marketplace'); setSelectedPiece(piece); setGlobalSearchQuery(''); setShowSearchResults(false); }} className="w-full text-left px-4 py-3 hover:bg-white/[0.05] flex items-center gap-3 border-b border-[var(--border-soft)] last:border-0 transition-colors duration-300">
+                          {piece.image_url ? <img src={piece.image_url} alt="" className="w-10 h-10 rounded object-cover shrink-0" /> : <div className="w-10 h-10 rounded bg-[#1a1a1a] shrink-0" />}
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-200 truncate">{piece.title}</p>
-                            <p className="text-xs text-zinc-500">{piece.serial_id} · {getPiecePriceDisplay(piece, user).label}</p>
+                            <p className="text-sm font-medium text-[#F5F5F5] truncate">{piece.title}</p>
+                            <p className="text-xs text-[#A0A0A0]">{piece.serial_id} · {getPiecePriceDisplay(piece, user).label}</p>
           </div>
                         </button>
                       ));
@@ -8020,11 +8051,11 @@ export default function App() {
             <div className="relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 rounded-full hover:bg-white/5 transition-colors relative"
+                className="p-2 rounded-full hover:bg-white/[0.06] transition-colors relative"
               >
-                <Bell className="w-5 h-5 text-zinc-400" />
+                <Bell className="w-5 h-5 text-[#A0A0A0]" />
                 {notifications.filter(n => !n.is_read).length > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full border border-zinc-950" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-[#C6A36A] rounded-full border-2 border-[var(--bg-primary)]" />
                 )}
               </button>
               
@@ -15414,53 +15445,67 @@ export default function App() {
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
                 exit={{ opacity: 0 }} 
-                className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className="absolute inset-0 bg-[#020202]/96 backdrop-blur-xl"
                 onClick={closePieceDetail}
               />
               <motion.div 
-                initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+                initial={{ opacity: 0, scale: 0.96, y: 16 }} 
                 animate={{ opacity: 1, scale: 1, y: 0 }} 
-                exit={{ opacity: 0, scale: 0.9, y: 20 }} 
-                className="relative w-full max-w-4xl bg-[#0a0a0a] border border-[var(--border-soft)] rounded-3xl overflow-hidden shadow-none"
+                exit={{ opacity: 0, scale: 0.96, y: 16 }} 
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className="relative w-full max-w-4xl bg-[#0A0A0A] border border-[rgba(198,163,106,0.12)] rounded-3xl overflow-hidden shadow-[0_0_100px_-24px_rgba(198,163,106,0.18)]"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 h-full max-h-[90vh] overflow-y-auto">
-                  <div className="aspect-square bg-zinc-900 relative">
+                  <div className="aspect-square bg-[#050505] relative">
                     {(() => {
                       const images = getPieceImages(selectedPiece);
                       const fallback = `https://picsum.photos/seed/${selectedPiece.id}/800/800`;
                       const src = images.length > 0 ? images[Math.min(pieceModalImageIndex, images.length - 1)] : (selectedPiece.image_url || fallback);
+                      const modalExclusivity = pieceLuxuryExclusivityBadges(selectedPiece, t);
                       return (
                         <>
-                          <img src={src} alt={selectedPiece.title} className="w-full h-full object-cover" />
+                          <img src={src} alt={selectedPiece.title} decoding="async" className="w-full h-full object-cover" />
+                          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(0,0,0,0.82)_100%)]" aria-hidden />
                           {images.length > 1 && (
                             <>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i - 1 + images.length) % images.length); }} className="absolute left-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Vorheriges Bild">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i - 1 + images.length) % images.length); }} className="absolute left-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/55 hover:bg-black/75 flex items-center justify-center text-white transition-all duration-500 border border-white/10" aria-label="Vorheriges Bild">
                                 <ChevronLeft className="w-5 h-5" />
                               </button>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i + 1) % images.length); }} className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-colors" aria-label="Nächstes Bild">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(i => (i + 1) % images.length); }} className="absolute right-3 top-1/2 -translate-y-1/2 min-w-[44px] min-h-[44px] w-10 h-10 rounded-full bg-black/55 hover:bg-black/75 flex items-center justify-center text-white transition-all duration-500 border border-white/10" aria-label="Nächstes Bild">
                                 <ChevronRight className="w-5 h-5" />
                               </button>
                               <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-1.5">
                                 {images.map((_, idx) => (
-                                  <button key={idx} type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(idx); }} className={`w-2 h-2 rounded-full transition-colors ${idx === pieceModalImageIndex ? 'bg-amber-500' : 'bg-white/40 hover:bg-white/60'}`} aria-label={`Bild ${idx + 1}`} />
+                                  <button key={idx} type="button" onClick={(e) => { e.stopPropagation(); setPieceModalImageIndex(idx); }} className={`w-2 h-2 rounded-full transition-all duration-500 ${idx === pieceModalImageIndex ? 'bg-[#C6A36A]' : 'bg-white/35 hover:bg-white/55'}`} aria-label={`Bild ${idx + 1}`} />
                                 ))}
                               </div>
                             </>
                           )}
-                    <div className="absolute top-6 left-6">
+                    <div className="absolute top-6 left-6 flex flex-wrap gap-2">
                             <Badge variant="amber">{getRarityLabel(selectedPiece.rarity)}</Badge>
+                            {(selectedPiece.status === 'reserved' || selectedPiece.status === 'reserved_client' || selectedPiece.status === 'reserved_vip') && (
+                              <Badge variant="luxuryMuted">{t('reserved')}</Badge>
+                            )}
                     </div>
+                          {modalExclusivity.length > 0 && (
+                            <div className={`absolute left-6 right-6 flex flex-wrap gap-2 justify-start ${images.length > 1 ? 'bottom-14' : 'bottom-6'}`}>
+                              {modalExclusivity.map((b) => (
+                                <Badge key={b.key} variant={b.variant as any} className="!text-[9px]">{b.label}</Badge>
+                              ))}
+                            </div>
+                          )}
                         </>
                       );
                     })()}
                   </div>
-                  <div className="p-6 sm:p-8 md:p-12 space-y-8 flex flex-col">
+                  <div className="p-6 sm:p-8 md:p-12 space-y-8 flex flex-col bg-[#0A0A0A]">
                     <div className="flex justify-between items-start gap-4">
                       <div className="space-y-3 min-w-0">
-                        <h3 className="text-2xl sm:text-3xl md:text-4xl luxury-display text-[#F5F5F5] leading-tight">{selectedPiece.title}</h3>
+                        <h3 className="text-2xl sm:text-3xl md:text-4xl luxury-display text-[#FFFFFF] leading-tight tracking-[0.02em]">{selectedPiece.title}</h3>
                         {(() => {
                         const price = getPiecePriceDisplay(selectedPiece, user);
-                        return <p className={price.showNegotiation || price.showInquiry ? 'text-[#AAAAAA] italic text-lg' : 'text-[#C6A15B] text-xl sm:text-2xl font-medium tracking-wide'}>{price.label}</p>;
+                        return <p className={price.showNegotiation || price.showInquiry ? 'text-[#A0A0A0] italic text-lg' : 'text-[#C6A36A] text-xl sm:text-2xl font-medium tracking-wide'}>{price.label}</p>;
                       })()}
                       </div>
                       <div className="flex items-center gap-1">
@@ -15486,6 +15531,25 @@ export default function App() {
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-5 py-6 px-4 sm:px-5 rounded-2xl bg-[#121212]/90 border border-[var(--border-soft)] backdrop-blur-md">
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#A0A0A0]">{t('materials')}</p>
+                        <p className="text-sm text-[#FFFFFF] mt-1.5 leading-snug line-clamp-4">{getPieceLocalized(selectedPiece, 'materials') || '—'}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#A0A0A0]">{t('gemstones')}</p>
+                        <p className="text-sm text-[#FFFFFF] mt-1.5 leading-snug line-clamp-4">{getPieceLocalized(selectedPiece, 'gemstones') || '—'}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#A0A0A0]">{t('common.serial_id')}</p>
+                        <p className="text-sm font-mono text-[#E8E8E8] mt-1.5 break-all">{selectedPiece.serial_id || '—'}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-[#A0A0A0]">{t('piece.gallery_listing')}</p>
+                        <p className="text-[11px] text-[#FFFFFF] mt-1.5 tracking-[0.14em] uppercase">{pieceGalleryAvailabilityLabel(selectedPiece, t)}</p>
+                      </div>
+                    </div>
+
                     <div className="flex-1 flex flex-col min-h-0">
                       <div className="flex flex-wrap gap-x-8 gap-y-2 border-b border-[var(--border-soft)] pb-3 mb-6">
                         {(['details', 'materials', 'provenance', 'care'] as const).map(tab => (
@@ -15493,7 +15557,7 @@ export default function App() {
                             key={tab}
                             type="button"
                             onClick={() => setPieceModalTab(tab)}
-                            className={`text-sm tracking-[0.12em] uppercase transition-colors duration-300 ease-out pb-2 -mb-px border-b-2 ${pieceModalTab === tab ? 'border-[#C6A15B] text-[#F5F5F5]' : 'border-transparent text-[#AAAAAA] hover:text-[#F5F5F5]'}`}
+                            className={`text-sm tracking-[0.12em] uppercase transition-colors duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] pb-2 -mb-px border-b-2 ${pieceModalTab === tab ? 'border-[#C6A36A] text-[#FFFFFF]' : 'border-transparent text-[#A0A0A0] hover:text-[#FFFFFF]'}`}
                           >
                             {t(`piece.tab_${tab}`)}
                           </button>
@@ -15640,15 +15704,15 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="pt-8 border-t border-zinc-900 space-y-4">
+                    <div className="pt-8 border-t border-[var(--border-soft)] space-y-5">
                       {selectedPiece.status === 'available' && view !== 'admin' && (
                         <>
                           {(() => {
                             const price = getPiecePriceDisplay(selectedPiece, user);
                             if (price.showNegotiation) return (
                               <>
-                                <p className="text-zinc-500 text-sm italic">{t('private_terms.request')}</p>
-                                <Button className="w-full py-4 text-base" onClick={async () => {
+                                <p className="text-[#A0A0A0] text-sm italic">{t('private_terms.request')}</p>
+                                <Button variant="primary" className="w-full py-4 text-base" onClick={async () => {
                                   if (!user) return;
                                   setLoading(true);
                                   try {
@@ -15663,8 +15727,8 @@ export default function App() {
                             );
                             if (price.showInquiry) return (
                               <>
-                                <p className="text-zinc-500 text-sm italic">{t('pricing.price_on_request')}</p>
-                                <Button className="w-full py-4 text-base" onClick={async () => {
+                                <p className="text-[#A0A0A0] text-sm italic">{t('pricing.price_on_request')}</p>
+                                <Button variant="primary" className="w-full py-4 text-base" onClick={async () => {
                                   if (!user) return;
                                   setLoading(true);
                                   try {
@@ -15681,44 +15745,48 @@ export default function App() {
                           })()}
                           {!getPiecePriceDisplay(selectedPiece, user).showNegotiation && !getPiecePriceDisplay(selectedPiece, user).showInquiry && (
                         <>
-                          <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl">
-                            <p className="text-[10px] text-amber-500/80 leading-relaxed text-center italic">
+                          <div className="p-4 bg-[rgba(198,163,106,0.06)] border border-[rgba(198,163,106,0.12)] rounded-2xl">
+                            <p className="text-[10px] text-[#C6A36A]/85 leading-relaxed text-center italic">
                               {t('legal_notice')}
                             </p>
                           </div>
                           {pieceRequiresConsultationFirst(selectedPiece) ? (
                             <>
-                              <p className="text-sm text-zinc-300 text-center leading-relaxed px-1 whitespace-pre-line">
+                              <p className="text-sm text-[#CCCCCC] text-center leading-relaxed px-1 whitespace-pre-line">
                                 {t('piece.consultation_mto_hint')}
                               </p>
-                              <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
+                              <p className="text-[11px] text-[#888888] text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
                               <Button variant="primary" className="w-full py-4 text-base" onClick={() => { openConsultationBriefModal(selectedPiece); closePieceDetail(); }}>
                                 <MessageCircle className="w-5 h-5" /> {t('consultation_piece_chat_cta')}
                               </Button>
-                              <div className="flex items-stretch justify-center gap-2 w-full">
-                                <Button variant="outline" className="flex-1 py-3 text-sm border-[var(--border-soft)] text-zinc-300" onClick={() => {
+                              <button
+                                type="button"
+                                title={t('cta.lite_inquiry_tooltip')}
+                                className="w-full text-center text-sm text-[#A0A0A0] hover:text-[#C6A36A] transition-colors duration-500 py-1 bg-transparent border-0 cursor-pointer tracking-wide"
+                                onClick={() => {
+                                  if (!user || isGuestSessionUser(user)) {
+                                    setShowAccountRequiredModal(true);
+                                    return;
+                                  }
                                   setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
                                   closePieceDetail();
                                   setView('kontakt');
-                                }}>
-                                  {t('cta.lite_inquiry')}
-                                </Button>
-                                <span className="inline-flex items-center px-2 text-zinc-500 shrink-0" title={t('cta.lite_inquiry_tooltip')} aria-label={t('cta.lite_inquiry_tooltip')}>
-                                  <Info className="w-5 h-5" />
-                                </span>
-                              </div>
+                                }}
+                              >
+                                {t('cta.lite_inquiry')}
+                              </button>
                               {(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') && (
-                                <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { await handleReserve(selectedPiece.id); closePieceDetail(); }}>
+                                <Button variant="outline" className="w-full py-3 text-sm border-[var(--border-soft)] text-[#A0A0A0]" onClick={async () => { await handleReserve(selectedPiece.id); closePieceDetail(); }}>
                                   {t('piece_reserved') || 'Reservieren'}
                                 </Button>
                               )}
                             </>
                           ) : (
                             <>
-                              <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
+                              <p className="text-[11px] text-[#888888] text-center leading-relaxed px-1">{t('consultation_price_reference_note')}</p>
                               <div className="space-y-2">
-                                <label className="text-xs text-zinc-500 uppercase tracking-widest">{t('delivery.select')}</label>
-                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 px-4 text-zinc-200 text-sm">
+                                <label className="text-xs text-[#A0A0A0] uppercase tracking-widest">{t('delivery.select')}</label>
+                                <select value={deliveryOptionForModal} onChange={e => setDeliveryOptionForModal(e.target.value)} className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2.5 px-4 text-[#F5F5F5] text-sm focus:outline-none focus:border-[rgba(198,163,106,0.3)] transition-colors duration-500">
                                   <option value="insured_global_shipping">{t('delivery.insured_global')}</option>
                                   <option value="armored_courier">{t('delivery.armored_courier')}</option>
                                   <option value="private_jet">{t('delivery.private_jet')}</option>
@@ -15727,11 +15795,27 @@ export default function App() {
                                   <option value="vault_storage">{t('delivery.vault_storage')}</option>
                                 </select>
                               </div>
-                              <Button variant="outline" className="w-full py-3 text-base border-zinc-600 text-zinc-300" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
+                              <Button variant="primary" className="w-full py-4 text-base" onClick={async () => { if (user?.role === UserRole.GUEST || (user as any)?.is_guest) { setShowAccountRequiredModal(true); return; } await handleBuy(selectedPiece.id, deliveryOptionForModal); closePieceDetail(); }}>
                                 <ShoppingBag className="w-5 h-5" /> {t('marketplace.cta_purchase_request')}
                               </Button>
+                              <button
+                                type="button"
+                                title={t('cta.lite_inquiry_tooltip')}
+                                className="w-full text-center text-sm text-[#A0A0A0] hover:text-[#C6A36A] transition-colors duration-500 py-1 bg-transparent border-0 cursor-pointer tracking-wide"
+                                onClick={() => {
+                                  if (!user || isGuestSessionUser(user)) {
+                                    setShowAccountRequiredModal(true);
+                                    return;
+                                  }
+                                  setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
+                                  closePieceDetail();
+                                  setView('kontakt');
+                                }}
+                              >
+                                {t('cta.lite_inquiry')}
+                              </button>
                               {(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') && (
-                                <Button variant="ghost" className="w-full py-3 text-sm border border-zinc-700" onClick={async () => { await handleReserve(selectedPiece.id); closePieceDetail(); }}>
+                                <Button variant="outline" className="w-full py-3 text-sm border-[var(--border-soft)] text-[#A0A0A0]" onClick={async () => { await handleReserve(selectedPiece.id); closePieceDetail(); }}>
                                   {t('piece_reserved') || 'Reservieren'}
                                 </Button>
                               )}
@@ -15741,28 +15825,38 @@ export default function App() {
                       )}
                         </>
                       )}
-                      {user && !isGuestSessionUser(user) ? (
-                        !(selectedPiece.status === 'available' && pieceRequiresConsultationFirst(selectedPiece)) && (
-                          <div className="flex items-stretch justify-center gap-2 w-full">
-                            <Button variant="outline" className="flex-1 py-3 text-sm border-[var(--border-soft)] text-zinc-400" onClick={() => {
-                              setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
-                              closePieceDetail();
-                              setView('kontakt');
-                            }}>
-                              {t('cta.lite_inquiry')}
-                            </Button>
-                            <span className="inline-flex items-center px-2 text-zinc-500 shrink-0" title={t('cta.lite_inquiry_tooltip')} aria-label={t('cta.lite_inquiry_tooltip')}>
-                              <Info className="w-5 h-5" />
-                            </span>
-                          </div>
-                        )
-                      ) : (
-                        !(selectedPiece.status === 'available' && pieceRequiresConsultationFirst(selectedPiece)) && (
-                          <Button variant="outline" className="w-full py-3 text-sm border-[var(--border-soft)] text-zinc-400" onClick={() => setShowAccountRequiredModal(true)}>
+                      {(() => {
+                        const pd = getPiecePriceDisplay(selectedPiece, user);
+                        if (
+                          selectedPiece.status === 'available' &&
+                          view !== 'admin' &&
+                          !pd.showNegotiation &&
+                          !pd.showInquiry
+                        ) {
+                          return null;
+                        }
+                        if (user && !isGuestSessionUser(user)) {
+                          return (
+                            <div className="flex items-stretch justify-center gap-2 w-full">
+                              <Button variant="outline" className="flex-1 py-3 text-sm border-[var(--border-soft)] text-[#A0A0A0] hover:text-[#F5F5F5]" onClick={() => {
+                                setKontaktPrefillSnippet(liteInquiryPrefillForPiece(selectedPiece));
+                                closePieceDetail();
+                                setView('kontakt');
+                              }}>
+                                {t('cta.lite_inquiry')}
+                              </Button>
+                              <span className="inline-flex items-center px-2 text-[#888888] shrink-0" title={t('cta.lite_inquiry_tooltip')} aria-label={t('cta.lite_inquiry_tooltip')}>
+                                <Info className="w-5 h-5" />
+                              </span>
+                            </div>
+                          );
+                        }
+                        return (
+                          <Button variant="outline" className="w-full py-3 text-sm border-[var(--border-soft)] text-[#A0A0A0]" onClick={() => setShowAccountRequiredModal(true)}>
                             {t('cta.lite_inquiry')}
                           </Button>
-                        )
-                      )}
+                        );
+                      })()}
                       {user?.role === UserRole.ADMIN && (
                         <>
                           <Button variant="secondary" className="w-full py-3 text-sm" onClick={() => { setEditingPiece(selectedPiece); setView('admin'); setAdminTab('inventory'); closePieceDetail(); }}>
@@ -15773,9 +15867,9 @@ export default function App() {
                           </Button>
                         </>
                       )}
-                      <Button variant="ghost" className="w-full py-4 text-sm text-zinc-500" onClick={closePieceDetail}>
+                      <button type="button" className="w-full text-center text-[11px] uppercase tracking-[0.22em] text-[#666666] hover:text-[#A0A0A0] transition-colors duration-500 py-3 bg-transparent border-0 cursor-pointer" onClick={closePieceDetail}>
                         {t('close')}
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -16234,9 +16328,9 @@ ${plain}`;
 // --- Helper Components ---
 
 const NavItem = ({ active, icon: Icon, label, onClick }: any) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-300 ease-out group min-h-[44px] ${active ? 'bg-[rgba(198,161,91,0.08)] text-[#D4AF37]' : 'text-[#AAAAAA] hover:text-[#F5F5F5] hover:bg-white/[0.03]'}`}>
-    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#C6A15B]' : 'text-[#888888] group-hover:text-[#C6A15B]'} transition-colors duration-300`} />
-    <span className={`block text-sm font-medium tracking-wide ${active ? '' : 'underline-offset-[6px] decoration-[#C6A15B]/0 group-hover:underline group-hover:decoration-[#C6A15B]/50'}`}>{label}</span>
+  <button onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group min-h-[44px] ${active ? 'bg-[rgba(198,163,106,0.1)] text-[#C6A36A]' : 'text-[#A0A0A0] hover:text-[#FFFFFF] hover:bg-white/[0.04]'}`}>
+    <Icon className={`w-5 h-5 shrink-0 ${active ? 'text-[#C6A36A]' : 'text-[#888888] group-hover:text-[#C6A36A]'} transition-colors duration-500`} />
+    <span className={`block text-sm font-medium tracking-wide ${active ? '' : 'underline-offset-[6px] decoration-[#C6A36A]/0 group-hover:underline group-hover:decoration-[#C6A36A]/45'}`}>{label}</span>
   </button>
 );
 
@@ -16309,8 +16403,28 @@ function pieceRequiresConsultationFirst(p: Masterpiece): boolean {
   return Number(p.consultation_required) === 1 || Number(p.made_to_order) === 1;
 }
 
+function pieceLuxuryExclusivityBadges(piece: Masterpiece, t: (k: string) => string): { key: string; variant: string; label: string }[] {
+  const out: { key: string; variant: string; label: string }[] = [];
+  const r = String(piece.rarity || '').toLowerCase();
+  if (r.includes('unikat') || r.includes('unique')) out.push({ key: 'u', variant: 'luxury', label: t('luxury.badge_unique') });
+  else if (r.includes('limit')) out.push({ key: 'l', variant: 'luxuryMuted', label: t('luxury.badge_limited') });
+  if (String(piece.status || '') === 'listed_private') out.push({ key: 'p', variant: 'luxuryMuted', label: t('luxury.badge_private_collection') });
+  if (Number((piece as any).consultation_required) === 1 || Number((piece as any).made_to_order) === 1) {
+    out.push({ key: 'a', variant: 'luxuryWhisper', label: t('luxury.badge_on_request') });
+  }
+  return out;
+}
+
+function pieceGalleryAvailabilityLabel(piece: Masterpiece, t: (k: string) => string): string {
+  const s = String(piece.status || '');
+  if (s === 'reserved' || s === 'reserved_client' || s === 'reserved_vip') return t('reserved');
+  if (s === 'sold') return t('piece.gallery_sold');
+  if (s === 'available') return t('piece.gallery_available');
+  return s ? s.replace(/_/g, ' ') : '—';
+}
+
 const TabButton = ({ active, label, onClick, icon: Icon }: any) => (
-  <button onClick={onClick} className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ease-out whitespace-nowrap border ${active ? 'bg-[rgba(198,161,91,0.12)] text-[#F5F5F5] border-[#C6A15B]/35' : 'bg-transparent text-[#AAAAAA] border-[var(--border-soft)] hover:text-[#F5F5F5] hover:border-[#C6A15B]/25'}`}>
+  <button onClick={onClick} className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] whitespace-nowrap border ${active ? 'bg-[rgba(198,163,106,0.1)] text-[#FFFFFF] border-[#C6A36A]/35' : 'bg-transparent text-[#A0A0A0] border-[var(--border-soft)] hover:text-[#FFFFFF] hover:border-[#C6A36A]/22'}`}>
     <Icon className="w-4 h-4" />
     {label}
   </button>
@@ -16332,34 +16446,43 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
       return fallback;
     }
   })();
+  const exclusivity = t ? pieceLuxuryExclusivityBadges(piece, t) : [];
   return (
-  <Card className="group product-card transition-all duration-300 ease-out" hoverGlow={false}>
-    <div className="aspect-square rounded-2xl bg-zinc-900/80 mb-4 overflow-hidden relative cursor-pointer border border-[var(--border-soft)]" onClick={() => onViewDetails?.(piece)}>
-      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out" />
+  <Card className="group product-card transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" hoverGlow={false}>
+    <div className="aspect-square rounded-2xl bg-[#121212] mb-4 overflow-hidden relative cursor-pointer border border-[var(--border-soft)] jewel-hover-wrap" onClick={() => onViewDetails?.(piece)}>
+      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
       {onToggleFavorite && (
         <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
           <Heart className={`w-5 h-5 transition-colors ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
         </button>
       )}
-      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
+      <div className="absolute top-3 right-3 flex flex-col gap-2 items-end max-w-[55%]">
         <Badge variant="amber">{getRarityLabel ? getRarityLabel(piece.rarity) : piece.rarity}</Badge>
         {(piece.status === 'reserved' || piece.status === 'reserved_client' || piece.status === 'reserved_vip') && (
           <Badge variant="amber">{t ? t('reserved') : 'Reserved'}</Badge>
         )}
         {piece.blockchain_hash && <Badge variant="verified" icon={ShieldCheck}>{t ? t('piece.blockchain_verified') : 'Verifiziert'}</Badge>}
       </div>
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 p-3 rounded-full">
+      {exclusivity.length > 0 && (
+        <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5 justify-start">
+          {exclusivity.map((b) => (
+            <Badge key={b.key} variant={b.variant as any} className="!text-[8px] !py-0.5">{b.label}</Badge>
+          ))}
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 opacity-80" />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-all duration-500 flex items-center justify-center opacity-0 group-hover:opacity-100">
+        <div className="bg-white/[0.08] backdrop-blur-md border border-white/15 p-3 rounded-full transition-transform duration-500 group-hover:scale-100 scale-95">
           <Eye className="w-6 h-6 text-white" />
         </div>
       </div>
     </div>
     <div className="space-y-2">
-      <div className="flex justify-between items-start">
-        <h4 className="font-medium text-[#F5F5F5] cursor-pointer hover:text-[#C6A15B] transition-colors duration-300 text-base tracking-wide" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
-        <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-[#AAAAAA] italic text-sm' : 'text-[#C6A15B] font-medium'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
+      <div className="flex justify-between items-start gap-3">
+        <h4 className="font-medium text-[#FFFFFF] cursor-pointer hover:text-[#C6A36A] transition-colors duration-500 text-base tracking-wide font-[family-name:var(--font-serif)]" onClick={() => onViewDetails?.(piece)}>{piece.title}</h4>
+        <p className={priceLabel != null && !priceLabel.endsWith(' €') ? 'text-[#A0A0A0] italic text-sm shrink-0' : 'text-[#C6A36A] font-medium shrink-0'}>{priceLabel != null ? priceLabel : (piece.valuation != null ? `${Number(piece.valuation).toLocaleString('de-DE')} €` : '—')}</p>
       </div>
-      <p className="text-sm text-[#AAAAAA] line-clamp-2 leading-relaxed max-w-prose">{desc}</p>
+      <p className="text-sm text-[#A0A0A0] line-clamp-2 leading-relaxed max-w-prose">{desc}</p>
       {detailsHint && (
         <p className="text-[11px] text-zinc-500 mt-1">{detailsHint}</p>
       )}

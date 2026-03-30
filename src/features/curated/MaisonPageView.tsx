@@ -1,6 +1,14 @@
 import React from "react";
+import { motion } from "motion/react";
 import type { Masterpiece } from "../../types";
 import { MessageCircle, ChevronRight } from "lucide-react";
+
+const sectionReveal = {
+  initial: { opacity: 0, y: 26 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: "-56px" },
+  transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
+};
 
 export type MaisonLayoutSection = {
   id: number;
@@ -69,11 +77,11 @@ export function MaisonPageView({
         onKeyDown={(e) => e.key === "Enter" && onOpenPiece(piece)}
       >
         <div
-          className={`relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-zinc-900/40 ${
+          className={`jewel-hover-wrap relative overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-[#121212] ${
             compact ? "aspect-[4/5]" : "aspect-square"
           }`}
         >
-          <img src={img} alt={piece.title} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]" />
+          <img src={img} alt={piece.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-90" />
           <div className="absolute bottom-0 left-0 right-0 p-6 text-left">
             <p className="font-serif italic text-lg text-[#F5F5F5] tracking-wide">{piece.title}</p>
@@ -138,7 +146,7 @@ export function MaisonPageView({
           case "hero": {
             const bg = str(c.imageUrl);
             return (
-              <section key={sec.id} className="luxury-container">
+              <motion.section key={sec.id} className="luxury-container" {...sectionReveal}>
                 <div
                   className="relative min-h-[56vh] overflow-hidden rounded-3xl border border-[var(--border-soft)]"
                   style={
@@ -164,12 +172,12 @@ export function MaisonPageView({
                     )}
                   </div>
                 </div>
-              </section>
+              </motion.section>
             );
           }
           case "category_block":
             return (
-              <section key={sec.id} className="luxury-container text-center">
+              <motion.section key={sec.id} className="luxury-container text-center" {...sectionReveal}>
                 <p className="text-[10px] uppercase tracking-[0.35em] text-[#C6A15B]/90">{t("maison.section_category")}</p>
                 <h3 className="mt-4 font-serif text-3xl italic text-[#F5F5F5] sm:text-4xl">{str(c.heading)}</h3>
                 {str(c.subheading) && <p className="mx-auto mt-5 max-w-2xl text-[15px] leading-relaxed text-[#AAAAAA]">{str(c.subheading)}</p>}
@@ -182,13 +190,13 @@ export function MaisonPageView({
                     {str(c.ctaLabel)}
                   </button>
                 )}
-              </section>
+              </motion.section>
             );
           case "product_row": {
             const pids = idsArr(c.productIds, 6);
             const pieces = pids.map((id) => masterpiecesById.get(id)).filter(Boolean) as Masterpiece[];
             return (
-              <section key={sec.id} className="luxury-container">
+              <motion.section key={sec.id} className="luxury-container" {...sectionReveal}>
                 {(str(c.title) || str(c.subtitle)) && (
                   <div className="mb-14 max-w-2xl">
                     {str(c.title) && <h3 className="font-serif text-3xl italic text-[#F5F5F5]">{str(c.title)}</h3>}
@@ -204,14 +212,14 @@ export function MaisonPageView({
                     ))}
                   </div>
                 )}
-              </section>
+              </motion.section>
             );
           }
           case "featured_piece": {
             const pid = num(c.productId);
             const piece = pid ? masterpiecesById.get(pid) : undefined;
             return (
-              <section key={sec.id} className="luxury-container">
+              <motion.section key={sec.id} className="luxury-container" {...sectionReveal}>
                 <div className="mx-auto max-w-4xl text-center">
                   {str(c.headline) && (
                     <h3 className="font-serif text-3xl italic text-[#F5F5F5] sm:text-4xl">{str(c.headline)}</h3>
@@ -223,7 +231,7 @@ export function MaisonPageView({
                 ) : (
                   <p className="mt-12 text-center text-sm text-zinc-600">{t("maison.featured_placeholder")}</p>
                 )}
-              </section>
+              </motion.section>
             );
           }
           case "split": {
@@ -247,7 +255,7 @@ export function MaisonPageView({
               </div>
             );
             return (
-              <section key={sec.id} className="luxury-container">
+              <motion.section key={sec.id} className="luxury-container" {...sectionReveal}>
                 <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
                   {side === "left" ? (
                     <>
@@ -268,20 +276,20 @@ export function MaisonPageView({
                     ))}
                   </div>
                 )}
-              </section>
+              </motion.section>
             );
           }
           case "editorial": {
             const align = str(c.align) === "left" ? "text-left" : "text-center";
             return (
-              <section key={sec.id} className="luxury-container">
+              <motion.section key={sec.id} className="luxury-container" {...sectionReveal}>
                 <div className={`mx-auto max-w-3xl ${align}`}>
                   {str(c.headline) && (
                     <h3 className="font-serif text-2xl italic text-[#E8E8E8] sm:text-3xl">{str(c.headline)}</h3>
                   )}
                   <div className="mt-8 whitespace-pre-line text-[16px] leading-[1.9] text-[#999999]">{str(c.body)}</div>
                 </div>
-              </section>
+              </motion.section>
             );
           }
           default:
