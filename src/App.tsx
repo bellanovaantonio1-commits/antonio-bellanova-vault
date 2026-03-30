@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   Diamond, 
   ShieldCheck, 
@@ -44,6 +44,7 @@ import {
   LineChart,
   Menu,
   X,
+  Home,
   Wallet,
   Receipt,
   ClipboardList,
@@ -53,6 +54,8 @@ import {
   ChevronDown,
   Info
 } from 'lucide-react';
+import { MaisonPageView, type MaisonLayoutSection } from './features/curated/MaisonPageView';
+import { AdminCuratedEditor } from './features/curated/AdminCuratedEditor';
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
@@ -249,6 +252,37 @@ const TRANSLATIONS: any = {
     "care.svc_certificate": "Zertifikatsprüfung",
     "care.history_hint": "Ihre Service-Historie pro Schmuckstück erscheint hier, sobald Einträge im Atelier vorliegen.",
     "care.vault_only_hint": "Wartung, Service und Zertifikatsfragen bündeln wir im Tresor unter Bellanova Care — getrennt von der Erwerbsberatung.",
+    "view.maison": "Maison",
+    "maison.catalog_full": "Vollständiger Katalog",
+    "maison.fallback_nav": "Startseite",
+    "maison.section_category": "Kollektion",
+    "maison.no_pieces_section": "Noch keine Stücke für diese Reihe gewählt (Admin).",
+    "maison.featured_placeholder": "Bitte im Admin-Editor ein Schmuckstück zuweisen.",
+    "maison.split_image_placeholder": "Bild-URL im Editor hinterlegen",
+    "maison.empty_page": "Diese Seite hat noch keine Sektionen.",
+    "maison.admin_title": "Maison · Kuratierung",
+    "maison.admin_intro": "Seiten, Reihenfolge und Inhalte steuern Sie hier manuell — ohne automatisches Produkt-Grid.",
+    "maison.admin_pages": "Seiten",
+    "maison.admin_new_page": "Neue Seite",
+    "maison.admin_create_page": "Seite anlegen",
+    "maison.admin_page_meta": "Seiten-Einstellungen",
+    "maison.admin_published": "Veröffentlicht (in Navigation sichtbar)",
+    "maison.admin_save_page": "Seite speichern",
+    "maison.admin_delete_page": "Seite löschen",
+    "maison.admin_sections": "Sektionen (Drag & Drop)",
+    "maison.admin_add_section": "Sektion",
+    "maison.admin_drag_hint": "Sektionen an der Griff-Leiste ziehen, um die Reihenfolge zu ändern.",
+    "maison.admin_save_section": "Sektion speichern",
+    "maison.admin_no_sections": "Noch keine Sektionen — Typ wählen und hinzufügen.",
+    "maison.admin_reorder_saved": "Reihenfolge gespeichert.",
+    "maison.admin_section_saved": "Sektion gespeichert.",
+    "maison.admin_section_added": "Sektion hinzugefügt.",
+    "maison.admin_page_created": "Seite angelegt.",
+    "maison.admin_page_saved": "Seite gespeichert.",
+    "maison.admin_deleted": "Gelöscht.",
+    "maison.admin_confirm_delete_section": "Diese Sektion wirklich löschen?",
+    "maison.admin_confirm_delete_page": "Diese Seite und alle Sektionen wirklich löschen?",
+    "maison.page_unavailable": "Diese Maison-Seite ist nicht verfügbar oder nicht veröffentlicht.",
     consultation_send_file_heading: "Datei an Kundin senden (PDF)",
     consultation_file_label_ph: "Bezeichnung (z. B. Anlage)",
     consultation_file_url_ph: "Datei-URL (https://… oder /pfad)",
@@ -1429,6 +1463,37 @@ const TRANSLATIONS: any = {
     "care.svc_certificate": "Certificate review",
     "care.history_hint": "Service history per piece will appear here once the Atelier has recorded visits.",
     "care.vault_only_hint": "Maintenance, servicing and certificates are handled in your Vault under Bellanova Care — separate from acquisition consultation.",
+    "view.maison": "Maison",
+    "maison.catalog_full": "Full catalog",
+    "maison.fallback_nav": "Home",
+    "maison.section_category": "Collection",
+    "maison.no_pieces_section": "No pieces selected for this row yet (Admin).",
+    "maison.featured_placeholder": "Assign a piece in the admin editor.",
+    "maison.split_image_placeholder": "Set image URL in the editor",
+    "maison.empty_page": "This page has no sections yet.",
+    "maison.admin_title": "Maison · Curation",
+    "maison.admin_intro": "Control pages, order and content manually — no automatic product grid.",
+    "maison.admin_pages": "Pages",
+    "maison.admin_new_page": "New page",
+    "maison.admin_create_page": "Create page",
+    "maison.admin_page_meta": "Page settings",
+    "maison.admin_published": "Published (visible in navigation)",
+    "maison.admin_save_page": "Save page",
+    "maison.admin_delete_page": "Delete page",
+    "maison.admin_sections": "Sections (drag & drop)",
+    "maison.admin_add_section": "Section",
+    "maison.admin_drag_hint": "Drag sections by the handle to reorder.",
+    "maison.admin_save_section": "Save section",
+    "maison.admin_no_sections": "No sections yet — pick a type and add one.",
+    "maison.admin_reorder_saved": "Order saved.",
+    "maison.admin_section_saved": "Section saved.",
+    "maison.admin_section_added": "Section added.",
+    "maison.admin_page_created": "Page created.",
+    "maison.admin_page_saved": "Page saved.",
+    "maison.admin_deleted": "Deleted.",
+    "maison.admin_confirm_delete_section": "Delete this section?",
+    "maison.admin_confirm_delete_page": "Delete this page and all its sections?",
+    "maison.page_unavailable": "This Maison page is unavailable or not published.",
     consultation_send_file_heading: "Send file to client (PDF)",
     consultation_file_label_ph: "Label (e.g. attachment)",
     consultation_file_url_ph: "File URL (https://… or /path)",
@@ -2536,6 +2601,37 @@ const TRANSLATIONS: any = {
     "care.svc_certificate": "Verifica certificato",
     "care.history_hint": "La cronologia assistenza per pezzo apparirà qui non appena l’atelier avrà registrato gli interventi.",
     "care.vault_only_hint": "Manutenzione, service e certificati sono nel Tesoro sotto Bellanova Care — separati dalla consulenza d’acquisto.",
+    "view.maison": "Maison",
+    "maison.catalog_full": "Catalogo completo",
+    "maison.fallback_nav": "Home",
+    "maison.section_category": "Collezione",
+    "maison.no_pieces_section": "Nessun pezzo selezionato (Admin).",
+    "maison.featured_placeholder": "Assegnare un pezzo nell’editor admin.",
+    "maison.split_image_placeholder": "Impostare URL immagine nell’editor",
+    "maison.empty_page": "Questa pagina non ha ancora sezioni.",
+    "maison.admin_title": "Maison · Curazione",
+    "maison.admin_intro": "Pagine, ordine e contenuti si controllano manualmente.",
+    "maison.admin_pages": "Pagine",
+    "maison.admin_new_page": "Nuova pagina",
+    "maison.admin_create_page": "Crea pagina",
+    "maison.admin_page_meta": "Impostazioni pagina",
+    "maison.admin_published": "Pubblicata (in navigazione)",
+    "maison.admin_save_page": "Salva pagina",
+    "maison.admin_delete_page": "Elimina pagina",
+    "maison.admin_sections": "Sezioni (trascina)",
+    "maison.admin_add_section": "Sezione",
+    "maison.admin_drag_hint": "Trascinare le sezioni per riordinare.",
+    "maison.admin_save_section": "Salva sezione",
+    "maison.admin_no_sections": "Nessuna sezione.",
+    "maison.admin_reorder_saved": "Ordine salvato.",
+    "maison.admin_section_saved": "Sezione salvata.",
+    "maison.admin_section_added": "Sezione aggiunta.",
+    "maison.admin_page_created": "Pagina creata.",
+    "maison.admin_page_saved": "Pagina salvata.",
+    "maison.admin_deleted": "Eliminato.",
+    "maison.admin_confirm_delete_section": "Eliminare questa sezione?",
+    "maison.admin_confirm_delete_page": "Eliminare questa pagina e tutte le sezioni?",
+    "maison.page_unavailable": "Questa pagina Maison non è disponibile o non è pubblicata.",
     consultation_send_file_heading: "Invia file alla cliente (PDF)",
     consultation_file_label_ph: "Etichetta (es. allegato)",
     consultation_file_url_ph: "URL file (https://… o /percorso)",
@@ -3896,7 +3992,7 @@ function ResetPasswordForm({ token, onBack, onSuccess, t }: { token: string; onB
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'world' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'ai_jewelry_design' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt' | 'bellanova_care' | 'legacy_hub'>(() => {
+  const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'world' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'ai_jewelry_design' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt' | 'bellanova_care' | 'legacy_hub' | 'maison'>(() => {
     if (typeof window === 'undefined') return 'login';
     const pathname = window.location.pathname || '';
     const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
@@ -4132,6 +4228,51 @@ export default function App() {
   const inquiryFileInputRef = useRef<HTMLInputElement>(null);
   const [inquiryImagePreview, setInquiryImagePreview] = useState<string | null>(null);
   const [kontaktPrefillSnippet, setKontaktPrefillSnippet] = useState<string | null>(null);
+  const [maisonSlug, setMaisonSlug] = useState('home');
+  const [maisonBundle, setMaisonBundle] = useState<{
+    page: { title?: string; slug?: string; nav_label?: string };
+    sections: MaisonLayoutSection[];
+  } | null>(null);
+  const [curatedNavPages, setCuratedNavPages] = useState<{ slug: string; nav_label: string }[]>([]);
+  const [maisonLoading, setMaisonLoading] = useState(false);
+  const [maisonLoadError, setMaisonLoadError] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/curated/pages/public')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { slug: string; nav_label: string }[]) => setCuratedNavPages(Array.isArray(rows) ? rows : []))
+      .catch(() => setCuratedNavPages([]));
+  }, [user?.id, language]);
+
+  useEffect(() => {
+    if (view !== 'maison') return undefined;
+    let cancel = false;
+    setMaisonLoading(true);
+    setMaisonLoadError(false);
+    fetch(`/api/curated/page/${encodeURIComponent(maisonSlug)}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('not found');
+        return r.json();
+      })
+      .then((data) => {
+        if (!cancel) {
+          setMaisonBundle(data);
+          setMaisonLoadError(false);
+        }
+      })
+      .catch(() => {
+        if (!cancel) {
+          setMaisonBundle(null);
+          setMaisonLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancel) setMaisonLoading(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [view, maisonSlug]);
 
   useEffect(() => {
     if (view !== 'kontakt') return undefined;
@@ -4152,7 +4293,7 @@ export default function App() {
 
   const [adminAtelierMoments, setAdminAtelierMoments] = useState<{ id?: string; title: string; subtitle?: string; image_url?: string; body?: string }[]>([]);
   const [adminAtelierForm, setAdminAtelierForm] = useState({ title: '', subtitle: '', image_url: '', body: '' });
-  const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'reservations' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'audience' | 'inventory' | 'users' | 'kunden' | 'resale' | 'fractional' | 'drops' | 'reservations' | 'appointments' | 'advisors' | 'vip_members' | 'intelligence' | 'legacy' | 'concierge' | 'consultation_chats' | 'vault_requests' | 'private_clients' | 'collector_rooms' | 'stone_library' | 'deal_rooms' | 'collector_reputation' | 'investor_dashboard' | 'prospects' | 'settings' | 'projects' | 'documents' | 'contract-generator' | 'registry' | 'payments' | 'curated_maison'>('overview');
   const [prospectsList, setProspectsList] = useState<any[]>([]);
   const [prospectsDashboard, setProspectsDashboard] = useState<{ total_prospects?: number; converted_clients?: number; top_lead_sources?: { source: string; count: number }[]; high_value_prospects?: any[] } | null>(null);
   const [prospectForm, setProspectForm] = useState({ name: '', city: '', country: '', contact_email: '', phone: '', net_worth_category: '', interest_type: '', source: 'website', notes: '', status: 'new' });
@@ -4429,6 +4570,7 @@ export default function App() {
     if (tab === 'prospects') return t('admin.prospects') || 'Prospects';
     if (tab === 'registry') return t('admin.registry') || 'Registry';
     if (tab === 'payments') return t('admin.payments_invoices') || 'Payments & Invoices';
+    if (tab === 'curated_maison') return t('maison.admin_title');
     return t('admin.tab_settings');
   };
 
@@ -6327,6 +6469,26 @@ export default function App() {
   const liteInquiryPrefillForPiece = (piece: Masterpiece) =>
     `${t('cta.inquiry_prefill_intro')} ${piece.title}${piece.serial_id ? ` (${piece.serial_id})` : ''}`;
 
+  const masterpiecesById = useMemo(() => new Map(masterpieces.map((p) => [p.id, p])), [masterpieces]);
+
+  const handleMaisonCtaNavigate = (v: string) => {
+    const raw = v.trim();
+    const m = /^maison:([^:]+)$/.exec(raw);
+    if (m) {
+      setMaisonSlug(m[1]);
+      setView('maison');
+      return;
+    }
+    const allowed = new Set([
+      'concierge', 'kontakt', 'marketplace', 'vault', 'dashboard', 'legacy_hub', 'portfolio', 'world', 'auctions', 'drops', 'resale', 'fractional', 'investor', 'admin', 'private_gallery', 'advisor', 'private_clients', 'ai_jewelry_design',
+    ]);
+    if (allowed.has(raw)) {
+      setView(raw as typeof view);
+      return;
+    }
+    notifyUser(t('errors.generic'), 'error');
+  };
+
   const handleApprovePurchase = async (pieceId: number, approve: boolean, adminId: number) => {
     setLoading(true);
     try {
@@ -7692,16 +7854,7 @@ export default function App() {
     }
     setView(viewKey as any);
   };
-  const navItems = isGuest ? [
-    navItem('world', Globe, t('view.world')),
-    navItem('marketplace', ShoppingBag, t('nav.collection') || t('marketplace')),
-    navItem('auctions', Gavel, t('auctions')),
-    navItem('vault', ShieldCheck, t('vault')),
-  ] : isLuxuryCollectorNav ? [
-    navItem('marketplace', ShoppingBag, t('nav.collection') || t('marketplace')),
-    navItem('vault', ShieldCheck, t('nav.my_vault') || t('vault')),
-    navItem('legacy_hub', Crown, t('nav.legacy_portfolio') || 'Legacy & Portfolio'),
-  ] : [
+  const fullRoleNavItems = [
     navItem('dashboard', TrendingUp, t('dashboard')),
     navItem('marketplace', ShoppingBag, t('marketplace')),
     navItem('resale', History, t('resale.menu_title')),
@@ -7721,20 +7874,60 @@ export default function App() {
       : []),
   ];
 
+  const curatedNavForSidebar = curatedNavPages.length > 0 ? curatedNavPages : [{ slug: 'home', nav_label: t('maison.fallback_nav') }];
+
+  const goMaisonHome = () => {
+    setMaisonSlug('home');
+    setView('maison');
+  };
+
+  const renderSidebarLinks = (afterClick?: () => void) => {
+    const done = afterClick || (() => {});
+    if (isGuest || isLuxuryCollectorNav) {
+      return (
+        <>
+          {curatedNavForSidebar.map((p, i) => (
+            <NavItem
+              key={`maison-${p.slug}`}
+              active={view === 'maison' && maisonSlug === p.slug}
+              icon={i === 0 ? Home : Sparkles}
+              label={p.nav_label}
+              onClick={() => { setMaisonSlug(p.slug); setView('maison'); done(); }}
+            />
+          ))}
+          {isGuest ? (
+            <>
+              <NavItem active={view === 'marketplace'} icon={ShoppingBag} label={t('maison.catalog_full')} onClick={() => { handleNavViewChange('marketplace'); done(); }} />
+              <NavItem active={view === 'auctions'} icon={Gavel} label={t('auctions')} onClick={() => { handleNavViewChange('auctions'); done(); }} />
+              <NavItem active={view === 'vault'} icon={ShieldCheck} label={t('vault')} onClick={() => { handleNavViewChange('vault'); done(); }} />
+            </>
+          ) : (
+            <>
+              <NavItem active={view === 'vault'} icon={ShieldCheck} label={t('nav.my_vault') || t('vault')} onClick={() => { handleNavViewChange('vault'); done(); }} />
+              <NavItem active={view === 'legacy_hub'} icon={Crown} label={t('nav.legacy_portfolio') || 'Legacy & Portfolio'} onClick={() => { handleNavViewChange('legacy_hub'); done(); }} />
+              <NavItem active={view === 'marketplace'} icon={ShoppingBag} label={t('maison.catalog_full')} onClick={() => { handleNavViewChange('marketplace'); done(); }} />
+            </>
+          )}
+        </>
+      );
+    }
+    return fullRoleNavItems.map(({ viewKey, Icon, label }) => (
+      <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => { handleNavViewChange(viewKey); done(); }} />
+    ));
+  };
+
   return (
     <div className={`min-h-screen font-sans selection:bg-amber-500/30 ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`} data-theme={theme}>
       {/* Desktop Sidebar (hidden on mobile) */}
       <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 bg-zinc-950 border-r border-zinc-900 z-50 flex-col">
-        <button type="button" onClick={() => { if (!isGuest) setView('dashboard'); else setView('world'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/5 transition-colors">
+        <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/5 transition-colors">
           <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center shrink-0">
             <Diamond className="w-5 h-5 text-amber-500" />
           </div>
           <span className="font-serif italic text-lg text-amber-500">{t('vault')}</span>
         </button>
         <div className="flex-1 px-4 space-y-2">
-          {navItems.map(({ viewKey, Icon, label }) => (
-            <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => handleNavViewChange(viewKey)} />
-          ))}
+          {renderSidebarLinks()}
         </div>
         <div className="p-4 border-t border-zinc-900">
           <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); }}>
@@ -7751,7 +7944,7 @@ export default function App() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
             <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.2 }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-zinc-950 border-r border-zinc-900 flex flex-col md:hidden">
               <div className="p-4 flex items-center justify-between border-b border-zinc-900">
-                <button type="button" onClick={() => { if (!isGuest) setView('dashboard'); else setView('world'); closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/5 p-1 -m-1 transition-colors">
+                <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) { goMaisonHome(); } else { setView('dashboard'); } closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/5 p-1 -m-1 transition-colors">
                   <div className="w-10 h-10 rounded-xl bg-amber-600/10 border border-amber-600/20 flex items-center justify-center shrink-0">
                     <Diamond className="w-5 h-5 text-amber-500" />
                   </div>
@@ -7762,9 +7955,7 @@ export default function App() {
                 </button>
               </div>
               <div className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
-                {navItems.map(({ viewKey, Icon, label }) => (
-                  <NavItem key={viewKey} active={view === viewKey} icon={Icon} label={label} onClick={() => { handleNavViewChange(viewKey); closeDrawer(); }} />
-                ))}
+                {renderSidebarLinks(closeDrawer)}
               </div>
               <div className="p-4 border-t border-zinc-900">
                 <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer min-h-[44px]" onClick={async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); setUser(null); setShowMaintenanceAfterLoginAttempt(false); closeDrawer(); }}>
@@ -7785,7 +7976,7 @@ export default function App() {
               <Menu className="w-6 h-6 text-zinc-400" />
             </button>
             <h2 className="text-xl font-serif italic text-white capitalize shrink-0 flex flex-wrap items-center gap-2">
-              {(t as (k: string) => string)(`view.${view}`) || view}
+              {view === 'maison' ? (maisonBundle?.page?.title || t('view.maison')) : ((t as (k: string) => string)(`view.${view}`) || view)}
               {consultationPanel?.mode === 'client' && (
                 <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border border-[#C6A15B]/35 text-[#C6A15B]/90 whitespace-nowrap font-sans not-italic">
                   {t('consultation.active_banner')}
@@ -8303,6 +8494,8 @@ export default function App() {
                 )}
                 {vaultTab !== 'pieces' && <><span>/</span><span className="text-zinc-400">{vaultTab === 'transactions' ? (t('vault.tab_transactions') || 'Transaktionen') : vaultTab === 'legacy_vip' ? (t('vault.tab_legacy_vip') || 'Erbe & Maison') : isLuxuryCollectorNav && vaultTab === 'documents' ? `${t('vault.documents') || 'Dokumente'} · ${documentsSubTab === 'library' ? t('vault.docs_section_library') : documentsSubTab === 'contracts' ? t('vault.docs_section_contracts') : documentsSubTab === 'certs' ? t('vault.docs_section_certs') : t('vault.docs_section_invoices')}` : vaultTab === 'certs' ? t('certificates') : vaultTab === 'contracts' ? t('contracts') : vaultTab === 'payments' ? t('payments') : vaultTab === 'wallet' ? (t('wallet.title') || 'Wallet') : vaultTab === 'invoices' ? (t('invoices.title') || 'Invoices') : vaultTab === 'auctions' ? t('my_bids') : vaultTab === 'resale' ? t('resale') : vaultTab === 'care' ? t('view.bellanova_care') : vaultTab === 'service' ? t('service') : vaultTab === 'vip' ? t('vip') : vaultTab === 'legacy' ? (t('vault.legacy') || 'Legacy') : vaultTab === 'vault_requests' ? (t('vault.vault_requests_tab') || 'Tresor-Anfragen') : vaultTab === 'consultation' ? (t('vault.consultation_tab') || 'Concierge') : vaultTab === 'settings' ? (t('vault.settings') || 'Settings') : vaultTab === 'documents' ? (t('vault.documents') || 'Documents') : vaultTab === 'investor_insights' ? t('investor.insights') : vaultTab === 'dataroom' ? t('investor.dataroom') : vaultTab}</span></>}
               </>
+            ) : view === 'maison' ? (
+              <span className="text-zinc-400">{maisonBundle?.page?.nav_label || maisonBundle?.page?.title || t('view.maison')}</span>
             ) : (
               <span className="text-zinc-400">{(t as (k: string) => string)(`view.${view}`) || view}</span>
             )}
@@ -8311,6 +8504,34 @@ export default function App() {
 
         <div className="luxury-container !pt-4">
           <AnimatePresence mode="wait">
+            {view === 'maison' && (
+              <motion.div key={`maison-${maisonSlug}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
+                {maisonLoading ? (
+                  <div className="py-24 text-center text-sm text-zinc-500">{t('loading') || '…'}</div>
+                ) : maisonLoadError || !maisonBundle ? (
+                  <div className="luxury-container py-24 text-center text-zinc-500">
+                    <p>{t('maison.page_unavailable') || 'Diese Maison-Seite ist nicht verfügbar oder nicht veröffentlicht.'}</p>
+                    <button type="button" className="mt-6 text-sm uppercase tracking-widest text-amber-500/90 hover:text-amber-400" onClick={() => setView('marketplace')}>
+                      {t('maison.catalog_full')}
+                    </button>
+                  </div>
+                ) : (
+                  <MaisonPageView
+                    pageTitle=""
+                    sections={maisonBundle.sections || []}
+                    masterpiecesById={masterpiecesById}
+                    onNavigateView={handleMaisonCtaNavigate}
+                    onOpenPiece={(p) => setSelectedPiece(p)}
+                    openConsultationBriefModal={openConsultationBriefModal}
+                    liteInquiryPrefillForPiece={liteInquiryPrefillForPiece}
+                    setKontaktPrefillSnippet={setKontaktPrefillSnippet}
+                    setView={(v) => setView(v as typeof view)}
+                    pieceRequiresConsultationFirst={pieceRequiresConsultationFirst}
+                    t={t}
+                  />
+                )}
+              </motion.div>
+            )}
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
                 {/* Section 2: Client-only COLLECTION VALUE + ACTIVE PIECES */}
@@ -8706,6 +8927,7 @@ export default function App() {
                   </Card>
                 )}
 
+                {!isLuxuryCollectorNav && (
                 <div className="space-y-4">
                   <h4 className="text-sm uppercase tracking-widest text-zinc-500 font-bold">{t('featured')}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -8737,6 +8959,7 @@ export default function App() {
                     );})}
                   </div>
                 </div>
+                )}
               </motion.div>
             )}
 
@@ -11651,12 +11874,15 @@ export default function App() {
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
                 <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'reservations', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
+                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'reservations', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'curated_maison', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
                     <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
                       {adminTabLabel(tab)}
                     </button>
                   ))}
                 </div>
+                {(adminTab === 'curated_maison') && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin') && (
+                  <AdminCuratedEditor masterpieces={masterpieces} notifyUser={notifyUser} t={t} />
+                )}
                 {(adminTab === 'reservations') && (
                   <section className="space-y-4">
                     <h3 className="text-2xl font-serif italic text-zinc-100">{t('admin.tab_reservations') || 'Reservierungen'}</h3>

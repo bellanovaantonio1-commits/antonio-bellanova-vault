@@ -18,6 +18,7 @@ import { createRequire } from "module";
 import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, type StripeWebhookSendMail } from "./src/routes/stripeWebhook.js";
 import { validateServerEnv } from "./lib/validateEnv.js";
 import { registerConsultationRoutes, isConsultationFlowEnabled } from "./features/consultation/consultationRoutes.js";
+import { registerCuratedMaisonRoutes } from "./features/curated/curatedRoutes.js";
 import { createIpRateLimiter, createUserOrIpRateLimiter } from "./lib/rateLimit.js";
 import {
   JEWELRY_PARAMETRIC_JSON_SCHEMA,
@@ -1364,6 +1365,63 @@ await db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
 `);
+
+await db.exec(`
+  CREATE TABLE IF NOT EXISTS curated_pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    slug TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL DEFAULT '',
+    nav_label TEXT NOT NULL DEFAULT '',
+    published INTEGER NOT NULL DEFAULT 0,
+    nav_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS curated_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    page_id INTEGER NOT NULL,
+    section_type TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    config TEXT NOT NULL DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(page_id) REFERENCES curated_pages(id) ON DELETE CASCADE
+  );
+`);
+
+{
+  const seedRows: [string, string, string, number, number][] = [
+    ["home", "Startseite", "Startseite", 1, 0],
+    ["fuer-sie", "Für Sie", "Für Sie", 1, 10],
+    ["fuer-ihn", "Für Ihn", "Für Ihn", 1, 20],
+    ["high-jewelry", "High Jewelry", "Private Collection", 1, 30],
+    ["bespoke", "Individuelle Anfertigung", "Maison Atelier", 1, 40],
+  ];
+  const ins = db.isMySQL
+    ? "INSERT IGNORE INTO curated_pages (slug, title, nav_label, published, nav_order) VALUES (?, ?, ?, ?, ?)"
+    : "INSERT OR IGNORE INTO curated_pages (slug, title, nav_label, published, nav_order) VALUES (?, ?, ?, ?, ?)";
+  for (const row of seedRows) {
+    await (await db.prepare(ins)).run(row[0], row[1], row[2], row[3], row[4]);
+  }
+  const homeRow = (await (await db.prepare("SELECT id FROM curated_pages WHERE slug = 'home'")).get()) as { id: number } | undefined;
+  if (homeRow?.id) {
+    const cntRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_sections WHERE page_id = ?")).get(homeRow.id)) as { c: number };
+    if (Number(cntRow?.c || 0) === 0) {
+      const heroCfg = JSON.stringify({
+        imageUrl: "",
+        title: "Antonio Bellanova",
+        subtitle: "High Jewelry · Kuratiert · Persönlich",
+        ctaLabel: "Private Beratung",
+        ctaView: "concierge",
+      });
+      await (
+        await db.prepare(
+          "INSERT INTO curated_sections (page_id, section_type, sort_order, config) VALUES (?, 'hero', 0, ?)"
+        )
+      ).run(homeRow.id, heroCfg);
+    }
+  }
+}
 
 // --- High Jewelry Client Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
 await db.exec(`
@@ -3766,6 +3824,8 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "GET", path: "/api/consultation/enabled" },
   /** Anonymous + optional session page/piece visits for admin reach metrics (IP stored). */
   { method: "POST", path: "/api/analytics/visit" },
+  { method: "GET", path: /^\/api\/curated\/pages\/public$/ },
+  { method: "GET", path: /^\/api\/curated\/page\// },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -12785,6 +12845,7 @@ async function startServer() {
   warnIfProductionSessionSecretMissing();
   db = await initDb();
   await runSchema(db);
+  registerCuratedMaisonRoutes(app, db);
   try {
     await (await db.prepare(db.isMySQL ? "ALTER TABLE transactions ADD COLUMN `type` TEXT" : "ALTER TABLE transactions ADD COLUMN type TEXT")).run();
   } catch (_) {
