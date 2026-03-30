@@ -1303,6 +1303,7 @@ const TRANSLATIONS: any = {
     "activity.new_deal_room": "Neuer Deal-Raum verfügbar",
     "activity.new_collector_room": "Neuer Collector Room zugewiesen",
     "activity.new_message": "Neue Nachricht erhalten",
+    "activity.open_conversation": "Offene Konversation",
     "deal.payment_progress": "Zahlungsfortschritt",
     "deal.total": "Gesamt",
     "deal.paid": "Bezahlt",
@@ -2536,6 +2537,7 @@ const TRANSLATIONS: any = {
     "activity.new_deal_room": "New Deal Room available",
     "activity.new_collector_room": "New Collector Room assigned",
     "activity.new_message": "New message received",
+    "activity.open_conversation": "Open conversation",
     "deal.payment_progress": "Payment progress",
     "deal.total": "Total",
     "deal.paid": "Paid",
@@ -9089,7 +9091,7 @@ export default function App() {
                             setSelectedRoomType(rtype as 'collector' | 'deal'); setSelectedRoomId(parseInt(rid, 10));
                           }
                         };
-                        const onViewMessage = () => { setView('private_clients'); setClientViewSubTab('messages'); };
+                        const onViewMessage = () => { setView('concierge'); };
                         const onReviewOffer = () => { setView('dashboard'); };
                         let label = n.message;
                         let action: React.ReactNode = null;
@@ -9100,7 +9102,8 @@ export default function App() {
                           label = refId?.startsWith('deal') ? (t('activity.new_deal_room') || 'New Deal Room available') : (t('activity.new_collector_room') || 'New Collector Room assigned');
                           action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onOpenRoom}>{t('activity.open_room') || 'Open Room'}</Button>;
                         } else if (n.type === 'new_message') {
-                          label = t('activity.new_message') || 'New message received';
+                          const msgSeen = n.is_read === 1 || n.is_read === true || String(n.is_read) === '1' || n.status === 'read';
+                          label = msgSeen ? (t('activity.open_conversation') || 'Offene Konversation') : (t('activity.new_message') || 'New message received');
                           action = <Button variant="outline" size="sm" className="border-amber-500/50 text-amber-200 text-xs" onClick={onViewMessage}>{t('activity.view_message') || 'View Message'}</Button>;
                         } else if (n.type === 'new_offer') {
                           label = t('activity.new_offer') || 'New offer available';

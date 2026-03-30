@@ -10511,6 +10511,17 @@ app.get("/api/private-clients/conversations/:id/messages", requireAuth, async (r
     }
     return m;
   }));
+  if (!isAdminUser(user) && Number(conv.client_id) === Number(userId)) {
+    const receivedIds = rows.filter((m: any) => Number(m.receiver_id) === Number(userId)).map((m: any) => String(m.id));
+    if (receivedIds.length > 0) {
+      const ph = receivedIds.map(() => '?').join(',');
+      try {
+        await (await db.prepare(
+          `UPDATE notifications SET is_read = 1, status = 'read' WHERE user_id = ? AND type = 'new_message' AND reference_id IN (${ph})`
+        )).run(userId, ...receivedIds);
+      } catch (_) {}
+    }
+  }
   res.json(withProduct);
 });
 
