@@ -1,5 +1,8 @@
 export type BlockSize = "sm" | "md" | "lg" | "full";
 
+/** Product block presentation in custom marketplace layout (admin-controlled). */
+export type ProductDisplayMode = "full" | "image_only" | "minimal";
+
 export type CtaAction = "consultation" | "contact" | "view" | "external" | "piece";
 
 export type ExperienceKind = "hero" | "category" | "featured" | "product_grid" | "story" | "service" | "custom";
@@ -11,6 +14,7 @@ export type MarketplaceBlock = {
   sortOrder: number;
   column?: "left" | "right";
   productId?: number;
+  display_mode?: ProductDisplayMode;
   imageUrl?: string;
   imageAlt?: string;
   linkType?: "none" | "piece" | "view" | "external";

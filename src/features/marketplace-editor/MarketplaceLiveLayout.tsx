@@ -1,26 +1,38 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Copy,
-  Eye,
-  EyeOff,
-  GripVertical,
-  Image as ImageIcon,
-  LayoutGrid,
-  Maximize2,
-  Minus,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-} from "lucide-react";
+  closestCorners,
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Eye, EyeOff, GripVertical, Image as ImageIcon, LayoutGrid, Maximize2, Minus } from "lucide-react";
 import type { Masterpiece } from "../../types";
-import type { BlockSize, CtaAction, MarketplaceBlock, MarketplaceLayoutDoc, MarketplaceSection } from "./types";
-import { cloneBlock, colClass, newId, sortBlocks, sortSections } from "./layoutHelpers";
+import type { BlockSize, CtaAction, MarketplaceBlock, MarketplaceLayoutDoc, MarketplaceSection, ProductDisplayMode } from "./types";
+import {
+  cloneBlock,
+  colClass,
+  findSectionIdForBlock,
+  moveBlockToSection,
+  newId,
+  moveBlockToEndInSection,
+  reorderBlocksInSection,
+  reorderSplitSectionBlocks,
+  sortBlocks,
+  sortSections,
+  splitColumnOf,
+} from "./layoutHelpers";
+import { MarketplaceSortableBlock } from "./MarketplaceSortableBlock";
 
 const DND_MIME = "application/x-ab-marketplace";
 
-type DragPayload =
-  | { kind: "section"; index: number }
-  | { kind: "block"; sectionId: string; blockIndex: number };
+type DragPayload = { kind: "section"; index: number };
 
 export type MarketplaceLiveLayoutProps = {
   layout: MarketplaceLayoutDoc;
@@ -49,11 +61,35 @@ const VIEW_KEYS = [
   "resale",
 ] as const;
 
+function EmptySectionDropTarget({ sectionId, t }: { sectionId: string; t: (k: string) => string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `mkt-empty-${sectionId}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[120px] rounded-2xl border-2 border-dashed flex items-center justify-center text-[10px] uppercase tracking-[0.25em] px-4 text-center transition-all ${
+        isOver ? "border-[#D4AF37] bg-[#D4AF37]/10 text-[#D4AF37]" : "border-[var(--border-soft)] text-[#555555]"
+      }`}
+    >
+      {t("marketplace.editor.drop_zone_empty")}
+    </div>
+  );
+}
+
+function SectionAppendDropZone({ sectionId }: { sectionId: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: `mkt-append-${sectionId}` });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-lg transition-all min-h-3 mt-2 ${isOver ? "min-h-10 ring-2 ring-[#D4AF37] bg-[#D4AF37]/8" : ""}`}
+    />
+  );
+}
+
 function defaultBlock(type: MarketplaceBlock["type"], order: number): MarketplaceBlock {
   const id = newId("blk");
   switch (type) {
     case "product":
-      return { id, type, size: "md", sortOrder: order };
+      return { id, type, size: "md", sortOrder: order, display_mode: "full" };
     case "image":
       return { id, type, size: "lg", sortOrder: order, linkType: "none", imageUrl: "", imageAlt: "" };
     case "text":
@@ -93,7 +129,13 @@ export function MarketplaceLiveLayout({
 }: MarketplaceLiveLayoutProps) {
   const [menu, setMenu] = useState<{ sectionId: string; blockId: string } | null>(null);
   const [editTarget, setEditTarget] = useState<{ sectionId: string; block: MarketplaceBlock } | null>(null);
+  const [activeBlockId, setActiveBlockId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   useEffect(() => {
     const fn = (e: MouseEvent) => {
@@ -146,27 +188,61 @@ export function MarketplaceLiveLayout({
     [layout, onChange],
   );
 
-  const moveBlock = useCallback(
-    (fromSid: string, fromI: number, toSid: string, toI: number) => {
-      const secs = layout.sections.map((s) => ({ ...s, blocks: [...s.blocks] }));
-      const fromSec = secs.find((s) => s.id === fromSid);
-      const toSec = secs.find((s) => s.id === toSid);
-      if (!fromSec || !toSec) return;
-      const [removed] = fromSec.blocks.splice(fromI, 1);
-      if (!removed) return;
-      let insertAt = toI;
-      if (fromSid === toSid && fromI < toI) insertAt -= 1;
-      insertAt = Math.max(0, Math.min(insertAt, toSec.blocks.length));
-      toSec.blocks.splice(insertAt, 0, removed);
-      const reindex = (blocks: MarketplaceBlock[]) =>
-        blocks.map((b, i) => ({ ...b, sortOrder: i }));
-      onChange({
-        ...layout,
-        sections: secs.map((s) => ({ ...s, blocks: reindex(sortBlocks(s.blocks)) })),
-      });
-    },
-    [layout, onChange],
-  );
+  const handleBlockDragStart = (e: DragStartEvent) => {
+    if (!editMode) return;
+    setActiveBlockId(String(e.active.id));
+  };
+
+  const handleBlockDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveBlockId(null);
+    if (!over) return;
+    const aid = String(active.id);
+    const oid = String(over.id);
+
+    if (oid.startsWith("mkt-append-")) {
+      const toSid = oid.slice("mkt-append-".length);
+      const fromSid = findSectionIdForBlock(layout, aid);
+      if (!fromSid) return;
+      if (fromSid === toSid) {
+        const sec = layout.sections.find((s) => s.id === toSid);
+        if (!sec || sec.type === "split") return;
+        onChange({
+          ...layout,
+          sections: layout.sections.map((s) => (s.id === toSid ? moveBlockToEndInSection(s, aid) : s)),
+        });
+      } else {
+        onChange(moveBlockToSection(layout, aid, fromSid, toSid, null));
+      }
+      return;
+    }
+
+    if (oid.startsWith("mkt-empty-")) {
+      const toSid = oid.slice("mkt-empty-".length);
+      const fromSid = findSectionIdForBlock(layout, aid);
+      if (!fromSid || fromSid === toSid) return;
+      onChange(moveBlockToSection(layout, aid, fromSid, toSid, null));
+      return;
+    }
+
+    const fromSid = findSectionIdForBlock(layout, aid);
+    const toSid = findSectionIdForBlock(layout, oid);
+    if (!fromSid || !toSid) return;
+    const toSec = layout.sections.find((s) => s.id === toSid);
+    if (!toSec) return;
+
+    if (fromSid === toSid) {
+      if (toSec.type === "split") {
+        const updated = reorderSplitSectionBlocks(toSec, aid, oid);
+        onChange({ ...layout, sections: layout.sections.map((s) => (s.id === toSid ? updated : s)) });
+      } else {
+        const updated = reorderBlocksInSection(toSec, aid, oid);
+        onChange({ ...layout, sections: layout.sections.map((s) => (s.id === toSid ? updated : s)) });
+      }
+    } else {
+      onChange(moveBlockToSection(layout, aid, fromSid, toSid, oid));
+    }
+  };
 
   const moveSection = useCallback(
     (from: number, to: number) => {
@@ -183,12 +259,6 @@ export function MarketplaceLiveLayout({
     [layout, onChange],
   );
 
-  const onDragStartBlock = (e: React.DragEvent, sectionId: string, blockIndex: number) => {
-    if (!editMode) return;
-    e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind: "block", sectionId, blockIndex } satisfies DragPayload));
-    e.dataTransfer.effectAllowed = "move";
-  };
-
   const onDragStartSection = (e: React.DragEvent, index: number) => {
     if (!editMode) return;
     e.dataTransfer.setData(DND_MIME, JSON.stringify({ kind: "section", index } satisfies DragPayload));
@@ -201,13 +271,6 @@ export function MarketplaceLiveLayout({
     } catch {
       return null;
     }
-  };
-
-  const handleBlockDrop = (e: React.DragEvent, sectionId: string, dropIndex: number) => {
-    e.preventDefault();
-    const p = parsePayload(e);
-    if (!p || p.kind !== "block") return;
-    moveBlock(p.sectionId, p.blockIndex, sectionId, dropIndex);
   };
 
   const handleSectionDrop = (e: React.DragEvent, dropIndex: number) => {
@@ -440,114 +503,141 @@ export function MarketplaceLiveLayout({
     }
   };
 
+  const renderEditableBlock = (section: MarketplaceSection, block: MarketplaceBlock, layoutClassName?: string) => (
+    <MarketplaceSortableBlock
+      block={block}
+      section={section}
+      layoutClassName={layoutClassName}
+      editMode={editMode}
+      activeBlockId={activeBlockId}
+      showMenu={menu?.sectionId === section.id && menu?.blockId === block.id}
+      menuRef={menuRef}
+      onToggleMenu={() =>
+        setMenu(menu?.sectionId === section.id && menu?.blockId === block.id ? null : { sectionId: section.id, blockId: block.id })
+      }
+      onEdit={() => {
+        setEditTarget({ sectionId: section.id, block: { ...block } });
+        setMenu(null);
+      }}
+      onDuplicate={() => dupBlock(section.id, block)}
+      onDelete={() => deleteBlock(section.id, block.id)}
+      onSetSize={(sz) => setSize(section.id, block.id, sz)}
+      t={t}
+    >
+      {renderBlockInner(section, block)}
+    </MarketplaceSortableBlock>
+  );
+
   const blockGrid = (section: MarketplaceSection, blocks: MarketplaceBlock[]) => {
-    if (section.type === "stack") {
+    const blockIds = blocks.map((b) => b.id);
+    const gridGap =
+      section.experienceKind === "product_grid" ? "md:gap-x-12 md:gap-y-20 md:[&>*:nth-child(odd)]:translate-x-1" : "";
+
+    if (!editMode) {
+      if (section.type === "stack") {
+        return (
+          <div className="flex flex-col gap-8">
+            {blocks.map((block) => (
+              <React.Fragment key={block.id}>{renderBlockInner(section, block)}</React.Fragment>
+            ))}
+          </div>
+        );
+      }
+      if (section.type === "split") {
+        const sorted = sortBlocks(blocks);
+        const left = sorted.filter((b) => splitColumnOf(b) === "left");
+        const right = sorted.filter((b) => splitColumnOf(b) === "right");
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16 items-start">
+            <div className="flex flex-col gap-8">
+              {left.map((block) => (
+                <React.Fragment key={block.id}>{renderBlockInner(section, block)}</React.Fragment>
+              ))}
+            </div>
+            <div className="flex flex-col gap-8">
+              {right.map((block) => (
+                <React.Fragment key={block.id}>{renderBlockInner(section, block)}</React.Fragment>
+              ))}
+            </div>
+          </div>
+        );
+      }
       return (
-        <div className="flex flex-col gap-8">
-          {blocks.map((block, bi) => (
-            <React.Fragment key={block.id}>{renderBlockShell(section, block, bi)}</React.Fragment>
+        <div className={`grid grid-cols-12 gap-6 md:gap-8 ${gridGap}`}>
+          {blocks.map((block) => (
+            <div key={block.id} className={colClass(block.size)}>
+              {renderBlockInner(section, block)}
+            </div>
           ))}
         </div>
       );
     }
+
+    if (section.type === "stack") {
+      return (
+        <>
+          <SortableContext id={`${section.id}-stack`} items={blockIds} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-8">
+              {blocks.map((block) => (
+                <div key={block.id}>{renderEditableBlock(section, block)}</div>
+              ))}
+            </div>
+          </SortableContext>
+          <SectionAppendDropZone sectionId={section.id} />
+        </>
+      );
+    }
+
     if (section.type === "split") {
-      const left = blocks.filter((b) => b.column !== "right");
-      const right = blocks.filter((b) => b.column === "right");
+      const sorted = sortBlocks(blocks);
+      const left = sorted.filter((b) => splitColumnOf(b) === "left");
+      const right = sorted.filter((b) => splitColumnOf(b) === "right");
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-16 items-start">
-          <div className="flex flex-col gap-8">
-            {left.map((block) => (
-              <React.Fragment key={block.id}>{renderBlockShell(section, block, section.blocks.indexOf(block))}</React.Fragment>
-            ))}
-          </div>
-          <div className="flex flex-col gap-8">
-            {right.map((block) => (
-              <React.Fragment key={block.id}>{renderBlockShell(section, block, section.blocks.indexOf(block))}</React.Fragment>
-            ))}
-          </div>
+          <SortableContext id={`${section.id}-left`} items={left.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-8">
+              {left.map((block) => (
+                <div key={block.id}>{renderEditableBlock(section, block)}</div>
+              ))}
+            </div>
+          </SortableContext>
+          <SortableContext id={`${section.id}-right`} items={right.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-8">
+              {right.map((block) => (
+                <div key={block.id}>{renderEditableBlock(section, block)}</div>
+              ))}
+            </div>
+          </SortableContext>
         </div>
       );
     }
+
     return (
-      <div
-        className={`grid grid-cols-12 gap-6 md:gap-8 ${section.experienceKind === "product_grid" ? "md:gap-x-12 md:gap-y-20 md:[&>*:nth-child(odd)]:translate-x-1" : ""}`}
-      >
-        {blocks.map((block, bi) => (
-          <div key={block.id} className={colClass(block.size)}>
-            {renderBlockShell(section, block, bi)}
+      <>
+        <SortableContext id={`${section.id}-grid`} items={blockIds} strategy={rectSortingStrategy}>
+          <div className={`grid grid-cols-12 gap-6 md:gap-8 ${gridGap}`}>
+            {blocks.map((block) => (
+              <React.Fragment key={block.id}>{renderEditableBlock(section, block, colClass(block.size))}</React.Fragment>
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+        <SectionAppendDropZone sectionId={section.id} />
+      </>
     );
   };
 
-  const renderBlockShell = (section: MarketplaceSection, block: MarketplaceBlock, bi: number) => {
-    const showMenu = menu?.sectionId === section.id && menu?.blockId === block.id;
-    const inner = renderBlockInner(section, block);
-    if (!editMode) return <>{inner}</>;
-
-    return (
-      <div
-        className="relative group/block rounded-2xl ring-1 ring-transparent hover:ring-[rgba(198,163,106,0.25)] transition-all duration-300"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-        }}
-        onDrop={(e) => handleBlockDrop(e, section.id, bi)}
-      >
-        {editMode && (
-          <div className="absolute -top-1 -left-1 z-20 flex gap-1 opacity-0 group-hover/block:opacity-100 transition-opacity">
-            <button
-              type="button"
-              draggable
-              onDragStart={(e) => onDragStartBlock(e, section.id, bi)}
-              className="p-1.5 rounded-lg bg-[#1a1a1a] border border-[var(--border-soft)] text-[#888888] cursor-grab active:cursor-grabbing"
-              title={t("marketplace.editor.move")}
-              aria-label={t("marketplace.editor.move")}
-            >
-              <GripVertical className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-        {editMode && (
-          <div className="absolute top-2 right-2 z-30" ref={showMenu ? menuRef : undefined}>
-            <button
-              type="button"
-              className="p-2 rounded-lg bg-black/70 border border-[var(--border-soft)] text-[#E8E8E8] hover:bg-black/90"
-              onClick={() => setMenu(showMenu ? null : { sectionId: section.id, blockId: block.id })}
-              aria-label={t("marketplace.editor.more")}
-            >
-              <MoreHorizontal className="w-4 h-4" />
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 mt-1 w-52 rounded-xl border border-[var(--border-soft)] bg-[#121212] shadow-2xl py-1 text-sm z-50">
-                <button type="button" className="w-full text-left px-3 py-2 hover:bg-white/5 text-[#E8E8E8]" onClick={() => { setEditTarget({ sectionId: section.id, block: { ...block } }); setMenu(null); }}>
-                  <Pencil className="w-3.5 h-3.5 inline mr-2 opacity-70" /> {t("marketplace.editor.edit")}
-                </button>
-                <div className="px-3 py-1 text-[10px] uppercase tracking-wider text-[#666666]">{t("marketplace.editor.size")}</div>
-                {(["sm", "md", "lg", "full"] as BlockSize[]).map((sz) => (
-                  <button key={sz} type="button" className="w-full text-left px-3 py-1.5 hover:bg-white/5 text-[#AAAAAA] pl-6" onClick={() => setSize(section.id, block.id, sz)}>
-                    {t(`marketplace.editor.size_${sz}`)}
-                  </button>
-                ))}
-                <button type="button" className="w-full text-left px-3 py-2 hover:bg-white/5 text-[#E8E8E8]" onClick={() => dupBlock(section.id, block)}>
-                  <Copy className="w-3.5 h-3.5 inline mr-2 opacity-70" /> {t("marketplace.editor.duplicate")}
-                </button>
-                <button type="button" className="w-full text-left px-3 py-2 hover:bg-red-950/40 text-red-300" onClick={() => deleteBlock(section.id, block.id)}>
-                  <Trash2 className="w-3.5 h-3.5 inline mr-2 opacity-70" /> {t("marketplace.editor.delete")}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        {inner}
-      </div>
-    );
-  };
+  const dragOverlayBlock = useMemo(() => {
+    if (!activeBlockId) return null;
+    for (const s of layout.sections) {
+      const b = s.blocks.find((x) => x.id === activeBlockId);
+      if (b) return { section: s, block: b };
+    }
+    return null;
+  }, [activeBlockId, layout.sections]);
 
   const shellClass = previewMode === "mobile" ? "max-w-[420px] mx-auto border-x border-[var(--border-soft)] px-3 min-h-[200px]" : "";
 
-  return (
+  const mainContent = (
     <div className={`space-y-16 md:space-y-24 ${shellClass}`}>
       {sectionsToRender.map((section, si) => (
         <section
@@ -683,7 +773,11 @@ export function MarketplaceLiveLayout({
               {section.subtitle && <p className="mt-3 text-[#A0A0A0] max-w-2xl">{section.subtitle}</p>}
             </header>
           )}
-          {blockGrid(section, sortBlocks(section.blocks))}
+          {editMode && sortBlocks(section.blocks).length === 0 ? (
+            <EmptySectionDropTarget sectionId={section.id} t={t} />
+          ) : (
+            blockGrid(section, sortBlocks(section.blocks))
+          )}
         </section>
       ))}
 
@@ -1014,6 +1108,31 @@ export function MarketplaceLiveLayout({
         </div>
       )}
     </div>
+  );
+
+  if (!editMode) {
+    return mainContent;
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={handleBlockDragStart} onDragEnd={handleBlockDragEnd}>
+      {mainContent}
+      <DragOverlay
+        dropAnimation={{
+          duration: 220,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
+      >
+        {dragOverlayBlock ? (
+          <div className="rounded-2xl border-2 border-[#D4AF37] bg-[#121212]/95 shadow-[0_28px_80px_rgba(0,0,0,0.72)] scale-[1.05] max-w-[min(100vw-2rem,440px)] pointer-events-none overflow-hidden">
+            <div className="px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-[#D4AF37] border-b border-[#D4AF37]/25">{t("marketplace.editor.drag_preview")}</div>
+            <div className="p-3 opacity-[0.96] max-h-[min(50vh,380px)] overflow-hidden">
+              {renderBlockInner(dragOverlayBlock.section, dragOverlayBlock.block)}
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 

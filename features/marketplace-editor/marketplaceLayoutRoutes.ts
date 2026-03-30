@@ -7,6 +7,8 @@ const MAX_STR = 4000;
 
 export type BlockSize = "sm" | "md" | "lg" | "full";
 
+export type ProductDisplayMode = "full" | "image_only" | "minimal";
+
 export type CtaAction = "consultation" | "contact" | "view" | "external" | "piece";
 
 export type ExperienceKind = "hero" | "category" | "featured" | "product_grid" | "story" | "service" | "custom";
@@ -18,6 +20,7 @@ export type MarketplaceBlock = {
   sortOrder: number;
   column?: "left" | "right";
   productId?: number;
+  display_mode?: ProductDisplayMode;
   imageUrl?: string;
   imageAlt?: string;
   linkType?: "none" | "piece" | "view" | "external";
@@ -64,6 +67,12 @@ function sanitizeSize(v: unknown): BlockSize {
   return v === "sm" || v === "md" || v === "lg" || v === "full" ? v : "md";
 }
 
+function sanitizeProductDisplayMode(v: unknown): ProductDisplayMode | undefined {
+  const s = String(v || "").trim();
+  if (s === "image_only" || s === "minimal" || s === "full") return s;
+  return undefined;
+}
+
 function splitColumn(raw: unknown): "left" | "right" | undefined {
   const c = (raw as Record<string, unknown>)?.column;
   return c === "left" || c === "right" ? c : undefined;
@@ -83,7 +92,12 @@ function sanitizeBlock(raw: unknown, index: number, sectionType: string): Market
   const base: MarketplaceBlock = { id, type, size, sortOrder };
   if (type === "product") {
     const pid = Math.floor(Number(b.productId) || 0);
-    return withCol({ ...base, productId: pid > 0 ? pid : undefined });
+    const display_mode = sanitizeProductDisplayMode(b.display_mode);
+    return withCol({
+      ...base,
+      productId: pid > 0 ? pid : undefined,
+      ...(display_mode ? { display_mode } : {}),
+    });
   }
   if (type === "image") {
     const lid = Math.floor(Number(b.linkPieceId) || 0);
