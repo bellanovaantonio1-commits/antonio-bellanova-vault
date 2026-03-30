@@ -44,7 +44,6 @@ import {
   LineChart,
   Menu,
   X,
-  Home,
   Wallet,
   Receipt,
   ClipboardList,
@@ -712,6 +711,11 @@ const TRANSLATIONS: any = {
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Begünstigte",
     "admin.concierge": "Concierge-Anfragen",
+    "admin.maison_concierge_inbox": "Maison Concierge · Live-Chat",
+    "admin.maison_concierge_hint": "Nachrichten aus dem Kunden-Menü „Concierge“ (chat_threads). Entspricht nicht dem Formular „Beratungs-Chats“.",
+    "admin.maison_concierge_refresh": "Chats aktualisieren",
+    "admin.maison_concierge_empty": "Noch keine Maison-Concierge-Threads.",
+    "admin.maison_concierge_pick": "Thread wählen, um zu antworten.",
     "admin.tab_settings": "Einstellungen",
     "admin.stat_revenue": "Gesamtumsatz",
     "admin.stat_active_users": "Aktive Nutzer",
@@ -1957,6 +1961,11 @@ const TRANSLATIONS: any = {
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiaries",
     "admin.concierge": "Concierge Requests",
+    "admin.maison_concierge_inbox": "Maison Concierge · Live chat",
+    "admin.maison_concierge_hint": "Messages from the client “Concierge” area (chat_threads). This is not the “Consultation chats” inbox.",
+    "admin.maison_concierge_refresh": "Refresh chats",
+    "admin.maison_concierge_empty": "No Maison Concierge threads yet.",
+    "admin.maison_concierge_pick": "Select a thread to reply.",
     "admin.tab_settings": "Settings",
     "admin.stat_revenue": "Total revenue",
     "admin.stat_active_users": "Active users",
@@ -3140,6 +3149,11 @@ const TRANSLATIONS: any = {
     "admin.tab_intelligence": "Intelligence",
     "admin.tab_legacy": "Legacy / Beneficiari",
     "admin.concierge": "Richieste Concierge",
+    "admin.maison_concierge_inbox": "Maison Concierge · Chat live",
+    "admin.maison_concierge_hint": "Messaggi dall’area Concierge clienti (chat_threads). Non è la posta «Consultation chats».",
+    "admin.maison_concierge_refresh": "Aggiorna chat",
+    "admin.maison_concierge_empty": "Nessun thread Maison Concierge.",
+    "admin.maison_concierge_pick": "Scegli un thread per rispondere.",
     "admin.tab_settings": "Impostazioni",
     "admin.stat_revenue": "Fatturato totale",
     "admin.stat_active_users": "Utenti attivi",
@@ -4632,6 +4646,10 @@ export default function App() {
   const [dashboardActivity, setDashboardActivity] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
+  const [adminMaisonChatThreads, setAdminMaisonChatThreads] = useState<any[]>([]);
+  const [selectedAdminMaisonThread, setSelectedAdminMaisonThread] = useState<any | null>(null);
+  const [adminMaisonChatMessages, setAdminMaisonChatMessages] = useState<any[]>([]);
+  const [adminMaisonChatDraft, setAdminMaisonChatDraft] = useState('');
   const [clientTimeline, setClientTimeline] = useState<any[]>([]);
   const [adminIntelligence, setAdminIntelligence] = useState<{ topByPurchases?: any[]; topByValue?: any[]; pendingDeals?: number; vipActivity?: number } | null>(null);
   const [paymentsOverview, setPaymentsOverview] = useState<{ pending?: any[]; overdue?: any[]; recent?: any[] } | null>(null);
@@ -6147,6 +6165,13 @@ export default function App() {
     if (adminTab === 'concierge') {
       const q = adminConciergeFilter ? `?requestType=${encodeURIComponent(adminConciergeFilter)}` : '';
       fetch(`/api/admin/concierge/requests${q}`, { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminConciergeRequests)).catch(() => setAdminConciergeRequests([]));
+      const adminId = user?.id;
+      if (adminId) {
+        fetch(`/api/communication/threads?userId=${adminId}&admin=1&type=concierge`, { credentials: 'include' })
+          .then((r) => (r.ok ? r.json() : []))
+          .then((rows) => setAdminMaisonChatThreads(Array.isArray(rows) ? rows : []))
+          .catch(() => setAdminMaisonChatThreads([]));
+      }
     }
     if (adminTab === 'vault_requests') {
       fetch('/api/admin/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminVaultRequests)).catch(() => setAdminVaultRequests([]));
@@ -6189,7 +6214,19 @@ export default function App() {
         })
         .finally(() => setAdminAudienceLoading(false));
     }
-  }, [user?.role, adminTab, adminConciergeFilter]);
+  }, [user?.role, user?.id, adminTab, adminConciergeFilter]);
+
+  useEffect(() => {
+    if (!selectedAdminMaisonThread?.id || !user?.id || (user.role !== UserRole.ADMIN && (user as any).role !== 'super_admin')) {
+      setAdminMaisonChatMessages([]);
+      return;
+    }
+    fetch(`/api/communication/threads/${selectedAdminMaisonThread.id}/messages?userId=${user.id}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then(setAdminMaisonChatMessages)
+      .catch(() => setAdminMaisonChatMessages([]));
+  }, [selectedAdminMaisonThread?.id, user?.id, user?.role]);
+
   useEffect(() => {
     if (view === 'private_clients' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
       const prodPromise = fetch('/api/private-clients/my-production', { credentials: 'include' }).then(r => r.ok ? r.json() : { pieces: [] }).then((d: any) => setMyProductionPieces(d.pieces || []));
@@ -8264,16 +8301,26 @@ export default function App() {
     if (isGuest || isLuxuryCollectorNav) {
       return (
         <>
-          {isLuxuryCollectorNav ? (
-            <NavItem active={view === 'dashboard'} icon={TrendingUp} label={t('dashboard')} onClick={() => { setView('dashboard'); done(); }} />
-          ) : null}
-          {curatedNavForSidebar.map((p, i) => (
+          {curatedNavForSidebar.map((p) => (
             <NavItem
               key={`maison-${p.slug}`}
-              active={view === 'maison' && maisonSlug === p.slug}
-              icon={i === 0 ? Home : Sparkles}
-              label={p.nav_label}
-              onClick={() => { setMaisonSlug(p.slug); setView('maison'); done(); }}
+              active={
+                p.slug === 'home'
+                  ? isGuest
+                    ? view === 'maison' && maisonSlug === 'home'
+                    : view === 'dashboard'
+                  : view === 'maison' && maisonSlug === p.slug
+              }
+              icon={p.slug === 'home' ? TrendingUp : Sparkles}
+              label={p.slug === 'home' ? t('dashboard') : p.nav_label}
+              onClick={() => {
+                if (p.slug === 'home' && !isGuest) setView('dashboard');
+                else {
+                  setMaisonSlug(p.slug);
+                  setView('maison');
+                }
+                done();
+              }}
             />
           ))}
           {isGuest ? (
@@ -15136,6 +15183,124 @@ export default function App() {
                       </table>
                     </div>
                     {adminConciergeRequests.length === 0 && <p className="text-zinc-500 text-sm italic">Keine offenen Concierge-Anfragen.</p>}
+
+                    <div className="mt-10 pt-8 border-t border-zinc-800 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-lg font-serif italic text-zinc-100">{t('admin.maison_concierge_inbox')}</h4>
+                          <p className="text-sm text-zinc-500 mt-1 max-w-2xl">{t('admin.maison_concierge_hint')}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (!user?.id) return;
+                            fetch(`/api/communication/threads?userId=${user.id}&admin=1&type=concierge`, { credentials: 'include' })
+                              .then((r) => (r.ok ? r.json() : []))
+                              .then((rows) => setAdminMaisonChatThreads(Array.isArray(rows) ? rows : []));
+                          }}
+                        >
+                          {t('admin.maison_concierge_refresh')}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[280px] rounded-xl border border-zinc-800 overflow-hidden bg-zinc-950/40">
+                        <div className="border-b lg:border-b-0 lg:border-r border-zinc-800 max-h-[400px] overflow-y-auto">
+                          {adminMaisonChatThreads.length === 0 ? (
+                            <p className="p-4 text-sm text-zinc-500">{t('admin.maison_concierge_empty')}</p>
+                          ) : (
+                            adminMaisonChatThreads.map((th: any) => (
+                              <button
+                                key={th.id}
+                                type="button"
+                                onClick={() => setSelectedAdminMaisonThread(th)}
+                                className={`w-full text-left px-4 py-3 border-b border-zinc-800/60 text-sm transition-colors ${selectedAdminMaisonThread?.id === th.id ? 'bg-amber-500/10 text-amber-200' : 'text-zinc-400 hover:bg-zinc-900'}`}
+                              >
+                                <span className="block font-medium text-zinc-200">
+                                  #{th.id} · {th.client_name || `User ${th.user_id}`}
+                                </span>
+                                <span className="block text-xs text-zinc-500 truncate">{th.client_email || ''}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                        <div className="lg:col-span-2 flex flex-col min-h-[280px]">
+                          {selectedAdminMaisonThread ? (
+                            <>
+                              <div className="p-3 border-b border-zinc-800 text-xs text-zinc-500">
+                                Thread #{selectedAdminMaisonThread.id} — {selectedAdminMaisonThread.client_email || ''}
+                              </div>
+                              <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[280px]">
+                                {adminMaisonChatMessages.map((m: any) => {
+                                  const own = m.sender_id === user?.id;
+                                  return (
+                                    <div key={m.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
+                                      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${own ? 'bg-amber-500/15 border border-amber-500/30 text-zinc-100' : 'bg-zinc-800/80 text-zinc-300'}`}>
+                                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                                        <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="p-3 border-t border-zinc-800 flex gap-2">
+                                <input
+                                  type="text"
+                                  value={adminMaisonChatDraft}
+                                  onChange={(e) => setAdminMaisonChatDraft(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey && adminMaisonChatDraft.trim() && user?.id) {
+                                      e.preventDefault();
+                                      const tid = selectedAdminMaisonThread.id;
+                                      const c = adminMaisonChatDraft.trim();
+                                      fetch(`/api/communication/threads/${tid}/messages`, {
+                                        method: 'POST',
+                                        credentials: 'include',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ userId: user.id, content: c, contentLang: language }),
+                                      })
+                                        .then((r) => r.json())
+                                        .then((msg) => {
+                                          if (msg?.id) setAdminMaisonChatMessages((prev) => [...prev, msg]);
+                                          setAdminMaisonChatDraft('');
+                                        })
+                                        .catch(() => {});
+                                    }
+                                  }}
+                                  placeholder={t('chat.type_message')}
+                                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() => {
+                                    if (!adminMaisonChatDraft.trim() || !user?.id || !selectedAdminMaisonThread) return;
+                                    const tid = selectedAdminMaisonThread.id;
+                                    const c = adminMaisonChatDraft.trim();
+                                    fetch(`/api/communication/threads/${tid}/messages`, {
+                                      method: 'POST',
+                                      credentials: 'include',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ userId: user.id, content: c, contentLang: language }),
+                                    })
+                                      .then((r) => r.json())
+                                      .then((msg) => {
+                                        if (msg?.id) setAdminMaisonChatMessages((prev) => [...prev, msg]);
+                                        setAdminMaisonChatDraft('');
+                                      })
+                                      .catch(() => {});
+                                  }}
+                                >
+                                  {t('chat.send')}
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex-1 flex items-center justify-center text-sm text-zinc-500 p-6">{t('admin.maison_concierge_pick')}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </section>
                   )}
 

@@ -12198,7 +12198,8 @@ app.get("/api/communication/threads", async (req, res) => {
   const type = req.query.type as string | undefined;
   let rows: any[];
   if (isAdmin && req.query.admin === '1') {
-    let sql = "SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id WHERE 1=1";
+    let sql =
+      "SELECT ct.*, m.title as masterpiece_title, m.serial_id, cu.name AS client_name, cu.email AS client_email FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id LEFT JOIN users cu ON cu.id = ct.user_id WHERE 1=1";
     const params: any[] = [];
     if (type) { sql += " AND ct.type = ?"; params.push(type); }
     if (req.query.status) { sql += " AND ct.status = ?"; params.push(req.query.status); }
@@ -12206,15 +12207,17 @@ app.get("/api/communication/threads", async (req, res) => {
     sql += " ORDER BY ct.priority DESC, ct.updated_at DESC";
     rows = await (await db.prepare(sql)).all(...params);
   } else {
-    let sql = "SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id WHERE (ct.user_id = ? OR ct.assigned_admin_id = ?)";
+    let sql =
+      "SELECT ct.*, m.title as masterpiece_title, m.serial_id, cu.name AS client_name, cu.email AS client_email FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id LEFT JOIN users cu ON cu.id = ct.user_id WHERE (ct.user_id = ? OR ct.assigned_admin_id = ?)";
     const params: any[] = [userId, userId];
     if (type) { sql += " AND ct.type = ?"; params.push(type); }
     sql += " AND ct.type != 'black_direct'";
     sql += " ORDER BY ct.priority DESC, ct.updated_at DESC";
     rows = await (await db.prepare(sql)).all(...params);
     const assetThreads = await (await db.prepare(`
-      SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct
+      SELECT ct.*, m.title as masterpiece_title, m.serial_id, cu.name AS client_name, cu.email AS client_email FROM chat_threads ct
       JOIN masterpieces m ON ct.masterpiece_id = m.id
+      LEFT JOIN users cu ON cu.id = ct.user_id
       WHERE ct.type = 'asset' AND m.current_owner_id = ? AND ct.user_id != ?
     `)).all(userId, userId);
     const merged = [...rows];
@@ -12295,7 +12298,7 @@ app.post("/api/communication/threads/:id/messages", async (req, res) => {
     VALUES (?, ?, ?, ?, ?, 0, 0)
   `)).run(threadId, userId, (content || '').toString().trim().slice(0, 10000), contentLang || null, assetRef || null);
   await (await db.prepare("UPDATE chat_threads SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")).run(threadId);
-  if (!thread.first_response_at && user.role === 'admin') {
+  if (!thread.first_response_at && (user.role === "admin" || user.role === "super_admin")) {
     await (await db.prepare("UPDATE chat_threads SET first_response_at = CURRENT_TIMESTAMP WHERE id = ?")).run(threadId);
   }
   await commAudit('message_sent', userId, threadId, Number(result.lastInsertRowid), undefined, undefined);
@@ -12329,7 +12332,8 @@ app.get("/api/communication/admin/threads", async (req, res) => {
   const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(adminId);
   if (!user || (user.role !== 'admin' && user.role !== 'super_admin')) return res.status(403).json({ error: "Forbidden" });
   const type = req.query.type as string | undefined;
-  let sql = "SELECT ct.*, m.title as masterpiece_title, m.serial_id FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id WHERE 1=1";
+  let sql =
+    "SELECT ct.*, m.title as masterpiece_title, m.serial_id, cu.name AS client_name, cu.email AS client_email FROM chat_threads ct LEFT JOIN masterpieces m ON ct.masterpiece_id = m.id LEFT JOIN users cu ON cu.id = ct.user_id WHERE 1=1";
   const params: any[] = [];
   if (type) { sql += " AND ct.type = ?"; params.push(type); }
   if (req.query.status) { sql += " AND ct.status = ?"; params.push(req.query.status); }
