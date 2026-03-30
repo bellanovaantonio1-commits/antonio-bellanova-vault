@@ -106,18 +106,6 @@ function isGuestSessionUser(u: { id?: number; role?: string; is_guest?: boolean 
   return false;
 }
 
-/** Sammler-Kunde (Luxury-Sidebar): Startseite = Maison mit Slug „home“, nicht das interne Dashboard. */
-function isLuxuryHomeDefaultUser(u: { is_guest?: boolean; role?: string } | null | undefined): boolean {
-  if (!u || u.is_guest || u.role === UserRole.GUEST || u.role === 'guest') return false;
-  return (
-    u.role !== 'admin' &&
-    (u as { role?: string }).role !== 'super_admin' &&
-    u.role !== UserRole.INVESTOR &&
-    (u as { role?: string }).role !== 'investor' &&
-    u.role !== UserRole.STRATEGIC_PRIVATE_ADVISOR
-  );
-}
-
 type OptionI18n = { id: string; de: string; en: string; it: string };
 const MATERIAL_OPTIONS: OptionI18n[] = [
   { id: 'gold', de: 'Gold', en: 'Gold', it: 'Oro' },
@@ -4587,6 +4575,20 @@ export default function App() {
     };
   }, [view, maisonSlug, curatedContentVersion]);
 
+  /** Maison nicht ladbar (z. B. unpubliziert): Sammler nicht auf Fehlerseite stehen lassen → Dashboard. */
+  useEffect(() => {
+    if (view !== 'maison' || maisonLoading || !maisonLoadError || !user) return;
+    const guest = user.role === UserRole.GUEST || (user as any).is_guest;
+    const luxuryCollector =
+      !guest &&
+      user.role !== 'admin' &&
+      (user as any).role !== 'super_admin' &&
+      user.role !== UserRole.INVESTOR &&
+      (user as any).role !== 'investor' &&
+      user.role !== UserRole.STRATEGIC_PRIVATE_ADVISOR;
+    if (luxuryCollector) setView('dashboard');
+  }, [view, maisonLoading, maisonLoadError, user]);
+
   useEffect(() => {
     if (view !== 'kontakt') return undefined;
     return () => {
@@ -5222,12 +5224,7 @@ export default function App() {
         stripAuthViewQueryParam();
         return;
       }
-      if (isLuxuryHomeDefaultUser(data)) {
-        setMaisonSlug('home');
-        setView('maison');
-      } else {
-        setView('dashboard');
-      }
+      setView('dashboard');
       stripAuthViewQueryParam();
       if (data.notification_prefs) {
         try {
@@ -5415,29 +5412,19 @@ export default function App() {
       (user as any).role === 'super_admin' ||
       user.role === UserRole.INVESTOR ||
       (user as any).role === 'investor';
-    if (view === 'portfolio' && !portfolioOk) {
-      if (isLuxuryHomeDefaultUser(user)) {
-        setMaisonSlug('home');
-        setView('maison');
-      } else setView('dashboard');
-    }
+    if (view === 'portfolio' && !portfolioOk) setView('dashboard');
   }, [user, view]);
 
   /** Parametric AI jewelry: nur Admin / Super-Admin */
   useEffect(() => {
     if (!user) return;
     const ok = user.role === UserRole.ADMIN || (user as any).role === 'super_admin';
-    if (view === 'ai_jewelry_design' && !ok) {
-      if (isLuxuryHomeDefaultUser(user)) {
-        setMaisonSlug('home');
-        setView('maison');
-      } else setView('dashboard');
-    }
+    if (view === 'ai_jewelry_design' && !ok) setView('dashboard');
   }, [user, view]);
 
   /**
    * Eingeloggt (inkl. Gast) + ?view=register|login|…: Auth-UI liegt nur unter !user — sonst leerer/weißer Hauptbereich.
-   * Nach Session-Load: Sammler → Maison (home), sonst Dashboard; Gast → World. view= aus der URL entfernen.
+   * Nach Session-Load: Dashboard (bzw. World für Gast). view= aus der URL entfernen.
    */
   useEffect(() => {
     if (!user) return;
@@ -5445,10 +5432,7 @@ export default function App() {
     if (!authOnlyViews.includes(view as (typeof authOnlyViews)[number])) return;
     const guest = user.role === UserRole.GUEST || (user as any).is_guest;
     if (guest) setView('world');
-    else if (isLuxuryHomeDefaultUser(user)) {
-      setMaisonSlug('home');
-      setView('maison');
-    } else setView('dashboard');
+    else setView('dashboard');
     if (typeof window !== 'undefined') {
       const u = new URL(window.location.href);
       if (u.searchParams.has('view')) {
@@ -6501,12 +6485,7 @@ export default function App() {
         setLoginTotp('');
         setUser(data);
         setLanguage(data.preferred_language || data.language || 'de');
-        if (isLuxuryHomeDefaultUser(data)) {
-          setMaisonSlug('home');
-          setView('maison');
-        } else {
-          setView('dashboard');
-        }
+        setView('dashboard');
         if (maintenanceMode && (data.role === 'admin' || data.role === UserRole.ADMIN)) {
           setShowMaintenanceAfterLoginAttempt(false);
         }
@@ -7785,16 +7764,10 @@ export default function App() {
         <div className={isKontaktLuxury ? 'luxury-container max-w-[40rem] mx-auto w-full flex-1 !pt-10 !pb-16 sm:!pt-14 sm:!pb-20' : 'p-6 max-w-3xl mx-auto w-full flex-1'}>
           <button
             type="button"
-            onClick={() => {
-              if (!user) setView('login');
-              else if (isLuxuryHomeDefaultUser(user)) {
-                setMaisonSlug('home');
-                setView('maison');
-              } else setView('dashboard');
-            }}
+            onClick={() => (user ? setView('dashboard') : setView('login'))}
             className={`text-[11px] uppercase tracking-[0.2em] ${isKontaktLuxury ? 'text-[#C6A15B]/90 hover:text-[#C6A15B] mb-10 sm:mb-12' : 'text-amber-500 hover:text-amber-400 mb-8'}`}
           >
-            ← {user ? (isLuxuryHomeDefaultUser(user) ? t('common.back_home') : t('common.back_dashboard')) : t('common.back_home')}
+            ← {user ? t('common.back_dashboard') : t('common.back_home')}
           </button>
           <h1 className={isKontaktLuxury ? 'luxury-display text-2xl sm:text-3xl text-[#F5F5F5] mb-5' : 'text-2xl font-serif italic mb-6'}>{view === 'kontakt' ? t('inquiry.subject_line') : titles[view]}</h1>
           {view === 'kontakt' && <p className="text-[#AAAAAA] text-[15px] sm:text-base leading-relaxed max-w-prose mb-10 sm:mb-12">{t('inquiry.subtitle')}</p>}
@@ -8291,6 +8264,9 @@ export default function App() {
     if (isGuest || isLuxuryCollectorNav) {
       return (
         <>
+          {isLuxuryCollectorNav ? (
+            <NavItem active={view === 'dashboard'} icon={TrendingUp} label={t('dashboard')} onClick={() => { setView('dashboard'); done(); }} />
+          ) : null}
           {curatedNavForSidebar.map((p, i) => (
             <NavItem
               key={`maison-${p.slug}`}
@@ -8325,7 +8301,7 @@ export default function App() {
     <div className={`min-h-screen font-sans selection:bg-[rgba(198,163,106,0.25)] ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[var(--bg-primary)] text-[#F5F5F5]'}`} data-theme={theme}>
       {/* Desktop Sidebar (hidden on mobile) */}
       <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-[var(--border-soft)] z-50 flex-col backdrop-blur-xl bg-[rgba(10,10,10,0.92)]">
-        <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
+        <button type="button" onClick={() => { if (isGuest) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
           <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
             <Diamond className="w-5 h-5 text-[#C6A36A]" />
           </div>
@@ -8349,7 +8325,7 @@ export default function App() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
             <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-[rgba(10,10,10,0.96)] backdrop-blur-xl border-r border-[var(--border-soft)] flex flex-col md:hidden">
               <div className="p-4 flex items-center justify-between border-b border-[var(--border-soft)]">
-                <button type="button" onClick={() => { if (isGuest || isLuxuryCollectorNav) { goMaisonHome(); } else { setView('dashboard'); } closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
+                <button type="button" onClick={() => { if (isGuest) goMaisonHome(); else setView('dashboard'); closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
                   <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
                     <Diamond className="w-5 h-5 text-[#C6A36A]" />
                   </div>
@@ -8893,12 +8869,11 @@ export default function App() {
               type="button"
               onClick={() => {
                 if (isGuest) setView('world');
-                else if (isLuxuryCollectorNav) goMaisonHome();
                 else setView('dashboard');
               }}
               className="hover:text-amber-500/80"
             >
-              {isGuest ? t('view.world') : isLuxuryCollectorNav ? t('maison.fallback_nav') : t('dashboard')}
+              {isGuest ? t('view.world') : t('dashboard')}
             </button>
             <span>/</span>
             {view === 'vault' ? (
@@ -9048,10 +9023,7 @@ export default function App() {
                           }
                         };
                         const onViewMessage = () => { setView('private_clients'); setClientViewSubTab('messages'); };
-                        const onReviewOffer = () => {
-                          if (isLuxuryCollectorNav) goMaisonHome();
-                          else setView('dashboard');
-                        };
+                        const onReviewOffer = () => { setView('dashboard'); };
                         let label = n.message;
                         let action: React.ReactNode = null;
                         if (n.type === 'new_contract') {
