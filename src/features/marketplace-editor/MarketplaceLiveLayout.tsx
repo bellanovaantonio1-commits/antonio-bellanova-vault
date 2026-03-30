@@ -85,6 +85,10 @@ function SectionAppendDropZone({ sectionId }: { sectionId: string }) {
   );
 }
 
+function piecePrimaryImage(piece: Masterpiece): string {
+  return piece.image_url || `https://picsum.photos/seed/${piece.id}/800/800`;
+}
+
 function defaultBlock(type: MarketplaceBlock["type"], order: number): MarketplaceBlock {
   const id = newId("blk");
   switch (type) {
@@ -367,19 +371,86 @@ export function MarketplaceLiveLayout({
             </div>
           );
         }
+        const mode: ProductDisplayMode = block.display_mode ?? "full";
         const filtered = !piecePassesFilter(pid);
-        const card = <>{renderProductCard(piece, filtered)}</>;
+        const img = piecePrimaryImage(piece);
+        const openPiece = () => onOpenPiece(piece);
+
+        let card: React.ReactNode;
+        if (mode === "image_only") {
+          card = (
+            <button
+              type="button"
+              className={`group block w-full max-w-none text-left bg-transparent border-0 p-0 m-0 rounded-none ${
+                filtered
+                  ? editMode
+                    ? "opacity-50 cursor-default"
+                    : "opacity-45 pointer-events-none cursor-default"
+                  : "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
+              }`}
+              onClick={filtered ? undefined : wrapClick(openPiece)}
+            >
+              <div className="relative overflow-hidden bg-[#0A0A0A] aspect-[3/4] md:aspect-[4/5]">
+                <img
+                  src={img}
+                  alt={piece.title}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover transition-[transform,filter] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:brightness-[1.04]"
+                />
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                  style={{ boxShadow: "inset 0 0 90px rgba(212,175,55,0.14)" }}
+                />
+              </div>
+            </button>
+          );
+        } else if (mode === "minimal") {
+          card = (
+            <div className={filtered ? (editMode ? "opacity-50" : "opacity-45 pointer-events-none") : ""}>
+              <button
+                type="button"
+                className="group block w-full text-left bg-transparent border-0 p-0 rounded-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
+                onClick={filtered ? undefined : wrapClick(openPiece)}
+              >
+                <div className="relative overflow-hidden bg-[#0A0A0A] aspect-square">
+                  <img
+                    src={img}
+                    alt={piece.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+                  />
+                </div>
+              </button>
+              <h4 className="mt-6 md:mt-8 font-[family-name:var(--font-serif)] text-lg md:text-xl text-[#F5F5F5] tracking-wide leading-snug">
+                {piece.title}
+              </h4>
+            </div>
+          );
+        } else {
+          card = <>{renderProductCard(piece, filtered)}</>;
+        }
+
         const isFeatured = Number(piece.featured_masterpiece) === 1;
         if (isFeatured) {
-          const desc = (piece.description || "").trim();
+          if (mode === "full") {
+            const desc = (piece.description || "").trim();
+            return (
+              <div className="rounded-[2rem] border border-[#D4AF37]/25 bg-gradient-to-b from-[rgba(212,175,55,0.07)] to-transparent p-6 md:p-10 space-y-6">
+                <p className="text-[10px] uppercase tracking-[0.4em] text-[#D4AF37] text-center md:text-left">{t("marketplace.editor.featured_badge")}</p>
+                {desc ? (
+                  <p className="text-sm md:text-base text-[#A0A0A0] leading-relaxed max-w-2xl mx-auto md:mx-0 font-[family-name:var(--font-serif)] italic line-clamp-5">
+                    {desc}
+                  </p>
+                ) : null}
+                {card}
+              </div>
+            );
+          }
           return (
-            <div className="rounded-[2rem] border border-[#D4AF37]/25 bg-gradient-to-b from-[rgba(212,175,55,0.07)] to-transparent p-6 md:p-10 space-y-6">
-              <p className="text-[10px] uppercase tracking-[0.4em] text-[#D4AF37] text-center md:text-left">{t("marketplace.editor.featured_badge")}</p>
-              {desc ? (
-                <p className="text-sm md:text-base text-[#A0A0A0] leading-relaxed max-w-2xl mx-auto md:mx-0 font-[family-name:var(--font-serif)] italic line-clamp-5">
-                  {desc}
-                </p>
-              ) : null}
+            <div className="space-y-5 md:space-y-6 p-2 md:p-4">
+              <p className="text-[10px] uppercase tracking-[0.35em] text-[#D4AF37]/95 text-center md:text-left px-1">{t("marketplace.editor.featured_badge")}</p>
               {card}
             </div>
           );
@@ -522,6 +593,16 @@ export function MarketplaceLiveLayout({
       onDuplicate={() => dupBlock(section.id, block)}
       onDelete={() => deleteBlock(section.id, block.id)}
       onSetSize={(sz) => setSize(section.id, block.id, sz)}
+      onSetProductDisplayMode={
+        block.type === "product"
+          ? (m) => {
+              updateSection(section.id, (s) => ({
+                ...s,
+                blocks: s.blocks.map((b) => (b.id === block.id ? { ...b, display_mode: m } : b)),
+              }));
+            }
+          : undefined
+      }
       t={t}
     >
       {renderBlockInner(section, block)}
@@ -818,6 +899,25 @@ export function MarketplaceLiveLayout({
                       {p.title} · {p.serial_id}
                     </option>
                   ))}
+                </select>
+              </label>
+            )}
+            {editTarget.block.type === "product" && (
+              <label className="block space-y-2 mb-4">
+                <span className="text-xs uppercase tracking-wider text-[#888888]">{t("marketplace.editor.display_label")}</span>
+                <select
+                  className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-[#F5F5F5] text-sm"
+                  value={editTarget.block.display_mode ?? "full"}
+                  onChange={(e) =>
+                    setEditTarget({
+                      ...editTarget,
+                      block: { ...editTarget.block, display_mode: e.target.value as ProductDisplayMode },
+                    })
+                  }
+                >
+                  <option value="full">{t("marketplace.editor.display_full")}</option>
+                  <option value="image_only">{t("marketplace.editor.display_image_only")}</option>
+                  <option value="minimal">{t("marketplace.editor.display_minimal")}</option>
                 </select>
               </label>
             )}

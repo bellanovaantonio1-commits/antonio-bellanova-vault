@@ -2,7 +2,7 @@ import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Copy, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import type { BlockSize, MarketplaceBlock, MarketplaceSection } from "./types";
+import type { BlockSize, MarketplaceBlock, MarketplaceSection, ProductDisplayMode } from "./types";
 
 export type MarketplaceSortableBlockProps = {
   block: MarketplaceBlock;
@@ -18,6 +18,8 @@ export type MarketplaceSortableBlockProps = {
   onDuplicate: () => void;
   onDelete: () => void;
   onSetSize: (sz: BlockSize) => void;
+  /** Product blocks only: change layout presentation. */
+  onSetProductDisplayMode?: (mode: ProductDisplayMode) => void;
   t: (k: string) => string;
   children: React.ReactNode;
 };
@@ -35,6 +37,7 @@ export function MarketplaceSortableBlock({
   onDuplicate,
   onDelete,
   onSetSize,
+  onSetProductDisplayMode,
   t,
   children,
 }: MarketplaceSortableBlockProps) {
@@ -91,7 +94,7 @@ export function MarketplaceSortableBlock({
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {showMenu && (
-            <div className="absolute right-0 mt-1 w-52 rounded-xl border border-[var(--border-soft)] bg-[#121212] shadow-2xl py-1 text-sm z-50">
+            <div className="absolute right-0 mt-1 w-56 rounded-xl border border-[var(--border-soft)] bg-[#121212] shadow-2xl py-1 text-sm z-50">
               <button
                 type="button"
                 className="w-full text-left px-3 py-2 hover:bg-white/5 text-[#E8E8E8]"
@@ -110,6 +113,22 @@ export function MarketplaceSortableBlock({
                   {t(`marketplace.editor.size_${sz}`)}
                 </button>
               ))}
+              {block.type === "product" && onSetProductDisplayMode && (
+                <label className="block px-3 py-2 border-t border-[var(--border-soft)] mt-1 pt-2">
+                  <span className="text-[10px] uppercase tracking-wider text-[#666666] block mb-1.5">{t("marketplace.editor.display_label")}</span>
+                  <select
+                    className="w-full bg-[#1a1a1a] border border-[var(--border-soft)] rounded-lg text-xs text-[#E8E8E8] py-2 px-2"
+                    value={block.display_mode ?? "full"}
+                    onChange={(e) => onSetProductDisplayMode(e.target.value as ProductDisplayMode)}
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <option value="full">{t("marketplace.editor.display_full")}</option>
+                    <option value="image_only">{t("marketplace.editor.display_image_only")}</option>
+                    <option value="minimal">{t("marketplace.editor.display_minimal")}</option>
+                  </select>
+                </label>
+              )}
               <button type="button" className="w-full text-left px-3 py-2 hover:bg-white/5 text-[#E8E8E8]" onClick={onDuplicate}>
                 <Copy className="w-3.5 h-3.5 inline mr-2 opacity-70" /> {t("marketplace.editor.duplicate")}
               </button>
