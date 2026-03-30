@@ -168,6 +168,16 @@ function mysqlConvertOnConflictToDuplicateKey(sql: string): string {
     /\bON\s+CONFLICT\s*\(\s*event_id\s*,\s*user_id\s*\)\s+DO\s+UPDATE\s+SET\s+status\s*=\s*excluded\.status/gi,
     "ON DUPLICATE KEY UPDATE status = VALUES(status)",
   );
+  // user_kv (composite PK user_id, k — k is VARCHAR(191) for MySQL index rules)
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*user_id\s*,\s*k\s*\)\s+DO\s+UPDATE\s+SET\s+v\s*=\s*excluded\.v/gi,
+    "ON DUPLICATE KEY UPDATE v = VALUES(v)",
+  );
+  // notification_digest_state
+  s = s.replace(
+    /\bON\s+CONFLICT\s*\(\s*user_id\s*\)\s+DO\s+UPDATE\s+SET\s+timeline_event_count\s*=\s*COALESCE\s*\(\s*notification_digest_state\.timeline_event_count\s*,\s*0\s*\)\s*\+\s*1\s*,\s*updated_at\s*=\s*CURRENT_TIMESTAMP/gis,
+    "ON DUPLICATE KEY UPDATE timeline_event_count = timeline_event_count + 1, updated_at = CURRENT_TIMESTAMP",
+  );
   return s;
 }
 
@@ -192,6 +202,11 @@ function mysqlDdlCompat(sql: string): string {
     // Short strings; composite PK (seq_key, seq_year, seq_type) must stay under InnoDB 3072-byte index limit (utf8mb4).
     .replace(/\bseq_key\s+TEXT\s+NOT\s+NULL\b/gi, "seq_key VARCHAR(191) NOT NULL")
     .replace(/\bseq_type\s+TEXT\b/gi, "seq_type VARCHAR(191)")
+    // user_kv: composite PRIMARY KEY (user_id, k) — k must not become LONGTEXT (MySQL ER_BLOB_KEY_WITHOUT_LENGTH)
+    .replace(
+      /(CREATE TABLE IF NOT EXISTS user_kv\s*\(\s*user_id\s+INTEGER\s+NOT\s+NULL\s*,\s*)k\s+TEXT\s+NOT\s+NULL/gi,
+      "$1k VARCHAR(191) NOT NULL",
+    )
     .replace(/\bTEXT\b/gi, "LONGTEXT");
 
   // SQLite ON CONFLICT must become MySQL ON DUPLICATE *before* last_value backticks break the matcher.

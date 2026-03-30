@@ -1672,7 +1672,7 @@ await db.exec(`
   );
   CREATE TABLE IF NOT EXISTS user_kv (
     user_id INTEGER NOT NULL,
-    k TEXT NOT NULL,
+    k VARCHAR(191) NOT NULL,
     v TEXT,
     PRIMARY KEY (user_id, k),
     FOREIGN KEY(user_id) REFERENCES users(id)
