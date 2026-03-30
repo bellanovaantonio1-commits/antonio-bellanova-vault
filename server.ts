@@ -1393,9 +1393,16 @@ await db.exec(`
     layout_json LONGTEXT NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS curated_bootstrap_marker (
+    id INTEGER NOT NULL PRIMARY KEY
+  );
 `);
 
 {
+  /**
+   * Standard-Maison-Seiten nur einmal bei leerer Tabelle einfügen.
+   * Sonst: Nach Löschen im Admin kamen sie beim nächsten Server-Start wieder (INSERT IGNORE pro Zeile).
+   */
   const seedRows: [string, string, string, number, number][] = [
     ["home", "Startseite", "Startseite", 1, 0],
     ["fuer-sie", "Für Sie", "Für Sie", 1, 10],
@@ -1406,26 +1413,34 @@ await db.exec(`
   const ins = db.isMySQL
     ? "INSERT IGNORE INTO curated_pages (slug, title, nav_label, published, nav_order) VALUES (?, ?, ?, ?, ?)"
     : "INSERT OR IGNORE INTO curated_pages (slug, title, nav_label, published, nav_order) VALUES (?, ?, ?, ?, ?)";
-  for (const row of seedRows) {
-    await (await db.prepare(ins)).run(row[0], row[1], row[2], row[3], row[4]);
-  }
-  const homeRow = (await (await db.prepare("SELECT id FROM curated_pages WHERE slug = 'home'")).get()) as { id: number } | undefined;
-  if (homeRow?.id) {
-    const cntRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_sections WHERE page_id = ?")).get(homeRow.id)) as { c: number };
-    if (Number(cntRow?.c || 0) === 0) {
-      const heroCfg = JSON.stringify({
-        imageUrl: "",
-        title: "Antonio Bellanova",
-        subtitle: "High Jewelry · Kuratiert · Persönlich",
-        ctaLabel: "Private Beratung",
-        ctaView: "concierge",
-      });
-      await (
-        await db.prepare(
-          "INSERT INTO curated_sections (page_id, section_type, sort_order, config) VALUES (?, 'hero', 0, ?)"
-        )
-      ).run(homeRow.id, heroCfg);
+  const bootDone = (await (await db.prepare("SELECT 1 AS o FROM curated_bootstrap_marker WHERE id = 1")).get()) as { o: number } | undefined;
+  if (!bootDone) {
+    const pageCountRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_pages")).get()) as { c: number } | undefined;
+    const pageCount = Number(pageCountRow?.c ?? 0);
+    if (pageCount === 0) {
+      for (const row of seedRows) {
+        await (await db.prepare(ins)).run(row[0], row[1], row[2], row[3], row[4]);
+      }
+      const homeRow = (await (await db.prepare("SELECT id FROM curated_pages WHERE slug = 'home'")).get()) as { id: number } | undefined;
+      if (homeRow?.id) {
+        const cntRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_sections WHERE page_id = ?")).get(homeRow.id)) as { c: number };
+        if (Number(cntRow?.c || 0) === 0) {
+          const heroCfg = JSON.stringify({
+            imageUrl: "",
+            title: "Antonio Bellanova",
+            subtitle: "High Jewelry · Kuratiert · Persönlich",
+            ctaLabel: "Private Beratung",
+            ctaView: "concierge",
+          });
+          await (
+            await db.prepare(
+              "INSERT INTO curated_sections (page_id, section_type, sort_order, config) VALUES (?, 'hero', 0, ?)"
+            )
+          ).run(homeRow.id, heroCfg);
+        }
+      }
     }
+    await (await db.prepare("INSERT INTO curated_bootstrap_marker (id) VALUES (1)")).run();
   }
   {
     const totalRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_pages")).get()) as { c: number } | undefined;
