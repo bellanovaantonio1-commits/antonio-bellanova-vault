@@ -68,6 +68,17 @@ export function registerCuratedMaisonRoutes(app: Application, db: DbInterface): 
     }
   });
 
+  /** Setzt alle Maison-Seiten von Entwurf auf veröffentlicht (Navigation + öffentliche Ansicht). */
+  app.post("/api/admin/curated/pages/publish-drafts", async (_req, res) => {
+    try {
+      const r = await (await db.prepare("UPDATE curated_pages SET published = 1, updated_at = CURRENT_TIMESTAMP WHERE published = 0")).run();
+      res.json({ ok: true, updated: Number(r.changes ?? 0) });
+    } catch (e) {
+      console.error("[curated/publish-drafts]", e);
+      res.status(500).json({ error: "Failed" });
+    }
+  });
+
   app.get("/api/admin/curated/pages", async (_req, res) => {
     try {
       const rows = (await (

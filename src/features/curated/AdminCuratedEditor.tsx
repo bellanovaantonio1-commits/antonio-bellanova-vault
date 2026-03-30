@@ -209,6 +209,26 @@ export function AdminCuratedEditor({
     } else notifyUser(t("errors.generic") || "Fehler", "error");
   };
 
+  const publishAllDrafts = async () => {
+    if (!confirm(t("maison.admin_publish_all_confirm"))) return;
+    setLoading(true);
+    try {
+      const r = await fetch("/api/admin/curated/pages/publish-drafts", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (r.ok) {
+        const j = (await r.json()) as { updated?: number };
+        await loadPages();
+        const n = Number(j.updated ?? 0);
+        notifyUser(t("maison.admin_publish_all_done").replace("{{n}}", String(n)), "success");
+        onCuratedContentChanged?.();
+      } else notifyUser(t("errors.generic") || "Fehler", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deletePage = async (id: number) => {
     if (!confirm(t("maison.admin_confirm_delete_page") || "Seite löschen?")) return;
     const r = await fetch(`/api/admin/curated/pages/${id}`, { method: "DELETE", credentials: "include" });
@@ -358,6 +378,18 @@ export function AdminCuratedEditor({
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
           <h4 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">{t("maison.admin_pages")}</h4>
+          {pages.some((p) => !p.published) ? (
+            <div className="mt-3">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void publishAllDrafts()}
+                className="w-full rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-left text-xs text-amber-200/95 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {t("maison.admin_publish_all_drafts")}
+              </button>
+            </div>
+          ) : null}
           <ul className="mt-4 max-h-72 space-y-2 overflow-y-auto">
             {pages.map((p) => (
               <li key={p.id}>

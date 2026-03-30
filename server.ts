@@ -1427,6 +1427,22 @@ await db.exec(`
       ).run(homeRow.id, heroCfg);
     }
   }
+  {
+    const totalRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_pages")).get()) as { c: number } | undefined;
+    const liveRow = (await (await db.prepare("SELECT COUNT(*) AS c FROM curated_pages WHERE published = 1")).get()) as { c: number } | undefined;
+    const total = Number(totalRow?.c ?? 0);
+    const live = Number(liveRow?.c ?? 0);
+    if (total > 0 && live === 0) {
+      const slugs = ["home", "fuer-sie", "fuer-ihn", "high-jewelry", "bespoke"];
+      const ph = slugs.map(() => "?").join(",");
+      await (
+        await db.prepare(
+          `UPDATE curated_pages SET published = 1, updated_at = CURRENT_TIMESTAMP WHERE slug IN (${ph})`
+        )
+      ).run(...slugs);
+      console.log("[curated_pages] Repair: no published pages; canonical Maison slugs set to published.");
+    }
+  }
 }
 
 {
