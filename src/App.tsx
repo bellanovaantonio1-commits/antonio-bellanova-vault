@@ -286,6 +286,7 @@ const TRANSLATIONS: any = {
     "maison.admin_deleted": "Gelöscht.",
     "maison.admin_confirm_delete_section": "Diese Sektion wirklich löschen?",
     "maison.admin_confirm_delete_page": "Diese Seite und alle Sektionen wirklich löschen?",
+    "maison.admin_draft_warning": "Entwurf: Für Besucher unsichtbar. „Veröffentlicht“ aktivieren und „Seite speichern“ wählen — danach erscheint die Seite in der Navigation und unter Maison.",
     "maison.page_unavailable": "Diese Maison-Seite ist nicht verfügbar oder nicht veröffentlicht.",
     "luxury.badge_unique": "UNIQUE",
     "luxury.badge_limited": "LIMITIERT",
@@ -1589,6 +1590,7 @@ const TRANSLATIONS: any = {
     "maison.admin_deleted": "Deleted.",
     "maison.admin_confirm_delete_section": "Delete this section?",
     "maison.admin_confirm_delete_page": "Delete this page and all its sections?",
+    "maison.admin_draft_warning": "Draft: Not visible to visitors. Enable \"Published\" and click \"Save page\" — then it appears in navigation and under Maison.",
     "maison.page_unavailable": "This Maison page is unavailable or not published.",
     "luxury.badge_unique": "UNIQUE",
     "luxury.badge_limited": "LIMITED",
@@ -2819,6 +2821,7 @@ const TRANSLATIONS: any = {
     "maison.admin_deleted": "Eliminato.",
     "maison.admin_confirm_delete_section": "Eliminare questa sezione?",
     "maison.admin_confirm_delete_page": "Eliminare questa pagina e tutte le sezioni?",
+    "maison.admin_draft_warning": "Bozza: non visibile ai visitatori. Attiva \"Pubblicata\" e salva la pagina — poi apparirà in navigazione sotto Maison.",
     "maison.page_unavailable": "Questa pagina Maison non è disponibile o non è pubblicata.",
     "luxury.badge_unique": "UNIQUE",
     "luxury.badge_limited": "LIMITATA",
@@ -4523,13 +4526,15 @@ export default function App() {
   const [curatedNavPages, setCuratedNavPages] = useState<{ slug: string; nav_label: string }[]>([]);
   const [maisonLoading, setMaisonLoading] = useState(false);
   const [maisonLoadError, setMaisonLoadError] = useState(false);
+  const [curatedContentVersion, setCuratedContentVersion] = useState(0);
+  const bumpCuratedPublicData = useCallback(() => setCuratedContentVersion((v) => v + 1), []);
 
   useEffect(() => {
     fetch('/api/curated/pages/public')
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: { slug: string; nav_label: string }[]) => setCuratedNavPages(Array.isArray(rows) ? rows : []))
       .catch(() => setCuratedNavPages([]));
-  }, [user?.id, language]);
+  }, [user?.id, language, curatedContentVersion]);
 
   useEffect(() => {
     if (view !== 'maison') return undefined;
@@ -4559,7 +4564,7 @@ export default function App() {
     return () => {
       cancel = true;
     };
-  }, [view, maisonSlug]);
+  }, [view, maisonSlug, curatedContentVersion]);
 
   useEffect(() => {
     if (view !== 'kontakt') return undefined;
@@ -12394,7 +12399,7 @@ export default function App() {
                   ))}
                 </div>
                 {(adminTab === 'curated_maison') && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin') && (
-                  <AdminCuratedEditor masterpieces={masterpieces} notifyUser={notifyUser} t={t} />
+                  <AdminCuratedEditor masterpieces={masterpieces} notifyUser={notifyUser} t={t} onCuratedContentChanged={bumpCuratedPublicData} />
                 )}
                 {(adminTab === 'reservations') && (
                   <section className="space-y-4">

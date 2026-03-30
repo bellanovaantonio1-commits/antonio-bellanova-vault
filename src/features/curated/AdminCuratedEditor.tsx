@@ -35,10 +35,13 @@ export function AdminCuratedEditor({
   masterpieces,
   notifyUser,
   t,
+  onCuratedContentChanged,
 }: {
   masterpieces: Masterpiece[];
   notifyUser: (msg: string, type?: "success" | "error") => void;
   t: (k: string) => string;
+  /** Nach Speichern: öffentliche Maison-Navigation und aktuelle Seite im Client neu laden */
+  onCuratedContentChanged?: () => void;
 }) {
   const [pages, setPages] = useState<CuratedPageRow[]>([]);
   const [selectedPageId, setSelectedPageId] = useState<number | null>(null);
@@ -52,8 +55,13 @@ export function AdminCuratedEditor({
   const loadPages = useCallback(async () => {
     const r = await fetch("/api/admin/curated/pages", { credentials: "include" });
     if (!r.ok) return;
-    const data = await r.json();
-    setPages(data);
+    const data = (await r.json()) as CuratedPageRow[];
+    setPages(
+      (Array.isArray(data) ? data : []).map((p) => ({
+        ...p,
+        published: Number(p.published) ? 1 : 0,
+      }))
+    );
   }, []);
 
   const loadSections = useCallback(async (pageId: number) => {
@@ -80,8 +88,10 @@ export function AdminCuratedEditor({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ section_ids: ordered.map((s) => s.id) }),
     });
-    if (r.ok) notifyUser(t("maison.admin_reorder_saved") || "Reihenfolge gespeichert.", "success");
-    else notifyUser(t("errors.generic") || "Fehler", "error");
+    if (r.ok) {
+      notifyUser(t("maison.admin_reorder_saved") || "Reihenfolge gespeichert.", "success");
+      onCuratedContentChanged?.();
+    } else notifyUser(t("errors.generic") || "Fehler", "error");
   };
 
   const onDragStart = (id: number) => setDragId(id);
@@ -114,8 +124,10 @@ export function AdminCuratedEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ section_type: s.section_type, config: s.config, sort_order: s.sort_order }),
       });
-      if (r.ok) notifyUser(t("maison.admin_section_saved") || "Gespeichert.", "success");
-      else notifyUser(t("errors.generic") || "Fehler", "error");
+      if (r.ok) {
+        notifyUser(t("maison.admin_section_saved") || "Gespeichert.", "success");
+        onCuratedContentChanged?.();
+      } else notifyUser(t("errors.generic") || "Fehler", "error");
     } finally {
       setLoading(false);
     }
@@ -127,6 +139,7 @@ export function AdminCuratedEditor({
     if (r.ok) {
       setSections((prev) => prev.filter((s) => s.id !== id));
       notifyUser(t("maison.admin_deleted") || "Gelöscht.", "success");
+      onCuratedContentChanged?.();
     }
   };
 
@@ -144,6 +157,7 @@ export function AdminCuratedEditor({
       setSections((prev) => [...prev, row]);
       setExpandedId(row.id);
       notifyUser(t("maison.admin_section_added") || "Section hinzugefügt.", "success");
+      onCuratedContentChanged?.();
     } else notifyUser(t("errors.generic") || "Fehler", "error");
   };
 
@@ -156,7 +170,7 @@ export function AdminCuratedEditor({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug, title: newTitle || slug, nav_label: newTitle || slug, published: 0, nav_order: 100 }),
+        body: JSON.stringify({ slug, title: newTitle || slug, nav_label: newTitle || slug, published: 1, nav_order: 100 }),
       });
       if (r.ok) {
         await loadPages();
@@ -165,6 +179,7 @@ export function AdminCuratedEditor({
         setNewSlug("");
         setNewTitle("");
         notifyUser(t("maison.admin_page_created") || "Seite angelegt.", "success");
+        onCuratedContentChanged?.();
       } else {
         const e = await r.json().catch(() => ({}));
         notifyUser(e.error || t("errors.generic"), "error");
@@ -183,13 +198,14 @@ export function AdminCuratedEditor({
         slug: p.slug,
         title: p.title,
         nav_label: p.nav_label,
-        published: !!p.published,
+        published: Number(p.published) >= 1,
         nav_order: p.nav_order,
       }),
     });
     if (r.ok) {
       await loadPages();
       notifyUser(t("maison.admin_page_saved") || "Seite gespeichert.", "success");
+      onCuratedContentChanged?.();
     } else notifyUser(t("errors.generic") || "Fehler", "error");
   };
 
@@ -200,6 +216,7 @@ export function AdminCuratedEditor({
       if (selectedPageId === id) setSelectedPageId(null);
       await loadPages();
       notifyUser(t("maison.admin_deleted") || "Gelöscht.", "success");
+      onCuratedContentChanged?.();
     }
   };
 
@@ -390,6 +407,9 @@ export function AdminCuratedEditor({
                 <input type="checkbox" checked={!!selectedPage.published} onChange={(e) => setPages((prev) => prev.map((x) => (x.id === selectedPage.id ? { ...x, published: e.target.checked ? 1 : 0 } : x)))} />
                 {t("maison.admin_published")}
               </label>
+              {!selectedPage.published ? (
+                <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90 sm:col-span-2">{t("maison.admin_draft_warning")}</p>
+              ) : null}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <button type="button" onClick={() => void savePageMeta(pages.find((x) => x.id === selectedPage.id)!)} className="rounded-lg border border-amber-500/40 px-4 py-2 text-sm text-amber-500">
