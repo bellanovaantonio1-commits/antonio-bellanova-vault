@@ -1661,6 +1661,52 @@ try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN total_price REA
 try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN deposit_amount REAL")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE deal_rooms ADD COLUMN remaining_balance REAL")).run(); } catch (e) {}
 try { await (await db.prepare("ALTER TABLE users ADD COLUMN private_client_mode INTEGER DEFAULT 0")).run(); } catch (e) {}
+try { await (await db.prepare("ALTER TABLE client_timeline ADD COLUMN status TEXT")).run(); } catch (e) {}
+
+await db.exec(`
+  CREATE TABLE IF NOT EXISTS notification_digest_state (
+    user_id INTEGER PRIMARY KEY,
+    timeline_event_count INTEGER DEFAULT 0,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS user_kv (
+    user_id INTEGER NOT NULL,
+    k TEXT NOT NULL,
+    v TEXT,
+    PRIMARY KEY (user_id, k),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS client_approvals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    masterpiece_id INTEGER,
+    title TEXT NOT NULL,
+    artifact_url TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved_at DATETIME,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS client_mandates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    masterpiece_id INTEGER,
+    deal_room_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS care_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    masterpiece_id INTEGER,
+    due_at DATETIME NOT NULL,
+    message TEXT,
+    sent_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(client_id) REFERENCES users(id)
+  );
+`);
 
 // UHNW threshold (€5M): above this collection value activates Private Client Mode benefits
 const UHNW_COLLECTION_THRESHOLD_EUR = 5_000_000;
@@ -3503,9 +3549,56 @@ async function createActivityNotification(userId: number, type: 'new_room' | 'ne
   } catch (_) {}
 }
 
-async function addClientTimeline(clientId: number, eventType: string, description: string, referenceId?: string) {
+function inferDefaultTimelineStatus(eventType: string): string {
+  const e = String(eventType || "").toLowerCase();
+  if (e.includes("counter")) return "pending";
+  if (e.includes("submitted")) return "active";
+  if (e.includes("payment_schedule")) return "active";
+  if (e.includes("production_started")) return "active";
+  if (e.includes("deal_room") || e.includes("collector_room")) return "active";
+  if (e.includes("approval_requested")) return "pending";
+  if (e.includes("client_approval_resolved")) return "completed";
+  if (e.includes("signed") || e.includes("accepted") || e.includes("rejected") || e.includes("declined")) return "completed";
+  return "completed";
+}
+
+async function bumpTimelineDigest(clientId: number) {
   try {
-    await (await db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)")).run(clientId, eventType, description, referenceId ?? null);
+    await (await db.prepare(`
+      INSERT INTO notification_digest_state (user_id, timeline_event_count, updated_at)
+      VALUES (?, 1, CURRENT_TIMESTAMP)
+      ON CONFLICT(user_id) DO UPDATE SET
+        timeline_event_count = COALESCE(notification_digest_state.timeline_event_count, 0) + 1,
+        updated_at = CURRENT_TIMESTAMP
+    `)).run(clientId);
+  } catch (_) {}
+}
+
+async function addClientTimeline(
+  clientId: number,
+  eventType: string,
+  description: string,
+  referenceId?: string,
+  statusOverride?: string | null,
+) {
+  const st =
+    statusOverride && ["pending", "active", "completed"].includes(String(statusOverride))
+      ? String(statusOverride)
+      : inferDefaultTimelineStatus(eventType);
+  try {
+    await (await db.prepare(
+      "INSERT INTO client_timeline (client_id, event_type, description, reference_id, status) VALUES (?, ?, ?, ?, ?)",
+    )).run(clientId, eventType, description, referenceId ?? null, st);
+    await bumpTimelineDigest(clientId);
+    if (process.env.TIMELINE_NOTIFY_CLIENT_EMAIL === "true" || process.env.TIMELINE_NOTIFY_CLIENT_EMAIL === "1") {
+      const u = (await (await db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?")).get(clientId)) as any;
+      if (u && shouldSendEmailToUser(u)) {
+        const subject = "Update zu Ihrem Atelier-Auftrag";
+        const text = `Guten Tag${u.name ? ` ${u.name}` : ""},\n\nes gibt einen neuen Eintrag in Ihrer Auftrags-Timeline.\n\n${description || eventType}\n\n— Antonio Bellanova Atelier`;
+        await sendMail(String(u.email).trim(), subject, text).catch(() => {});
+      }
+    }
+    broadcast({ type: "CLIENT_TIMELINE_UPDATE", userId: clientId, eventType });
   } catch (_) {}
 }
 
@@ -10894,10 +10987,200 @@ app.get("/api/client-timeline/:clientId", requireAuth, async (req, res) => {
   res.json(rows);
 });
 app.post("/api/client-timeline", requireAuth, requireAdmin, async (req, res) => {
-  const { client_id, event_type, description, reference_id } = req.body || {};
+  const { client_id, event_type, description, reference_id, status } = req.body || {};
   if (!client_id || !event_type) return res.status(400).json({ error: "client_id and event_type required." });
-  await (await db.prepare("INSERT INTO client_timeline (client_id, event_type, description, reference_id) VALUES (?, ?, ?, ?)")).run(client_id, event_type, description || null, reference_id ?? null);
-  res.status(201).json({ id: await (await db.prepare("SELECT last_insert_rowid()")).get(), success: true });
+  const st =
+    status && ["pending", "active", "completed"].includes(String(status))
+      ? String(status)
+      : inferDefaultTimelineStatus(String(event_type));
+  await (await db.prepare(
+    "INSERT INTO client_timeline (client_id, event_type, description, reference_id, status) VALUES (?, ?, ?, ?, ?)",
+  )).run(client_id, event_type, description || null, reference_id ?? null, st);
+  const lid = (await (await db.prepare("SELECT last_insert_rowid() as id")).get()) as { id: number };
+  const newId = Number(lid?.id);
+  if (process.env.TIMELINE_NOTIFY_CLIENT_EMAIL === "true" || process.env.TIMELINE_NOTIFY_CLIENT_EMAIL === "1") {
+    const u = (await (await db.prepare("SELECT id, email, name, notification_prefs FROM users WHERE id = ?")).get(Number(client_id))) as any;
+    if (u && shouldSendEmailToUser(u)) {
+      const subject = "Update zu Ihrem Atelier-Auftrag";
+      const text = `Guten Tag${u.name ? ` ${u.name}` : ""},\n\nes gibt einen neuen Eintrag in Ihrer Auftrags-Timeline.\n\n${description || event_type}\n\n— Antonio Bellanova Atelier`;
+      await sendMail(String(u.email).trim(), subject, text).catch(() => {});
+    }
+  }
+  await bumpTimelineDigest(Number(client_id));
+  broadcast({ type: "CLIENT_TIMELINE_UPDATE", userId: Number(client_id), eventType: event_type });
+  res.status(201).json({ id: newId, success: true });
+});
+
+app.get("/api/me/payment-next", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any;
+  if (isAdminUser(user)) return res.json(null);
+  const row = (await (await db.prepare(`
+    SELECT ps.id, ps.deal_id, ps.amount, ps.status, ps.due_date, ps.paid_date, d.project_title, d.masterpiece_id
+    FROM payment_schedule ps
+    JOIN deal_rooms d ON d.id = ps.deal_id
+    WHERE ps.status = 'pending' AND ps.paid_date IS NULL
+    AND (d.client_id = ? OR EXISTS (
+      SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = d.id AND client_id = ?
+    ))
+    ORDER BY CASE WHEN ps.due_date IS NULL THEN 1 ELSE 0 END, ps.due_date ASC, ps.id ASC
+    LIMIT 1
+  `)).get(userId, userId)) as any;
+  res.json(row || null);
+});
+
+app.get("/api/me/notification-digest", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const row = (await (await db.prepare("SELECT timeline_event_count, updated_at FROM notification_digest_state WHERE user_id = ?")).get(userId)) as any;
+  res.json({ timeline_event_count: row?.timeline_event_count ?? 0, updated_at: row?.updated_at ?? null });
+});
+
+app.post("/api/me/notification-digest/ack", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  await (await db.prepare("UPDATE notification_digest_state SET timeline_event_count = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?")).run(userId);
+  res.json({ success: true });
+});
+
+app.get("/api/me/user-kv/:key", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const row = (await (await db.prepare("SELECT v FROM user_kv WHERE user_id = ? AND k = ?")).get(userId, req.params.key)) as { v: string } | undefined;
+  res.json({ value: row?.v ?? null });
+});
+
+app.post("/api/me/user-kv", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const { key, value } = req.body || {};
+  if (!key || typeof key !== "string") return res.status(400).json({ error: "key required" });
+  await (await db.prepare(
+    "INSERT INTO user_kv (user_id, k, v) VALUES (?, ?, ?) ON CONFLICT(user_id, k) DO UPDATE SET v = excluded.v",
+  )).run(userId, key, value != null ? String(value) : "");
+  res.json({ success: true });
+});
+
+app.get("/api/me/mandate-summary", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const ref = String(req.query.ref || "").trim();
+  const m = /^deal:(\d+)$/.exec(ref);
+  if (!m) return res.status(400).json({ error: "ref must be deal:ID" });
+  const dealId = Number(m[1]);
+  const room = (await (await db.prepare("SELECT * FROM deal_rooms WHERE id = ?")).get(dealId)) as any;
+  if (!room) return res.status(404).json({ error: "Not found" });
+  const isOwner = room.client_id === userId;
+  const isAssigned = await (await db.prepare("SELECT 1 FROM room_assigned_clients WHERE room_type = 'deal' AND room_id = ? AND client_id = ?")).get(dealId, userId);
+  if (!isOwner && !isAssigned) return res.status(403).json({ error: "Forbidden" });
+  res.json({
+    deal_id: dealId,
+    project_title: room.project_title,
+    masterpiece_id: room.masterpiece_id,
+    documents_hint: "vault_and_private_clients",
+  });
+});
+
+app.get("/api/me/proof-bundle", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const timelineCount = (await (await db.prepare("SELECT COUNT(*) as c FROM client_timeline WHERE client_id = ?")).get(userId)) as { c: number };
+  res.json({
+    ok: true,
+    items: [
+      { type: "contracts", hint: "vault", label: "Verträge im Tresor unter „Verträge“" },
+      { type: "timeline", count: Number(timelineCount?.c ?? 0), label: "Auftragsverlauf im Dashboard" },
+    ],
+  });
+});
+
+app.get("/api/client-approvals", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const rows = await (await db.prepare(
+    "SELECT * FROM client_approvals WHERE client_id = ? AND status = 'pending' ORDER BY created_at DESC",
+  )).all(userId);
+  res.json(rows);
+});
+
+app.post("/api/client-approvals/:id/respond", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const id = Number(req.params.id);
+  const { decision } = req.body || {};
+  if (!["approved", "rejected"].includes(String(decision))) return res.status(400).json({ error: "decision must be approved or rejected" });
+  const row = (await (await db.prepare("SELECT * FROM client_approvals WHERE id = ?")).get(id)) as any;
+  if (!row || row.client_id !== userId) return res.status(404).json({ error: "Not found" });
+  await (await db.prepare("UPDATE client_approvals SET status = ?, resolved_at = CURRENT_TIMESTAMP WHERE id = ?")).run(decision, id);
+  addClientTimeline(userId, "client_approval_resolved", `Freigabe: ${decision}`, String(id), "completed");
+  res.json({ success: true });
+});
+
+app.get("/api/admin/client-approvals", requireAuth, requireAdmin, async (req, res) => {
+  const cid = req.query.client_id ? Number(req.query.client_id) : null;
+  const rows = cid
+    ? await (await db.prepare("SELECT * FROM client_approvals WHERE client_id = ? ORDER BY created_at DESC")).all(cid)
+    : await (await db.prepare("SELECT * FROM client_approvals ORDER BY created_at DESC LIMIT 200")).all();
+  res.json(rows);
+});
+
+app.post("/api/admin/client-approvals", requireAuth, requireAdmin, async (req, res) => {
+  const { client_id, masterpiece_id, title, artifact_url } = req.body || {};
+  if (!client_id || !title) return res.status(400).json({ error: "client_id and title required" });
+  const r = await (await db.prepare(
+    "INSERT INTO client_approvals (client_id, masterpiece_id, title, artifact_url, status) VALUES (?, ?, ?, ?, 'pending')",
+  )).run(Number(client_id), masterpiece_id ? Number(masterpiece_id) : null, String(title), artifact_url || null);
+  const newId = Number(r.lastInsertRowid);
+  addClientTimeline(Number(client_id), "approval_requested", String(title), String(newId), "pending");
+  res.status(201).json({ id: newId, success: true });
+});
+
+app.get("/api/admin/client-mandates", requireAuth, requireAdmin, async (req, res) => {
+  const cid = Number(req.query.client_id);
+  if (!cid) return res.status(400).json({ error: "client_id required" });
+  const rows = await (await db.prepare("SELECT * FROM client_mandates WHERE client_id = ? ORDER BY created_at DESC")).all(cid);
+  res.json(rows);
+});
+
+app.post("/api/admin/client-mandates", requireAuth, requireAdmin, async (req, res) => {
+  const { client_id, masterpiece_id, deal_room_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: "client_id required" });
+  const r = await (await db.prepare(
+    "INSERT INTO client_mandates (client_id, masterpiece_id, deal_room_id) VALUES (?, ?, ?)",
+  )).run(Number(client_id), masterpiece_id != null ? Number(masterpiece_id) : null, deal_room_id != null ? Number(deal_room_id) : null);
+  res.status(201).json({ id: Number(r.lastInsertRowid), success: true });
+});
+
+app.get("/api/me/care-reminders", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const rows = await (await db.prepare(
+    "SELECT * FROM care_reminders WHERE client_id = ? AND (sent_at IS NULL OR due_at > datetime('now', '-30 days')) ORDER BY due_at ASC LIMIT 20",
+  )).all(userId);
+  res.json(rows);
+});
+
+app.post("/api/admin/care-reminders", requireAuth, requireAdmin, async (req, res) => {
+  const { client_id, masterpiece_id, due_at, message } = req.body || {};
+  if (!client_id || !due_at) return res.status(400).json({ error: "client_id and due_at required" });
+  const r = await (await db.prepare(
+    "INSERT INTO care_reminders (client_id, masterpiece_id, due_at, message) VALUES (?, ?, ?, ?)",
+  )).run(Number(client_id), masterpiece_id != null ? Number(masterpiece_id) : null, String(due_at), message || null);
+  res.status(201).json({ id: Number(r.lastInsertRowid), success: true });
+});
+
+app.patch("/api/client-timeline/:entryId", requireAuth, requireAdmin, async (req, res) => {
+  const entryId = Number(req.params.entryId);
+  if (!entryId) return res.status(400).json({ error: "Invalid id." });
+  const row = (await (await db.prepare("SELECT * FROM client_timeline WHERE id = ?")).get(entryId)) as any;
+  if (!row) return res.status(404).json({ error: "Not found." });
+  const { status, description } = req.body || {};
+  const updates: string[] = [];
+  const vals: any[] = [];
+  if (status != null && ["pending", "active", "completed"].includes(String(status))) {
+    updates.push("status = ?");
+    vals.push(String(status));
+  }
+  if (typeof description === "string") {
+    updates.push("description = ?");
+    vals.push(description);
+  }
+  if (!updates.length) return res.status(400).json({ error: "No valid fields." });
+  vals.push(entryId);
+  await (await db.prepare(`UPDATE client_timeline SET ${updates.join(", ")} WHERE id = ?`)).run(...vals);
+  broadcast({ type: "CLIENT_TIMELINE_UPDATE", userId: row.client_id, eventType: row.event_type });
+  res.json({ success: true });
 });
 
 // --- Payment schedule (Section 2): deal room payment tracking ---

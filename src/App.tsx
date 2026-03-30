@@ -61,7 +61,7 @@ import { EMPTY_MARKETPLACE_LAYOUT, type MarketplaceLayoutDoc } from './features/
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
-import { buildLuxuryTimelinePresentation } from './lib/luxuryClientTimeline';
+import { buildLuxuryTimelinePresentation, type PaymentNextHint } from './lib/luxuryClientTimeline';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -1303,6 +1303,8 @@ const TRANSLATIONS: any = {
     "timeline.section_current": "Aktueller Status",
     "timeline.section_next": "Nächster Schritt",
     "timeline.section_history": "Verlauf",
+    "timeline.section_open": "Laufende Schritte",
+    "timeline.section_payment": "Zahlung",
     "timeline.expand_history": "Weitere Einträge anzeigen",
     "timeline.collapse_history": "Weniger anzeigen",
     "activity.contract_ready": "Vertrag zur Unterzeichnung bereit",
@@ -2544,6 +2546,8 @@ const TRANSLATIONS: any = {
     "timeline.section_current": "Current status",
     "timeline.section_next": "Next step",
     "timeline.section_history": "History",
+    "timeline.section_open": "In progress",
+    "timeline.section_payment": "Payment",
     "timeline.expand_history": "Show more entries",
     "timeline.collapse_history": "Show less",
     "activity.contract_ready": "Contract ready for signature",
@@ -3682,6 +3686,17 @@ const TRANSLATIONS: any = {
     "dashboard.value_development": "Sviluppo valore",
     "dashboard.resale_opportunities": "Rivendita",
     "dashboard.service_restoration": "Servizio e restauro",
+    "dashboard.activity_center": "Attività",
+    "dashboard.activity_center_desc": "Aggiornamenti e passi importanti per Lei.",
+    "dashboard.client_timeline": "Il Suo stato in atelier",
+    "dashboard.client_timeline_hint": "Dove si trova e cosa segue — con calma, senza registro tecnico.",
+    "timeline.section_current": "Stato attuale",
+    "timeline.section_next": "Prossimo passo",
+    "timeline.section_history": "Cronologia",
+    "timeline.section_open": "Passi in corso",
+    "timeline.section_payment": "Pagamento",
+    "timeline.expand_history": "Mostra altre voci",
+    "timeline.collapse_history": "Mostra meno",
     "identity.client_id": "ID cliente",
     "identity.prestige_level": "Prestige Level",
     "identity.member_tier": "Member Tier",
@@ -3842,6 +3857,20 @@ const TRANSLATIONS: any = {
   Object.keys(localeFiles).forEach(lang => {
     if (TRANSLATIONS[lang]) TRANSLATIONS[lang] = { ...TRANSLATIONS[lang], ...localeFiles[lang] };
   });
+})();
+(function () {
+  const frLux: Record<string, string> = {
+    "dashboard.client_timeline": "Votre statut à l'atelier",
+    "dashboard.client_timeline_hint": "Où vous en êtes et la suite — posé, sans journal technique.",
+    "timeline.section_current": "Statut actuel",
+    "timeline.section_next": "Prochaine étape",
+    "timeline.section_history": "Historique",
+    "timeline.section_open": "Étapes en cours",
+    "timeline.section_payment": "Paiement",
+    "timeline.expand_history": "Afficher plus d’entrées",
+    "timeline.collapse_history": "Afficher moins",
+  };
+  if (TRANSLATIONS.fr) TRANSLATIONS.fr = { ...TRANSLATIONS.fr, ...frLux };
 })();
 
 // --- Components ---
@@ -4666,6 +4695,12 @@ export default function App() {
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
   const [clientTimeline, setClientTimeline] = useState<any[]>([]);
   const [luxuryTimelineHistoryExpanded, setLuxuryTimelineHistoryExpanded] = useState(false);
+  const [paymentNextRow, setPaymentNextRow] = useState<any | null>(null);
+  const [timelineDigest, setTimelineDigest] = useState<{ timeline_event_count: number; updated_at?: string } | null>(null);
+  const [conciergeContextDraft, setConciergeContextDraft] = useState('');
+  const [myPendingApprovals, setMyPendingApprovals] = useState<any[]>([]);
+  const [myCareReminders, setMyCareReminders] = useState<any[]>([]);
+  const [milestoneBannerDismissed, setMilestoneBannerDismissed] = useState(false);
   const [adminIntelligence, setAdminIntelligence] = useState<{ topByPurchases?: any[]; topByValue?: any[]; pendingDeals?: number; vipActivity?: number } | null>(null);
   const [paymentsOverview, setPaymentsOverview] = useState<{ pending?: any[]; overdue?: any[]; recent?: any[] } | null>(null);
   const [uhnwStatus, setUhnwStatus] = useState<{ collection_value?: number; is_uhnw?: boolean; threshold?: number } | null>(null);
@@ -5257,6 +5292,29 @@ export default function App() {
         stripAuthViewQueryParam();
         return;
       }
+      const deepParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      if (deepParams?.get('view') === 'concierge' && !data.is_guest) {
+        const ctx = deepParams.get('context') || '';
+        if (ctx.startsWith('deal:')) setConciergeContextDraft(`Bezug ${ctx}: `);
+        else if (ctx) setConciergeContextDraft(`${ctx}: `);
+        setView('concierge');
+        const u = new URL(window.location.href);
+        u.searchParams.delete('view');
+        u.searchParams.delete('context');
+        window.history.replaceState({}, '', `${u.pathname}${u.search ? `?${u.searchParams.toString()}` : ''}${u.hash}`);
+        stripAuthViewQueryParam();
+        if (data.notification_prefs) {
+          try {
+            const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
+            if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
+          } catch (_) {}
+        }
+        if (data.force_password_change || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1')) {
+          setForcePasswordChangeMode(true);
+          setShowPasswordChangeModal(true);
+        }
+        return;
+      }
       setView('dashboard');
       stripAuthViewQueryParam();
       if (data.notification_prefs) {
@@ -5534,6 +5592,12 @@ export default function App() {
   }, [view]);
 
   useEffect(() => {
+    if (view !== 'concierge' || !conciergeContextDraft) return;
+    setPrivateAtelierDraft((prev) => (prev.trim() ? prev : conciergeContextDraft));
+    setConciergeContextDraft('');
+  }, [view, conciergeContextDraft]);
+
+  useEffect(() => {
     if (!user || view !== 'concierge' || isGuestSessionUser(user)) return;
     const isAdm = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
     if (isAdm) return;
@@ -5682,6 +5746,18 @@ export default function App() {
         const u = userRefForWs.current;
         if (u && !isGuestSessionUser(u)) {
           setConsultationWsTick((n) => n + 1);
+        }
+      } else if (data.type === 'CLIENT_TIMELINE_UPDATE') {
+        const u = userRefForWs.current;
+        if (u && !isGuestSessionUser(u) && Number(data.userId) === u.id) {
+          fetch(`/api/client-timeline/${u.id}`, { credentials: 'include' })
+            .then((r) => (r.ok ? r.json() : []))
+            .then(setClientTimeline)
+            .catch(() => {});
+          fetch('/api/me/notification-digest', { credentials: 'include' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d) => setTimelineDigest(d && typeof d === 'object' ? d : null))
+            .catch(() => {});
         }
       } else {
         fetchData(); // Refresh on other updates
@@ -6286,6 +6362,10 @@ export default function App() {
       fetch(`/api/notifications/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setDashboardActivity);
       fetch(`/api/client-timeline/${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setClientTimeline);
       fetch('/api/me/uhnw-status', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(setUhnwStatus);
+      fetch('/api/me/payment-next', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then((row) => setPaymentNextRow(row && typeof row === 'object' && row.deal_id != null ? row : null));
+      fetch('/api/me/notification-digest', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then((d) => setTimelineDigest(d && typeof d === 'object' ? d : null));
+      fetch('/api/client-approvals', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then((rows) => setMyPendingApprovals(Array.isArray(rows) ? rows : []));
+      fetch('/api/me/care-reminders', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then((rows) => setMyCareReminders(Array.isArray(rows) ? rows : []));
     }
     if (view === 'dashboard' && user?.id && (user.role === 'admin' || user.role === 'super_admin')) {
       fetch('/api/collector/leaderboard?limit=50', { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setCollectorLeaderboard);
@@ -6918,9 +6998,18 @@ export default function App() {
 
   const masterpiecesById = useMemo(() => new Map(masterpieces.map((p) => [p.id, p])), [masterpieces]);
 
+  const paymentNextHint: PaymentNextHint | null = paymentNextRow
+    ? {
+        amount: Number(paymentNextRow.amount),
+        due_date: paymentNextRow.due_date || null,
+        project_title: paymentNextRow.project_title,
+        deal_id: Number(paymentNextRow.deal_id),
+      }
+    : null;
+
   const luxuryTimelinePresentation = useMemo(
-    () => buildLuxuryTimelinePresentation(clientTimeline, language),
-    [clientTimeline, language],
+    () => buildLuxuryTimelinePresentation(clientTimeline, language, paymentNextHint),
+    [clientTimeline, language, paymentNextHint],
   );
 
   const handleMaisonCtaNavigate = (v: string) => {
@@ -9269,6 +9358,131 @@ export default function App() {
                   </Card>
                 )}
 
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && timelineDigest && (timelineDigest.timeline_event_count ?? 0) > 0 && (
+                  <Card className="border-amber-500/25 bg-zinc-950/80 space-y-3" hoverGlow>
+                    <p className="text-sm text-zinc-300">
+                      {timelineDigest.timeline_event_count === 1
+                        ? 'Es gibt eine neue Aktualisierung in Ihrer Atelier-Timeline.'
+                        : `${timelineDigest.timeline_event_count} neue Timeline-Aktualisierungen seit Ihrem letzten Besuch.`}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-amber-500/40 text-amber-200"
+                        onClick={async () => {
+                          await fetch('/api/me/notification-digest/ack', { method: 'POST', credentials: 'include' });
+                          setTimelineDigest((d) => (d ? { ...d, timeline_event_count: 0 } : d));
+                          if (user?.id) {
+                            fetch(`/api/client-timeline/${user.id}`, { credentials: 'include' })
+                              .then((r) => (r.ok ? r.json() : []))
+                              .then(setClientTimeline);
+                          }
+                        }}
+                      >
+                        Zur Kenntnis genommen
+                      </Button>
+                    </div>
+                  </Card>
+                )}
+
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && myPendingApprovals.length > 0 && (
+                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-3" hoverGlow>
+                    <h4 className="text-lg font-serif italic text-zinc-100">Freigabe vom Atelier</h4>
+                    {myPendingApprovals.map((ap: any) => (
+                      <div key={ap.id} className="flex flex-wrap items-center justify-between gap-3 py-2 border-b border-zinc-800/60 last:border-0">
+                        <div>
+                          <p className="text-sm text-zinc-200">{ap.title}</p>
+                          {ap.artifact_url && (
+                            <a href={ap.artifact_url} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-500/90 underline">
+                              Ansehen
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                            onClick={async () => {
+                              const r = await fetch(`/api/client-approvals/${ap.id}/respond`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ decision: 'approved' }),
+                                credentials: 'include',
+                              });
+                              if (r.ok) {
+                                setMyPendingApprovals((prev) => prev.filter((x: any) => x.id !== ap.id));
+                                if (user?.id) fetch(`/api/client-timeline/${user.id}`, { credentials: 'include' }).then((res) => res.ok && res.json().then(setClientTimeline));
+                              }
+                            }}
+                          >
+                            Freigeben
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-zinc-500"
+                            onClick={async () => {
+                              const r = await fetch(`/api/client-approvals/${ap.id}/respond`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ decision: 'rejected' }),
+                                credentials: 'include',
+                              });
+                              if (r.ok) setMyPendingApprovals((prev) => prev.filter((x: any) => x.id !== ap.id));
+                            }}
+                          >
+                            Ablehnen
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </Card>
+                )}
+
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && myCareReminders.length > 0 && (
+                  <Card className="border-zinc-700 space-y-2" hoverGlow>
+                    <h4 className="text-sm font-serif italic text-zinc-400">Service & Pflege</h4>
+                    <ul className="text-xs text-zinc-500 space-y-1">
+                      {myCareReminders.map((cr: any) => (
+                        <li key={cr.id}>
+                          {cr.message || 'Erinnerung'} · {new Date(cr.due_at).toLocaleDateString('de-DE')}
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
+
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && clientTimeline.length > 0 && !milestoneBannerDismissed && (
+                  <div className="rounded-lg border border-amber-500/15 bg-amber-500/[0.03] px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-zinc-400">Meilenstein: Ihr Atelier-Status wurde zuletzt aktualisiert.</p>
+                    <button
+                      type="button"
+                      className="text-[11px] uppercase tracking-wider text-amber-600/90 hover:text-amber-500"
+                      onClick={() => setMilestoneBannerDismissed(true)}
+                    >
+                      Schließen
+                    </button>
+                  </div>
+                )}
+
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="text-xs text-zinc-500 hover:text-amber-500/80 underline-offset-2 hover:underline"
+                      onClick={async () => {
+                        const r = await fetch('/api/me/proof-bundle', { credentials: 'include' });
+                        const j = r.ok ? await r.json() : null;
+                        if (j?.items) notifyUser(j.items.map((x: any) => x.label).join(' · '), 'success');
+                      }}
+                    >
+                      Meine Nachweise (Überblick)
+                    </button>
+                  </div>
+                )}
+
                 {/* Client Timeline — luxury minimal (pending/active hero, completed history collapsed) */}
                 {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && luxuryTimelinePresentation && (
                   <div
@@ -9306,7 +9520,7 @@ export default function App() {
                     </div>
 
                     <section className="space-y-3 pt-2 border-t border-zinc-800/80">
-                      <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_current')}</p>
+                      <p className="text-xs text-zinc-500 font-medium tracking-wide">{t('timeline.section_current')}</p>
                       <p className="text-2xl md:text-3xl font-serif text-zinc-100 leading-snug font-normal tracking-tight">
                         {luxuryTimelinePresentation.currentTitle}
                       </p>
@@ -9319,16 +9533,62 @@ export default function App() {
 
                     {luxuryTimelinePresentation.nextStep && (
                       <section className="space-y-2 py-2">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_next')}</p>
+                        <p className="text-xs text-zinc-500 font-medium tracking-wide">{t('timeline.section_next')}</p>
                         <p className="text-base md:text-lg font-serif italic" style={{ color: 'rgba(212, 175, 55, 0.88)' }}>
                           {luxuryTimelinePresentation.nextStep}
                         </p>
                       </section>
                     )}
 
+                    {luxuryTimelinePresentation.openAndActiveEntries.length > 0 && (
+                      <section className="space-y-4 py-2 border-t border-zinc-800/60">
+                        <p className="text-xs text-zinc-500 font-medium tracking-wide">{t('timeline.section_open')}</p>
+                        <ul className="space-y-4">
+                          {luxuryTimelinePresentation.openAndActiveEntries.map((entry) => (
+                            <li key={entry.id} className="flex gap-4">
+                              <span
+                                className="mt-2 h-2 w-2 shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor: entry.status === 'pending' ? '#D4AF37' : 'rgba(212, 175, 55, 0.42)',
+                                  boxShadow: entry.status === 'pending' ? '0 0 0 3px rgba(212, 175, 55, 0.12)' : undefined,
+                                }}
+                                aria-hidden
+                              />
+                              <div className="min-w-0 space-y-1">
+                                <p className="text-sm text-zinc-300 leading-snug font-normal">{entry.title}</p>
+                                {entry.detail ? (
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{entry.detail}</p>
+                                ) : null}
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    )}
+
+                    {luxuryTimelinePresentation.paymentHint && paymentNextRow?.deal_id && (
+                      <section className="space-y-3 py-2 border-t border-zinc-800/60">
+                        <p className="text-xs text-zinc-500 font-medium tracking-wide">{t('timeline.section_payment')}</p>
+                        <p className="text-sm text-zinc-300">{luxuryTimelinePresentation.paymentHint}</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-amber-500/35 text-amber-200 text-xs"
+                          onClick={() => {
+                            setView('private_clients');
+                            setClientViewSubTab('rooms');
+                            setSelectedRoomType('deal');
+                            setSelectedRoomId(Number(paymentNextRow.deal_id));
+                          }}
+                        >
+                          Zum Deal-Raum
+                        </Button>
+                      </section>
+                    )}
+
                     {luxuryTimelinePresentation.completedHistory.length > 0 && (
                       <section className="space-y-5 pt-4 border-t border-zinc-800/80">
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_history')}</p>
+                        <p className="text-xs text-zinc-500 font-medium tracking-wide">{t('timeline.section_history')}</p>
                         <ul className="space-y-5">
                           {(luxuryTimelineHistoryExpanded
                             ? luxuryTimelinePresentation.completedHistory.slice(0, 15)
@@ -9336,8 +9596,7 @@ export default function App() {
                           ).map((entry) => (
                             <li key={entry.id} className="flex gap-4">
                               <span
-                                className="mt-2 h-2 w-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: '#D4AF37', opacity: 0.85 }}
+                                className="mt-2 h-2 w-2 shrink-0 rounded-full bg-zinc-600"
                                 aria-hidden
                               />
                               <div className="min-w-0 space-y-1">
@@ -15282,6 +15541,88 @@ export default function App() {
                   <section className="space-y-4">
                     <h3 className="text-xl font-serif italic">{t('admin.private_clients') || 'Private Clients'}</h3>
                     <p className="text-sm text-zinc-500">Sichere 1-zu-1-Kommunikation mit Kunden. Nur Admin und der jeweilige Kunde sehen die Konversation.</p>
+                    <Card className="p-4 border-zinc-800 bg-zinc-950/50 space-y-3">
+                      <h4 className="text-sm font-serif italic text-amber-500/90">Kunden-Timeline (Vorlagen)</h4>
+                      <div className="flex flex-wrap gap-2 items-end">
+                        <input type="number" id="tl-client-id" placeholder="Kunden-ID" className="input w-28" />
+                        <select id="tl-event-type" className="input min-w-[200px]">
+                          <option value="production_started">Fertigung läuft</option>
+                          <option value="contract_signed">Vertrag unterzeichnet</option>
+                          <option value="payment_schedule_created">Zahlungsplan</option>
+                          <option value="deal_room_created">Auftrag angelegt</option>
+                          <option value="custom">custom (manuell)</option>
+                        </select>
+                        <input type="text" id="tl-custom-type" placeholder="event_type wenn custom" className="input flex-1 min-w-[120px]" />
+                        <select id="tl-status" className="input w-36">
+                          <option value="active">active</option>
+                          <option value="pending">pending</option>
+                          <option value="completed">completed</option>
+                        </select>
+                      </div>
+                      <textarea id="tl-desc" placeholder="Beschreibung (sichtbar für Kunde)" className="input w-full min-h-[72px] text-sm" />
+                      <input type="text" id="tl-ref" placeholder="reference_id z. B. deal:12" className="input w-full text-sm" />
+                      <Button variant="primary" size="sm" onClick={async () => {
+                        const client_id = Number((document.getElementById('tl-client-id') as HTMLInputElement)?.value);
+                        let event_type = (document.getElementById('tl-event-type') as HTMLSelectElement)?.value || '';
+                        if (event_type === 'custom') event_type = (document.getElementById('tl-custom-type') as HTMLInputElement)?.value?.trim() || '';
+                        const description = (document.getElementById('tl-desc') as HTMLTextAreaElement)?.value?.trim() || null;
+                        const reference_id = (document.getElementById('tl-ref') as HTMLInputElement)?.value?.trim() || null;
+                        const status = (document.getElementById('tl-status') as HTMLSelectElement)?.value;
+                        if (!client_id || !event_type) { notifyUser('Kunden-ID und Ereignistyp erforderlich.', 'error'); return; }
+                        const r = await fetch('/api/client-timeline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, event_type, description, reference_id, status }), credentials: 'include' });
+                        if (r.ok) { notifyUser('Timeline-Eintrag gespeichert.', 'success'); (document.getElementById('tl-desc') as HTMLTextAreaElement).value = ''; }
+                        else notifyUser('Fehler beim Speichern.', 'error');
+                      }}>Timeline-Eintrag anlegen</Button>
+                    </Card>
+                    <Card className="p-4 border-zinc-800 bg-zinc-950/50 space-y-3">
+                      <h4 className="text-sm font-serif italic text-amber-500/90">Freigabe · Mandat · Care-Erinnerung</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div className="space-y-2">
+                          <p className="text-zinc-500 uppercase tracking-wider">Freigabe anfragen</p>
+                          <input type="number" id="ap-client" placeholder="client_id" className="input w-full" />
+                          <input type="text" id="ap-title" placeholder="Titel" className="input w-full" />
+                          <input type="text" id="ap-url" placeholder="Link / artifact_url" className="input w-full" />
+                          <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                            const client_id = Number((document.getElementById('ap-client') as HTMLInputElement)?.value);
+                            const title = (document.getElementById('ap-title') as HTMLInputElement)?.value?.trim();
+                            const artifact_url = (document.getElementById('ap-url') as HTMLInputElement)?.value?.trim() || null;
+                            if (!client_id || !title) return;
+                            const r = await fetch('/api/admin/client-approvals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, title, artifact_url }), credentials: 'include' });
+                            notifyUser(r.ok ? 'Freigabe angelegt.' : 'Fehler', r.ok ? 'success' : 'error');
+                          }}>Freigabe senden</Button>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-zinc-500 uppercase tracking-wider">Mandat (Stück/Deal)</p>
+                          <input type="number" id="md-client" placeholder="client_id" className="input w-full" />
+                          <input type="number" id="md-piece" placeholder="masterpiece_id" className="input w-full" />
+                          <input type="number" id="md-deal" placeholder="deal_room_id" className="input w-full" />
+                          <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                            const client_id = Number((document.getElementById('md-client') as HTMLInputElement)?.value);
+                            const masterpiece_id = (document.getElementById('md-piece') as HTMLInputElement)?.value;
+                            const deal_room_id = (document.getElementById('md-deal') as HTMLInputElement)?.value;
+                            if (!client_id) return;
+                            const r = await fetch('/api/admin/client-mandates', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, masterpiece_id: masterpiece_id ? Number(masterpiece_id) : null, deal_room_id: deal_room_id ? Number(deal_room_id) : null }), credentials: 'include' });
+                            notifyUser(r.ok ? 'Mandat gespeichert.' : 'Fehler', r.ok ? 'success' : 'error');
+                          }}>Mandat speichern</Button>
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                          <p className="text-zinc-500 uppercase tracking-wider">Care-Erinnerung</p>
+                          <div className="flex flex-wrap gap-2">
+                            <input type="number" id="cr-client" placeholder="client_id" className="input w-28" />
+                            <input type="datetime-local" id="cr-due" className="input w-56" />
+                            <input type="text" id="cr-msg" placeholder="Nachricht" className="input flex-1 min-w-[160px]" />
+                            <Button variant="outline" size="sm" className="text-xs" onClick={async () => {
+                              const client_id = Number((document.getElementById('cr-client') as HTMLInputElement)?.value);
+                              const due_at = (document.getElementById('cr-due') as HTMLInputElement)?.value;
+                              const message = (document.getElementById('cr-msg') as HTMLInputElement)?.value?.trim() || null;
+                              if (!client_id || !due_at) return;
+                              const r = await fetch('/api/admin/care-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id, due_at, message }), credentials: 'include' });
+                              notifyUser(r.ok ? 'Erinnerung angelegt.' : 'Fehler', r.ok ? 'success' : 'error');
+                            }}>Care-Termin anlegen</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
                     <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-3">
                       {(['list', 'conversations', 'projects', 'stone_requests'] as const).map(sub => (
                         <button key={sub} type="button" onClick={() => setPrivateClientSubTab(sub)} className={`px-3 py-1.5 rounded-lg text-sm uppercase tracking-wider ${privateClientSubTab === sub ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
@@ -17257,7 +17598,7 @@ const AuctionCard = ({ auction, onBid, onViewDetails, userId, isFavorite, onTogg
       <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(auction.masterpiece_id)}>
         <img src={auction.image_url || `https://picsum.photos/seed/${auction.id}/600/600`} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
         {onToggleFavorite && (
-          <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
+          <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
             <Heart className={`w-5 h-5 ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
           </button>
         )}
