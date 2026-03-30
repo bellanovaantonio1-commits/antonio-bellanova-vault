@@ -2270,6 +2270,11 @@ try {
     /* exists */
   }
   try {
+    await (await db.prepare("ALTER TABLE masterpieces ADD COLUMN featured_masterpiece INTEGER DEFAULT 0")).run();
+  } catch (_) {
+    /* exists */
+  }
+  try {
     await (await db.prepare("UPDATE masterpieces SET made_to_order = 1 WHERE consultation_required = 1 AND (made_to_order IS NULL OR made_to_order = 0)")).run();
   } catch (_) {}
   try {
@@ -4694,6 +4699,12 @@ app.post("/api/admin/masterpieces", async (req, res) => {
         await (await db.prepare("UPDATE masterpieces SET made_to_order = 1 WHERE id = ?")).run(id);
       }
     } catch (_) {}
+    try {
+      const f = (req.body as any)?.featured_masterpiece;
+      if (f !== undefined && f !== null) {
+        await (await db.prepare("UPDATE masterpieces SET featured_masterpiece = ? WHERE id = ?")).run(f ? 1 : 0, id);
+      }
+    } catch (_) {}
 
     res.json({ id });
   } catch (e: any) {
@@ -4756,6 +4767,12 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
         await (await db.prepare("UPDATE masterpieces SET made_to_order = ? WHERE id = ?")).run(bodyMadeToOrder ? 1 : 0, id);
       } catch (_) {}
     }
+    const bodyFeatured = (req.body as any)?.featured_masterpiece;
+    if (bodyFeatured !== undefined && bodyFeatured !== null) {
+      try {
+        await (await db.prepare("UPDATE masterpieces SET featured_masterpiece = ? WHERE id = ?")).run(bodyFeatured ? 1 : 0, id);
+      } catch (_) {}
+    }
     broadcast({ type: 'MASTERPIECE_UPDATED', id });
     res.json({ ok: true });
   } catch (e: any) {
@@ -4807,6 +4824,7 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (body.consultation_required !== undefined) { updates.push('consultation_required = ?'); values.push(body.consultation_required ? 1 : 0); }
   if (body.made_to_order !== undefined) { updates.push('made_to_order = ?'); values.push(body.made_to_order ? 1 : 0); }
   if (body.gender !== undefined) { updates.push('gender = ?'); values.push(normalizeMasterpieceGender(body.gender)); }
+  if (body.featured_masterpiece !== undefined) { updates.push('featured_masterpiece = ?'); values.push(body.featured_masterpiece ? 1 : 0); }
   if (updates.length === 0) return res.json({ ok: true });
   values.push(id);
   try {
@@ -4856,6 +4874,12 @@ app.patch("/api/admin/masterpieces/:id", async (req, res) => {
   if (bodyDescI18n != null && typeof bodyDescI18n === 'object') await (await db.prepare("UPDATE masterpieces SET description_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyDescI18n), id);
   if (bodyMaterialsI18n != null && typeof bodyMaterialsI18n === 'object') await (await db.prepare("UPDATE masterpieces SET materials_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyMaterialsI18n), id);
   if (bodyGemstonesI18n != null && typeof bodyGemstonesI18n === 'object') await (await db.prepare("UPDATE masterpieces SET gemstones_i18n = ? WHERE id = ?")).run(JSON.stringify(bodyGemstonesI18n), id);
+  const bodyFeatured = (req.body as any)?.featured_masterpiece;
+  if (bodyFeatured !== undefined && bodyFeatured !== null) {
+    try {
+      await (await db.prepare("UPDATE masterpieces SET featured_masterpiece = ? WHERE id = ?")).run(bodyFeatured ? 1 : 0, id);
+    } catch (_) {}
+  }
   broadcast({ type: 'MASTERPIECE_UPDATED', id });
   res.json({ ok: true });
 });

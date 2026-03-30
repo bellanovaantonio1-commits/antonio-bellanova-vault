@@ -80,6 +80,8 @@ export interface Masterpiece {
   made_to_order?: number;
   /** Target audience for marketplace filters: male | female | unisex (default unisex). */
   gender?: 'male' | 'female' | 'unisex';
+  /** 1 = highlight as Featured Masterpiece in luxury marketplace layouts (large + story focus). */
+  featured_masterpiece?: number;
 }
 
 export interface Auction {

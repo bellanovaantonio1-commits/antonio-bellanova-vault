@@ -232,6 +232,7 @@ const TRANSLATIONS: any = {
       "Nach Kundenannahme eines Angebots: Titel, Text und Preis stammen aus Ihrem Angebot (nicht vom Marktplatz-Eintrag). PDF-URL ergänzen und senden.",
     "admin.consultation_required_piece": "Nur Erwerb über Concierge (Chat zuerst, dann Freigabe Anzahlung)",
     "admin.made_to_order_piece": "Maßanfertigung (Beratung zuerst; kein Direktkauf im Marktplatz)",
+    "admin.featured_masterpiece_piece": "Featured Masterpiece (große Darstellung + Story im Luxus-Layout)",
     consultation_piece_chat_cta: "Private Beratung starten",
     "piece.consultation_mto_hint": "Dieses Schmuckstück wird individuell für Sie gefertigt.\nBeginnen Sie Ihre persönliche Beratung für Design, Material und Ausführung.",
     "cta.lite_inquiry": "Unverbindliche Anfrage senden",
@@ -876,6 +877,33 @@ const TRANSLATIONS: any = {
     "marketplace.editor.column_right": "Rechts",
     "marketplace.editor.section_title_optional": "Section-Titel (optional)",
     "marketplace.editor.section_title_hint": "Erscheint über allen Blöcken dieser Section.",
+    "marketplace.editor.block_cta": "CTA / Beratung",
+    "marketplace.editor.section_hide": "Section ausblenden",
+    "marketplace.editor.section_show": "Section einblenden",
+    "marketplace.editor.section_hidden_badge": "Verborgen",
+    "marketplace.editor.kind_custom": "Erlebnis: Standard",
+    "marketplace.editor.kind_hero": "Hero",
+    "marketplace.editor.kind_category": "Kategorie-Block",
+    "marketplace.editor.kind_featured": "Featured",
+    "marketplace.editor.kind_product_grid": "Produkt-Raster",
+    "marketplace.editor.kind_story": "Story",
+    "marketplace.editor.kind_service": "Service",
+    "marketplace.editor.section_title_field": "Section-Titel",
+    "marketplace.editor.section_subtitle_field": "Section-Untertitel",
+    "marketplace.editor.featured_badge": "Featured Masterpiece",
+    "marketplace.editor.cta_headline": "Hauptzeile",
+    "marketplace.editor.cta_eyebrow": "Zeile darüber (optional)",
+    "marketplace.editor.cta_action": "Aktion",
+    "marketplace.editor.cta_action_consultation": "Concierge / Beratung",
+    "marketplace.editor.cta_action_contact": "Kontakt",
+    "marketplace.editor.cta_action_view": "Interne Seite",
+    "marketplace.editor.cta_action_external": "Externe URL",
+    "marketplace.editor.cta_action_piece": "Stück öffnen",
+    "marketplace.editor.cta_btn_consultation": "Zur Beratung",
+    "marketplace.editor.cta_btn_contact": "Kontakt aufnehmen",
+    "marketplace.editor.cta_btn_view": "Weiter",
+    "marketplace.editor.cta_btn_external": "Öffnen",
+    "marketplace.editor.cta_btn_piece": "Zum Meisterstück",
     "marketplace.details_hint": "Weitere Details werden im persönlichen Gespräch besprochen.",
     "marketplace.pdf_modal_title": "Marktplatz als PDF",
     "marketplace.pdf_choose_lang": "Download-Sprache wählen",
@@ -1501,6 +1529,7 @@ const TRANSLATIONS: any = {
       "After the client accepts an offer, title, text and price come from your proposal (not the marketplace listing). Add the PDF URL and send.",
     "admin.consultation_required_piece": "Purchase only via Concierge (chat first, then deposit unlock)",
     "admin.made_to_order_piece": "Made-to-order (consultation first; no direct marketplace purchase)",
+    "admin.featured_masterpiece_piece": "Featured masterpiece (large layout + story focus)",
     consultation_piece_chat_cta: "Start private consultation",
     "piece.consultation_mto_hint": "This jewel is crafted individually for you.\nBegin your personal consultation on design, materials and execution.",
     "cta.lite_inquiry": "Send a non-binding enquiry",
@@ -2081,6 +2110,33 @@ const TRANSLATIONS: any = {
     "marketplace.editor.column_right": "Right",
     "marketplace.editor.section_title_optional": "Section title (optional)",
     "marketplace.editor.section_title_hint": "Shown above all blocks in this section.",
+    "marketplace.editor.block_cta": "CTA / consultation",
+    "marketplace.editor.section_hide": "Hide section",
+    "marketplace.editor.section_show": "Show section",
+    "marketplace.editor.section_hidden_badge": "Hidden",
+    "marketplace.editor.kind_custom": "Experience: default",
+    "marketplace.editor.kind_hero": "Hero",
+    "marketplace.editor.kind_category": "Category",
+    "marketplace.editor.kind_featured": "Featured",
+    "marketplace.editor.kind_product_grid": "Product grid",
+    "marketplace.editor.kind_story": "Story",
+    "marketplace.editor.kind_service": "Service",
+    "marketplace.editor.section_title_field": "Section title",
+    "marketplace.editor.section_subtitle_field": "Section subtitle",
+    "marketplace.editor.featured_badge": "Featured masterpiece",
+    "marketplace.editor.cta_headline": "Headline",
+    "marketplace.editor.cta_eyebrow": "Eyebrow (optional)",
+    "marketplace.editor.cta_action": "Action",
+    "marketplace.editor.cta_action_consultation": "Concierge / consultation",
+    "marketplace.editor.cta_action_contact": "Contact",
+    "marketplace.editor.cta_action_view": "Internal page",
+    "marketplace.editor.cta_action_external": "External URL",
+    "marketplace.editor.cta_action_piece": "Open piece",
+    "marketplace.editor.cta_btn_consultation": "Request consultation",
+    "marketplace.editor.cta_btn_contact": "Contact us",
+    "marketplace.editor.cta_btn_view": "Continue",
+    "marketplace.editor.cta_btn_external": "Open",
+    "marketplace.editor.cta_btn_piece": "View piece",
     "marketplace.details_hint": "Further details are discussed during a personal conversation.",
     "marketplace.pdf_modal_title": "Marketplace as PDF",
     "marketplace.pdf_choose_lang": "Choose download language",
@@ -2697,6 +2753,7 @@ const TRANSLATIONS: any = {
       "Dopo l’accettazione di un’offerta: titolo, testo e prezzo provengono dalla Sua proposta (non dalla scheda marketplace). Aggiunga l’URL del PDF e invii.",
     "admin.consultation_required_piece": "Solo acquisto via Concierge (chat prima, poi sblocco acconto)",
     "admin.made_to_order_piece": "Su misura (prima consulenza; nessun acquisto diretto)",
+    "admin.featured_masterpiece_piece": "Capolavoro in evidenza (layout ampio + focus sulla storia)",
     consultation_piece_chat_cta: "Avvia consulenza privata",
     "piece.consultation_mto_hint": "Questo gioiello è realizzato su misura per Lei.\nInizi la consulenza personale su design, materiali e realizzazione.",
     "cta.lite_inquiry": "Invia richiesta senza impegno",
@@ -3227,6 +3284,33 @@ const TRANSLATIONS: any = {
     "marketplace.editor.column_right": "Destra",
     "marketplace.editor.section_title_optional": "Titolo sezione (opz.)",
     "marketplace.editor.section_title_hint": "Sopra tutti i blocchi della sezione.",
+    "marketplace.editor.block_cta": "CTA / consulenza",
+    "marketplace.editor.section_hide": "Nascondi sezione",
+    "marketplace.editor.section_show": "Mostra sezione",
+    "marketplace.editor.section_hidden_badge": "Nascosta",
+    "marketplace.editor.kind_custom": "Esperienza: predefinito",
+    "marketplace.editor.kind_hero": "Hero",
+    "marketplace.editor.kind_category": "Categoria",
+    "marketplace.editor.kind_featured": "In evidenza",
+    "marketplace.editor.kind_product_grid": "Griglia prodotti",
+    "marketplace.editor.kind_story": "Storia",
+    "marketplace.editor.kind_service": "Servizio",
+    "marketplace.editor.section_title_field": "Titolo sezione",
+    "marketplace.editor.section_subtitle_field": "Sottotitolo sezione",
+    "marketplace.editor.featured_badge": "Capolavoro in evidenza",
+    "marketplace.editor.cta_headline": "Titolo principale",
+    "marketplace.editor.cta_eyebrow": "Riga superiore (opz.)",
+    "marketplace.editor.cta_action": "Azione",
+    "marketplace.editor.cta_action_consultation": "Concierge / consulenza",
+    "marketplace.editor.cta_action_contact": "Contatto",
+    "marketplace.editor.cta_action_view": "Pagina interna",
+    "marketplace.editor.cta_action_external": "URL esterno",
+    "marketplace.editor.cta_action_piece": "Apri pezzo",
+    "marketplace.editor.cta_btn_consultation": "Alla consulenza",
+    "marketplace.editor.cta_btn_contact": "Contattaci",
+    "marketplace.editor.cta_btn_view": "Continua",
+    "marketplace.editor.cta_btn_external": "Apri",
+    "marketplace.editor.cta_btn_piece": "Vedi pezzo",
     "marketplace.details_hint": "Ulteriori dettagli vengono discussi durante il colloquio personale.",
     "marketplace.pdf_modal_title": "Mercato in PDF",
     "marketplace.pdf_choose_lang": "Scegli lingua per download",
@@ -4919,6 +5003,7 @@ export default function App() {
       estimated_market_value: (editingPiece as any).estimated_market_value ?? '',
       consultation_required: Number((editingPiece as Masterpiece).consultation_required) === 1,
       made_to_order: Number((editingPiece as Masterpiece).made_to_order) === 1,
+      featured_masterpiece: Number((editingPiece as Masterpiece).featured_masterpiece) === 1,
       gender: ((): 'male' | 'female' | 'unisex' => {
         const g = String((editingPiece as any).gender || 'unisex').toLowerCase();
         return g === 'male' || g === 'female' || g === 'unisex' ? g : 'unisex';
@@ -4963,6 +5048,7 @@ export default function App() {
           image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined,
           consultation_required: !!editPieceForm.consultation_required,
           made_to_order: !!editPieceForm.made_to_order,
+          featured_masterpiece: !!editPieceForm.featured_masterpiece,
           gender: editPieceForm.gender === 'male' || editPieceForm.gender === 'female' || editPieceForm.gender === 'unisex' ? editPieceForm.gender : 'unisex',
         })
       });
@@ -5013,6 +5099,7 @@ export default function App() {
     pricing_mode: 'fixed' as 'fixed' | 'starting_from' | 'price_on_request' | 'hidden',
     consultation_required: false as boolean,
     made_to_order: true as boolean,
+    featured_masterpiece: false as boolean,
     gender: 'unisex' as 'male' | 'female' | 'unisex',
   });
   const [newAuction, setNewAuction] = useState({
@@ -6473,6 +6560,7 @@ export default function App() {
           pricing_mode: (newPiece as any).pricing_mode ?? 'fixed',
           consultation_required: !!(newPiece as any).consultation_required,
           made_to_order: (newPiece as any).made_to_order !== false,
+          featured_masterpiece: !!(newPiece as any).featured_masterpiece,
           gender: (newPiece as any).gender === 'male' || (newPiece as any).gender === 'female' || (newPiece as any).gender === 'unisex' ? (newPiece as any).gender : 'unisex',
         })
       });
@@ -9431,6 +9519,28 @@ export default function App() {
                       }}
                       onNavigateView={(v) => setView(v as typeof view)}
                       onOpenPiece={(p) => setSelectedPiece(p)}
+                      onCtaAction={({ action, view: vw, url, pieceId }) => {
+                        if (action === 'consultation') {
+                          setView('concierge');
+                          return;
+                        }
+                        if (action === 'contact') {
+                          setView('kontakt');
+                          return;
+                        }
+                        if (action === 'view' && vw) {
+                          setView(vw as typeof view);
+                          return;
+                        }
+                        if (action === 'external' && url) {
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                          return;
+                        }
+                        if (action === 'piece' && pieceId) {
+                          const p = masterpieces.find((m) => m.id === pieceId);
+                          if (p) setSelectedPiece(p);
+                        }
+                      }}
                       t={t}
                       onUploadImage={
                         user && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin' || (user as any).role === 'admin')
@@ -12647,6 +12757,10 @@ export default function App() {
                               <input type="checkbox" checked={!!editPieceForm.made_to_order} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, made_to_order: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
                               {t('admin.made_to_order_piece')}
                             </label>
+                            <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer">
+                              <input type="checkbox" checked={!!editPieceForm.featured_masterpiece} onChange={(e) => setEditPieceForm((f: any) => ({ ...f, featured_masterpiece: e.target.checked }))} className="rounded border-zinc-600 text-amber-600" />
+                              {t('admin.featured_masterpiece_piece')}
+                            </label>
                             <Input label="Zertifikatsdaten (JSON)" value={editPieceForm.cert_data ?? ''} onChange={(e: any) => setEditPieceForm((f: any) => ({ ...f, cert_data: e.target.value }))} />
                             <div className="space-y-1.5">
                               <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">Seltenheitsgrad</label>
@@ -12769,6 +12883,10 @@ export default function App() {
                           <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
                             <input type="checkbox" checked={(newPiece as any).made_to_order !== false} onChange={(e) => setNewPiece({ ...newPiece, made_to_order: e.target.checked } as any)} className="rounded border-zinc-600 text-amber-600" />
                             {t('admin.made_to_order_piece')}
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+                            <input type="checkbox" checked={!!(newPiece as any).featured_masterpiece} onChange={(e) => setNewPiece({ ...newPiece, featured_masterpiece: e.target.checked } as any)} className="rounded border-zinc-600 text-amber-600" />
+                            {t('admin.featured_masterpiece_piece')}
                           </label>
                           <Input label="Zertifikatsdaten (JSON)" value={newPiece.cert_data} onChange={(e: any) => setNewPiece({ ...newPiece, cert_data: e.target.value })} placeholder='{"cut": "Ideal", "clarity": "VVS1"}' />
                           <div className="space-y-1.5">

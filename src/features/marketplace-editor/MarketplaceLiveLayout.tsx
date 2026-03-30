@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Copy,
+  Eye,
+  EyeOff,
   GripVertical,
   Image as ImageIcon,
   LayoutGrid,
@@ -11,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Masterpiece } from "../../types";
-import type { BlockSize, MarketplaceBlock, MarketplaceLayoutDoc, MarketplaceSection } from "./types";
+import type { BlockSize, CtaAction, MarketplaceBlock, MarketplaceLayoutDoc, MarketplaceSection } from "./types";
 import { cloneBlock, colClass, newId, sortBlocks, sortSections } from "./layoutHelpers";
 
 const DND_MIME = "application/x-ab-marketplace";
@@ -30,6 +32,7 @@ export type MarketplaceLiveLayoutProps = {
   renderProductCard: (piece: Masterpiece, filteredOut: boolean) => React.ReactNode;
   onNavigateView: (view: string) => void;
   onOpenPiece: (piece: Masterpiece) => void;
+  onCtaAction?: (payload: { action: CtaAction; view?: string; url?: string; pieceId?: number }) => void;
   t: (k: string) => string;
   onUploadImage?: (dataUrl: string) => Promise<string | null>;
 };
@@ -59,6 +62,16 @@ function defaultBlock(type: MarketplaceBlock["type"], order: number): Marketplac
       return { id, type, size: "full", sortOrder: order, categoryLabel: "Kategorie", categorySubline: "" };
     case "spacer":
       return { id, type, size: "full", sortOrder: order, spacerPx: 48 };
+    case "cta":
+      return {
+        id,
+        type,
+        size: "md",
+        sortOrder: order,
+        ctaLabel: "Persönliche Beratung",
+        ctaSubline: "",
+        ctaAction: "consultation",
+      };
     default:
       return { id, type: "text", size: "full", sortOrder: order, headline: "", body: "" };
   }
@@ -74,6 +87,7 @@ export function MarketplaceLiveLayout({
   renderProductCard,
   onNavigateView,
   onOpenPiece,
+  onCtaAction,
   t,
   onUploadImage,
 }: MarketplaceLiveLayoutProps) {
@@ -94,6 +108,33 @@ export function MarketplaceLiveLayout({
     for (const p of masterpieces) m.set(p.id, p);
     return m;
   }, [masterpieces]);
+
+  const sectionsToRender = useMemo(() => {
+    const sorted = sortSections(layout);
+    if (editMode) return sorted;
+    return sorted.filter((s) => !s.hidden);
+  }, [layout, editMode]);
+
+  const invokeCta = useCallback(
+    (block: MarketplaceBlock) => {
+      if (block.type !== "cta") return;
+      if (editMode) return;
+      const act = block.ctaAction ?? "consultation";
+      if (onCtaAction) {
+        onCtaAction({ action: act, view: block.ctaView, url: block.ctaUrl, pieceId: block.ctaPieceId });
+        return;
+      }
+      if (act === "consultation") onNavigateView("concierge");
+      else if (act === "contact") onNavigateView("kontakt");
+      else if (act === "view" && block.ctaView) onNavigateView(block.ctaView);
+      else if (act === "external" && block.ctaUrl) window.open(block.ctaUrl, "_blank", "noopener,noreferrer");
+      else if (act === "piece" && block.ctaPieceId) {
+        const p = pieceById.get(block.ctaPieceId);
+        if (p) onOpenPiece(p);
+      }
+    },
+    [editMode, onCtaAction, onNavigateView, onOpenPiece, pieceById],
+  );
 
   const updateSection = useCallback(
     (sectionId: string, fn: (s: MarketplaceSection) => MarketplaceSection) => {
@@ -264,7 +305,23 @@ export function MarketplaceLiveLayout({
           );
         }
         const filtered = !piecePassesFilter(pid);
-        return <>{renderProductCard(piece, filtered)}</>;
+        const card = <>{renderProductCard(piece, filtered)}</>;
+        const isFeatured = Number(piece.featured_masterpiece) === 1;
+        if (isFeatured) {
+          const desc = (piece.description || "").trim();
+          return (
+            <div className="rounded-[2rem] border border-[#D4AF37]/25 bg-gradient-to-b from-[rgba(212,175,55,0.07)] to-transparent p-6 md:p-10 space-y-6">
+              <p className="text-[10px] uppercase tracking-[0.4em] text-[#D4AF37] text-center md:text-left">{t("marketplace.editor.featured_badge")}</p>
+              {desc ? (
+                <p className="text-sm md:text-base text-[#A0A0A0] leading-relaxed max-w-2xl mx-auto md:mx-0 font-[family-name:var(--font-serif)] italic line-clamp-5">
+                  {desc}
+                </p>
+              ) : null}
+              {card}
+            </div>
+          );
+        }
+        return card;
       }
       case "image": {
         const url = block.imageUrl || "";
@@ -294,36 +351,90 @@ export function MarketplaceLiveLayout({
           </div>
         );
       }
-      case "text":
+      case "text": {
+        const story = section.experienceKind === "story";
         return (
-          <div className="rounded-2xl border border-[var(--border-soft)] bg-[#121212]/60 px-8 py-10 backdrop-blur-sm">
+          <div
+            className={
+              story
+                ? "px-4 md:px-8 py-6 text-center md:text-left"
+                : "rounded-2xl border border-[var(--border-soft)] bg-[#121212]/60 px-8 py-10 backdrop-blur-sm"
+            }
+          >
             {block.headline && (
-              <h4 className="font-[family-name:var(--font-serif)] text-2xl md:text-3xl text-[#FFFFFF] tracking-wide mb-4">{block.headline}</h4>
+              <h4
+                className={
+                  story
+                    ? "font-[family-name:var(--font-serif)] text-3xl md:text-5xl italic text-[#FFFFFF] tracking-wide mb-8 leading-tight"
+                    : "font-[family-name:var(--font-serif)] text-2xl md:text-3xl text-[#FFFFFF] tracking-wide mb-4"
+                }
+              >
+                {block.headline}
+              </h4>
             )}
-            {block.body && <p className="text-[#A0A0A0] leading-relaxed whitespace-pre-wrap">{block.body}</p>}
+            {block.body && (
+              <p className={story ? "text-[#B8B8B8] leading-[1.85] whitespace-pre-wrap text-lg md:text-xl font-light max-w-prose mx-auto md:mx-0" : "text-[#A0A0A0] leading-relaxed whitespace-pre-wrap"}>
+                {block.body}
+              </p>
+            )}
           </div>
         );
-      case "category":
+      }
+      case "category": {
+        const catLux = section.experienceKind === "category";
         return (
-          <div className="text-center py-8 px-4">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-[#C6A36A]/90 mb-3">{t("marketplace.editor.category_eyebrow")}</p>
+          <div
+            className={
+              catLux
+                ? "text-center py-16 md:py-24 px-6 md:px-12 rounded-[2rem] border border-[rgba(212,175,55,0.15)] bg-[#121212]/50 min-h-[220px] flex flex-col justify-center"
+                : "text-center py-8 px-4"
+            }
+          >
+            <p className={`text-[10px] uppercase tracking-[0.35em] mb-3 ${catLux ? "text-[#D4AF37]/95" : "text-[#C6A36A]/90"}`}>{t("marketplace.editor.category_eyebrow")}</p>
             {block.categoryLabel && (
-              <h4 className="font-[family-name:var(--font-serif)] text-3xl md:text-4xl italic text-[#F5F5F5]">{block.categoryLabel}</h4>
+              <h4 className={`font-[family-name:var(--font-serif)] italic text-[#F5F5F5] ${catLux ? "text-4xl md:text-6xl" : "text-3xl md:text-4xl"}`}>{block.categoryLabel}</h4>
             )}
-            {block.categorySubline && <p className="mt-4 text-[#A0A0A0] max-w-xl mx-auto leading-relaxed">{block.categorySubline}</p>}
+            {block.categorySubline && <p className={`mt-6 text-[#A0A0A0] max-w-xl mx-auto leading-relaxed ${catLux ? "text-base md:text-lg" : ""}`}>{block.categorySubline}</p>}
             {block.linkView && !editMode && (
               <button
                 type="button"
                 onClick={() => onNavigateView(block.linkView!)}
-                className="mt-8 text-sm uppercase tracking-[0.2em] text-[#C6A36A] hover:text-[#d4b87a] transition-colors"
+                className={`mt-10 text-sm uppercase tracking-[0.25em] transition-colors ${catLux ? "text-[#D4AF37] hover:text-[#e4c04a]" : "text-[#C6A36A] hover:text-[#d4b87a]"}`}
               >
                 {t("common.learn_more")}
               </button>
             )}
           </div>
         );
+      }
       case "spacer":
         return <div style={{ height: block.spacerPx ?? 32 }} className={editMode ? "bg-[rgba(198,163,106,0.06)] rounded-lg border border-dashed border-[rgba(198,163,106,0.15)]" : ""} aria-hidden />;
+      case "cta": {
+        const act = block.ctaAction ?? "consultation";
+        const btnKey =
+          act === "consultation"
+            ? "marketplace.editor.cta_btn_consultation"
+            : act === "contact"
+              ? "marketplace.editor.cta_btn_contact"
+              : act === "view"
+                ? "marketplace.editor.cta_btn_view"
+                : act === "external"
+                  ? "marketplace.editor.cta_btn_external"
+                  : "marketplace.editor.cta_btn_piece";
+        return (
+          <div className="flex flex-col items-center justify-center text-center py-14 px-6 md:px-16 rounded-[2rem] border border-[rgba(212,175,55,0.22)] bg-[#121212]/35">
+            {block.ctaSubline ? <p className="text-[10px] uppercase tracking-[0.35em] text-[#D4AF37]/90 mb-5 max-w-lg">{block.ctaSubline}</p> : null}
+            {block.ctaLabel ? <h4 className="font-[family-name:var(--font-serif)] text-2xl md:text-4xl text-white mb-10 leading-tight max-w-xl">{block.ctaLabel}</h4> : null}
+            <button
+              type="button"
+              onClick={wrapClick(() => invokeCta(block))}
+              className="inline-flex items-center justify-center px-12 py-4 rounded-full border border-[#D4AF37] text-[#D4AF37] text-[11px] uppercase tracking-[0.28em] hover:bg-[rgba(212,175,55,0.1)] transition-colors"
+            >
+              {t(btnKey)}
+            </button>
+          </div>
+        );
+      }
       default:
         return null;
     }
@@ -358,7 +469,9 @@ export function MarketplaceLiveLayout({
       );
     }
     return (
-      <div className="grid grid-cols-12 gap-6 md:gap-8">
+      <div
+        className={`grid grid-cols-12 gap-6 md:gap-8 ${section.experienceKind === "product_grid" ? "md:gap-x-12 md:gap-y-20 md:[&>*:nth-child(odd)]:translate-x-1" : ""}`}
+      >
         {blocks.map((block, bi) => (
           <div key={block.id} className={colClass(block.size)}>
             {renderBlockShell(section, block, bi)}
@@ -432,16 +545,14 @@ export function MarketplaceLiveLayout({
     );
   };
 
-  const sectionsSorted = sortSections(layout);
-
   const shellClass = previewMode === "mobile" ? "max-w-[420px] mx-auto border-x border-[var(--border-soft)] px-3 min-h-[200px]" : "";
 
   return (
-    <div className={`space-y-16 ${shellClass}`}>
-      {sectionsSorted.map((section, si) => (
+    <div className={`space-y-16 md:space-y-24 ${shellClass}`}>
+      {sectionsToRender.map((section, si) => (
         <section
           key={section.id}
-          className={`relative rounded-3xl border border-transparent ${editMode ? "border-[rgba(198,163,106,0.12)] bg-[rgba(198,163,106,0.02)] p-4 md:p-6" : ""}`}
+          className={`relative rounded-3xl border border-transparent ${sectionShellClass(section, editMode)}`}
           onDragOver={(e) => {
             if (!editMode) return;
             e.preventDefault();
@@ -450,54 +561,119 @@ export function MarketplaceLiveLayout({
           onDrop={(e) => handleSectionDrop(e, si)}
         >
           {editMode && (
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-[var(--border-soft)]">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={(e) => onDragStartSection(e, si)}
-                  className="p-2 rounded-lg bg-[#1a1a1a] border border-[var(--border-soft)] text-[#888888] cursor-grab"
-                  title={t("marketplace.editor.move_section")}
-                  aria-label={t("marketplace.editor.move_section")}
-                >
-                  <GripVertical className="w-4 h-4" />
-                </button>
-                <span className="text-[10px] uppercase tracking-[0.2em] text-[#666666]">{section.type}</span>
+            <div className="space-y-4 mb-6 pb-4 border-b border-[var(--border-soft)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={(e) => onDragStartSection(e, si)}
+                    className="p-2 rounded-lg bg-[#1a1a1a] border border-[var(--border-soft)] text-[#888888] cursor-grab"
+                    title={t("marketplace.editor.move_section")}
+                    aria-label={t("marketplace.editor.move_section")}
+                  >
+                    <GripVertical className="w-4 h-4" />
+                  </button>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-[#666666]">{section.type}</span>
+                  <button
+                    type="button"
+                    className="p-2 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA] hover:text-[#D4AF37]"
+                    title={section.hidden ? t("marketplace.editor.section_show") : t("marketplace.editor.section_hide")}
+                    onClick={() =>
+                      onChange({
+                        ...layout,
+                        sections: layout.sections.map((s) => (s.id === section.id ? { ...s, hidden: !s.hidden } : s)),
+                      })
+                    }
+                  >
+                    {section.hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  </button>
+                  {section.hidden ? (
+                    <span className="text-[10px] uppercase tracking-wider text-[#D4AF37]/80">{t("marketplace.editor.section_hidden_badge")}</span>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select
+                    className="bg-[#121212] border border-[var(--border-soft)] rounded-lg text-xs text-[#CCCCCC] py-1.5 px-2 max-w-[140px]"
+                    value={section.type}
+                    onChange={(e) => {
+                      const nt = e.target.value as MarketplaceSection["type"];
+                      onChange({
+                        ...layout,
+                        sections: layout.sections.map((s) => (s.id === section.id ? { ...s, type: nt } : s)),
+                      });
+                    }}
+                  >
+                    <option value="grid">Grid</option>
+                    <option value="stack">Stack</option>
+                    <option value="split">Split</option>
+                  </select>
+                  <select
+                    className="bg-[#121212] border border-[var(--border-soft)] rounded-lg text-xs text-[#CCCCCC] py-1.5 px-2 max-w-[160px]"
+                    value={section.experienceKind ?? "custom"}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      const experienceKind = v === "custom" ? undefined : (v as MarketplaceSection["experienceKind"]);
+                      onChange({
+                        ...layout,
+                        sections: layout.sections.map((s) => (s.id === section.id ? { ...s, experienceKind } : s)),
+                      });
+                    }}
+                  >
+                    <option value="custom">{t("marketplace.editor.kind_custom")}</option>
+                    <option value="hero">{t("marketplace.editor.kind_hero")}</option>
+                    <option value="category">{t("marketplace.editor.kind_category")}</option>
+                    <option value="featured">{t("marketplace.editor.kind_featured")}</option>
+                    <option value="product_grid">{t("marketplace.editor.kind_product_grid")}</option>
+                    <option value="story">{t("marketplace.editor.kind_story")}</option>
+                    <option value="service">{t("marketplace.editor.kind_service")}</option>
+                  </select>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA] hover:text-[#FFFFFF]" onClick={() => addBlock(section.id, "product")}>
+                    + {t("marketplace.editor.block_product")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "image")}>
+                    + {t("marketplace.editor.block_image")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "text")}>
+                    + {t("marketplace.editor.block_text")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "category")}>
+                    + {t("marketplace.editor.block_category")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[#D4AF37]/35 text-[#D4AF37]/90" onClick={() => addBlock(section.id, "cta")}>
+                    + {t("marketplace.editor.block_cta")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "spacer")}>
+                    + {t("marketplace.editor.block_spacer")}
+                  </button>
+                  <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/90" onClick={() => removeSection(section.id)}>
+                    {t("marketplace.editor.remove_section")}
+                  </button>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <select
-                  className="bg-[#121212] border border-[var(--border-soft)] rounded-lg text-xs text-[#CCCCCC] py-1.5 px-2"
-                  value={section.type}
-                  onChange={(e) => {
-                    const nt = e.target.value as MarketplaceSection["type"];
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  className="flex-1 bg-[#121212] border border-[var(--border-soft)] rounded-lg text-xs text-[#E8E8E8] py-2 px-3"
+                  placeholder={t("marketplace.editor.section_title_field")}
+                  value={section.title ?? ""}
+                  onChange={(e) =>
                     onChange({
                       ...layout,
-                      sections: layout.sections.map((s) => (s.id === section.id ? { ...s, type: nt } : s)),
-                    });
-                  }}
-                >
-                  <option value="grid">Grid</option>
-                  <option value="stack">Stack</option>
-                  <option value="split">Split</option>
-                </select>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA] hover:text-[#FFFFFF]" onClick={() => addBlock(section.id, "product")}>
-                  + {t("marketplace.editor.block_product")}
-                </button>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "image")}>
-                  + {t("marketplace.editor.block_image")}
-                </button>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "text")}>
-                  + {t("marketplace.editor.block_text")}
-                </button>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "category")}>
-                  + {t("marketplace.editor.block_category")}
-                </button>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[#AAAAAA]" onClick={() => addBlock(section.id, "spacer")}>
-                  + {t("marketplace.editor.block_spacer")}
-                </button>
-                <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-red-900/40 text-red-400/90" onClick={() => removeSection(section.id)}>
-                  {t("marketplace.editor.remove_section")}
-                </button>
+                      sections: layout.sections.map((s) => (s.id === section.id ? { ...s, title: e.target.value } : s)),
+                    })
+                  }
+                />
+                <input
+                  className="flex-1 bg-[#121212] border border-[var(--border-soft)] rounded-lg text-xs text-[#AAAAAA] py-2 px-3"
+                  placeholder={t("marketplace.editor.section_subtitle_field")}
+                  value={section.subtitle ?? ""}
+                  onChange={(e) =>
+                    onChange({
+                      ...layout,
+                      sections: layout.sections.map((s) => (s.id === section.id ? { ...s, subtitle: e.target.value } : s)),
+                    })
+                  }
+                />
               </div>
             </div>
           )}
@@ -693,6 +869,86 @@ export function MarketplaceLiveLayout({
                 </select>
               </div>
             )}
+            {editTarget.block.type === "cta" && (
+              <div className="space-y-3 mb-4">
+                <label className="block space-y-1">
+                  <span className="text-xs text-[#888888]">{t("marketplace.editor.cta_headline")}</span>
+                  <input
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm text-[#F5F5F5]"
+                    value={editTarget.block.ctaLabel ?? ""}
+                    onChange={(e) => setEditTarget({ ...editTarget, block: { ...editTarget.block, ctaLabel: e.target.value } })}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-[#888888]">{t("marketplace.editor.cta_eyebrow")}</span>
+                  <input
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm"
+                    value={editTarget.block.ctaSubline ?? ""}
+                    onChange={(e) => setEditTarget({ ...editTarget, block: { ...editTarget.block, ctaSubline: e.target.value } })}
+                  />
+                </label>
+                <label className="block space-y-1">
+                  <span className="text-xs text-[#888888]">{t("marketplace.editor.cta_action")}</span>
+                  <select
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm"
+                    value={editTarget.block.ctaAction ?? "consultation"}
+                    onChange={(e) =>
+                      setEditTarget({
+                        ...editTarget,
+                        block: { ...editTarget.block, ctaAction: e.target.value as CtaAction },
+                      })
+                    }
+                  >
+                    <option value="consultation">{t("marketplace.editor.cta_action_consultation")}</option>
+                    <option value="contact">{t("marketplace.editor.cta_action_contact")}</option>
+                    <option value="view">{t("marketplace.editor.cta_action_view")}</option>
+                    <option value="external">{t("marketplace.editor.cta_action_external")}</option>
+                    <option value="piece">{t("marketplace.editor.cta_action_piece")}</option>
+                  </select>
+                </label>
+                {editTarget.block.ctaAction === "view" && (
+                  <select
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm"
+                    value={editTarget.block.ctaView ?? ""}
+                    onChange={(e) => setEditTarget({ ...editTarget, block: { ...editTarget.block, ctaView: e.target.value } })}
+                  >
+                    <option value="">{t("marketplace.editor.pick_view")}</option>
+                    {VIEW_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {editTarget.block.ctaAction === "external" && (
+                  <input
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm"
+                    placeholder="https://"
+                    value={editTarget.block.ctaUrl ?? ""}
+                    onChange={(e) => setEditTarget({ ...editTarget, block: { ...editTarget.block, ctaUrl: e.target.value } })}
+                  />
+                )}
+                {editTarget.block.ctaAction === "piece" && (
+                  <select
+                    className="w-full bg-[#121212] border border-[var(--border-soft)] rounded-xl py-2 px-3 text-sm"
+                    value={editTarget.block.ctaPieceId ?? ""}
+                    onChange={(e) =>
+                      setEditTarget({
+                        ...editTarget,
+                        block: { ...editTarget.block, ctaPieceId: e.target.value ? Number(e.target.value) : undefined },
+                      })
+                    }
+                  >
+                    <option value="">{t("marketplace.editor.pick_product")}</option>
+                    {masterpieces.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
             {editTarget.block.type === "spacer" && (
               <label className="block space-y-2 mb-4">
                 <span className="text-xs text-[#888888]">{t("marketplace.editor.spacer_px")}</span>
@@ -729,7 +985,7 @@ export function MarketplaceLiveLayout({
                 </select>
               </label>
             )}
-            {(editTarget.block.type === "text" || editTarget.block.type === "category" || editTarget.block.type === "image") && (
+            {(editTarget.block.type === "text" || editTarget.block.type === "category" || editTarget.block.type === "image" || editTarget.block.type === "cta") && (
               <label className="block space-y-2 mb-4">
                 <span className="text-xs text-[#888888]">{t("marketplace.editor.section_title_optional")}</span>
                 <p className="text-[10px] text-[#666666]">{t("marketplace.editor.section_title_hint")}</p>
@@ -763,4 +1019,25 @@ export function MarketplaceLiveLayout({
 
 function sectionAllowsColumn(st?: string): boolean {
   return st === "split";
+}
+
+function sectionShellClass(section: MarketplaceSection, editMode: boolean): string {
+  const hidden = editMode && section.hidden ? "opacity-55 ring-1 ring-dashed ring-[#D4AF37]/30" : "";
+  const edit = editMode ? "border-[rgba(198,163,106,0.12)] bg-[rgba(198,163,106,0.02)] p-4 md:p-6" : "";
+  switch (section.experienceKind) {
+    case "hero":
+      return `${edit} py-16 md:py-24 px-1 md:px-4 min-h-[36vh] flex flex-col justify-center ${hidden}`.trim();
+    case "category":
+      return `${edit} py-12 md:py-20 ${hidden}`.trim();
+    case "featured":
+      return `${edit} py-14 md:py-28 ${hidden}`.trim();
+    case "product_grid":
+      return `${edit} py-10 md:py-20 ${hidden}`.trim();
+    case "story":
+      return `${edit} py-16 md:py-28 ${hidden}`.trim();
+    case "service":
+      return `${edit} py-14 md:py-22 my-6 border border-[rgba(212,175,55,0.1)] bg-[#121212]/35 px-2 md:px-8 ${hidden}`.trim();
+    default:
+      return `${edit} ${!editMode ? "py-8 md:py-14" : ""} ${hidden}`.trim();
+  }
 }

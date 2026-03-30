@@ -1,8 +1,12 @@
 export type BlockSize = "sm" | "md" | "lg" | "full";
 
+export type CtaAction = "consultation" | "contact" | "view" | "external" | "piece";
+
+export type ExperienceKind = "hero" | "category" | "featured" | "product_grid" | "story" | "service" | "custom";
+
 export type MarketplaceBlock = {
   id: string;
-  type: "product" | "image" | "text" | "category" | "spacer";
+  type: "product" | "image" | "text" | "category" | "spacer" | "cta";
   size: BlockSize;
   sortOrder: number;
   column?: "left" | "right";
@@ -18,6 +22,12 @@ export type MarketplaceBlock = {
   categoryLabel?: string;
   categorySubline?: string;
   spacerPx?: number;
+  ctaLabel?: string;
+  ctaSubline?: string;
+  ctaAction?: CtaAction;
+  ctaView?: string;
+  ctaUrl?: string;
+  ctaPieceId?: number;
 };
 
 export type MarketplaceSection = {
@@ -26,6 +36,8 @@ export type MarketplaceSection = {
   sortOrder: number;
   title?: string;
   subtitle?: string;
+  hidden?: boolean;
+  experienceKind?: ExperienceKind;
   blocks: MarketplaceBlock[];
 };
 

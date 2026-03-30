@@ -7,9 +7,13 @@ const MAX_STR = 4000;
 
 export type BlockSize = "sm" | "md" | "lg" | "full";
 
+export type CtaAction = "consultation" | "contact" | "view" | "external" | "piece";
+
+export type ExperienceKind = "hero" | "category" | "featured" | "product_grid" | "story" | "service" | "custom";
+
 export type MarketplaceBlock = {
   id: string;
-  type: "product" | "image" | "text" | "category" | "spacer";
+  type: "product" | "image" | "text" | "category" | "spacer" | "cta";
   size: BlockSize;
   sortOrder: number;
   column?: "left" | "right";
@@ -25,6 +29,12 @@ export type MarketplaceBlock = {
   categoryLabel?: string;
   categorySubline?: string;
   spacerPx?: number;
+  ctaLabel?: string;
+  ctaSubline?: string;
+  ctaAction?: CtaAction;
+  ctaView?: string;
+  ctaUrl?: string;
+  ctaPieceId?: number;
 };
 
 export type MarketplaceSection = {
@@ -33,6 +43,8 @@ export type MarketplaceSection = {
   sortOrder: number;
   title?: string;
   subtitle?: string;
+  hidden?: boolean;
+  experienceKind?: ExperienceKind;
   blocks: MarketplaceBlock[];
 };
 
@@ -62,7 +74,7 @@ function sanitizeBlock(raw: unknown, index: number, sectionType: string): Market
   const b = raw as Record<string, unknown>;
   const id = clip(b.id, 120) || `blk_${index}`;
   const type = b.type;
-  if (type !== "product" && type !== "image" && type !== "text" && type !== "category" && type !== "spacer") return null;
+  if (type !== "product" && type !== "image" && type !== "text" && type !== "category" && type !== "spacer" && type !== "cta") return null;
   const size = sanitizeSize(b.size);
   const sortOrder = Number.isFinite(Number(b.sortOrder)) ? Number(b.sortOrder) : index;
   const column = sectionType === "split" ? splitColumn(raw) : undefined;
@@ -100,6 +112,21 @@ function sanitizeBlock(raw: unknown, index: number, sectionType: string): Market
       linkView: clip(b.linkView, 80) || undefined,
     });
   }
+  if (type === "cta") {
+    const act = String(b.ctaAction || "consultation");
+    const ctaAction: CtaAction = ["consultation", "contact", "view", "external", "piece"].includes(act) ? (act as CtaAction) : "consultation";
+    const lid = Math.floor(Number(b.ctaPieceId) || 0);
+    return withCol({
+      ...base,
+      type: "cta",
+      ctaLabel: clip(b.ctaLabel, 200) || "Beratung",
+      ctaSubline: clip(b.ctaSubline, MAX_STR) || undefined,
+      ctaAction,
+      ctaView: clip(b.ctaView, 80) || undefined,
+      ctaUrl: clip(b.ctaUrl, MAX_STR) || undefined,
+      ctaPieceId: lid > 0 ? lid : undefined,
+    });
+  }
   const sp = Math.min(240, Math.max(8, Math.floor(Number(b.spacerPx) || 32)));
   return withCol({ ...base, spacerPx: sp });
 }
@@ -120,13 +147,17 @@ function sanitizeLayout(raw: unknown): MarketplaceLayoutDoc | null {
     const type = st === "stack" || st === "split" ? st : "grid";
     const title = clip(rec.title, 300) || undefined;
     const subtitle = clip(rec.subtitle, 500) || undefined;
+    const hidden = Boolean(rec.hidden);
+    const ekRaw = clip(rec.experienceKind, 40);
+    const allowedKinds: readonly string[] = ["hero", "category", "featured", "product_grid", "story", "service", "custom"];
+    const experienceKind: ExperienceKind | undefined = allowedKinds.includes(ekRaw) ? (ekRaw as ExperienceKind) : undefined;
     const blocksIn = Array.isArray(rec.blocks) ? rec.blocks : [];
     const blocks: MarketplaceBlock[] = [];
     for (let bi = 0; bi < Math.min(blocksIn.length, MAX_BLOCKS); bi++) {
       const blk = sanitizeBlock(blocksIn[bi], bi, type);
       if (blk) blocks.push(blk);
     }
-    sections.push({ id, type, sortOrder: si, title, subtitle, blocks });
+    sections.push({ id, type, sortOrder: si, title, subtitle, hidden, experienceKind, blocks });
   }
   return { version: 1, enabled, sections };
 }
