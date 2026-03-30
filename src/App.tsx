@@ -56,6 +56,9 @@ import {
 } from 'lucide-react';
 import { MaisonPageView, type MaisonLayoutSection } from './features/curated/MaisonPageView';
 import { AdminCuratedEditor } from './features/curated/AdminCuratedEditor';
+import { MarketplaceLiveLayout } from './features/marketplace-editor/MarketplaceLiveLayout';
+import { buildLayoutFromProductIds } from './features/marketplace-editor/layoutHelpers';
+import { EMPTY_MARKETPLACE_LAYOUT, type MarketplaceLayoutDoc } from './features/marketplace-editor/types';
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
@@ -824,6 +827,55 @@ const TRANSLATIONS: any = {
     "resale.contract_note": "Beim Kauf wird ein rechtssicherer Anzahlungsvertrag für Wiederverkauf erstellt.",
     "resale.deposit_contract_title": "Anzahlungsvertrag Wiederverkauf",
     "marketplace.subtitle": "Exklusive Maßanfertigungen und limitierte Stücke — Erwerb auf Anfrage, Rechnung folgt nach Absprache.",
+    "marketplace.editor.toggle": "Marktplatz bearbeiten",
+    "marketplace.editor.save": "Layout speichern",
+    "marketplace.editor.saved": "Marktplatz-Layout gespeichert.",
+    "marketplace.editor.preview_mobile": "Vorschau: Mobil",
+    "marketplace.editor.preview_desktop": "Vorschau: Desktop",
+    "marketplace.editor.import_grid": "Aus gefilterter Liste übernehmen",
+    "marketplace.editor.enable_custom": "Eigenes Layout aktivieren",
+    "marketplace.editor.use_classic": "Klassisches Raster",
+    "marketplace.editor.no_product": "Kein Produkt gewählt",
+    "marketplace.editor.product_missing": "Stück nicht gefunden (ID)",
+    "marketplace.editor.image_placeholder": "Bild-URL setzen oder hochladen",
+    "marketplace.editor.category_eyebrow": "Kategorie",
+    "marketplace.editor.move": "Verschieben",
+    "marketplace.editor.move_section": "Section verschieben",
+    "marketplace.editor.more": "Menü",
+    "marketplace.editor.edit": "Bearbeiten",
+    "marketplace.editor.size": "Größe",
+    "marketplace.editor.size_sm": "Klein",
+    "marketplace.editor.size_md": "Mittel",
+    "marketplace.editor.size_lg": "Groß",
+    "marketplace.editor.size_full": "Volle Breite",
+    "marketplace.editor.duplicate": "Duplizieren",
+    "marketplace.editor.delete": "Löschen",
+    "marketplace.editor.block_product": "Produkt",
+    "marketplace.editor.block_image": "Bild",
+    "marketplace.editor.block_text": "Text",
+    "marketplace.editor.block_category": "Kategorie",
+    "marketplace.editor.block_spacer": "Abstand",
+    "marketplace.editor.remove_section": "Section entfernen",
+    "marketplace.editor.add_section_grid": "Section Grid",
+    "marketplace.editor.add_section_stack": "Section Stack",
+    "marketplace.editor.add_section_split": "Section Split",
+    "marketplace.editor.edit_block": "Block bearbeiten",
+    "marketplace.editor.product_id": "Produkt",
+    "marketplace.editor.pick_product": "Stück wählen…",
+    "marketplace.editor.upload_image": "Bild hochladen",
+    "marketplace.editor.link_type": "Verlinkung",
+    "marketplace.editor.link_piece": "Zu Stück",
+    "marketplace.editor.link_view": "Interne Seite",
+    "marketplace.editor.pick_view": "Seite wählen…",
+    "marketplace.editor.headline": "Überschrift",
+    "marketplace.editor.body": "Text / Beschreibung",
+    "marketplace.editor.cta_view_optional": "CTA: Seite (optional)",
+    "marketplace.editor.spacer_px": "Höhe (px)",
+    "marketplace.editor.column_split": "Spalte (Split-Layout)",
+    "marketplace.editor.column_left": "Links",
+    "marketplace.editor.column_right": "Rechts",
+    "marketplace.editor.section_title_optional": "Section-Titel (optional)",
+    "marketplace.editor.section_title_hint": "Erscheint über allen Blöcken dieser Section.",
     "marketplace.details_hint": "Weitere Details werden im persönlichen Gespräch besprochen.",
     "marketplace.pdf_modal_title": "Marktplatz als PDF",
     "marketplace.pdf_choose_lang": "Download-Sprache wählen",
@@ -1980,6 +2032,55 @@ const TRANSLATIONS: any = {
     "resale.contract_note": "A legally sound resale deposit agreement will be created upon purchase.",
     "resale.deposit_contract_title": "Resale Deposit Agreement",
     "marketplace.subtitle": "Exclusive made-to-order and limited pieces — acquisition by request; invoicing follows after confirmation.",
+    "marketplace.editor.toggle": "Edit marketplace",
+    "marketplace.editor.save": "Save layout",
+    "marketplace.editor.saved": "Marketplace layout saved.",
+    "marketplace.editor.preview_mobile": "Preview: mobile",
+    "marketplace.editor.preview_desktop": "Preview: desktop",
+    "marketplace.editor.import_grid": "Import from filtered list",
+    "marketplace.editor.enable_custom": "Enable custom layout",
+    "marketplace.editor.use_classic": "Classic grid",
+    "marketplace.editor.no_product": "No product selected",
+    "marketplace.editor.product_missing": "Piece not found",
+    "marketplace.editor.image_placeholder": "Set image URL or upload",
+    "marketplace.editor.category_eyebrow": "Category",
+    "marketplace.editor.move": "Move",
+    "marketplace.editor.move_section": "Move section",
+    "marketplace.editor.more": "Menu",
+    "marketplace.editor.edit": "Edit",
+    "marketplace.editor.size": "Size",
+    "marketplace.editor.size_sm": "Small",
+    "marketplace.editor.size_md": "Medium",
+    "marketplace.editor.size_lg": "Large",
+    "marketplace.editor.size_full": "Full width",
+    "marketplace.editor.duplicate": "Duplicate",
+    "marketplace.editor.delete": "Delete",
+    "marketplace.editor.block_product": "Product",
+    "marketplace.editor.block_image": "Image",
+    "marketplace.editor.block_text": "Text",
+    "marketplace.editor.block_category": "Category",
+    "marketplace.editor.block_spacer": "Spacer",
+    "marketplace.editor.remove_section": "Remove section",
+    "marketplace.editor.add_section_grid": "Grid section",
+    "marketplace.editor.add_section_stack": "Stack section",
+    "marketplace.editor.add_section_split": "Split section",
+    "marketplace.editor.edit_block": "Edit block",
+    "marketplace.editor.product_id": "Product",
+    "marketplace.editor.pick_product": "Choose piece…",
+    "marketplace.editor.upload_image": "Upload image",
+    "marketplace.editor.link_type": "Link",
+    "marketplace.editor.link_piece": "Open piece",
+    "marketplace.editor.link_view": "Internal page",
+    "marketplace.editor.pick_view": "Choose page…",
+    "marketplace.editor.headline": "Headline",
+    "marketplace.editor.body": "Body text",
+    "marketplace.editor.cta_view_optional": "CTA page (optional)",
+    "marketplace.editor.spacer_px": "Height (px)",
+    "marketplace.editor.column_split": "Column (split)",
+    "marketplace.editor.column_left": "Left",
+    "marketplace.editor.column_right": "Right",
+    "marketplace.editor.section_title_optional": "Section title (optional)",
+    "marketplace.editor.section_title_hint": "Shown above all blocks in this section.",
     "marketplace.details_hint": "Further details are discussed during a personal conversation.",
     "marketplace.pdf_modal_title": "Marketplace as PDF",
     "marketplace.pdf_choose_lang": "Choose download language",
@@ -3077,6 +3178,55 @@ const TRANSLATIONS: any = {
     "resale.contract_note": "All'acquisto verrà creato un contratto di acconto rivendita conforme alla legge.",
     "resale.deposit_contract_title": "Accordo di acconto rivendita",
     "marketplace.subtitle": "Pezzi su misura ed edizioni limitate — acquisizione su richiesta; fatturazione dopo conferma.",
+    "marketplace.editor.toggle": "Modifica mercato",
+    "marketplace.editor.save": "Salva layout",
+    "marketplace.editor.saved": "Layout mercato salvato.",
+    "marketplace.editor.preview_mobile": "Anteprima: mobile",
+    "marketplace.editor.preview_desktop": "Anteprima: desktop",
+    "marketplace.editor.import_grid": "Importa da elenco filtrato",
+    "marketplace.editor.enable_custom": "Attiva layout personalizzato",
+    "marketplace.editor.use_classic": "Griglia classica",
+    "marketplace.editor.no_product": "Nessun prodotto",
+    "marketplace.editor.product_missing": "Pezzo non trovato",
+    "marketplace.editor.image_placeholder": "URL immagine o caricamento",
+    "marketplace.editor.category_eyebrow": "Categoria",
+    "marketplace.editor.move": "Sposta",
+    "marketplace.editor.move_section": "Sposta sezione",
+    "marketplace.editor.more": "Menu",
+    "marketplace.editor.edit": "Modifica",
+    "marketplace.editor.size": "Dimensione",
+    "marketplace.editor.size_sm": "Piccolo",
+    "marketplace.editor.size_md": "Medio",
+    "marketplace.editor.size_lg": "Grande",
+    "marketplace.editor.size_full": "Larghezza piena",
+    "marketplace.editor.duplicate": "Duplica",
+    "marketplace.editor.delete": "Elimina",
+    "marketplace.editor.block_product": "Prodotto",
+    "marketplace.editor.block_image": "Immagine",
+    "marketplace.editor.block_text": "Testo",
+    "marketplace.editor.block_category": "Categoria",
+    "marketplace.editor.block_spacer": "Spazio",
+    "marketplace.editor.remove_section": "Rimuovi sezione",
+    "marketplace.editor.add_section_grid": "Sezione griglia",
+    "marketplace.editor.add_section_stack": "Sezione stack",
+    "marketplace.editor.add_section_split": "Sezione split",
+    "marketplace.editor.edit_block": "Modifica blocco",
+    "marketplace.editor.product_id": "Prodotto",
+    "marketplace.editor.pick_product": "Scegli pezzo…",
+    "marketplace.editor.upload_image": "Carica immagine",
+    "marketplace.editor.link_type": "Collegamento",
+    "marketplace.editor.link_piece": "Al pezzo",
+    "marketplace.editor.link_view": "Pagina interna",
+    "marketplace.editor.pick_view": "Scegli pagina…",
+    "marketplace.editor.headline": "Titolo",
+    "marketplace.editor.body": "Testo",
+    "marketplace.editor.cta_view_optional": "CTA pagina (opz.)",
+    "marketplace.editor.spacer_px": "Altezza (px)",
+    "marketplace.editor.column_split": "Colonna (split)",
+    "marketplace.editor.column_left": "Sinistra",
+    "marketplace.editor.column_right": "Destra",
+    "marketplace.editor.section_title_optional": "Titolo sezione (opz.)",
+    "marketplace.editor.section_title_hint": "Sopra tutti i blocchi della sezione.",
     "marketplace.details_hint": "Ulteriori dettagli vengono discussi durante il colloquio personale.",
     "marketplace.pdf_modal_title": "Mercato in PDF",
     "marketplace.pdf_choose_lang": "Scegli lingua per download",
@@ -4202,6 +4352,10 @@ export default function App() {
   const [marketplaceGenderFilter, setMarketplaceGenderFilter] = useState<'all' | 'male' | 'female' | 'unisex'>('all');
   const [filterMarketScope, setFilterMarketScope] = useState<'all' | 'favorites' | 'recent'>('all');
   const [sortMarket, setSortMarket] = useState<'newest' | 'price_asc' | 'price_desc' | 'title'>('newest');
+  const [marketplaceLayoutDoc, setMarketplaceLayoutDoc] = useState<MarketplaceLayoutDoc>(EMPTY_MARKETPLACE_LAYOUT);
+  const [marketplaceEditMode, setMarketplaceEditMode] = useState(false);
+  const [marketplacePreviewMode, setMarketplacePreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+  const [marketplaceLayoutSaving, setMarketplaceLayoutSaving] = useState(false);
   const assetViewStartRef = useRef<number | null>(null);
   const lastPlatformVisitKeyRef = useRef<string>('');
   const [recentlyViewedIds, setRecentlyViewedIds] = useState<number[]>(() => { try { return JSON.parse(localStorage.getItem('vault-recently-viewed') || '[]'); } catch { return []; } });
@@ -4486,6 +4640,11 @@ export default function App() {
     else out = [...out].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
     return out;
   };
+
+  const marketplaceFilteredPieces = useMemo(
+    () => filterMasterpieces(masterpieces, 'available'),
+    [masterpieces, filterSearch, filterRarity, filterMarketScope, marketplaceGenderFilter, sortMarket, favoriteIds, recentlyViewedIds, user]
+  );
 
   const handleGenerateCertificate = async (masterpieceId: number) => {
     if (!user) return;
@@ -5328,6 +5487,53 @@ export default function App() {
     if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     setToast({ msg, type });
     toastTimeoutRef.current = setTimeout(() => { setToast(null); toastTimeoutRef.current = null; }, 4000);
+  };
+
+  useEffect(() => {
+    if (view !== 'marketplace') return;
+    let cancelled = false;
+    fetch('/api/marketplace/layout')
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.layout) setMarketplaceLayoutDoc(d.layout);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  const saveMarketplaceLayoutDoc = async () => {
+    if (!user || (user.role !== UserRole.ADMIN && (user as any).role !== 'super_admin' && (user as any).role !== 'admin')) return;
+    setMarketplaceLayoutSaving(true);
+    try {
+      const r = await fetch('/api/admin/marketplace/layout', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ layout: marketplaceLayoutDoc }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        notifyUser(t('marketplace.editor.saved'), 'success');
+        if (d.layout) setMarketplaceLayoutDoc(d.layout);
+      } else {
+        notifyUser(d.error || t('errors.generic'), 'error');
+      }
+    } finally {
+      setMarketplaceLayoutSaving(false);
+    }
+  };
+
+  const uploadMarketplaceLayoutImage = async (dataUrl: string) => {
+    const r = await fetch('/api/admin/upload/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ data: dataUrl }),
+    });
+    const d = await r.json().catch(() => ({}));
+    return (d.url as string) || null;
   };
 
   /** After Stripe redirects with ?payment_intent=…, credit wallet if webhook did not run (dev / missing STRIPE_WEBHOOK_SECRET). */
@@ -9096,6 +9302,33 @@ export default function App() {
                     </button>
                   ))}
                 </div>
+                {view === 'marketplace' && user && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin' || (user as any).role === 'admin') && (
+                  <div className="flex flex-wrap items-center gap-3 justify-end py-3 px-3 rounded-2xl border border-[var(--border-soft)] bg-[#121212]/40">
+                    <label className="inline-flex items-center gap-2 text-sm text-[#A0A0A0] cursor-pointer select-none">
+                      <input type="checkbox" className="rounded border-[var(--border-soft)] bg-[#0A0A0A]" checked={marketplaceEditMode} onChange={(e) => setMarketplaceEditMode(e.target.checked)} />
+                      {t('marketplace.editor.toggle')}
+                    </label>
+                    {marketplaceEditMode && (
+                      <>
+                        <Button variant="primary" className="text-xs py-2 px-4" disabled={marketplaceLayoutSaving} onClick={() => saveMarketplaceLayoutDoc()}>
+                          {t('marketplace.editor.save')}
+                        </Button>
+                        <Button variant="outline" className="text-xs py-2 px-4 border-[var(--border-soft)]" onClick={() => setMarketplacePreviewMode((m) => (m === 'desktop' ? 'mobile' : 'desktop'))}>
+                          {marketplacePreviewMode === 'desktop' ? t('marketplace.editor.preview_mobile') : t('marketplace.editor.preview_desktop')}
+                        </Button>
+                        <Button variant="outline" className="text-xs py-2 px-4 border-[var(--border-soft)]" onClick={() => setMarketplaceLayoutDoc(buildLayoutFromProductIds(marketplaceFilteredPieces.map((p) => p.id)))}>
+                          {t('marketplace.editor.import_grid')}
+                        </Button>
+                        <Button variant="outline" className="text-xs py-2 px-4 border-[var(--border-soft)]" onClick={() => setMarketplaceLayoutDoc((prev) => ({ ...prev, enabled: true }))}>
+                          {t('marketplace.editor.enable_custom')}
+                        </Button>
+                        <Button variant="ghost" className="text-xs py-2 px-4 text-[#888888]" onClick={() => setMarketplaceLayoutDoc((prev) => ({ ...prev, enabled: false }))}>
+                          {t('marketplace.editor.use_classic')}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
                 {showMarketplacePdfModal && (
                   <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80" onClick={() => setShowMarketplacePdfModal(false)}>
                     <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e => e.stopPropagation()}>
@@ -9117,49 +9350,170 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {listLoading && masterpieces.length === 0 ? (
-                    [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                {view === 'marketplace' && marketplaceLayoutDoc.enabled && marketplaceLayoutDoc.sections.length > 0 ? (
+                  listLoading && masterpieces.length === 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {[...Array(6)].map((_, i) => (
+                        <SkeletonCard key={i} />
+                      ))}
+                    </div>
                   ) : (
-                    <>
-                      {filterMasterpieces(masterpieces, 'available').map(piece => {
+                    <MarketplaceLiveLayout
+                      layout={marketplaceLayoutDoc}
+                      onChange={setMarketplaceLayoutDoc}
+                      editMode={
+                        !!user &&
+                        marketplaceEditMode &&
+                        (user.role === UserRole.ADMIN || (user as any).role === 'super_admin' || (user as any).role === 'admin')
+                      }
+                      previewMode={marketplacePreviewMode}
+                      masterpieces={masterpieces}
+                      piecePassesFilter={(id) => marketplaceFilteredPieces.some((p) => p.id === id)}
+                      renderProductCard={(piece, filteredOut) => {
                         const isOwnPiece = user && piece.current_owner_id === user.id;
                         const consultFirst = pieceRequiresConsultationFirst(piece);
                         return (
-                    <PieceCard 
-                      key={piece.id} 
-                      piece={piece} 
-                            t={t}
-                            activeLang={language}
-                            consultationFirstPiece={consultFirst}
-                            priceLabel={getPiecePriceDisplay(piece, user).label}
-                            isFavorite={user ? favoriteIds.includes(piece.id) : false}
-                            onToggleFavorite={user ? () => {
-                              const add = !favoriteIds.includes(piece.id);
-                              fetch('/api/analytics/favorite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }) })
-                                .then(() => setFavoriteIds(prev => add ? [...prev, piece.id] : prev.filter(id => id !== piece.id))).catch(() => {});
-                            } : undefined}
-                            onBuy={!consultFirst ? (!user ? () => setShowAccountRequiredModal(true) : user.role === UserRole.GUEST || (user as any).is_guest ? () => setShowAccountRequiredModal(true) : (user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR) ? undefined : () => handleBuy(piece.id)) : undefined}
-                            onReserve={(user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin') ? () => handleReserve(piece.id) : undefined}
-                            onConsultation={consultFirst ? openConsultationBriefModal : undefined}
-                            onLiteInquiry={consultFirst ? (p) => { setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p)); setView('kontakt'); } : undefined}
-                      onViewDetails={(p) => {
-                        setSelectedPiece(p);
-                        if (user.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
-                      }} 
-                            detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
-                    />
+                          <div className={filteredOut ? (marketplaceEditMode ? 'opacity-50' : 'opacity-45 pointer-events-none') : undefined}>
+                            <PieceCard
+                              piece={piece}
+                              t={t}
+                              activeLang={language}
+                              consultationFirstPiece={consultFirst}
+                              priceLabel={getPiecePriceDisplay(piece, user).label}
+                              isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                              onToggleFavorite={
+                                user
+                                  ? () => {
+                                      const add = !favoriteIds.includes(piece.id);
+                                      fetch('/api/analytics/favorite', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }),
+                                      })
+                                        .then(() => setFavoriteIds((prev) => (add ? [...prev, piece.id] : prev.filter((id) => id !== piece.id))))
+                                        .catch(() => {});
+                                    }
+                                  : undefined
+                              }
+                              onBuy={
+                                !consultFirst
+                                  ? !user
+                                    ? () => setShowAccountRequiredModal(true)
+                                    : user.role === UserRole.GUEST || (user as any).is_guest
+                                      ? () => setShowAccountRequiredModal(true)
+                                      : user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR
+                                        ? undefined
+                                        : () => handleBuy(piece.id)
+                                  : undefined
+                              }
+                              onReserve={
+                                user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin'
+                                  ? () => handleReserve(piece.id)
+                                  : undefined
+                              }
+                              onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                              onLiteInquiry={
+                                consultFirst
+                                  ? (p) => {
+                                      setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p));
+                                      setView('kontakt');
+                                    }
+                                  : undefined
+                              }
+                              onViewDetails={(p) => {
+                                setSelectedPiece(p);
+                                if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                              }}
+                              detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
+                            />
+                          </div>
                         );
-                      })}
-                      {filterMasterpieces(masterpieces, 'available').length === 0 && (
-                    <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
-                      <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
-                          <p className="text-zinc-500">{(filterSearch || filterRarity) ? t('search.no_results') : t('marketplace.no_pieces')}</p>
-                    </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                      }}
+                      onNavigateView={(v) => setView(v as typeof view)}
+                      onOpenPiece={(p) => setSelectedPiece(p)}
+                      t={t}
+                      onUploadImage={
+                        user && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin' || (user as any).role === 'admin')
+                          ? uploadMarketplaceLayoutImage
+                          : undefined
+                      }
+                    />
+                  )
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {listLoading && masterpieces.length === 0 ? (
+                      [...Array(6)].map((_, i) => <SkeletonCard key={i} />)
+                    ) : (
+                      <>
+                        {marketplaceFilteredPieces.map((piece) => {
+                          const isOwnPiece = user && piece.current_owner_id === user.id;
+                          const consultFirst = pieceRequiresConsultationFirst(piece);
+                          return (
+                            <PieceCard
+                              key={piece.id}
+                              piece={piece}
+                              t={t}
+                              activeLang={language}
+                              consultationFirstPiece={consultFirst}
+                              priceLabel={getPiecePriceDisplay(piece, user).label}
+                              isFavorite={user ? favoriteIds.includes(piece.id) : false}
+                              onToggleFavorite={
+                                user
+                                  ? () => {
+                                      const add = !favoriteIds.includes(piece.id);
+                                      fetch('/api/analytics/favorite', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ userId: user.id, masterpieceId: piece.id, add }),
+                                      })
+                                        .then(() => setFavoriteIds((prev) => (add ? [...prev, piece.id] : prev.filter((id) => id !== piece.id))))
+                                        .catch(() => {});
+                                    }
+                                  : undefined
+                              }
+                              onBuy={
+                                !consultFirst
+                                  ? !user
+                                    ? () => setShowAccountRequiredModal(true)
+                                    : user.role === UserRole.GUEST || (user as any).is_guest
+                                      ? () => setShowAccountRequiredModal(true)
+                                      : user.role === UserRole.VIEWER || user.role === UserRole.INVESTOR
+                                        ? undefined
+                                        : () => handleBuy(piece.id)
+                                  : undefined
+                              }
+                              onReserve={
+                                user?.role === UserRole.ADMIN || (user as any)?.role === 'super_admin' || (user as any)?.role === 'admin'
+                                  ? () => handleReserve(piece.id)
+                                  : undefined
+                              }
+                              onConsultation={consultFirst ? openConsultationBriefModal : undefined}
+                              onLiteInquiry={
+                                consultFirst
+                                  ? (p) => {
+                                      setKontaktPrefillSnippet(liteInquiryPrefillForPiece(p));
+                                      setView('kontakt');
+                                    }
+                                  : undefined
+                              }
+                              onViewDetails={(p) => {
+                                setSelectedPiece(p);
+                                if (user?.role === UserRole.INVESTOR) logInvestorView(p.id, 3);
+                              }}
+                              detailsHint={isOwnPiece ? t('marketplace.details_hint') : undefined}
+                            />
+                          );
+                        })}
+                        {marketplaceFilteredPieces.length === 0 && (
+                          <div className="col-span-full py-20 text-center border border-dashed border-zinc-800 rounded-3xl">
+                            <ShoppingBag className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                            <p className="text-zinc-500">{filterSearch || filterRarity ? t('search.no_results') : t('marketplace.no_pieces')}</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
 

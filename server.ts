@@ -19,6 +19,7 @@ import { creditWalletFromSucceededPaymentIntent, registerStripeWebhookRawRoute, 
 import { validateServerEnv } from "./lib/validateEnv.js";
 import { registerConsultationRoutes, isConsultationFlowEnabled } from "./features/consultation/consultationRoutes.js";
 import { registerCuratedMaisonRoutes } from "./features/curated/curatedRoutes.js";
+import { registerMarketplaceLayoutRoutes } from "./features/marketplace-editor/marketplaceLayoutRoutes.js";
 import { createIpRateLimiter, createUserOrIpRateLimiter } from "./lib/rateLimit.js";
 import {
   JEWELRY_PARAMETRIC_JSON_SCHEMA,
@@ -1387,6 +1388,11 @@ await db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(page_id) REFERENCES curated_pages(id) ON DELETE CASCADE
   );
+  CREATE TABLE IF NOT EXISTS marketplace_layout (
+    id INTEGER PRIMARY KEY,
+    layout_json LONGTEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 {
@@ -1421,6 +1427,14 @@ await db.exec(`
       ).run(homeRow.id, heroCfg);
     }
   }
+}
+
+{
+  const defaultLayout = JSON.stringify({ version: 1, enabled: false, sections: [] });
+  const ins = db.isMySQL
+    ? "INSERT IGNORE INTO marketplace_layout (id, layout_json) VALUES (1, ?)"
+    : "INSERT OR IGNORE INTO marketplace_layout (id, layout_json) VALUES (1, ?)";
+  await (await db.prepare(ins)).run(defaultLayout);
 }
 
 // --- High Jewelry Client Platform: Collector Rooms, Stone Library, Deal Rooms, Reputation, Investor Docs ---
@@ -3826,6 +3840,7 @@ const PUBLIC_API_PATHS: { method: string; path: string | RegExp }[] = [
   { method: "POST", path: "/api/analytics/visit" },
   { method: "GET", path: /^\/api\/curated\/pages\/public$/ },
   { method: "GET", path: /^\/api\/curated\/page\// },
+  { method: "GET", path: "/api/marketplace/layout" },
 ];
 
 function isPublicApi(req: express.Request): boolean {
@@ -12846,6 +12861,7 @@ async function startServer() {
   db = await initDb();
   await runSchema(db);
   registerCuratedMaisonRoutes(app, db);
+  registerMarketplaceLayoutRoutes(app, db);
   try {
     await (await db.prepare(db.isMySQL ? "ALTER TABLE transactions ADD COLUMN `type` TEXT" : "ALTER TABLE transactions ADD COLUMN type TEXT")).run();
   } catch (_) {
