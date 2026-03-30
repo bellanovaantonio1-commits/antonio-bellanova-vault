@@ -10432,6 +10432,47 @@ app.get("/api/private-clients/conversations", requireAuth, async (req, res) => {
   res.json(rows);
 });
 
+/** Kunde startet bzw. öffnet die 1:1-Atelier-Linie (gleiche DB wie Private Clients → Konversationen). */
+app.post("/api/private-clients/conversations/open-with-atelier", requireAuth, async (req, res) => {
+  const userId = getSessionUserId(req)!;
+  const user = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+  if (isAdminUser(user)) {
+    return res.status(400).json({ error: "Nur für Kunden." });
+  }
+  const existing = await (await db.prepare(
+    "SELECT id FROM private_client_conversations WHERE client_id = ? ORDER BY updated_at DESC LIMIT 1"
+  )).get(userId) as { id: number } | undefined;
+  if (existing) return res.json({ id: existing.id });
+
+  let atelierAdminId: number | null = null;
+  const envId = process.env.ATELIER_PRIMARY_ADMIN_ID;
+  if (envId != null && String(envId).trim() !== "" && !Number.isNaN(Number(envId))) {
+    const u = await (await db.prepare(
+      "SELECT id FROM users WHERE id = ? AND role IN ('admin', 'super_admin')"
+    )).get(Number(envId)) as { id: number } | undefined;
+    if (u) atelierAdminId = Number(u.id);
+  }
+  if (atelierAdminId == null) {
+    const sup = await (await db.prepare(
+      "SELECT id FROM users WHERE role = 'super_admin' ORDER BY id ASC LIMIT 1"
+    )).get() as { id: number } | undefined;
+    if (sup) atelierAdminId = Number(sup.id);
+  }
+  if (atelierAdminId == null) {
+    const adm = await (await db.prepare(
+      "SELECT id FROM users WHERE role = 'admin' ORDER BY id ASC LIMIT 1"
+    )).get() as { id: number } | undefined;
+    if (adm) atelierAdminId = Number(adm.id);
+  }
+  if (atelierAdminId == null) {
+    return res.status(503).json({ error: "Kein Atelier-Administrator konfiguriert." });
+  }
+  const r = await (await db.prepare(
+    "INSERT INTO private_client_conversations (admin_id, client_id, project_id) VALUES (?, ?, NULL)"
+  )).run(atelierAdminId, userId);
+  res.status(201).json({ id: Number(r.lastInsertRowid) });
+});
+
 app.post("/api/private-clients/conversations", requireAuth, requireAdmin, async (req, res) => {
   const adminId = getSessionUserId(req)!;
   const { client_id, project_id } = req.body || {};

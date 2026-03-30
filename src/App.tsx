@@ -65,7 +65,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { jsPDF } from "jspdf";
-import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest, ChatThread, ChatMessage, ConciergeAvailability, Appointment } from './types';
+import { User, UserRole, UserStatus, Masterpiece, Auction, Payment, Contract, Certificate, Bid, Notification, PurchaseWorkflow, EscrowTransaction, InvestorAnalytics, InvestorRequest, Appointment } from './types';
 import deLocale from './locales/de.json';
 import enLocale from './locales/en.json';
 import itLocale from './locales/it.json';
@@ -1025,6 +1025,7 @@ const TRANSLATIONS: any = {
     "concierge.placeholder": "Wie können wir Sie heute unterstützen?",
     "chat.concierge": "Concierge",
     "chat.maison_concierge": "Maison Concierge",
+    "chat.konversation_mit_antonio": "Konversation mit Antonio Bellanova",
     "chat.concierge_available": "Concierge verfügbar",
     "chat.concierge_busy": "Concierge beschäftigt",
     "chat.status_active": "Active",
@@ -2312,6 +2313,7 @@ const TRANSLATIONS: any = {
     "concierge.placeholder": "How can we assist you today?",
     "chat.concierge": "Concierge",
     "chat.maison_concierge": "Maison Concierge",
+    "chat.konversation_mit_antonio": "Conversation with Antonio Bellanova",
     "chat.concierge_available": "Concierge Available",
     "chat.concierge_busy": "Concierge busy",
     "chat.status_active": "Active",
@@ -3466,6 +3468,7 @@ const TRANSLATIONS: any = {
     "concierge.placeholder": "Come possiamo assisterti?",
     "chat.concierge": "Concierge",
     "chat.maison_concierge": "Maison Concierge",
+    "chat.konversation_mit_antonio": "Conversazione con Antonio Bellanova",
     "chat.concierge_available": "Concierge disponibile",
     "chat.concierge_busy": "Concierge occupato",
     "chat.status_active": "Attivo",
@@ -4453,13 +4456,11 @@ export default function App() {
   const [deletePieceConfirm, setDeletePieceConfirm] = useState<{ piece: Masterpiece; password: string; error: string } | null>(null);
   const [editingPiece, setEditingPiece] = useState<(Masterpiece & { description_i18n?: string; materials_i18n?: string; gemstones_i18n?: string }) | null>(null);
   const [editPieceForm, setEditPieceForm] = useState<Record<string, any>>({});
-  const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
-  const [selectedChatThread, setSelectedChatThread] = useState<ChatThread | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [conciergeStatus, setConciergeStatus] = useState<ConciergeAvailability[]>([]);
-  const [chatDraft, setChatDraft] = useState('');
-  const selectedThreadIdRef = useRef<number | null>(null);
-  selectedThreadIdRef.current = selectedChatThread?.id ?? null;
+  const [privateAtelierConvId, setPrivateAtelierConvId] = useState<number | null>(null);
+  const [privateAtelierMessages, setPrivateAtelierMessages] = useState<any[]>([]);
+  const [privateAtelierDraft, setPrivateAtelierDraft] = useState('');
+  const [privateAtelierLoading, setPrivateAtelierLoading] = useState(false);
+  const [privateAtelierError, setPrivateAtelierError] = useState<string | null>(null);
   const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
   const [dataroomContent, setDataroomContent] = useState<any>(null);
   const [dataroomPieceId, setDataroomPieceId] = useState<number | ''>('');
@@ -4646,10 +4647,6 @@ export default function App() {
   const [dashboardActivity, setDashboardActivity] = useState<any[]>([]);
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
-  const [adminMaisonChatThreads, setAdminMaisonChatThreads] = useState<any[]>([]);
-  const [selectedAdminMaisonThread, setSelectedAdminMaisonThread] = useState<any | null>(null);
-  const [adminMaisonChatMessages, setAdminMaisonChatMessages] = useState<any[]>([]);
-  const [adminMaisonChatDraft, setAdminMaisonChatDraft] = useState('');
   const [clientTimeline, setClientTimeline] = useState<any[]>([]);
   const [adminIntelligence, setAdminIntelligence] = useState<{ topByPurchases?: any[]; topByValue?: any[]; pendingDeals?: number; vipActivity?: number } | null>(null);
   const [paymentsOverview, setPaymentsOverview] = useState<{ pending?: any[]; overdue?: any[]; recent?: any[] } | null>(null);
@@ -5510,23 +5507,72 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || view !== 'concierge') return;
-    fetch(`/api/communication/threads?userId=${user.id}`).then(r => r.json()).then(setChatThreads).catch(() => {});
-    fetch(`/api/communication/concierge/status`).then(r => r.json()).then(setConciergeStatus).catch(() => {});
-  }, [user, view]);
+    if (view !== 'concierge') {
+      setPrivateAtelierConvId(null);
+      setPrivateAtelierMessages([]);
+      setPrivateAtelierError(null);
+      setPrivateAtelierDraft('');
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (!user || view !== 'concierge' || isGuestSessionUser(user)) return;
+    const isAdm = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
+    if (isAdm) return;
+    let cancelled = false;
+    setPrivateAtelierLoading(true);
+    setPrivateAtelierError(null);
+    (async () => {
+      try {
+        const res = await fetch('/api/private-clients/conversations/open-with-atelier', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (!cancelled) {
+            setPrivateAtelierError(typeof data.error === 'string' ? data.error : 'Konversation konnte nicht geöffnet werden.');
+            setPrivateAtelierConvId(null);
+          }
+          return;
+        }
+        if (!cancelled && data.id != null) setPrivateAtelierConvId(Number(data.id));
+      } catch {
+        if (!cancelled) {
+          setPrivateAtelierError('Konversation konnte nicht geöffnet werden.');
+          setPrivateAtelierConvId(null);
+        }
+      } finally {
+        if (!cancelled) setPrivateAtelierLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.role, view]);
+
+  useEffect(() => {
+    if (!user || view !== 'concierge' || isGuestSessionUser(user)) return;
+    const isAdm = user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN;
+    if (isAdm || !privateAtelierConvId) {
+      if (isAdm) setPrivateAtelierMessages([]);
+      return;
+    }
+    const load = () => {
+      fetch(`/api/private-clients/conversations/${privateAtelierConvId}/messages`, { credentials: 'include' })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((rows) => setPrivateAtelierMessages(Array.isArray(rows) ? rows : []))
+        .catch(() => setPrivateAtelierMessages([]));
+    };
+    load();
+    const t = window.setInterval(load, 12000);
+    return () => clearInterval(t);
+  }, [privateAtelierConvId, user?.id, user?.role, view]);
 
   useEffect(() => {
     if (!user || view !== 'private_gallery') return;
     fetch(`/api/private-gallery?userId=${user.id}`, { credentials: 'include' }).then(r => r.ok ? r.json() : []).then(setPrivateGalleryPieces).catch(() => setPrivateGalleryPieces([]));
   }, [user, view]);
-
-  useEffect(() => {
-    if (!selectedChatThread || !user) {
-      setChatMessages([]);
-      return;
-    }
-    fetch(`/api/communication/threads/${selectedChatThread.id}/messages?userId=${user.id}`).then(r => r.json()).then(setChatMessages).catch(() => setChatMessages([]));
-  }, [selectedChatThread?.id, user]);
 
   useEffect(() => {
     if (!user || isGuestSessionUser(user)) {
@@ -5614,14 +5660,6 @@ export default function App() {
             ? { ...a, current_bid: data.amount, highest_bidder_id: data.userId } 
             : a
         ));
-      } else if (data.type === 'CHAT_MESSAGE' && data.message) {
-        setChatMessages(prev => (data.threadId === selectedThreadIdRef.current ? [...prev, data.message] : prev));
-      } else if (data.type === 'CONCIERGE_STATUS') {
-        setConciergeStatus(prev => {
-          const next = prev.filter((c: ConciergeAvailability) => c.admin_id !== data.adminId);
-          next.push({ id: 0, admin_id: data.adminId, status: data.status, updated_at: new Date().toISOString() });
-          return next;
-        });
       } else if (String(data.type || '').startsWith('CONSULTATION_')) {
         const u = userRefForWs.current;
         if (u && !isGuestSessionUser(u)) {
@@ -6165,13 +6203,6 @@ export default function App() {
     if (adminTab === 'concierge') {
       const q = adminConciergeFilter ? `?requestType=${encodeURIComponent(adminConciergeFilter)}` : '';
       fetch(`/api/admin/concierge/requests${q}`, { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminConciergeRequests)).catch(() => setAdminConciergeRequests([]));
-      const adminId = user?.id;
-      if (adminId) {
-        fetch(`/api/communication/threads?userId=${adminId}&admin=1&type=concierge`, { credentials: 'include' })
-          .then((r) => (r.ok ? r.json() : []))
-          .then((rows) => setAdminMaisonChatThreads(Array.isArray(rows) ? rows : []))
-          .catch(() => setAdminMaisonChatThreads([]));
-      }
     }
     if (adminTab === 'vault_requests') {
       fetch('/api/admin/vault-requests', { credentials: 'include' }).then(r => r.ok && r.json().then(setAdminVaultRequests)).catch(() => setAdminVaultRequests([]));
@@ -6215,17 +6246,6 @@ export default function App() {
         .finally(() => setAdminAudienceLoading(false));
     }
   }, [user?.role, user?.id, adminTab, adminConciergeFilter]);
-
-  useEffect(() => {
-    if (!selectedAdminMaisonThread?.id || !user?.id || (user.role !== UserRole.ADMIN && (user as any).role !== 'super_admin')) {
-      setAdminMaisonChatMessages([]);
-      return;
-    }
-    fetch(`/api/communication/threads/${selectedAdminMaisonThread.id}/messages?userId=${user.id}`, { credentials: 'include' })
-      .then((r) => r.json())
-      .then(setAdminMaisonChatMessages)
-      .catch(() => setAdminMaisonChatMessages([]));
-  }, [selectedAdminMaisonThread?.id, user?.id, user?.role]);
 
   useEffect(() => {
     if (view === 'private_clients' && user?.id && user.role !== 'admin' && user.role !== 'super_admin') {
@@ -8277,8 +8297,8 @@ export default function App() {
     navItem('auctions', Gavel, t('auctions')),
     navItem('vault', ShieldCheck, t('vault')),
     ...(['vip','private_collector','grand_collector','legacy_collector'].includes((user as any).collector_level) || user.role === 'admin' || user.role === 'super_admin' ? [navItem('private_gallery', Diamond, t('view.private_gallery') || 'Private Gallery')] : []),
-    ...(user.role !== 'black' && user.role !== UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.concierge'))] : []),
-    ...(user.role === 'black' || user.role === UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.direct_line'))] : []),
+    ...(user.role !== 'black' && user.role !== UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.konversation_mit_antonio'))] : []),
+    ...(user.role === 'black' || user.role === UserRole.BLACK ? [navItem('concierge', MessageCircle, t('chat.konversation_mit_antonio'))] : []),
     ...(user.role !== 'admin' && user.role !== 'super_admin' ? [navItem('private_clients', MessageCircle, t('private_clients.menu') || 'Nachrichten')] : []),
     ...(canAccessPortfolioMenu ? [navItem('portfolio', Award, t('view.portfolio'))] : []),
     ...(user.role !== UserRole.ADMIN ? [navItem('fractional', PieChart, t('view.fractional'))] : []),
@@ -9256,7 +9276,7 @@ export default function App() {
                         </div>
                       </div>
                       <Button variant="primary" className="shrink-0 text-xs font-bold uppercase tracking-widest" onClick={() => setView('concierge')}>
-                        <MessageCircle className="w-4 h-4" /> {isLuxuryCollectorNav ? t('consultation_piece_chat_cta') : t('chat.concierge')}
+                        <MessageCircle className="w-4 h-4" /> {isLuxuryCollectorNav ? t('consultation_piece_chat_cta') : t('chat.konversation_mit_antonio')}
                       </Button>
                     </div>
                   </Card>
@@ -9889,194 +9909,153 @@ export default function App() {
                 transition={{ duration: 0.2 }}
                 className="flex flex-col h-[calc(100vh-12rem)] min-h-[400px]"
               >
-                {/* Maison Concierge header — dark luxury, serif, status, priority */}
                 <header className="mb-8">
-                  <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-                    <h2 className="font-serif text-2xl md:text-3xl text-zinc-100 tracking-tight italic">
-                      {t('chat.maison_concierge')}
-                    </h2>
-                    <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-zinc-500">
-                      {conciergeStatus.some(c => c.status === 'available') && (
-                        <span className="text-zinc-400">{t('chat.status_active')}</span>
-                      )}
-                      {conciergeStatus.some(c => c.status === 'busy') && (
-                        <span className="text-amber-600/90">{t('chat.status_reviewing')}</span>
-                      )}
-                      {(conciergeStatus.length === 0 || conciergeStatus.every(c => c.status === 'away')) && selectedChatThread && (
-                        <span className="text-zinc-500">{t('chat.status_preparing')}</span>
-                      )}
-                      {selectedChatThread && selectedChatThread.priority > 1 && (
-                        <span className="text-amber-500/80 border-b border-amber-500/30 pb-0.5">
-                          {t('chat.priority_channel_active')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  <h2 className="font-serif text-2xl md:text-3xl text-zinc-100 tracking-tight italic">
+                    {t('chat.maison_concierge')}
+                  </h2>
                   <p className="text-[10px] text-zinc-600 mt-2">{t('concierge.secure_logged')}</p>
                 </header>
 
-                <div className="flex flex-1 min-h-0 border border-zinc-800/80 rounded-sm overflow-hidden bg-zinc-950/80">
-                  {/* Thread list — minimal, generous whitespace */}
-                  <aside className="w-64 md:w-72 border-r border-zinc-800/80 flex flex-col flex-shrink-0">
-                    <div className="p-4 border-b border-zinc-800/80">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!user) return;
-                          const res = await fetch('/api/communication/threads', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: user.id, type: 'concierge' })
-                          });
-                          if (res.ok) {
-                            const { id } = await res.json();
-                            if (id) {
-                              const list = await fetch(`/api/communication/threads?userId=${user.id}`).then(r => r.json()).catch(() => []);
-                              setChatThreads(list);
-                              const thread = list.find((t: ChatThread) => t.id === id);
-                              if (thread) setSelectedChatThread(thread);
-                            }
-                          }
-                        }}
-                        className="w-full py-2.5 text-left text-[13px] font-medium text-zinc-400 hover:text-amber-500/90 transition-colors duration-200"
-                      >
-                        {t('chat.new_conversation')}
-                      </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto">
-                      {chatThreads.length === 0 && (
-                        <p className="p-6 text-zinc-600 text-[13px] leading-relaxed">{t('chat.no_threads')}</p>
-                      )}
-                      {chatThreads.map(th => (
-                        <button
-                          key={th.id}
-                          type="button"
-                          onClick={() => setSelectedChatThread(th)}
-                          className={`w-full text-left px-5 py-4 border-b border-zinc-800/50 transition-colors duration-200 ${selectedChatThread?.id === th.id ? 'bg-zinc-800/40 text-zinc-100' : 'hover:bg-zinc-800/20 text-zinc-500 hover:text-zinc-300'}`}
-                        >
-                          <span className="block text-[13px] font-normal truncate">{th.type === 'concierge' ? t('chat.concierge') : th.masterpiece_title || th.type}</span>
-                          {(th.serial_id || th.priority > 1) && (
-                            <span className="mt-1 block text-[11px] text-zinc-600">
-                              {th.serial_id || (th.priority > 1 ? t('chat.priority') : '')}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </aside>
-
-                  {/* Message area — no bubbles, minimalist lines, role-based styling */}
-                  <div className="flex-1 flex flex-col min-w-0 bg-zinc-950/50">
-                    {selectedChatThread ? (
-                      <>
-                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 py-6 sm:py-10 space-y-8">
-                          {chatMessages.map((m, i) => {
-                            const isOwn = m.sender_id === user?.id;
-                            const role = (user?.role as string) || 'client';
-                            const isVip = role === 'vip' || role === UserRole.VIP;
-                            const isRoyal = role === 'royal' || role === UserRole.ROYAL;
-                            const isBlack = role === 'black' || role === UserRole.BLACK;
-                            const isAdmin = role === 'admin' || role === UserRole.ADMIN;
-                            const ownBorder = isBlack ? 'border-zinc-600' : isRoyal ? 'border-amber-600/50' : isVip ? 'border-amber-500/30' : isAdmin ? 'border-zinc-500' : 'border-zinc-600/80';
-                            const ownText = isBlack ? 'text-zinc-300' : isRoyal ? 'text-amber-100/95' : isVip ? 'text-amber-50/90' : isAdmin ? 'text-zinc-200' : 'text-zinc-200';
-                            return (
-                              <motion.div
-                                key={m.id}
-                                initial={{ opacity: 0, y: 6 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.25, ease: 'easeOut' }}
-                                className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                              >
-                                <div className={`max-w-[75%] ${isOwn ? 'text-right' : 'text-left'}`}>
-                                  <div
-                                    className={`py-2 ${isOwn ? `pl-4 border-r-2 ${ownBorder} ${ownText} ${isRoyal ? 'shadow-[0_0_24px_rgba(180,140,60,0.06)]' : ''} ${isBlack ? 'shadow-[0_0_20px_rgba(0,0,0,0.15)]' : ''}` : 'pr-4 border-l-2 border-zinc-600/80 text-zinc-300'}`}
-                                  >
-                                    <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words font-normal">
-                                      {m.content}
-                                    </p>
-                                    <p className="mt-2 text-[10px] uppercase tracking-wider text-zinc-600">
-                                      {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                                    </p>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            );
-                          })}
-                          {/* Subtle typing indicator when Maison status is not available */}
-                          {selectedChatThread && chatMessages.length > 0 && !conciergeStatus.some(c => c.status === 'available') && (
-                            <motion.div
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
-                              transition={{ duration: 0.2 }}
-                              className="flex justify-start"
-                            >
-                              <div className="py-2 pr-4 border-l-2 border-zinc-600/60 text-zinc-500">
-                                <p className="text-[12px] italic">{t('chat.maison_typing')}</p>
-                                <span className="inline-flex gap-1 mt-1">
-                                  {[0, 1, 2].map(j => (
-                                    <motion.span
-                                      key={j}
-                                      className="w-1 h-1 rounded-full bg-zinc-600"
-                                      animate={{ opacity: [0.4, 1, 0.4] }}
-                                      transition={{ duration: 1.2, repeat: Infinity, delay: j * 0.2 }}
-                                    />
-                                  ))}
-                                </span>
-                              </div>
-                            </motion.div>
-                          )}
-                        </div>
-                        <div className="border-t border-zinc-800/80 p-4">
-                          <div className="flex gap-3 max-w-2xl mx-auto">
-                            <input
-                              type="text"
-                              value={chatDraft}
-                              onChange={e => setChatDraft(e.target.value)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                  e.preventDefault();
-                                  if (chatDraft.trim() && user) {
-                                    fetch(`/api/communication/threads/${selectedChatThread.id}/messages`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ userId: user.id, content: chatDraft.trim(), contentLang: language })
-                                    }).then(r => r.json()).then(msg => {
-                                      if (msg.id) setChatMessages(prev => [...prev, msg]);
-                                      setChatDraft('');
-                                    }).catch(() => {});
-                                  }
-                                }
-                              }}
-                              placeholder={t('chat.type_message')}
-                              className="flex-1 bg-transparent border border-zinc-700 rounded-sm px-4 py-2.5 text-[14px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors duration-200"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!chatDraft.trim() || !user) return;
-                                fetch(`/api/communication/threads/${selectedChatThread.id}/messages`, {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ userId: user.id, content: chatDraft.trim(), contentLang: language })
-                                }).then(r => r.json()).then(msg => {
-                                  if (msg.id) setChatMessages(prev => [...prev, msg]);
-                                  setChatDraft('');
-                                }).catch(() => {});
-                              }}
-                              className="px-4 py-2.5 border border-zinc-600 text-zinc-300 hover:border-amber-600/50 hover:text-amber-500/90 transition-colors duration-200 text-[13px] uppercase tracking-widest"
-                            >
-                              {t('chat.send')}
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex-1 flex items-center justify-center text-zinc-600">
-                        <p className="text-[13px]">{t('chat.no_threads')}</p>
-                      </div>
-                    )}
+                {user && (user.role === 'admin' || user.role === 'super_admin' || user.role === UserRole.ADMIN) ? (
+                  <div className="flex-1 flex flex-col items-center justify-center rounded-sm border border-zinc-800/80 bg-zinc-950/60 p-10 text-center gap-4">
+                    <p className="text-sm text-zinc-400 max-w-md">
+                      Kundenchats laufen über <span className="text-amber-500/90 font-serif italic">Private Clients → Konversationen</span> dieselbe 1:1-Leitung wie hier beim Kunden.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="border-amber-600/40 text-amber-500/90"
+                      onClick={() => {
+                        setView('admin');
+                        setAdminTab('private_clients');
+                        setPrivateClientSubTab('conversations');
+                      }}
+                    >
+                      Zu Private Clients
+                    </Button>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-1 min-h-0 border border-zinc-800/80 rounded-sm overflow-hidden bg-zinc-950/80">
+                    <aside className="w-64 md:w-72 border-r border-zinc-800/80 flex flex-col flex-shrink-0 bg-zinc-950/90">
+                      <div className="p-5 border-b border-zinc-800/80">
+                        <p className="font-serif text-lg md:text-xl text-amber-500/95 italic tracking-tight leading-snug">
+                          {t('chat.konversation_mit_antonio')}
+                        </p>
+                        <p className="mt-3 text-[11px] text-zinc-600 leading-relaxed">
+                          {t('concierge.secure_logged')}
+                        </p>
+                      </div>
+                    </aside>
+                    <div className="flex-1 flex flex-col min-w-0 bg-zinc-950/50">
+                      {privateAtelierError ? (
+                        <div className="flex-1 flex items-center justify-center p-6 text-center text-sm text-red-400/90">
+                          {privateAtelierError}
+                        </div>
+                      ) : privateAtelierLoading || !privateAtelierConvId ? (
+                        <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+                          …
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex-1 overflow-y-auto px-4 sm:px-6 md:px-8 py-6 sm:py-10 space-y-8">
+                            {privateAtelierMessages.length === 0 ? (
+                              <p className="text-center text-[13px] text-zinc-600">{t('chat.no_threads')}</p>
+                            ) : (
+                              privateAtelierMessages.map((m) => {
+                                const isOwn = m.sender_id === user?.id;
+                                const role = (user?.role as string) || 'client';
+                                const isVip = role === 'vip' || role === UserRole.VIP;
+                                const isRoyal = role === 'royal' || role === UserRole.ROYAL;
+                                const isBlack = role === 'black' || role === UserRole.BLACK;
+                                const isAdmin = role === 'admin' || role === UserRole.ADMIN;
+                                const ownBorder = isBlack ? 'border-zinc-600' : isRoyal ? 'border-amber-600/50' : isVip ? 'border-amber-500/30' : isAdmin ? 'border-zinc-500' : 'border-zinc-600/80';
+                                const ownText = isBlack ? 'text-zinc-300' : isRoyal ? 'text-amber-100/95' : isVip ? 'text-amber-50/90' : isAdmin ? 'text-zinc-200' : 'text-zinc-200';
+                                const text = m.message_text ?? m.content ?? '';
+                                return (
+                                  <motion.div
+                                    key={m.id}
+                                    initial={{ opacity: 0, y: 6 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                                  >
+                                    <div className={`max-w-[75%] ${isOwn ? 'text-right' : 'text-left'}`}>
+                                      <div
+                                        className={`py-2 ${isOwn ? `pl-4 border-r-2 ${ownBorder} ${ownText}` : 'pr-4 border-l-2 border-zinc-600/80 text-zinc-300'}`}
+                                      >
+                                        <p className="text-[14px] leading-relaxed whitespace-pre-wrap break-words font-normal">
+                                          {text}
+                                        </p>
+                                        <p className="mt-2 text-[10px] uppercase tracking-wider text-zinc-600">
+                                          {new Date(m.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="border-t border-zinc-800/80 p-4">
+                            <div className="flex gap-3 max-w-2xl mx-auto">
+                              <input
+                                type="text"
+                                value={privateAtelierDraft}
+                                onChange={(e) => setPrivateAtelierDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    const q = privateAtelierDraft.trim();
+                                    if (!q || !user || !privateAtelierConvId) return;
+                                    fetch(`/api/private-clients/conversations/${privateAtelierConvId}/messages`, {
+                                      method: 'POST',
+                                      credentials: 'include',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ message_text: q }),
+                                    })
+                                      .then((r) => (r.ok ? r.json() : null))
+                                      .then(() => {
+                                        setPrivateAtelierDraft('');
+                                        return fetch(`/api/private-clients/conversations/${privateAtelierConvId}/messages`, { credentials: 'include' });
+                                      })
+                                      .then((r) => (r && r.ok ? r.json() : []))
+                                      .then((rows) => setPrivateAtelierMessages(Array.isArray(rows) ? rows : []))
+                                      .catch(() => {});
+                                  }
+                                }}
+                                placeholder={t('chat.type_message')}
+                                className="flex-1 bg-transparent border border-zinc-700 rounded-sm px-4 py-2.5 text-[14px] text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors duration-200"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const q = privateAtelierDraft.trim();
+                                  if (!q || !user || !privateAtelierConvId) return;
+                                  fetch(`/api/private-clients/conversations/${privateAtelierConvId}/messages`, {
+                                    method: 'POST',
+                                    credentials: 'include',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ message_text: q }),
+                                  })
+                                    .then((r) => (r.ok ? r.json() : null))
+                                    .then(() => {
+                                      setPrivateAtelierDraft('');
+                                      return fetch(`/api/private-clients/conversations/${privateAtelierConvId}/messages`, { credentials: 'include' });
+                                    })
+                                    .then((r) => (r && r.ok ? r.json() : []))
+                                    .then((rows) => setPrivateAtelierMessages(Array.isArray(rows) ? rows : []))
+                                    .catch(() => {});
+                                }}
+                                className="px-4 py-2.5 border border-zinc-600 text-zinc-300 hover:border-amber-600/50 hover:text-amber-500/90 transition-colors duration-200 text-[13px] uppercase tracking-widest"
+                              >
+                                {t('chat.send')}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -15184,123 +15163,9 @@ export default function App() {
                     </div>
                     {adminConciergeRequests.length === 0 && <p className="text-zinc-500 text-sm italic">Keine offenen Concierge-Anfragen.</p>}
 
-                    <div className="mt-10 pt-8 border-t border-zinc-800 space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <h4 className="text-lg font-serif italic text-zinc-100">{t('admin.maison_concierge_inbox')}</h4>
-                          <p className="text-sm text-zinc-500 mt-1 max-w-2xl">{t('admin.maison_concierge_hint')}</p>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (!user?.id) return;
-                            fetch(`/api/communication/threads?userId=${user.id}&admin=1&type=concierge`, { credentials: 'include' })
-                              .then((r) => (r.ok ? r.json() : []))
-                              .then((rows) => setAdminMaisonChatThreads(Array.isArray(rows) ? rows : []));
-                          }}
-                        >
-                          {t('admin.maison_concierge_refresh')}
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[280px] rounded-xl border border-zinc-800 overflow-hidden bg-zinc-950/40">
-                        <div className="border-b lg:border-b-0 lg:border-r border-zinc-800 max-h-[400px] overflow-y-auto">
-                          {adminMaisonChatThreads.length === 0 ? (
-                            <p className="p-4 text-sm text-zinc-500">{t('admin.maison_concierge_empty')}</p>
-                          ) : (
-                            adminMaisonChatThreads.map((th: any) => (
-                              <button
-                                key={th.id}
-                                type="button"
-                                onClick={() => setSelectedAdminMaisonThread(th)}
-                                className={`w-full text-left px-4 py-3 border-b border-zinc-800/60 text-sm transition-colors ${selectedAdminMaisonThread?.id === th.id ? 'bg-amber-500/10 text-amber-200' : 'text-zinc-400 hover:bg-zinc-900'}`}
-                              >
-                                <span className="block font-medium text-zinc-200">
-                                  #{th.id} · {th.client_name || `User ${th.user_id}`}
-                                </span>
-                                <span className="block text-xs text-zinc-500 truncate">{th.client_email || ''}</span>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                        <div className="lg:col-span-2 flex flex-col min-h-[280px]">
-                          {selectedAdminMaisonThread ? (
-                            <>
-                              <div className="p-3 border-b border-zinc-800 text-xs text-zinc-500">
-                                Thread #{selectedAdminMaisonThread.id} — {selectedAdminMaisonThread.client_email || ''}
-                              </div>
-                              <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[280px]">
-                                {adminMaisonChatMessages.map((m: any) => {
-                                  const own = m.sender_id === user?.id;
-                                  return (
-                                    <div key={m.id} className={`flex ${own ? 'justify-end' : 'justify-start'}`}>
-                                      <div className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${own ? 'bg-amber-500/15 border border-amber-500/30 text-zinc-100' : 'bg-zinc-800/80 text-zinc-300'}`}>
-                                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
-                                        <p className="text-[10px] text-zinc-500 mt-1">{new Date(m.created_at).toLocaleString()}</p>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <div className="p-3 border-t border-zinc-800 flex gap-2">
-                                <input
-                                  type="text"
-                                  value={adminMaisonChatDraft}
-                                  onChange={(e) => setAdminMaisonChatDraft(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey && adminMaisonChatDraft.trim() && user?.id) {
-                                      e.preventDefault();
-                                      const tid = selectedAdminMaisonThread.id;
-                                      const c = adminMaisonChatDraft.trim();
-                                      fetch(`/api/communication/threads/${tid}/messages`, {
-                                        method: 'POST',
-                                        credentials: 'include',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ userId: user.id, content: c, contentLang: language }),
-                                      })
-                                        .then((r) => r.json())
-                                        .then((msg) => {
-                                          if (msg?.id) setAdminMaisonChatMessages((prev) => [...prev, msg]);
-                                          setAdminMaisonChatDraft('');
-                                        })
-                                        .catch(() => {});
-                                    }
-                                  }}
-                                  placeholder={t('chat.type_message')}
-                                  className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100"
-                                />
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  type="button"
-                                  onClick={() => {
-                                    if (!adminMaisonChatDraft.trim() || !user?.id || !selectedAdminMaisonThread) return;
-                                    const tid = selectedAdminMaisonThread.id;
-                                    const c = adminMaisonChatDraft.trim();
-                                    fetch(`/api/communication/threads/${tid}/messages`, {
-                                      method: 'POST',
-                                      credentials: 'include',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ userId: user.id, content: c, contentLang: language }),
-                                    })
-                                      .then((r) => r.json())
-                                      .then((msg) => {
-                                        if (msg?.id) setAdminMaisonChatMessages((prev) => [...prev, msg]);
-                                        setAdminMaisonChatDraft('');
-                                      })
-                                      .catch(() => {});
-                                  }}
-                                >
-                                  {t('chat.send')}
-                                </Button>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex-1 flex items-center justify-center text-sm text-zinc-500 p-6">{t('admin.maison_concierge_pick')}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                    <p className="text-sm text-zinc-500 mt-6 pt-6 border-t border-zinc-800">
+                      Kundenkurzmitteilungen aus dem Menü „{t('chat.konversation_mit_antonio')}“ finden Sie unter <button type="button" className="text-amber-500/90 underline-offset-2 hover:underline font-serif italic" onClick={() => { setAdminTab('private_clients'); setPrivateClientSubTab('conversations'); }}>Private Clients → Konversationen</button>.
+                    </p>
                   </section>
                   )}
 
