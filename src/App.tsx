@@ -106,6 +106,18 @@ function isGuestSessionUser(u: { id?: number; role?: string; is_guest?: boolean 
   return false;
 }
 
+/** Sammler-Kunde (Luxury-Sidebar): Startseite = Maison mit Slug „home“, nicht das interne Dashboard. */
+function isLuxuryHomeDefaultUser(u: { is_guest?: boolean; role?: string } | null | undefined): boolean {
+  if (!u || u.is_guest || u.role === UserRole.GUEST || u.role === 'guest') return false;
+  return (
+    u.role !== 'admin' &&
+    (u as { role?: string }).role !== 'super_admin' &&
+    u.role !== UserRole.INVESTOR &&
+    (u as { role?: string }).role !== 'investor' &&
+    u.role !== UserRole.STRATEGIC_PRIVATE_ADVISOR
+  );
+}
+
 type OptionI18n = { id: string; de: string; en: string; it: string };
 const MATERIAL_OPTIONS: OptionI18n[] = [
   { id: 'gold', de: 'Gold', en: 'Gold', it: 'Oro' },
@@ -5210,7 +5222,12 @@ export default function App() {
         stripAuthViewQueryParam();
         return;
       }
-      setView('dashboard');
+      if (isLuxuryHomeDefaultUser(data)) {
+        setMaisonSlug('home');
+        setView('maison');
+      } else {
+        setView('dashboard');
+      }
       stripAuthViewQueryParam();
       if (data.notification_prefs) {
         try {
@@ -5398,26 +5415,40 @@ export default function App() {
       (user as any).role === 'super_admin' ||
       user.role === UserRole.INVESTOR ||
       (user as any).role === 'investor';
-    if (view === 'portfolio' && !portfolioOk) setView('dashboard');
+    if (view === 'portfolio' && !portfolioOk) {
+      if (isLuxuryHomeDefaultUser(user)) {
+        setMaisonSlug('home');
+        setView('maison');
+      } else setView('dashboard');
+    }
   }, [user, view]);
 
   /** Parametric AI jewelry: nur Admin / Super-Admin */
   useEffect(() => {
     if (!user) return;
     const ok = user.role === UserRole.ADMIN || (user as any).role === 'super_admin';
-    if (view === 'ai_jewelry_design' && !ok) setView('dashboard');
+    if (view === 'ai_jewelry_design' && !ok) {
+      if (isLuxuryHomeDefaultUser(user)) {
+        setMaisonSlug('home');
+        setView('maison');
+      } else setView('dashboard');
+    }
   }, [user, view]);
 
   /**
    * Eingeloggt (inkl. Gast) + ?view=register|login|…: Auth-UI liegt nur unter !user — sonst leerer/weißer Hauptbereich.
-   * Nach Session-Load immer auf Dashboard bzw. World umleiten und view= aus der URL entfernen.
+   * Nach Session-Load: Sammler → Maison (home), sonst Dashboard; Gast → World. view= aus der URL entfernen.
    */
   useEffect(() => {
     if (!user) return;
     const authOnlyViews = ['login', 'register', 'forgot-password', 'reset-password'] as const;
     if (!authOnlyViews.includes(view as (typeof authOnlyViews)[number])) return;
     const guest = user.role === UserRole.GUEST || (user as any).is_guest;
-    setView(guest ? 'world' : 'dashboard');
+    if (guest) setView('world');
+    else if (isLuxuryHomeDefaultUser(user)) {
+      setMaisonSlug('home');
+      setView('maison');
+    } else setView('dashboard');
     if (typeof window !== 'undefined') {
       const u = new URL(window.location.href);
       if (u.searchParams.has('view')) {
@@ -6470,7 +6501,12 @@ export default function App() {
         setLoginTotp('');
         setUser(data);
         setLanguage(data.preferred_language || data.language || 'de');
-        setView('dashboard');
+        if (isLuxuryHomeDefaultUser(data)) {
+          setMaisonSlug('home');
+          setView('maison');
+        } else {
+          setView('dashboard');
+        }
         if (maintenanceMode && (data.role === 'admin' || data.role === UserRole.ADMIN)) {
           setShowMaintenanceAfterLoginAttempt(false);
         }
@@ -7747,7 +7783,19 @@ export default function App() {
     return (
       <div className={`min-h-screen font-sans flex flex-col ${isKontaktLuxury ? 'bg-[#0A0A0A] text-[#F5F5F5]' : theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[#050505] text-zinc-100'}`}>
         <div className={isKontaktLuxury ? 'luxury-container max-w-[40rem] mx-auto w-full flex-1 !pt-10 !pb-16 sm:!pt-14 sm:!pb-20' : 'p-6 max-w-3xl mx-auto w-full flex-1'}>
-          <button type="button" onClick={() => setView(user ? 'dashboard' : 'login')} className={`text-[11px] uppercase tracking-[0.2em] ${isKontaktLuxury ? 'text-[#C6A15B]/90 hover:text-[#C6A15B] mb-10 sm:mb-12' : 'text-amber-500 hover:text-amber-400 mb-8'}`}>← {user ? t('common.back_dashboard') : t('common.back_home')}</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!user) setView('login');
+              else if (isLuxuryHomeDefaultUser(user)) {
+                setMaisonSlug('home');
+                setView('maison');
+              } else setView('dashboard');
+            }}
+            className={`text-[11px] uppercase tracking-[0.2em] ${isKontaktLuxury ? 'text-[#C6A15B]/90 hover:text-[#C6A15B] mb-10 sm:mb-12' : 'text-amber-500 hover:text-amber-400 mb-8'}`}
+          >
+            ← {user ? (isLuxuryHomeDefaultUser(user) ? t('common.back_home') : t('common.back_dashboard')) : t('common.back_home')}
+          </button>
           <h1 className={isKontaktLuxury ? 'luxury-display text-2xl sm:text-3xl text-[#F5F5F5] mb-5' : 'text-2xl font-serif italic mb-6'}>{view === 'kontakt' ? t('inquiry.subject_line') : titles[view]}</h1>
           {view === 'kontakt' && <p className="text-[#AAAAAA] text-[15px] sm:text-base leading-relaxed max-w-prose mb-10 sm:mb-12">{t('inquiry.subtitle')}</p>}
           {view === 'impressum' && (
@@ -8841,7 +8889,17 @@ export default function App() {
         {/* Breadcrumbs */}
         {user && view !== 'dashboard' && view !== 'login' && view !== 'register' && !['forgot-password', 'reset-password'].includes(view) && (
           <div className="luxury-container !pt-6 !pb-2 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.2em] text-[#AAAAAA]">
-            <button type="button" onClick={() => setView(isGuest ? 'world' : 'dashboard')} className="hover:text-amber-500/80">{isGuest ? t('view.world') : t('dashboard')}</button>
+            <button
+              type="button"
+              onClick={() => {
+                if (isGuest) setView('world');
+                else if (isLuxuryCollectorNav) goMaisonHome();
+                else setView('dashboard');
+              }}
+              className="hover:text-amber-500/80"
+            >
+              {isGuest ? t('view.world') : isLuxuryCollectorNav ? t('maison.fallback_nav') : t('dashboard')}
+            </button>
             <span>/</span>
             {view === 'vault' ? (
               <>
@@ -8990,7 +9048,10 @@ export default function App() {
                           }
                         };
                         const onViewMessage = () => { setView('private_clients'); setClientViewSubTab('messages'); };
-                        const onReviewOffer = () => { setView('dashboard'); };
+                        const onReviewOffer = () => {
+                          if (isLuxuryCollectorNav) goMaisonHome();
+                          else setView('dashboard');
+                        };
                         let label = n.message;
                         let action: React.ReactNode = null;
                         if (n.type === 'new_contract') {
