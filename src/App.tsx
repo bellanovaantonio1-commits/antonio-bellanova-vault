@@ -61,6 +61,7 @@ import { EMPTY_MARKETPLACE_LAYOUT, type MarketplaceLayoutDoc } from './features/
 import { ConsultationChatPanel } from './features/consultation/ConsultationChatPanel';
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
+import { buildLuxuryTimelinePresentation } from './lib/luxuryClientTimeline';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -1297,6 +1298,13 @@ const TRANSLATIONS: any = {
     "dashboard.collector_ranking_by_purchases": "Nach Anzahl Käufe",
     "dashboard.activity_center": "Aktivität",
     "dashboard.activity_center_desc": "Wichtige Meldungen und Aktionen für Sie.",
+    "dashboard.client_timeline": "Ihr Atelier-Status",
+    "dashboard.client_timeline_hint": "Wo Sie stehen, was folgt — ruhig, ohne technisches Logbuch.",
+    "timeline.section_current": "Aktueller Status",
+    "timeline.section_next": "Nächster Schritt",
+    "timeline.section_history": "Verlauf",
+    "timeline.expand_history": "Weitere Einträge anzeigen",
+    "timeline.collapse_history": "Weniger anzeigen",
     "activity.contract_ready": "Vertrag zur Unterzeichnung bereit",
     "activity.sign_contract": "Vertrag unterschreiben",
     "activity.open_room": "Raum öffnen",
@@ -2531,6 +2539,13 @@ const TRANSLATIONS: any = {
     "dashboard.active_pieces": "ACTIVE PIECES",
     "dashboard.activity_center": "Activity",
     "dashboard.activity_center_desc": "Important updates and actions for you.",
+    "dashboard.client_timeline": "Your atelier status",
+    "dashboard.client_timeline_hint": "Where you stand and what comes next — calm, not a technical log.",
+    "timeline.section_current": "Current status",
+    "timeline.section_next": "Next step",
+    "timeline.section_history": "History",
+    "timeline.expand_history": "Show more entries",
+    "timeline.collapse_history": "Show less",
     "activity.contract_ready": "Contract ready for signature",
     "activity.sign_contract": "Sign Contract",
     "activity.open_room": "Open Room",
@@ -4650,6 +4665,7 @@ export default function App() {
   const [adminConciergeRequests, setAdminConciergeRequests] = useState<any[]>([]);
   const [adminConciergeFilter, setAdminConciergeFilter] = useState<string>('');
   const [clientTimeline, setClientTimeline] = useState<any[]>([]);
+  const [luxuryTimelineHistoryExpanded, setLuxuryTimelineHistoryExpanded] = useState(false);
   const [adminIntelligence, setAdminIntelligence] = useState<{ topByPurchases?: any[]; topByValue?: any[]; pendingDeals?: number; vipActivity?: number } | null>(null);
   const [paymentsOverview, setPaymentsOverview] = useState<{ pending?: any[]; overdue?: any[]; recent?: any[] } | null>(null);
   const [uhnwStatus, setUhnwStatus] = useState<{ collection_value?: number; is_uhnw?: boolean; threshold?: number } | null>(null);
@@ -6901,6 +6917,11 @@ export default function App() {
     `${t('cta.inquiry_prefill_intro')} ${piece.title}${piece.serial_id ? ` (${piece.serial_id})` : ''}`;
 
   const masterpiecesById = useMemo(() => new Map(masterpieces.map((p) => [p.id, p])), [masterpieces]);
+
+  const luxuryTimelinePresentation = useMemo(
+    () => buildLuxuryTimelinePresentation(clientTimeline, language),
+    [clientTimeline, language],
+  );
 
   const handleMaisonCtaNavigate = (v: string) => {
     const raw = v.trim();
@@ -9248,21 +9269,106 @@ export default function App() {
                   </Card>
                 )}
 
-                {/* Client Timeline (Section 1): client sees only their own */}
-                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && clientTimeline.length > 0 && (
-                  <Card className="border-amber-500/20 bg-amber-500/5 space-y-4" hoverGlow>
-                    <h4 className="text-lg font-serif italic">{t('dashboard.client_timeline') || 'My activity timeline'}</h4>
-                    <p className="text-xs text-zinc-500">{t('dashboard.client_timeline_hint') || 'Your key milestones and activity history.'}</p>
-                    <ul className="space-y-2">
-                      {clientTimeline.slice(0, 15).map((entry: any) => (
-                        <li key={entry.id} className="flex items-center gap-3 py-2 border-b border-zinc-800/50 last:border-0">
-                          <span className="text-[10px] text-zinc-500 shrink-0">{new Date(entry.created_at).toLocaleDateString()}</span>
-                          <span className="text-amber-500/80 text-xs font-medium uppercase tracking-wider">{entry.event_type.replace(/_/g, ' ')}</span>
-                          <span className="text-zinc-400 text-sm truncate">{entry.description || '—'}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </Card>
+                {/* Client Timeline — luxury minimal (pending/active hero, completed history collapsed) */}
+                {user.role !== UserRole.ADMIN && user.role !== 'super_admin' && luxuryTimelinePresentation && (
+                  <div
+                    className="rounded-xl border p-8 md:p-10 space-y-10 shadow-[inset_0_1px_0_0_rgba(212,175,55,0.06)]"
+                    style={{ backgroundColor: '#0A0A0A', borderColor: 'rgba(212, 175, 55, 0.22)' }}
+                  >
+                    <header className="space-y-2">
+                      <h4 className="text-xl md:text-2xl font-serif italic tracking-tight" style={{ color: '#D4AF37' }}>
+                        {t('dashboard.client_timeline')}
+                      </h4>
+                      <p className="text-sm text-zinc-500 max-w-2xl leading-relaxed">{t('dashboard.client_timeline_hint')}</p>
+                    </header>
+
+                    {/* Progress — Entwurf → Fertigung → Fertigstellung → Übergabe */}
+                    <div className="space-y-3">
+                      <div className="flex gap-2 md:gap-3">
+                        {luxuryTimelinePresentation.progressSteps.map((label, i) => {
+                          const active = i <= luxuryTimelinePresentation.progressActiveIndex;
+                          return (
+                            <div key={label} className="flex-1 min-w-0">
+                              <div
+                                className="h-1 rounded-full transition-colors duration-300"
+                                style={{ backgroundColor: active ? '#D4AF37' : '#27272a' }}
+                              />
+                              <p
+                                className="text-[10px] md:text-[11px] mt-2.5 text-center leading-tight px-0.5"
+                                style={{ color: active ? 'rgba(212, 175, 55, 0.92)' : '#52525b' }}
+                              >
+                                {label}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <section className="space-y-3 pt-2 border-t border-zinc-800/80">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_current')}</p>
+                      <p className="text-2xl md:text-3xl font-serif text-zinc-100 leading-snug font-normal tracking-tight">
+                        {luxuryTimelinePresentation.currentTitle}
+                      </p>
+                      {luxuryTimelinePresentation.currentSubtitle && (
+                        <p className="text-sm text-zinc-500 max-w-xl leading-relaxed">
+                          {luxuryTimelinePresentation.currentSubtitle}
+                        </p>
+                      )}
+                    </section>
+
+                    {luxuryTimelinePresentation.nextStep && (
+                      <section className="space-y-2 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_next')}</p>
+                        <p className="text-base md:text-lg font-serif italic" style={{ color: 'rgba(212, 175, 55, 0.88)' }}>
+                          {luxuryTimelinePresentation.nextStep}
+                        </p>
+                      </section>
+                    )}
+
+                    {luxuryTimelinePresentation.completedHistory.length > 0 && (
+                      <section className="space-y-5 pt-4 border-t border-zinc-800/80">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-600">{t('timeline.section_history')}</p>
+                        <ul className="space-y-5">
+                          {(luxuryTimelineHistoryExpanded
+                            ? luxuryTimelinePresentation.completedHistory.slice(0, 15)
+                            : luxuryTimelinePresentation.completedHistory.slice(0, 4)
+                          ).map((entry) => (
+                            <li key={entry.id} className="flex gap-4">
+                              <span
+                                className="mt-2 h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: '#D4AF37', opacity: 0.85 }}
+                                aria-hidden
+                              />
+                              <div className="min-w-0 space-y-1">
+                                <p className="text-sm text-zinc-300 leading-snug">{entry.title}</p>
+                                {entry.detail ? (
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{entry.detail}</p>
+                                ) : null}
+                                <p className="text-[10px] text-zinc-600">
+                                  {new Date(entry.created_at).toLocaleDateString(language === 'de' ? 'de-DE' : language === 'it' ? 'it-IT' : 'en-GB')}
+                                </p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                        {luxuryTimelinePresentation.completedHistory.length > 4 && (
+                          <button
+                            type="button"
+                            onClick={() => setLuxuryTimelineHistoryExpanded((v) => !v)}
+                            className="text-xs flex items-center gap-1.5 transition-opacity hover:opacity-90"
+                            style={{ color: '#D4AF37' }}
+                          >
+                            <ChevronDown className={`w-4 h-4 transition-transform ${luxuryTimelineHistoryExpanded ? 'rotate-180' : ''}`} />
+                            {luxuryTimelineHistoryExpanded ? t('timeline.collapse_history') : t('timeline.expand_history')}
+                            {!luxuryTimelineHistoryExpanded && luxuryTimelinePresentation.pastHiddenCount > 0
+                              ? ` (${luxuryTimelinePresentation.pastHiddenCount})`
+                              : null}
+                          </button>
+                        )}
+                      </section>
+                    )}
+                  </div>
                 )}
 
                 {/* Concierge CTA — Premium */}
