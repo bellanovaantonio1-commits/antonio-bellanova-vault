@@ -166,7 +166,7 @@ const PRODUCTS: Product[] = [
     title: "Nocturne Emerald Collar",
     material: "18k Gold · Emerald · Diamond",
     description: "Ein skulpturales Collier mit tiefgruenen Smaragden und handgefassten Brillanten.",
-    image: "[IMAGE_PRODUCT_1]",
+    image: "[IMAGE_PRODUCT]",
     collection: "heritage",
   },
   {
@@ -174,7 +174,7 @@ const PRODUCTS: Product[] = [
     title: "Imperial Sapphire Cuff",
     material: "White Gold · Sapphire · Diamond",
     description: "Markante Cuff-Silhouette mit royalblauen Saphiren und archivierter Fassung.",
-    image: "[IMAGE_PRODUCT_2]",
+    image: "[IMAGE_PRODUCT]",
     collection: "royal",
   },
   {
@@ -182,7 +182,7 @@ const PRODUCTS: Product[] = [
     title: "Lumiere Ruby Ring",
     material: "Rose Gold · Ruby · Diamond",
     description: "Statement-Ring mit leuchtendem Rubin und eleganter Halo-Architektur.",
-    image: "[IMAGE_PRODUCT_3]",
+    image: "[IMAGE_PRODUCT]",
     collection: "atelier",
   },
   {
@@ -190,7 +190,7 @@ const PRODUCTS: Product[] = [
     title: "Vesper Diamond Pendant",
     material: "Platinum · Diamond",
     description: "Minimalistisches Pendant mit Fokus auf Licht, Symmetrie und Reinheit.",
-    image: "[IMAGE_PRODUCT_1]",
+    image: "[IMAGE_PRODUCT]",
     collection: "heritage",
   },
 ];
@@ -210,13 +210,29 @@ const NAV = [
   { key: "login", href: "/login" },
 ];
 
+/** Raw token e.g. `[IMAGE_HERO]` → `IMAGE_HERO` für zentrierten Platzhalter-Text */
+function placeholderToken(label: string): string {
+  const s = label.trim();
+  if (s.startsWith("[") && s.endsWith("]")) return s.slice(1, -1);
+  return s;
+}
+
 function imageShell(label: string, ratio = "aspect-[16/9]") {
+  const token = placeholderToken(label);
   return (
     <div
-      className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-zinc-950 via-black to-zinc-900 ${ratio}`}
+      role="img"
+      aria-label={token}
+      className={`relative isolate w-full min-h-[140px] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 ${ratio}`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(212,175,55,0.22),transparent_45%),radial-gradient(circle_at_80%_10%,rgba(255,255,255,0.08),transparent_35%),radial-gradient(circle_at_50%_80%,rgba(212,175,55,0.12),transparent_50%)]" />
-      <p className="absolute bottom-4 left-4 text-[10px] tracking-[0.2em] uppercase text-zinc-400">{label}</p>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-zinc-800/50 via-zinc-950 to-black" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_35%,rgba(212,175,55,0.07),transparent_65%)]" />
+      <div className="pointer-events-none absolute inset-0 skeleton opacity-35" />
+      <div className="absolute inset-0 flex items-center justify-center px-4 py-6">
+        <span className="max-w-full text-center font-mono text-[10px] uppercase tracking-[0.28em] text-white/40 sm:text-[11px]">
+          {token}
+        </span>
+      </div>
     </div>
   );
 }
