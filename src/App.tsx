@@ -1357,6 +1357,9 @@ const TRANSLATIONS: any = {
     "theme.aria_dark": "Dunkelmodus",
     "guest.account_required_title": "Konto erforderlich",
     "guest.account_required_body": "Legen Sie ein Konto an, um exklusive Tresor-Funktionen zu nutzen.",
+    "guest.dashboard_register_eyebrow": "Gast-Zugang",
+    "guest.dashboard_register_title": "Registrieren Sie sich für den vollen Tresor",
+    "guest.dashboard_register_body": "Sie sind als Gast angemeldet. Mit einem persönlichen Konto erhalten Sie Zugang zu Ihrem Tresor, Favoriten, Beratung, Auktionen und allen Sammler-Funktionen.",
     "collector.level_legacy": "Legacy-Sammler",
     "collector.level_grand": "Grand Collector",
     "collector.level_private": "Private Collector",
@@ -2600,6 +2603,9 @@ const TRANSLATIONS: any = {
     "theme.aria_dark": "Dark mode",
     "guest.account_required_title": "Account required",
     "guest.account_required_body": "Create an account to access exclusive Vault features.",
+    "guest.dashboard_register_eyebrow": "Guest access",
+    "guest.dashboard_register_title": "Register for full Vault access",
+    "guest.dashboard_register_body": "You are signed in as a guest. Create a personal account to unlock your vault, favorites, consultations, auctions, and all collector features.",
     "collector.level_legacy": "Legacy Collector",
     "collector.level_grand": "Grand Collector",
     "collector.level_private": "Private Collector",
@@ -3819,6 +3825,9 @@ const TRANSLATIONS: any = {
     "theme.aria_dark": "Modalità scura",
     "guest.account_required_title": "Account richiesto",
     "guest.account_required_body": "Create un account per accedere alle funzioni esclusive del caveau.",
+    "guest.dashboard_register_eyebrow": "Accesso ospite",
+    "guest.dashboard_register_title": "Registratevi per il caveau completo",
+    "guest.dashboard_register_body": "Siete collegati come ospite. Con un account personale sbloccate il caveau, i preferiti, le consulenze e le aste.",
     "collector.level_legacy": "Collezionista Legacy",
     "collector.level_grand": "Grand Collector",
     "collector.level_private": "Private Collector",
@@ -8440,11 +8449,6 @@ export default function App() {
 
   const curatedNavForSidebar = curatedNavPages.length > 0 ? curatedNavPages : [{ slug: 'home', nav_label: t('maison.fallback_nav') }];
 
-  const goMaisonHome = () => {
-    setMaisonSlug('home');
-    setView('maison');
-  };
-
   const renderSidebarLinks = (afterClick?: () => void) => {
     const done = afterClick || (() => {});
     if (isGuest || isLuxuryCollectorNav) {
@@ -8453,17 +8457,11 @@ export default function App() {
           {curatedNavForSidebar.map((p) => (
             <NavItem
               key={`maison-${p.slug}`}
-              active={
-                p.slug === 'home'
-                  ? isGuest
-                    ? view === 'maison' && maisonSlug === 'home'
-                    : view === 'dashboard'
-                  : view === 'maison' && maisonSlug === p.slug
-              }
+              active={p.slug === 'home' ? view === 'dashboard' : view === 'maison' && maisonSlug === p.slug}
               icon={p.slug === 'home' ? TrendingUp : Sparkles}
               label={p.slug === 'home' ? t('dashboard') : p.nav_label}
               onClick={() => {
-                if (p.slug === 'home' && !isGuest) setView('dashboard');
+                if (p.slug === 'home') setView('dashboard');
                 else {
                   setMaisonSlug(p.slug);
                   setView('maison');
@@ -8497,7 +8495,7 @@ export default function App() {
     <div className={`min-h-screen font-sans selection:bg-[rgba(198,163,106,0.25)] ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[var(--bg-primary)] text-[#F5F5F5]'}`} data-theme={theme}>
       {/* Desktop Sidebar (hidden on mobile) */}
       <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-[var(--border-soft)] z-50 flex-col backdrop-blur-xl bg-[rgba(10,10,10,0.92)]">
-        <button type="button" onClick={() => { if (isGuest) goMaisonHome(); else setView('dashboard'); }} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
+        <button type="button" onClick={() => setView('dashboard')} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
           <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
             <Diamond className="w-5 h-5 text-[#C6A36A]" />
           </div>
@@ -8521,7 +8519,7 @@ export default function App() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
             <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-[rgba(10,10,10,0.96)] backdrop-blur-xl border-r border-[var(--border-soft)] flex flex-col md:hidden">
               <div className="p-4 flex items-center justify-between border-b border-[var(--border-soft)]">
-                <button type="button" onClick={() => { if (isGuest) goMaisonHome(); else setView('dashboard'); closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
+                <button type="button" onClick={() => { setView('dashboard'); closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
                   <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
                     <Diamond className="w-5 h-5 text-[#C6A36A]" />
                   </div>
@@ -9120,6 +9118,20 @@ export default function App() {
             )}
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
+                {isGuest && (
+                  <Card className="border-amber-500/35 bg-gradient-to-br from-amber-500/[0.12] via-zinc-950 to-zinc-950 space-y-4 p-8 md:p-10" hoverGlow>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-amber-500/90">{t('guest.dashboard_register_eyebrow')}</p>
+                    <h3 className="text-2xl md:text-3xl font-serif italic text-[#F5F5F5]">{t('guest.dashboard_register_title')}</h3>
+                    <p className="text-zinc-400 max-w-2xl leading-relaxed">{t('guest.dashboard_register_body')}</p>
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <Button onClick={() => leaveGuestSessionForAuth('register')}>{t('auth.create_account')}</Button>
+                      <Button variant="outline" onClick={() => leaveGuestSessionForAuth('login')}>{t('auth.sign_in')}</Button>
+                      <Button variant="ghost" className="text-zinc-400" onClick={() => setView('marketplace')}>{t('maison.catalog_full')}</Button>
+                    </div>
+                  </Card>
+                )}
+                {!isGuest && (
+                <>
                 {/* Section 2: Client-only COLLECTION VALUE + ACTIVE PIECES */}
                 {(user.role !== 'admin' && user.role !== 'super_admin' && user.role !== UserRole.ADMIN) && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -9809,6 +9821,8 @@ export default function App() {
                     );})}
                   </div>
                 </div>
+                )}
+                </>
                 )}
               </motion.div>
             )}
