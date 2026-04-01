@@ -62,6 +62,7 @@ import { ConsultationChatPanel } from './features/consultation/ConsultationChatP
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
 import { buildLuxuryTimelinePresentation, type PaymentNextHint } from './lib/luxuryClientTimeline';
+import { LuxuryPublicSite, isLuxuryPublicPath } from './features/luxury-public/LuxuryPublicSite';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -7851,6 +7852,19 @@ export default function App() {
           </div>
         </div>
       </div>
+    );
+  }
+
+  const currentPathname = typeof window !== 'undefined' ? window.location.pathname || '/' : '/';
+  if (isLuxuryPublicPath(currentPathname)) {
+    return (
+      <LuxuryPublicSite
+        pathname={currentPathname}
+        onNavigate={(path) => {
+          if (typeof window === 'undefined') return;
+          window.location.assign(path);
+        }}
+      />
     );
   }
 
