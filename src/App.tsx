@@ -63,6 +63,7 @@ import { AdminConsultationSection } from './features/consultation/AdminConsultat
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
 import { buildLuxuryTimelinePresentation, type PaymentNextHint } from './lib/luxuryClientTimeline';
 import { LuxuryPublicSite, isLuxuryPublicPath } from './features/luxury-public/LuxuryPublicSite';
+import { LuxuryImagePlaceholder } from './components/LuxuryImagePlaceholder';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -9701,8 +9702,12 @@ export default function App() {
                         if (!piece) return null;
                         return (
                           <button key={piece.id} type="button" onClick={() => setSelectedPiece(piece)} className="shrink-0 w-32 text-left group">
-                            <div className="aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2 group-hover:ring-2 ring-amber-500/30 transition-all">
-                              <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <div className="relative aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2 group-hover:ring-2 ring-amber-500/30 transition-all">
+                              {piece.image_url?.trim() ? (
+                                <img src={piece.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                              ) : (
+                                <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-xl" compact className="border-0" />
+                              )}
                             </div>
                             <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
                             <p className="text-[10px] text-amber-500">{getPiecePriceDisplay(piece, user).label}</p>
@@ -9739,8 +9744,12 @@ export default function App() {
                     <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                       {recentlyViewedIds.map(id => masterpieces.find(p => p.id === id)).filter(Boolean).map((piece: Masterpiece) => (
                         <button key={piece.id} type="button" onClick={() => setSelectedPiece(piece)} className="shrink-0 w-32 text-left group">
-                          <div className="aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2">
-                            <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/200/200`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <div className="relative aspect-square rounded-xl bg-zinc-800 overflow-hidden mb-2">
+                            {piece.image_url?.trim() ? (
+                              <img src={piece.image_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            ) : (
+                              <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-xl" compact className="border-0" />
+                            )}
                           </div>
                           <p className="text-xs font-medium text-zinc-200 truncate">{piece.title}</p>
                           <p className="text-[10px] text-amber-500/90">{getPiecePriceDisplay(piece, user).label}</p>
@@ -12073,12 +12082,16 @@ export default function App() {
                     return (
                     <div key={piece.id} className="group cursor-pointer" onClick={() => setSelectedPiece(piece)}>
                       <div className="aspect-[3/4] overflow-hidden rounded-3xl bg-zinc-900 mb-6 relative">
-                        <img 
-                          src={piece.image_url || `https://picsum.photos/seed/${piece.id}/800/1200`} 
-                          alt={piece.title} 
-                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                          referrerPolicy="no-referrer"
-                        />
+                        {piece.image_url?.trim() ? (
+                          <img
+                            src={piece.image_url}
+                            alt={piece.title}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-3xl" className="border-zinc-800" />
+                        )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-8 gap-3">
                           <p className="text-white text-sm font-serif italic">{piece.description.substring(0, 100)}...</p>
                           {canRemoveFromPortfolio && (
@@ -16493,12 +16506,19 @@ export default function App() {
                   <div className="aspect-square bg-[#050505] relative">
                     {(() => {
                       const images = getPieceImages(selectedPiece);
-                      const fallback = `https://picsum.photos/seed/${selectedPiece.id}/800/800`;
-                      const src = images.length > 0 ? images[Math.min(pieceModalImageIndex, images.length - 1)] : (selectedPiece.image_url || fallback);
+                      const idx = Math.min(pieceModalImageIndex, Math.max(0, images.length - 1));
+                      const src =
+                        images.length > 0
+                          ? String(images[idx] || "").trim()
+                          : String(selectedPiece.image_url || "").trim();
                       const modalExclusivity = pieceLuxuryExclusivityBadges(selectedPiece, t);
                       return (
                         <>
-                          <img src={src} alt={selectedPiece.title} decoding="async" className="w-full h-full object-cover" />
+                          {src ? (
+                            <img src={src} alt={selectedPiece.title} decoding="async" className="w-full h-full object-cover" />
+                          ) : (
+                            <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-none" className="border-0" />
+                          )}
                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgba(0,0,0,0.82)_100%)]" aria-hidden />
                           {images.length > 1 && (
                             <>
@@ -17483,7 +17503,11 @@ const PieceCard = ({ piece, onBuy, onReserve, onViewDetails, hideAction, extraAc
   return (
   <Card className="group product-card transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" hoverGlow={false}>
     <div className="aspect-square rounded-2xl bg-[#121212] mb-4 overflow-hidden relative cursor-pointer border border-[var(--border-soft)] jewel-hover-wrap" onClick={() => onViewDetails?.(piece)}>
-      <img src={piece.image_url || `https://picsum.photos/seed/${piece.id}/600/600`} alt={piece.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+      {piece.image_url?.trim() ? (
+        <img src={piece.image_url} alt={piece.title} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+      ) : (
+        <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-2xl" className="border-0" />
+      )}
       {onToggleFavorite && (
         <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10 backdrop-blur-sm transition-colors" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? (t ? t('piece.remove_from_favorites') : 'Remove from favorites') : (t ? t('piece.add_to_favorites') : 'Add to favorites')}>
           <Heart className={`w-5 h-5 transition-colors ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />
@@ -17612,7 +17636,11 @@ const AuctionCard = ({ auction, onBid, onViewDetails, userId, isFavorite, onTogg
   return (
     <Card className="group hover:border-amber-600/30 transition-all">
       <div className="aspect-square rounded-2xl bg-zinc-800 mb-4 overflow-hidden relative cursor-pointer" onClick={() => onViewDetails?.(auction.masterpiece_id)}>
-        <img src={auction.image_url || `https://picsum.photos/seed/${auction.id}/600/600`} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+        {auction.image_url?.trim() ? (
+          <img src={auction.image_url} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+        ) : (
+          <LuxuryImagePlaceholder label="IMAGE_AUCTION" mode="fill" roundedClass="rounded-2xl" className="border-0" />
+        )}
         {onToggleFavorite && (
           <button type="button" className="absolute top-3 left-3 p-2 rounded-full bg-black/50 hover:bg-black/70 z-10" onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }} aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
             <Heart className={`w-5 h-5 ${isFavorite ? 'fill-amber-500 text-amber-500' : 'text-white'}`} />

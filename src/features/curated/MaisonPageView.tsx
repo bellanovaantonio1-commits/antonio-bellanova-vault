@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "motion/react";
 import type { Masterpiece } from "../../types";
 import { MessageCircle, ChevronRight } from "lucide-react";
+import { LuxuryImagePlaceholder } from "../../components/LuxuryImagePlaceholder";
 
 const sectionReveal = {
   initial: { opacity: 0, y: 26 },
@@ -66,7 +67,7 @@ export function MaisonPageView({
 }) {
   const renderPieceCard = (piece: Masterpiece, compact?: boolean) => {
     const consultFirst = pieceRequiresConsultationFirst(piece);
-    const img = piece.image_url || `https://picsum.photos/seed/${piece.id}/800/800`;
+    const img = String(piece.image_url || "").trim();
     return (
       <div
         key={piece.id}
@@ -81,7 +82,11 @@ export function MaisonPageView({
             compact ? "aspect-[4/5]" : "aspect-square"
           }`}
         >
-          <img src={img} alt={piece.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          {img ? (
+            <img src={img} alt={piece.title} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          ) : (
+            <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-2xl border-zinc-700/50" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-90" />
           <div className="absolute bottom-0 left-0 right-0 p-6 text-left">
             <p className="font-serif italic text-lg text-[#F5F5F5] tracking-wide">{piece.title}</p>
@@ -155,8 +160,11 @@ export function MaisonPageView({
                       : { background: "linear-gradient(145deg, #1a1510 0%, #0a0a0a 50%, #12100c 100%)" }
                   }
                 >
-                  <div className="absolute inset-0 bg-black/45" />
-                  <div className="relative flex min-h-[56vh] flex-col items-center justify-center px-8 py-20 text-center">
+                  {!bg && (
+                    <LuxuryImagePlaceholder label="IMAGE_HERO" mode="fill" roundedClass="rounded-none border-0" className="z-0" />
+                  )}
+                  <div className="absolute inset-0 bg-black/45 z-[1]" />
+                  <div className="relative z-[2] flex min-h-[56vh] flex-col items-center justify-center px-8 py-20 text-center">
                     <h2 className="max-w-3xl font-serif text-4xl italic leading-tight text-[#F5F5F5] sm:text-5xl">{str(c.title)}</h2>
                     {str(c.subtitle) && (
                       <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-[#CCCCCC]">{str(c.subtitle)}</p>
@@ -248,9 +256,9 @@ export function MaisonPageView({
             const imgBlock = (
               <div className="relative min-h-[320px] overflow-hidden rounded-2xl border border-[var(--border-soft)] bg-zinc-900/50 lg:min-h-[420px]">
                 {img ? (
-                  <img src={img} alt="" className="h-full w-full object-cover" />
+                  <img src={img} alt="" className="h-full w-full min-h-[320px] object-cover" />
                 ) : (
-                  <div className="flex h-full min-h-[320px] items-center justify-center text-zinc-600">{t("maison.split_image_placeholder")}</div>
+                  <LuxuryImagePlaceholder label="IMAGE_COLLECTION" mode="fill" roundedClass="rounded-2xl border-[var(--border-soft)]" />
                 )}
               </div>
             );

@@ -1,5 +1,6 @@
 import React from "react";
 import { Diamond, ArrowLeft, Clock3, ShieldCheck, FileText, Receipt, Wallet } from "lucide-react";
+import { LuxuryImagePlaceholder } from "../../components/LuxuryImagePlaceholder";
 
 type Props = {
   pathname: string;
@@ -210,31 +211,8 @@ const NAV = [
   { key: "login", href: "/login" },
 ];
 
-/** Raw token e.g. `[IMAGE_HERO]` → `IMAGE_HERO` für zentrierten Platzhalter-Text */
-function placeholderToken(label: string): string {
-  const s = label.trim();
-  if (s.startsWith("[") && s.endsWith("]")) return s.slice(1, -1);
-  return s;
-}
-
 function imageShell(label: string, ratio = "aspect-[16/9]") {
-  const token = placeholderToken(label);
-  return (
-    <div
-      role="img"
-      aria-label={token}
-      className={`relative isolate w-full min-h-[140px] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 ${ratio}`}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-zinc-800/50 via-zinc-950 to-black" />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_35%,rgba(212,175,55,0.07),transparent_65%)]" />
-      <div className="pointer-events-none absolute inset-0 skeleton opacity-35" />
-      <div className="absolute inset-0 flex items-center justify-center px-4 py-6">
-        <span className="max-w-full text-center font-mono text-[10px] uppercase tracking-[0.28em] text-white/40 sm:text-[11px]">
-          {token}
-        </span>
-      </div>
-    </div>
-  );
+  return <LuxuryImagePlaceholder label={label} aspectClass={ratio} roundedClass="rounded-3xl" />;
 }
 
 function SiteHeader({

@@ -29,6 +29,7 @@ import {
   splitColumnOf,
 } from "./layoutHelpers";
 import { MarketplaceSortableBlock } from "./MarketplaceSortableBlock";
+import { LuxuryImagePlaceholder } from "../../components/LuxuryImagePlaceholder";
 
 const DND_MIME = "application/x-ab-marketplace";
 
@@ -85,8 +86,8 @@ function SectionAppendDropZone({ sectionId }: { sectionId: string }) {
   );
 }
 
-function piecePrimaryImage(piece: Masterpiece): string {
-  return piece.image_url || `https://picsum.photos/seed/${piece.id}/800/800`;
+function piecePrimaryImageUrl(piece: Masterpiece): string {
+  return String(piece.image_url || "").trim();
 }
 
 function defaultBlock(type: MarketplaceBlock["type"], order: number): MarketplaceBlock {
@@ -373,7 +374,7 @@ export function MarketplaceLiveLayout({
         }
         const mode: ProductDisplayMode = block.display_mode ?? "full";
         const filtered = !piecePassesFilter(pid);
-        const img = piecePrimaryImage(piece);
+        const img = piecePrimaryImageUrl(piece);
         const openPiece = () => onOpenPiece(piece);
 
         let card: React.ReactNode;
@@ -391,13 +392,17 @@ export function MarketplaceLiveLayout({
               onClick={filtered ? undefined : wrapClick(openPiece)}
             >
               <div className="relative overflow-hidden bg-[#0A0A0A] aspect-[3/4] md:aspect-[4/5]">
-                <img
-                  src={img}
-                  alt={piece.title}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover transition-[transform,filter] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:brightness-[1.04]"
-                />
+                {img ? (
+                  <img
+                    src={img}
+                    alt={piece.title}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-[transform,filter] duration-[680ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06] group-hover:brightness-[1.04]"
+                  />
+                ) : (
+                  <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-none border-zinc-700/40" compact />
+                )}
                 <div
                   className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                   style={{ boxShadow: "inset 0 0 90px rgba(212,175,55,0.14)" }}
@@ -414,13 +419,17 @@ export function MarketplaceLiveLayout({
                 onClick={filtered ? undefined : wrapClick(openPiece)}
               >
                 <div className="relative overflow-hidden bg-[#0A0A0A] aspect-square">
-                  <img
-                    src={img}
-                    alt={piece.title}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
-                  />
+                  {img ? (
+                    <img
+                      src={img}
+                      alt={piece.title}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <LuxuryImagePlaceholder label="IMAGE_PRODUCT" mode="fill" roundedClass="rounded-none border-zinc-700/40" compact />
+                  )}
                 </div>
               </button>
               <h4 className="mt-6 md:mt-8 font-[family-name:var(--font-serif)] text-lg md:text-xl text-[#F5F5F5] tracking-wide leading-snug">
@@ -480,7 +489,12 @@ export function MarketplaceLiveLayout({
             {url ? (
               <img src={url} alt={block.imageAlt || ""} className="w-full h-full min-h-[200px] max-h-[70vh] object-cover" />
             ) : (
-              <div className="min-h-[200px] flex items-center justify-center text-[#666666] text-sm">{t("marketplace.editor.image_placeholder")}</div>
+              <LuxuryImagePlaceholder
+                label="IMAGE_GALLERY"
+                mode="fill"
+                roundedClass="rounded-2xl"
+                className="min-h-[200px] max-h-[70vh] border-[var(--border-soft)]"
+              />
             )}
           </div>
         );
