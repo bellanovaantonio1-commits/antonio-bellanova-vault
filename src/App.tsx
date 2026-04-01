@@ -4366,6 +4366,8 @@ export default function App() {
     const pathname = window.location.pathname || '';
     const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
     if (verifyMatch) return 'verify';
+    /** Echtes Vault-Dashboard: bis /api/me geladen ist, Login-Tab (kein Luxury-Placeholder mehr unter /dashboard) */
+    if (pathname === '/dashboard') return 'login';
     /** Öffentliche Entdecken-Ansicht — gleiche URL wie nach „Als Gast fortfahren“ */
     if (pathname === '/world' || pathname.startsWith('/world/')) return 'world';
     const params = new URLSearchParams(window.location.search);
@@ -5292,9 +5294,25 @@ export default function App() {
       const pathNow = typeof window !== 'undefined' ? window.location.pathname || '' : '';
       const onWorldPath = pathNow === '/world' || pathNow.startsWith('/world/');
       if (data.is_guest || data.role === 'guest') {
-        setView('world');
-        stripAuthViewQueryParam();
-        if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
+        /** /dashboard = echtes Vault-Dashboard (Registrierungs-Hinweis); nicht nach /world schicken */
+        if (pathNow === '/dashboard') {
+          setView('dashboard');
+          stripAuthViewQueryParam();
+        } else {
+          setView('world');
+          stripAuthViewQueryParam();
+          if (typeof window !== 'undefined') window.history.replaceState({}, '', '/world');
+        }
+        if (data.notification_prefs) {
+          try {
+            const prefs = typeof data.notification_prefs === 'string' ? JSON.parse(data.notification_prefs) : data.notification_prefs;
+            if (prefs && typeof prefs === 'object') setNotificationPrefs(prev => ({ ...prev, ...prefs }));
+          } catch (_) {}
+        }
+        if (data.force_password_change || (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('must_change_password') === '1')) {
+          setForcePasswordChangeMode(true);
+          setShowPasswordChangeModal(true);
+        }
         return;
       }
       /** Eingeloggte Nutzer: URL /world bewusst = öffentliche Sammlung, nicht Dashboard überschreiben */

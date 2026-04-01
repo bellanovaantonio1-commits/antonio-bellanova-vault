@@ -314,7 +314,6 @@ export function isLuxuryPublicPath(pathname: string): boolean {
     pathname === "/tresor" ||
     pathname === "/login" ||
     pathname === "/kontakt" ||
-    pathname === "/dashboard" ||
     /^\/produkt\/\d+$/.test(pathname) ||
     /^\/kollektion\/[^/]+$/.test(pathname) ||
     /^\/auktion\/\d+$/.test(pathname)
@@ -336,28 +335,12 @@ export function LuxuryPublicSite({ pathname, language, onLanguageChange, onNavig
           <input className="w-full rounded-xl bg-zinc-900 border border-zinc-800 p-3" placeholder={tr("email")} />
           <input type="password" className="w-full rounded-xl bg-zinc-900 border border-zinc-800 p-3" placeholder={tr("password")} />
           <button
+            type="button"
             onClick={() => onNavigate("/dashboard")}
             className="w-full rounded-full py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500"
           >
             {tr("sign_in")}
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (pathname === "/dashboard") {
-    return (
-      <div className="min-h-screen bg-[#070707] text-zinc-100">
-        <div className="mx-auto max-w-[1200px] px-6 py-12 space-y-8">
-          <h1 className="font-serif italic text-4xl">Dashboard</h1>
-          <div className="grid md:grid-cols-3 gap-5">
-            {[tr("my_vault"), tr("my_pieces"), tr("documents")].map((x) => (
-              <div key={x} className="rounded-2xl border border-white/10 bg-black/30 p-6">
-                <p className="font-serif italic text-2xl">{x}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     );
