@@ -4366,12 +4366,17 @@ export default function App() {
     const pathname = window.location.pathname || '';
     const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
     if (verifyMatch) return 'verify';
-    /** Echtes Vault-Dashboard: bis /api/me geladen ist, Login-Tab (kein Luxury-Placeholder mehr unter /dashboard) */
-    if (pathname === '/dashboard') return 'login';
     /** Öffentliche Entdecken-Ansicht — gleiche URL wie nach „Als Gast fortfahren“ */
     if (pathname === '/world' || pathname.startsWith('/world/')) return 'world';
     const params = new URLSearchParams(window.location.search);
     const v = params.get('view');
+    /** /dashboard?view=register|login: Auth-Tab vor /api/me */
+    if (pathname === '/dashboard') {
+      if (v === 'reset-password' && params.get('token')) return 'reset-password';
+      if (v === 'forgot-password') return 'forgot-password';
+      if (v === 'register') return 'register';
+      return 'login';
+    }
     if (v === 'reset-password' && params.get('token')) return 'reset-password';
     if (v === 'forgot-password') return 'forgot-password';
     if (v === 'register') return 'register';
@@ -7884,7 +7889,13 @@ export default function App() {
   }
 
   const currentPathname = typeof window !== 'undefined' ? window.location.pathname || '/' : '/';
-  if (isLuxuryPublicPath(currentPathname)) {
+  const authViewFromUrl =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('view') : null;
+  /** Sonst landet Registrierung auf /?view=register unter LuxuryPublic (nur IMAGE_HERO) */
+  const bypassLuxuryForVaultAuth =
+    authViewFromUrl != null &&
+    ['login', 'register', 'forgot-password', 'reset-password'].includes(authViewFromUrl);
+  if (!bypassLuxuryForVaultAuth && isLuxuryPublicPath(currentPathname)) {
     return (
       <LuxuryPublicSite
         pathname={currentPathname}
@@ -8415,7 +8426,8 @@ export default function App() {
         setShowMaintenanceAfterLoginAttempt(false);
         setView(targetView);
         if (typeof window !== 'undefined') {
-          window.history.replaceState({}, '', targetView === 'register' ? '/?view=register' : '/');
+          const q = targetView === 'register' ? 'register' : 'login';
+          window.history.replaceState({}, '', `/dashboard?view=${q}`);
         }
       });
   };
@@ -9137,16 +9149,18 @@ export default function App() {
             {view === 'dashboard' && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
                 {isGuest && (
-                  <Card className="border-amber-500/35 bg-gradient-to-br from-amber-500/[0.12] via-zinc-950 to-zinc-950 space-y-4 p-8 md:p-10" hoverGlow>
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-amber-500/90">{t('guest.dashboard_register_eyebrow')}</p>
-                    <h3 className="text-2xl md:text-3xl font-serif italic text-[#F5F5F5]">{t('guest.dashboard_register_title')}</h3>
-                    <p className="text-zinc-400 max-w-2xl leading-relaxed">{t('guest.dashboard_register_body')}</p>
-                    <div className="flex flex-wrap gap-3 pt-2">
-                      <Button onClick={() => leaveGuestSessionForAuth('register')}>{t('auth.create_account')}</Button>
-                      <Button variant="outline" onClick={() => leaveGuestSessionForAuth('login')}>{t('auth.sign_in')}</Button>
-                      <Button variant="ghost" className="text-zinc-400" onClick={() => setView('marketplace')}>{t('maison.catalog_full')}</Button>
+                  <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-4 md:px-6 md:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="min-w-0 space-y-1">
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-amber-500/90">{t('guest.dashboard_register_eyebrow')}</p>
+                      <p className="text-sm font-serif italic text-zinc-200 md:text-base">{t('guest.dashboard_register_title')}</p>
+                      <p className="text-xs text-zinc-500 max-w-2xl leading-relaxed">{t('guest.dashboard_register_body')}</p>
                     </div>
-                  </Card>
+                    <div className="flex flex-wrap gap-2 shrink-0">
+                      <Button size="sm" onClick={() => leaveGuestSessionForAuth('register')}>{t('auth.create_account')}</Button>
+                      <Button size="sm" variant="outline" onClick={() => leaveGuestSessionForAuth('login')}>{t('auth.sign_in')}</Button>
+                      <Button size="sm" variant="ghost" className="text-zinc-400" onClick={() => setView('marketplace')}>{t('maison.catalog_full')}</Button>
+                    </div>
+                  </div>
                 )}
                 {!isGuest && (
                 <>
@@ -9806,6 +9820,8 @@ export default function App() {
                     </div>
                   </Card>
                 )}
+                </>
+                )}
 
                 {!isLuxuryCollectorNav && (
                 <div className="space-y-4">
@@ -9839,8 +9855,6 @@ export default function App() {
                     );})}
                   </div>
                 </div>
-                )}
-                </>
                 )}
               </motion.div>
             )}
