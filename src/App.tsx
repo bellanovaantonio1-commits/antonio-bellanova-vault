@@ -7860,6 +7860,8 @@ export default function App() {
     return (
       <LuxuryPublicSite
         pathname={currentPathname}
+        language={language}
+        onLanguageChange={(lang) => setLanguage(lang)}
         onNavigate={(path) => {
           if (typeof window === 'undefined') return;
           window.location.assign(path);
