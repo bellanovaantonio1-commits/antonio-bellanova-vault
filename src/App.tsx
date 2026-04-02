@@ -760,6 +760,13 @@ const TRANSLATIONS: any = {
     "admin.remove": "Entfernen",
     "admin.create_masterpiece": "Meisterstück erstellen",
     "admin.edit_piece": "Stück bearbeiten",
+    "admin.piece_updated": "Änderungen gespeichert.",
+    "admin.piece_images_title": "Produktbilder",
+    "admin.piece_images_hint": "Erstes Bild = Kartenbild im Marktplatz. Hochladen, per URL ergänzen oder entfernen; „Als Hauptbild“ setzt die Reihenfolge.",
+    "admin.piece_images_primary": "Hauptbild",
+    "admin.piece_images_make_primary": "Als Hauptbild",
+    "admin.piece_images_add_url": "URL hinzufügen",
+    "admin.piece_images_invalid_url": "Bitte eine gültige http(s)- oder data:-URL eingeben.",
     "admin.advisors": "Berater",
     "admin.invite_advisor": "Einladen",
     "admin.generate_password": "Passwort erzeugen",
@@ -2053,6 +2060,13 @@ const TRANSLATIONS: any = {
     "admin.save_button": "Save",
     "admin.save_saving": "Saving…",
     "admin.remove": "Remove",
+    "admin.piece_updated": "Changes saved.",
+    "admin.piece_images_title": "Product images",
+    "admin.piece_images_hint": "First image is the card image on the marketplace. Upload, add a URL, or remove; “Set as primary” controls order.",
+    "admin.piece_images_primary": "Primary",
+    "admin.piece_images_make_primary": "Set as primary",
+    "admin.piece_images_add_url": "Add URL",
+    "admin.piece_images_invalid_url": "Enter a valid http(s) or data: URL.",
     "admin.advisors": "Advisors",
     "admin.invite_advisor": "Invite",
     "admin.generate_password": "Generate password",
@@ -3286,6 +3300,13 @@ const TRANSLATIONS: any = {
     "admin.save_button": "Salva",
     "admin.save_saving": "Salvataggio…",
     "admin.remove": "Rimuovi",
+    "admin.piece_updated": "Modifiche salvate.",
+    "admin.piece_images_title": "Immagini prodotto",
+    "admin.piece_images_hint": "La prima immagine è la scheda nel mercato. Carica, aggiungi un URL o rimuovi; «Imposta come principale» definisce l’ordine.",
+    "admin.piece_images_primary": "Principale",
+    "admin.piece_images_make_primary": "Imposta come principale",
+    "admin.piece_images_add_url": "Aggiungi URL",
+    "admin.piece_images_invalid_url": "Inserire un URL http(s) o data: valido.",
     "admin.advisors": "Consulenti",
     "admin.invite_advisor": "Invita",
     "admin.generate_password": "Genera password",
@@ -5254,12 +5275,20 @@ export default function App() {
         return g === 'male' || g === 'female' || g === 'unisex' ? g : 'unisex';
       })(),
     });
+    setEditPieceImageUrlDraft('');
+    setEditPieceDraggingOver(false);
   }, [editingPiece]);
 
   const handleSaveEditPiece = async () => {
     if (!editingPiece) return;
     setLoading(true);
     try {
+      const urlsRaw = Array.isArray(editPieceForm.image_urls) ? editPieceForm.image_urls : [];
+      const imageUrlsClean = urlsRaw.map((u: string) => String(u || '').trim()).filter(Boolean);
+      const primaryFromList = imageUrlsClean[0];
+      const fallbackUrl = String(editPieceForm.image_url || '').trim();
+      const primaryImage = primaryFromList || fallbackUrl || '';
+      const imageUrlsPayload = imageUrlsClean.length > 0 ? imageUrlsClean : (primaryImage ? [primaryImage] : []);
       const description_i18n = [editPieceForm.description, editPieceForm.description_en, editPieceForm.description_it].some(Boolean)
         ? { de: editPieceForm.description || undefined, en: editPieceForm.description_en?.trim() || undefined, it: editPieceForm.description_it?.trim() || undefined }
         : undefined;
@@ -5289,8 +5318,8 @@ export default function App() {
           purchase_price: editPieceForm.purchase_price !== undefined && editPieceForm.purchase_price !== '' ? parseFloat(editPieceForm.purchase_price) : undefined,
           estimated_market_value: editPieceForm.estimated_market_value !== undefined && editPieceForm.estimated_market_value !== '' ? parseFloat(editPieceForm.estimated_market_value) : undefined,
           price_visibility_rules: editPieceForm.price_visibility_rules || undefined,
-          image_url: editPieceForm.image_url,
-          image_urls: Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length > 0 ? editPieceForm.image_urls : undefined,
+          image_url: primaryImage,
+          image_urls: imageUrlsPayload.length > 0 ? imageUrlsPayload : [],
           consultation_required: !!editPieceForm.consultation_required,
           made_to_order: !!editPieceForm.made_to_order,
           featured_masterpiece: !!editPieceForm.featured_masterpiece,
@@ -5298,7 +5327,7 @@ export default function App() {
         })
       });
       if (res.ok) {
-        notifyUser(t('admin.piece_created'), 'success');
+        notifyUser(t('admin.piece_updated'), 'success');
         setEditingPiece(null);
         fetchData();
       } else {
@@ -7917,7 +7946,10 @@ export default function App() {
   };
 
   const masterpieceFileInputRef = useRef<HTMLInputElement>(null);
+  const editPieceFileInputRef = useRef<HTMLInputElement>(null);
   const [draggingOverImages, setDraggingOverImages] = useState(false);
+  const [editPieceDraggingOver, setEditPieceDraggingOver] = useState(false);
+  const [editPieceImageUrlDraft, setEditPieceImageUrlDraft] = useState('');
   const processImageFiles = (files: File[]) => {
     if (!files?.length) return;
     const list = Array.from(files).filter(f => f.type.startsWith('image/'));
@@ -7972,6 +8004,64 @@ export default function App() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files?.length) processImageFiles(Array.from(files));
+    e.target.value = '';
+  };
+
+  const processEditPieceImageFiles = (files: File[]) => {
+    if (!files?.length) return;
+    const list = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!list.length) return;
+    const results: string[] = new Array(list.length);
+    let done = 0;
+    const maxSize = 1200;
+    const compress = (dataUrl: string): Promise<string> => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          let w = img.width, h = img.height;
+          if (w > maxSize || h > maxSize) {
+            if (w > h) { h = (h / w) * maxSize; w = maxSize; } else { w = (w / h) * maxSize; h = maxSize; }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { resolve(dataUrl); return; }
+          ctx.drawImage(img, 0, 0, w, h);
+          try {
+            resolve(canvas.toDataURL('image/jpeg', 0.85));
+          } catch {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      });
+    };
+    list.forEach((file, i) => {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const dataUrl = reader.result as string;
+        if (!dataUrl || typeof dataUrl !== 'string') { done += 1; if (done === list.length) finish(); return; }
+        const compressed = await compress(dataUrl);
+        results[i] = compressed;
+        done += 1;
+        if (done === list.length) finish();
+      };
+      reader.readAsDataURL(file);
+    });
+    const finish = () => {
+      const newImages = results.filter(Boolean);
+      setEditPieceForm((f: any) => {
+        const prev = Array.isArray(f.image_urls) && f.image_urls.length ? [...f.image_urls] : (f.image_url ? [String(f.image_url)] : []);
+        const combined = [...prev, ...newImages];
+        return { ...f, image_urls: combined, image_url: combined[0] || '' };
+      });
+    };
+  };
+  const handleEditPieceFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) processEditPieceImageFiles(Array.from(files));
     e.target.value = '';
   };
 
@@ -13594,6 +13684,119 @@ export default function App() {
                                     <span className="text-sm text-zinc-300">{opt.de}</span>
                                   </label>
                                 ))}
+                              </div>
+                            </div>
+                            <div className="space-y-4 pt-2 border-t border-zinc-800/80">
+                              <div>
+                                <label className="text-xs uppercase tracking-widest text-zinc-500 font-semibold ml-1">{t('admin.piece_images_title')}</label>
+                                <p className="text-xs text-zinc-500 mt-1 ml-1 leading-relaxed">{t('admin.piece_images_hint')}</p>
+                              </div>
+                              <input ref={editPieceFileInputRef} id="edit-piece-images-upload" type="file" className="sr-only" accept="image/*" multiple onChange={handleEditPieceFileUpload} />
+                              <label htmlFor="edit-piece-images-upload" className="block cursor-pointer">
+                                <div
+                                  className={`border-2 border-dashed rounded-2xl min-h-[140px] flex flex-col items-center justify-center p-6 text-center transition-all relative overflow-hidden ${editPieceDraggingOver ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-800 hover:border-amber-600/50 bg-zinc-950/40'}`}
+                                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setEditPieceDraggingOver(true); }}
+                                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setEditPieceDraggingOver(false); }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    setEditPieceDraggingOver(false);
+                                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                                    if (files.length) processEditPieceImageFiles(files);
+                                  }}
+                                >
+                                  {(() => {
+                                    const imgs: string[] = Array.isArray(editPieceForm.image_urls) && editPieceForm.image_urls.length
+                                      ? editPieceForm.image_urls.map((u: string) => String(u || '').trim()).filter(Boolean)
+                                      : (editPieceForm.image_url ? [String(editPieceForm.image_url).trim()].filter(Boolean) : []);
+                                    if (imgs.length === 0) {
+                                      return (
+                                        <>
+                                          <Upload className="w-10 h-10 text-zinc-600 mb-2" />
+                                          <p className="text-sm text-zinc-400">{t('admin.drop_image_drag')}</p>
+                                        </>
+                                      );
+                                    }
+                                    return (
+                                      <div className="w-full flex flex-wrap gap-3 justify-center items-start p-1">
+                                        {imgs.map((url, idx) => (
+                                          <div key={`${idx}-${url.slice(0, 48)}`} className="relative w-[100px] h-[100px] rounded-xl overflow-hidden border border-zinc-700 shrink-0 group/epimg bg-black">
+                                            <img src={url} alt="" className="w-full h-full object-cover" />
+                                            {idx === 0 && (
+                                              <span className="absolute bottom-0 left-0 right-0 bg-amber-600/95 text-[9px] text-center text-white font-bold py-0.5">{t('admin.piece_images_primary')}</span>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/65 opacity-0 group-hover/epimg:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-1">
+                                              {idx > 0 && (
+                                                <button
+                                                  type="button"
+                                                  className="text-[10px] uppercase tracking-wide text-amber-300 hover:text-amber-200 px-2 py-1 rounded bg-zinc-900/90 border border-amber-600/40"
+                                                  onClick={(ev) => {
+                                                    ev.preventDefault();
+                                                    ev.stopPropagation();
+                                                    setEditPieceForm((f: any) => {
+                                                      const cur = Array.isArray(f.image_urls) && f.image_urls.length
+                                                        ? [...f.image_urls]
+                                                        : (f.image_url ? [String(f.image_url)] : []);
+                                                      const next = [cur[idx], ...cur.filter((_, i) => i !== idx)].filter(Boolean);
+                                                      return { ...f, image_urls: next, image_url: next[0] || '' };
+                                                    });
+                                                  }}
+                                                >
+                                                  {t('admin.piece_images_make_primary')}
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                className="text-red-300 hover:text-red-200 p-1"
+                                                title={t('admin.remove')}
+                                                onClick={(ev) => {
+                                                  ev.preventDefault();
+                                                  ev.stopPropagation();
+                                                  setEditPieceForm((f: any) => {
+                                                    const cur = Array.isArray(f.image_urls) && f.image_urls.length
+                                                      ? [...f.image_urls]
+                                                      : (f.image_url ? [String(f.image_url)] : []);
+                                                    const next = cur.filter((_, i) => i !== idx);
+                                                    return { ...f, image_urls: next, image_url: next[0] || '' };
+                                                  });
+                                                }}
+                                              >
+                                                <Plus className="w-6 h-6 rotate-45" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              </label>
+                              <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                                <div className="flex-1 min-w-0">
+                                  <Input label={t('admin.field_image_url')} value={editPieceImageUrlDraft} onChange={(e: any) => setEditPieceImageUrlDraft(e.target.value)} placeholder={t('admin.drop_image_url_placeholder')} />
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="shrink-0"
+                                  onClick={() => {
+                                    const u = editPieceImageUrlDraft.trim();
+                                    if (!u || (!u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('data:'))) {
+                                      notifyUser(t('admin.piece_images_invalid_url'), 'error');
+                                      return;
+                                    }
+                                    setEditPieceForm((f: any) => {
+                                      const prev = Array.isArray(f.image_urls) && f.image_urls.length
+                                        ? [...f.image_urls]
+                                        : (f.image_url ? [String(f.image_url)] : []);
+                                      const next = [...prev, u];
+                                      return { ...f, image_urls: next, image_url: next[0] || '' };
+                                    });
+                                    setEditPieceImageUrlDraft('');
+                                  }}
+                                >
+                                  {t('admin.piece_images_add_url')}
+                                </Button>
                               </div>
                             </div>
                             <div className="flex gap-3 pt-2">
