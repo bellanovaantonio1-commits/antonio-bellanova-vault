@@ -930,11 +930,26 @@ const TRANSLATIONS: any = {
     "auctions.no_active": "Derzeit keine aktiven Auktionen.",
     "auctions.guest_gate_title": "Auktionen nur mit persönlichem Konto",
     "auctions.guest_gate_body": "Private Auktionen stehen nur registrierten Kundinnen und Kunden offen. Bitte legen Sie ein Konto an oder melden Sie sich an — danach können Sie Auktionen einsehen und Gebote abgeben.",
-    "auctions.participation_title": "Registrierung für Auktionsteilnahme",
-    "auctions.participation_body": "Um Auktionen einzusehen und Gebote abzugeben, bestätigen Sie bitte einmalig Ihre Teilnahme an privaten Auktionen. Ohne diese Bestätigung ist der Auktionsbereich nicht freigeschaltet.",
-    "auctions.participation_checkbox": "Ich möchte an privaten Auktionen teilnehmen und nehme die Bedingungen zur Gebotsabgabe zur Kenntnis.",
-    "auctions.participation_confirm": "Auktionen freischalten",
-    "auctions.participation_note": "Die Freigabe gilt für dieses Gerät. Bei Fragen wenden Sie sich an das Atelier.",
+    "auctions.participation_title": "Auktionsteilnahme beantragen",
+    "auctions.participation_body": "Für alle Kundinnen und Kunden (außer VIP) ist eine gesonderte Freigabe für private Auktionen erforderlich. Nach Ihrem Antrag prüft das Atelier die Teilnahme und schaltet den Bereich frei.",
+    "auctions.participation_checkbox": "Ich beantrage die Teilnahme an privaten Auktionen und nehme die Bedingungen zur Gebotsabgabe zur Kenntnis.",
+    "auctions.participation_confirm": "Antrag einreichen",
+    "auctions.participation_note": "VIP-Mitglieder sind von dieser Prüfung ausgenommen. Sie erhalten nach manueller Freigabe Zugriff auf Katalog und Gebote.",
+    "auctions.access_pending_title": "Antrag in Prüfung",
+    "auctions.access_pending_body": "Ihr Antrag auf Auktionsteilnahme ist eingegangen. Das Atelier prüft dies in Kürze. Sie werden informiert, sobald der Zugang freigeschaltet ist.",
+    "auctions.access_rejected_title": "Teilnahme nicht freigeschaltet",
+    "auctions.access_rejected_body": "Ihr Antrag wurde abgelehnt oder zurückgezogen. Bei Rückfragen kontaktieren Sie bitte direkt das Atelier.",
+    "auctions.access_request_sent": "Antrag eingereicht. Das Atelier prüft Ihre Teilnahme.",
+    "admin.auction_access_pending_list": "Offene Auktions-Anträge",
+    "admin.auction_access_col": "Auktion",
+    "admin.auction_access_approve_btn": "Freigeben",
+    "admin.auction_access_reject_btn": "Ablehnen",
+    "admin.auction_access_no_pending": "Keine offenen Auktions-Anträge.",
+    "admin.auction_access_opt_none": "Auktion: —",
+    "admin.auction_access_opt_pending": "Antrag",
+    "admin.auction_access_opt_approved": "Freigegeben",
+    "admin.auction_access_opt_rejected": "Abgelehnt",
+    "admin.auction_access_updated": "Auktions-Freigabe aktualisiert.",
     "vault.no_pieces": "Sie besitzen noch keine Stücke.",
     "vault.no_certs": "Noch keine Zertifikate ausgestellt.",
     "vault.reminder_unsigned": "warten auf Ihre Unterschrift.",
@@ -2200,11 +2215,26 @@ const TRANSLATIONS: any = {
     "auctions.no_active": "No active auctions at this time.",
     "auctions.guest_gate_title": "Auctions require a personal account",
     "auctions.guest_gate_body": "Private auctions are available to registered clients only. Please create an account or sign in — then you can view auctions and place bids.",
-    "auctions.participation_title": "Register for auction participation",
-    "auctions.participation_body": "To view auctions and place bids, please confirm once that you wish to participate in private auctions. Without this confirmation, the auction area stays locked.",
-    "auctions.participation_checkbox": "I wish to participate in private auctions and acknowledge the bidding terms.",
-    "auctions.participation_confirm": "Unlock auctions",
-    "auctions.participation_note": "This unlock applies to this device. Contact the atelier if you need assistance.",
+    "auctions.participation_title": "Apply for auction participation",
+    "auctions.participation_body": "All clients except VIP members need separate approval for private auctions. After you submit a request, the atelier will review and enable access.",
+    "auctions.participation_checkbox": "I apply to participate in private auctions and acknowledge the bidding terms.",
+    "auctions.participation_confirm": "Submit request",
+    "auctions.participation_note": "VIP members are exempt from this review. You will gain access after manual approval.",
+    "auctions.access_pending_title": "Request under review",
+    "auctions.access_pending_body": "Your auction participation request has been received. The atelier will review it shortly.",
+    "auctions.access_rejected_title": "Participation not enabled",
+    "auctions.access_rejected_body": "Your request was declined. Please contact the atelier if you have questions.",
+    "auctions.access_request_sent": "Request submitted. The atelier will review your participation.",
+    "admin.auction_access_pending_list": "Pending auction access requests",
+    "admin.auction_access_col": "Auction",
+    "admin.auction_access_approve_btn": "Approve",
+    "admin.auction_access_reject_btn": "Decline",
+    "admin.auction_access_no_pending": "No pending auction access requests.",
+    "admin.auction_access_opt_none": "Auction: —",
+    "admin.auction_access_opt_pending": "Pending",
+    "admin.auction_access_opt_approved": "Approved",
+    "admin.auction_access_opt_rejected": "Rejected",
+    "admin.auction_access_updated": "Auction access updated.",
     "vault.no_pieces": "You don't own any pieces yet.",
     "vault.portfolio_pdf": "Portfolio (PDF)",
     "vault.portfolio_csv": "Portfolio CSV",
@@ -3411,11 +3441,26 @@ const TRANSLATIONS: any = {
     "auctions.no_active": "Nessuna asta attiva.",
     "auctions.guest_gate_title": "Le aste richiedono un account personale",
     "auctions.guest_gate_body": "Le aste private sono riservate ai clienti registrati. Creare un account o accedere per visualizzare le aste e fare offerte.",
-    "auctions.participation_title": "Registrazione alla partecipazione alle aste",
-    "auctions.participation_body": "Per vedere le aste e fare offerte, confermare una volta la partecipazione alle aste private. Senza questa conferma l'area resta bloccata.",
-    "auctions.participation_checkbox": "Desidero partecipare alle aste private e prendo atto delle condizioni di offerta.",
-    "auctions.participation_confirm": "Sblocca aste",
-    "auctions.participation_note": "Lo sblocco vale per questo dispositivo. Contattare l'atelier per assistenza.",
+    "auctions.participation_title": "Richiesta partecipazione aste",
+    "auctions.participation_body": "Tutti i clienti (eccetto VIP) necessitano di un'autorizzazione separata per le aste private. Dopo l'invio, l'atelier esaminerà la richiesta.",
+    "auctions.participation_checkbox": "Richiedo di partecipare alle aste private e accetto le condizioni di offerta.",
+    "auctions.participation_confirm": "Invia richiesta",
+    "auctions.participation_note": "I membri VIP sono esenti. L'accesso sarà abilitato dopo l'approvazione manuale.",
+    "auctions.access_pending_title": "Richiesta in esame",
+    "auctions.access_pending_body": "La richiesta è stata ricevuta. L'atelier la esaminerà a breve.",
+    "auctions.access_rejected_title": "Partecipazione non abilitata",
+    "auctions.access_rejected_body": "La richiesta è stata respinta. Contattare l'atelier.",
+    "auctions.access_request_sent": "Richiesta inviata. L'atelier esaminerà la partecipazione.",
+    "admin.auction_access_pending_list": "Richieste accesso aste in sospeso",
+    "admin.auction_access_col": "Aste",
+    "admin.auction_access_approve_btn": "Approva",
+    "admin.auction_access_reject_btn": "Rifiuta",
+    "admin.auction_access_no_pending": "Nessuna richiesta aste in sospeso.",
+    "admin.auction_access_opt_none": "Aste: —",
+    "admin.auction_access_opt_pending": "In attesa",
+    "admin.auction_access_opt_approved": "Approvato",
+    "admin.auction_access_opt_rejected": "Respinto",
+    "admin.auction_access_updated": "Accesso aste aggiornato.",
     "vault.no_pieces": "Non possiedi ancora opere.",
     "vault.no_certs": "Nessun certificato emesso.",
     "vault.portfolio_pdf": "Portfolio (PDF)",
@@ -4606,7 +4651,7 @@ export default function App() {
   const [showAddressesModal, setShowAddressesModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
   const [showAccountRequiredModal, setShowAccountRequiredModal] = useState(false);
-  const [auctionGateBump, setAuctionGateBump] = useState(0);
+  const [auctionAccessRequestLoading, setAuctionAccessRequestLoading] = useState(false);
   const [auctionTermsChecked, setAuctionTermsChecked] = useState(false);
   const [forcePasswordChangeMode, setForcePasswordChangeMode] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
@@ -8444,18 +8489,24 @@ export default function App() {
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
   const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
-  void auctionGateBump;
+  const isVipActiveForAuctions = (() => {
+    const u = user as any;
+    const vipish = user.role === UserRole.VIP || u.role === 'vip' || u.is_vip === 1;
+    if (!vipish) return false;
+    if (!u.vip_expiry_date) return true;
+    try {
+      return new Date(u.vip_expiry_date) > new Date();
+    } catch {
+      return true;
+    }
+  })();
+  const auctionAccessStatus = String((user as any).auction_access_status || 'none').toLowerCase();
   const auctionCatalogAllowed =
     !isGuest &&
     (user.role === UserRole.ADMIN ||
       (user as any).role === 'super_admin' ||
-      (() => {
-        try {
-          return typeof window !== 'undefined' && localStorage.getItem('ab_auction_participation_v1') === '1';
-        } catch {
-          return false;
-        }
-      })());
+      isVipActiveForAuctions ||
+      auctionAccessStatus === 'approved');
   const needsAuctionParticipationGate = !isGuest && !auctionCatalogAllowed;
   const isLuxuryCollectorNav =
     !isGuest &&
@@ -10597,7 +10648,30 @@ export default function App() {
                     </div>
                   </Card>
                 )}
-                {needsAuctionParticipationGate && (
+                {needsAuctionParticipationGate && auctionAccessStatus === 'pending' && (
+                  <Card className="border-amber-500/25 bg-zinc-950/80 space-y-4 p-8 max-w-2xl" hoverGlow>
+                    <div className="flex items-start gap-4">
+                      <Gavel className="w-10 h-10 text-amber-500/80 shrink-0 mt-1" />
+                      <div className="space-y-3 min-w-0">
+                        <h3 className="text-2xl font-serif italic text-zinc-100">{t('auctions.access_pending_title')}</h3>
+                        <p className="text-sm text-zinc-400 leading-relaxed">{t('auctions.access_pending_body')}</p>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+                {needsAuctionParticipationGate && auctionAccessStatus === 'rejected' && (
+                  <Card className="border-red-500/20 bg-zinc-950/80 space-y-4 p-8 max-w-2xl" hoverGlow>
+                    <div className="flex items-start gap-4">
+                      <Gavel className="w-10 h-10 text-zinc-500 shrink-0 mt-1" />
+                      <div className="space-y-3 min-w-0">
+                        <h3 className="text-2xl font-serif italic text-zinc-100">{t('auctions.access_rejected_title')}</h3>
+                        <p className="text-sm text-zinc-400 leading-relaxed">{t('auctions.access_rejected_body')}</p>
+                        <Button variant="outline" className="mt-2" onClick={() => setView('kontakt')}>{t('legal.contact')}</Button>
+                      </div>
+                    </div>
+                  </Card>
+                )}
+                {needsAuctionParticipationGate && auctionAccessStatus !== 'pending' && auctionAccessStatus !== 'rejected' && (
                   <Card className="border-amber-500/25 bg-zinc-950/80 space-y-5 p-8 max-w-2xl" hoverGlow>
                     <div className="flex items-start gap-4">
                       <Gavel className="w-10 h-10 text-amber-500/80 shrink-0 mt-1" />
@@ -10610,8 +10684,29 @@ export default function App() {
                       <input type="checkbox" className="mt-1 rounded border-zinc-600" checked={auctionTermsChecked} onChange={(e) => setAuctionTermsChecked(e.target.checked)} />
                       <span className="text-sm text-zinc-300 leading-relaxed">{t('auctions.participation_checkbox')}</span>
                     </label>
-                    <Button disabled={!auctionTermsChecked} onClick={() => { try { localStorage.setItem('ab_auction_participation_v1', '1'); } catch (_) {} setAuctionGateBump((n) => n + 1); }}>
-                      {t('auctions.participation_confirm')}
+                    <Button
+                      disabled={!auctionTermsChecked || auctionAccessRequestLoading}
+                      onClick={async () => {
+                        setAuctionAccessRequestLoading(true);
+                        try {
+                          const res = await fetch('/api/me/auction-access-request', { method: 'POST', credentials: 'include' });
+                          const data = await res.json().catch(() => ({}));
+                          if (res.ok) {
+                            const st = (data.auction_access_status as string) || 'pending';
+                            setUser((prev) => (prev ? { ...prev, auction_access_status: st } as User : null));
+                            await fetchData();
+                            notifyUser(t('auctions.access_request_sent') || 'Antrag gesendet.', 'success');
+                          } else {
+                            notifyUser(data.error || t('errors.generic'), 'error');
+                          }
+                        } catch {
+                          notifyUser(t('errors.network_error') || 'Netzwerkfehler', 'error');
+                        } finally {
+                          setAuctionAccessRequestLoading(false);
+                        }
+                      }}
+                    >
+                      {auctionAccessRequestLoading ? (t('auth.processing') || '…') : t('auctions.participation_confirm')}
                     </Button>
                     <p className="text-xs text-zinc-600">{t('auctions.participation_note')}</p>
                   </Card>
@@ -13998,6 +14093,44 @@ export default function App() {
                         finally { setLoading(false); }
                       }}>{t('admin.invite_link_create_btn')}</Button>
                     </Card>
+                    <h4 className="text-lg font-serif italic mt-8">{t('admin.auction_access_pending_list')}</h4>
+                    <div className="space-y-3 mb-8">
+                      {allUsers.filter((u: any) => String(u.auction_access_status || '').toLowerCase() === 'pending' && u.role !== 'admin' && u.role !== 'super_admin').map((u: any) => (
+                        <Card key={`auction-access-${u.id}`} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-zinc-200 truncate">{u.name || '—'}</p>
+                            <p className="text-xs text-zinc-500 truncate">{u.email}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" className="text-xs py-1.5 px-3" disabled={loading} onClick={async () => {
+                              setLoading(true);
+                              try {
+                                const res = await fetch(`/api/admin/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auction_access_status: 'approved' }), credentials: 'include' });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok) {
+                                  setAllUsers((prev) => prev.map((uu: any) => (uu.id === u.id ? { ...uu, ...data } : uu)));
+                                  notifyUser(t('admin.auction_access_updated') || 'OK', 'success');
+                                } else notifyUser(data.error || t('errors.generic'), 'error');
+                              } finally { setLoading(false); }
+                            }}>{t('admin.auction_access_approve_btn')}</Button>
+                            <Button variant="danger" className="text-xs py-1.5 px-3" disabled={loading} onClick={async () => {
+                              setLoading(true);
+                              try {
+                                const res = await fetch(`/api/admin/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auction_access_status: 'rejected' }), credentials: 'include' });
+                                const data = await res.json().catch(() => ({}));
+                                if (res.ok) {
+                                  setAllUsers((prev) => prev.map((uu: any) => (uu.id === u.id ? { ...uu, ...data } : uu)));
+                                  notifyUser(t('admin.auction_access_updated') || 'OK', 'success');
+                                } else notifyUser(data.error || t('errors.generic'), 'error');
+                              } finally { setLoading(false); }
+                            }}>{t('admin.auction_access_reject_btn')}</Button>
+                          </div>
+                        </Card>
+                      ))}
+                      {allUsers.filter((u: any) => String(u.auction_access_status || '').toLowerCase() === 'pending' && u.role !== 'admin' && u.role !== 'super_admin').length === 0 && (
+                        <p className="text-zinc-600 text-sm italic">{t('admin.auction_access_no_pending')}</p>
+                      )}
+                    </div>
                     <div className="space-y-4">
                       {allUsers.filter(u => u.status === 'pending').map(u => (
                         <Card key={u.id} className="flex items-center justify-between">
@@ -14068,6 +14201,25 @@ export default function App() {
                               <option value="private_collector">Private Collector</option>
                               <option value="grand_collector">Grand Collector</option>
                               <option value="legacy_collector">Legacy Collector</option>
+                            </select>
+                            <select
+                              value={String((u as any).auction_access_status || 'none')}
+                              onChange={async (e) => {
+                                const v = e.target.value;
+                                const res = await fetch(`/api/admin/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auction_access_status: v }), credentials: 'include' });
+                                if (res.ok) {
+                                  const data = await res.json().catch(() => ({}));
+                                  setAllUsers((prev) => prev.map((uu: any) => (uu.id === u.id ? { ...uu, ...data } : uu)));
+                                  notifyUser(t('admin.auction_access_updated') || 'OK', 'success');
+                                }
+                              }}
+                              className="bg-zinc-900 border border-zinc-700 rounded-lg py-1 px-2 text-[10px] text-zinc-200"
+                              title={t('admin.auction_access_col')}
+                            >
+                              <option value="none">{t('admin.auction_access_opt_none')}</option>
+                              <option value="pending">{t('admin.auction_access_opt_pending')}</option>
+                              <option value="approved">{t('admin.auction_access_opt_approved')}</option>
+                              <option value="rejected">{t('admin.auction_access_opt_rejected')}</option>
                             </select>
                             {u.status === 'pending' && (
                               <>

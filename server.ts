@@ -2520,6 +2520,27 @@ async function ensureUsersCoreColumns(d: DbInterface) {
   }
 }
 
+async function ensureUserAuctionAccessColumns(d: DbInterface) {
+  const alters = d.isMySQL
+    ? [
+        "ALTER TABLE users ADD COLUMN auction_access_status VARCHAR(32) DEFAULT 'none'",
+        "ALTER TABLE users ADD COLUMN auction_access_requested_at DATETIME NULL",
+        "ALTER TABLE users ADD COLUMN auction_access_reviewed_at DATETIME NULL",
+      ]
+    : [
+        "ALTER TABLE users ADD COLUMN auction_access_status TEXT DEFAULT 'none'",
+        "ALTER TABLE users ADD COLUMN auction_access_requested_at TEXT",
+        "ALTER TABLE users ADD COLUMN auction_access_reviewed_at TEXT",
+      ];
+  for (const sql of alters) {
+    try {
+      await (await d.prepare(sql)).run();
+    } catch (_) {
+      /* duplicate column */
+    }
+  }
+}
+
 async function seedAdmin() {
   const adminEmail = "admin@bellanova.com";
   const adminUsername = "admin";
@@ -3986,6 +4007,7 @@ function isGuestRestrictedPath(path: string, method: string): boolean {
   if (path === "/api/me/addresses" && (method === "POST" || method === "PATCH" || method === "DELETE")) return true;
   if (path.match(/^\/api\/me\/addresses\/\d+$/) && (method === "PATCH" || method === "DELETE")) return true;
   if (path === "/api/me/notification-settings" && method === "PATCH") return true;
+  if (path === "/api/me/auction-access-request" && method === "POST") return true;
   if (path === "/api/marketplace/buy" && method === "POST") return true;
   if (path === "/api/auctions/bid" && method === "POST") return true;
   if (path.startsWith("/api/investor/")) return true;
@@ -4259,6 +4281,24 @@ app.patch("/api/me/notification-settings", async (req, res) => {
   await (await db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`)).run(...vals);
   const user = await (await db.prepare("SELECT notify_email, notify_marketing FROM users WHERE id = ?")).get(userId) as any;
   res.json({ notify_email: !!user.notify_email, notify_marketing: !!user.notify_marketing });
+});
+
+/** Kunde: Auktionsteilnahme beantragen (Status pending — Freigabe nur durch Admin, VIP ausgenommen). */
+app.post("/api/me/auction-access-request", async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (noSessionUserId(userId) || userId === GUEST_USER_ID) return res.status(401).json({ error: "Not signed in" });
+  const user = (await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId)) as any;
+  if (!user || user.status !== "approved") return res.status(403).json({ error: "Forbidden" });
+  if (isAuctionAccessExemptUser(user)) {
+    return res.json({ ok: true, auction_access_status: "approved", exempt: true });
+  }
+  const cur = String(user.auction_access_status ?? "none").toLowerCase();
+  if (cur === "pending") return res.json({ ok: true, auction_access_status: "pending", already: true });
+  if (cur === "approved") return res.json({ ok: true, auction_access_status: "approved", already: true });
+  if (cur === "rejected") return res.status(409).json({ error: "Ihr vorheriger Antrag wurde abgelehnt. Bitte kontaktieren Sie das Atelier." });
+  const nowIso = new Date().toISOString();
+  await (await db.prepare("UPDATE users SET auction_access_status = 'pending', auction_access_requested_at = ? WHERE id = ?")).run(nowIso, userId);
+  res.json({ ok: true, auction_access_status: "pending" });
 });
 
 app.post("/api/logout", async (req, res) => {
@@ -6150,6 +6190,9 @@ app.get("/api/auctions", async (req, res) => {
   await closeEndedAuctions();
   const userId = req.query.userId;
   const user = userId ? await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any : null;
+  if (user && userId && Number(userId) !== GUEST_USER_ID && !hasApprovedAuctionCatalogAccess(user)) {
+    return res.json([]);
+  }
   const isVip = user && (user.role === "admin" || user.role === "super_admin" || isVipActive(user) || canAccessVipContent(user));
 
   let query = `
@@ -6236,9 +6279,13 @@ app.post("/api/auctions/bid", async (req, res) => {
     const auction = await (await db.prepare("SELECT * FROM auctions WHERE id = ?")).get(auctionId) as any;
     if (!auction) return res.status(404).json({ error: "Auction not found" });
     if (auction.status !== 'active') return res.status(400).json({ error: "Auction is not active." });
-    if (auction.vip_only === 1) {
-      const bidder = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
-      if (!bidder || (!isVipActive(bidder) && !canAccessVipContent(bidder))) return res.status(403).json({ error: "This auction is for VIP and Legacy Collector members only." });
+    const bidder = await (await db.prepare("SELECT * FROM users WHERE id = ?")).get(userId) as any;
+    if (!bidder) return res.status(404).json({ error: "User not found" });
+    if (auction.vip_only === 1 && !isVipActive(bidder) && !canAccessVipContent(bidder)) {
+      return res.status(403).json({ error: "This auction is for VIP and Legacy Collector members only." });
+    }
+    if (!hasApprovedAuctionCatalogAccess(bidder)) {
+      return res.status(403).json({ error: "Auktionsteilnahme nicht freigeschaltet. Bitte Antrag stellen oder das Atelier kontaktieren." });
     }
     if (amountNum <= (Number(auction.current_bid) || 0)) return res.status(400).json({ error: "Bid too low" });
 
@@ -6793,7 +6840,28 @@ app.patch("/api/admin/users/:id", requireAuth, requireAdmin, async (req, res) =>
   const target = await (await db.prepare("SELECT id, role FROM users WHERE id = ?")).get(id) as any;
   if (!target) return res.status(404).json({ error: "Nutzer nicht gefunden." });
   if (target.role === "admin" || target.role === "super_admin") return res.status(403).json({ error: "Admins können nicht bearbeitet werden." });
-  const { tags, locked } = req.body || {};
+  const { tags, locked, auction_access_status } = req.body || {};
+  if (auction_access_status !== undefined && auction_access_status !== null) {
+    const st = String(auction_access_status).toLowerCase().trim();
+    if (!["none", "pending", "approved", "rejected"].includes(st)) {
+      return res.status(400).json({ error: "Ungültiger auction_access_status." });
+    }
+    const prev = (await (await db.prepare("SELECT auction_access_requested_at FROM users WHERE id = ?")).get(id)) as { auction_access_requested_at?: string | null } | undefined;
+    const nowIso = new Date().toISOString();
+    let reqAt: string | null = prev?.auction_access_requested_at ?? null;
+    let revAt: string | null = null;
+    if (st === "pending" && !reqAt) reqAt = nowIso;
+    if (st === "none") {
+      reqAt = null;
+      revAt = null;
+    } else if (st === "approved" || st === "rejected") {
+      revAt = nowIso;
+    }
+    await (await db.prepare("UPDATE users SET auction_access_status = ?, auction_access_requested_at = ?, auction_access_reviewed_at = ? WHERE id = ?")).run(st, reqAt, revAt, id);
+    try {
+      await logAudit((req as any).userId, "AUCTION_ACCESS_SET", String(id), st);
+    } catch (_) {}
+  }
   if (Array.isArray(tags)) {
     await (await db.prepare("DELETE FROM user_tags WHERE user_id = ?")).run(id);
     const ins = await (await db.prepare("INSERT INTO user_tags (user_id, tag) VALUES (?, ?)"));
@@ -8592,6 +8660,21 @@ function isVipActive(user: { role?: string; is_vip?: number; vip_expiry_date?: s
   } catch {
     return true;
   }
+}
+
+/** VIP + Admins: keine gesonderte Auktions-Freigabe nötig. */
+function isAuctionAccessExemptUser(user: Record<string, any> | null): boolean {
+  if (!user) return false;
+  if (user.role === "admin" || user.role === "super_admin") return true;
+  return isVipActive(user);
+}
+
+/** Katalog + Gebote nur mit Atelier-Freigabe (oder VIP/Admin). */
+function hasApprovedAuctionCatalogAccess(user: Record<string, any> | null): boolean {
+  if (!user) return false;
+  if (isAuctionAccessExemptUser(user)) return true;
+  const st = String(user.auction_access_status ?? "none").toLowerCase();
+  return st === "approved";
 }
 
 async function enforceVipExpiry(userId: number): Promise<void> {
@@ -13295,6 +13378,7 @@ async function startServer() {
   // Ensure optional key-value config table exists (used by maintenance/bank config endpoints).
   await db.exec(`CREATE TABLE IF NOT EXISTS admin_config (key TEXT PRIMARY KEY, value TEXT);`);
   await ensureUsersCoreColumns(db);
+  await ensureUserAuctionAccessColumns(db);
   await seedAdmin();
   await ensureUserIdSequenceMin(db);
   if (process.env.NODE_ENV !== "production") {

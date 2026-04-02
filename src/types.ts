@@ -45,6 +45,11 @@ export interface User {
   language: string;
   is_vip: number;
   created_at: string;
+  /** none | pending | approved | rejected — Auktionskatalog nur bei approved (VIP/Admin ausgenommen). */
+  auction_access_status?: string | null;
+  auction_access_requested_at?: string | null;
+  auction_access_reviewed_at?: string | null;
+  vip_expiry_date?: string | null;
   /** True when session is guest (read-only; not in DB). */
   is_guest?: boolean;
 }
