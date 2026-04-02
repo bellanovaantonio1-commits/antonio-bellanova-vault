@@ -54,6 +54,11 @@ const I18N: Record<Lang, Record<string, string>> = {
     contracts: "Vertraege",
     transactions: "Transaktionen",
     language: "Sprache",
+    auctions_gate_eyebrow: "Private Auktionen",
+    auctions_gate_title: "Nur mit persoenlichem Konto",
+    auctions_gate_body:
+      "Live-Auktionen, Katalog und Gebote sind ausschliesslich fuer registrierte Kundinnen und Kunden im persoenlichen Bereich freigeschaltet. Bitte Konto anlegen oder anmelden.",
+    auctions_register_cta: "Konto anlegen",
   },
   en: {
     marketplace: "Marketplace",
@@ -96,6 +101,11 @@ const I18N: Record<Lang, Record<string, string>> = {
     contracts: "Contracts",
     transactions: "Transactions",
     language: "Language",
+    auctions_gate_eyebrow: "Private auctions",
+    auctions_gate_title: "Personal account required",
+    auctions_gate_body:
+      "Live auctions, catalog, and bidding are only available to registered clients in your personal area. Please create an account or sign in.",
+    auctions_register_cta: "Create account",
   },
   it: {
     marketplace: "Mercato",
@@ -138,11 +148,16 @@ const I18N: Record<Lang, Record<string, string>> = {
     contracts: "Contratti",
     transactions: "Transazioni",
     language: "Lingua",
+    auctions_gate_eyebrow: "Aste private",
+    auctions_gate_title: "Account personale richiesto",
+    auctions_gate_body:
+      "Aste live, catalogo e offerte sono riservati ai clienti registrati nell'area personale. Creare un account o accedere.",
+    auctions_register_cta: "Crea account",
   },
-  fr: { marketplace: "Marche", collections: "Collections", auctions: "Encheres", gallery: "Galerie", drops: "Drops", vault: "Coffre", login: "Connexion", product_view: "Voir le produit", back: "Retour", send_inquiry: "Envoyer demande", back_to_auctions: "Retour aux encheres", exclusive_auctions: "Encheres exclusives", details_view: "Voir details", place_bid: "Encherir", secure_now: "Reserver maintenant", to_dashboard: "Vers dashboard", open_document: "Ouvrir document", collection_view: "Voir collection", categories: "Categories", sorting: "Tri", newest: "Plus recents", popularity: "Popularite", price: "Prix", countdown: "Compte a rebours", my_vault: "Mon coffre", my_pieces: "Mes pieces", documents: "Documents", contact: "Contact", name: "Nom", inquiry: "Demande", send: "Envoyer", email: "Email", password: "Mot de passe", sign_in: "Se connecter", status_closed: "Fermee", jewelry: "Bijoux", certificates: "Certificats", contracts: "Contrats", transactions: "Transactions", language: "Langue" },
-  es: { marketplace: "Mercado", collections: "Colecciones", auctions: "Subastas", gallery: "Galeria", drops: "Drops", vault: "Boveda", login: "Login", product_view: "Ver producto", back: "Atras", send_inquiry: "Enviar consulta", back_to_auctions: "Volver a subastas", exclusive_auctions: "Subastas exclusivas", details_view: "Ver detalles", place_bid: "Hacer puja", secure_now: "Asegurar ahora", to_dashboard: "Al dashboard", open_document: "Abrir documento", collection_view: "Ver coleccion", categories: "Categorias", sorting: "Ordenar", newest: "Novedades", popularity: "Popularidad", price: "Precio", countdown: "Cuenta regresiva", my_vault: "Mi boveda", my_pieces: "Mis piezas", documents: "Documentos", contact: "Contacto", name: "Nombre", inquiry: "Consulta", send: "Enviar", email: "Email", password: "Contrasena", sign_in: "Entrar", status_closed: "Cerrada", jewelry: "Joyeria", certificates: "Certificados", contracts: "Contratos", transactions: "Transacciones", language: "Idioma" },
-  pt: { marketplace: "Marketplace", collections: "Colecoes", auctions: "Leiloes", gallery: "Galeria", drops: "Drops", vault: "Cofre", login: "Login", product_view: "Ver produto", back: "Voltar", send_inquiry: "Enviar consulta", back_to_auctions: "Voltar aos leiloes", exclusive_auctions: "Leiloes exclusivos", details_view: "Ver detalhes", place_bid: "Fazer lance", secure_now: "Garantir agora", to_dashboard: "Para dashboard", open_document: "Abrir documento", collection_view: "Ver colecao", categories: "Categorias", sorting: "Ordenacao", newest: "Mais recentes", popularity: "Popularidade", price: "Preco", countdown: "Contagem", my_vault: "Meu cofre", my_pieces: "Minhas pecas", documents: "Documentos", contact: "Contato", name: "Nome", inquiry: "Consulta", send: "Enviar", email: "Email", password: "Senha", sign_in: "Entrar", status_closed: "Encerrado", jewelry: "Joias", certificates: "Certificados", contracts: "Contratos", transactions: "Transacoes", language: "Idioma" },
-  ar: { marketplace: "المتجر", collections: "المجموعات", auctions: "المزادات", gallery: "المعرض", drops: "الإصدارات", vault: "الخزنة", login: "تسجيل الدخول", product_view: "عرض المنتج", back: "رجوع", send_inquiry: "إرسال طلب", back_to_auctions: "العودة للمزادات", exclusive_auctions: "مزادات حصرية", details_view: "عرض التفاصيل", place_bid: "تقديم عرض", secure_now: "احجز الآن", to_dashboard: "إلى لوحة التحكم", open_document: "فتح المستند", collection_view: "عرض المجموعة", categories: "الفئات", sorting: "الترتيب", newest: "الأحدث", popularity: "الأكثر شعبية", price: "السعر", countdown: "العد التنازلي", my_vault: "خزنتي", my_pieces: "قطعي", documents: "المستندات", contact: "تواصل", name: "الاسم", inquiry: "الاستفسار", send: "إرسال", email: "البريد الإلكتروني", password: "كلمة المرور", sign_in: "دخول", status_closed: "مغلق", jewelry: "المجوهرات", certificates: "الشهادات", contracts: "العقود", transactions: "المعاملات", language: "اللغة" },
+  fr: { marketplace: "Marche", collections: "Collections", auctions: "Encheres", gallery: "Galerie", drops: "Drops", vault: "Coffre", login: "Connexion", product_view: "Voir le produit", back: "Retour", send_inquiry: "Envoyer demande", back_to_auctions: "Retour aux encheres", exclusive_auctions: "Encheres exclusives", details_view: "Voir details", place_bid: "Encherir", secure_now: "Reserver maintenant", to_dashboard: "Vers dashboard", open_document: "Ouvrir document", collection_view: "Voir collection", categories: "Categories", sorting: "Tri", newest: "Plus recents", popularity: "Popularite", price: "Prix", countdown: "Compte a rebours", my_vault: "Mon coffre", my_pieces: "Mes pieces", documents: "Documents", contact: "Contact", name: "Nom", inquiry: "Demande", send: "Envoyer", email: "Email", password: "Mot de passe", sign_in: "Se connecter", status_closed: "Fermee", jewelry: "Bijoux", certificates: "Certificats", contracts: "Contrats", transactions: "Transactions", auctions_gate_eyebrow: "Encheres privees", auctions_gate_title: "Compte personnel requis", auctions_gate_body: "Encheres en direct, catalogue et offres: reserve aux clients enregistres. Creez un compte ou connectez-vous.", auctions_register_cta: "Creer un compte", language: "Langue" },
+  es: { marketplace: "Mercado", collections: "Colecciones", auctions: "Subastas", gallery: "Galeria", drops: "Drops", vault: "Boveda", login: "Login", product_view: "Ver producto", back: "Atras", send_inquiry: "Enviar consulta", back_to_auctions: "Volver a subastas", exclusive_auctions: "Subastas exclusivas", details_view: "Ver detalles", place_bid: "Hacer puja", secure_now: "Asegurar ahora", to_dashboard: "Al dashboard", open_document: "Abrir documento", collection_view: "Ver coleccion", categories: "Categorias", sorting: "Ordenar", newest: "Novedades", popularity: "Popularidad", price: "Precio", countdown: "Cuenta regresiva", my_vault: "Mi boveda", my_pieces: "Mis piezas", documents: "Documentos", contact: "Contacto", name: "Nombre", inquiry: "Consulta", send: "Enviar", email: "Email", password: "Contrasena", sign_in: "Entrar", status_closed: "Cerrada", jewelry: "Joyeria", certificates: "Certificados", contracts: "Contratos", transactions: "Transacciones", auctions_gate_eyebrow: "Subastas privadas", auctions_gate_title: "Cuenta personal obligatoria", auctions_gate_body: "Subastas en vivo, catalogo y pujas solo para clientes registrados en su area personal. Cree una cuenta o inicie sesion.", auctions_register_cta: "Crear cuenta", language: "Idioma" },
+  pt: { marketplace: "Marketplace", collections: "Colecoes", auctions: "Leiloes", gallery: "Galeria", drops: "Drops", vault: "Cofre", login: "Login", product_view: "Ver produto", back: "Voltar", send_inquiry: "Enviar consulta", back_to_auctions: "Voltar aos leiloes", exclusive_auctions: "Leiloes exclusivos", details_view: "Ver detalhes", place_bid: "Fazer lance", secure_now: "Garantir agora", to_dashboard: "Para dashboard", open_document: "Abrir documento", collection_view: "Ver colecao", categories: "Categorias", sorting: "Ordenacao", newest: "Mais recentes", popularity: "Popularidade", price: "Preco", countdown: "Contagem", my_vault: "Meu cofre", my_pieces: "Minhas pecas", documents: "Documentos", contact: "Contato", name: "Nome", inquiry: "Consulta", send: "Enviar", email: "Email", password: "Senha", sign_in: "Entrar", status_closed: "Encerrado", jewelry: "Joias", certificates: "Certificados", contracts: "Contratos", transactions: "Transacoes", auctions_gate_eyebrow: "Leiloes privados", auctions_gate_title: "Conta pessoal necessaria", auctions_gate_body: "Leiloes ao vivo, catalogo e lances apenas para clientes registados na area pessoal. Crie uma conta ou entre.", auctions_register_cta: "Criar conta", language: "Idioma" },
+  ar: { marketplace: "المتجر", collections: "المجموعات", auctions: "المزادات", gallery: "المعرض", drops: "الإصدارات", vault: "الخزنة", login: "تسجيل الدخول", product_view: "عرض المنتج", back: "رجوع", send_inquiry: "إرسال طلب", back_to_auctions: "العودة للمزادات", exclusive_auctions: "مزادات حصرية", details_view: "عرض التفاصيل", place_bid: "تقديم عرض", secure_now: "احجز الآن", to_dashboard: "إلى لوحة التحكم", open_document: "فتح المستند", collection_view: "عرض المجموعة", categories: "الفئات", sorting: "الترتيب", newest: "الأحدث", popularity: "الأكثر شعبية", price: "السعر", countdown: "العد التنازلي", my_vault: "خزنتي", my_pieces: "قطعي", documents: "المستندات", contact: "تواصل", name: "الاسم", inquiry: "الاستفسار", send: "إرسال", email: "البريد الإلكتروني", password: "كلمة المرور", sign_in: "دخول", status_closed: "مغلق", jewelry: "المجوهرات", certificates: "الشهادات", contracts: "العقود", transactions: "المعاملات", auctions_gate_eyebrow: "مزادات خاصة", auctions_gate_title: "يتطلب حساباً شخصياً", auctions_gate_body: "المزادات المباشرة والكتالوج والعروض للعملاء المسجلين فقط في المنطقة الشخصية. أنشئ حساباً أو سجّل الدخول.", auctions_register_cta: "إنشاء حساب", language: "اللغة" },
 };
 
 const LANG_LABELS: Record<Lang, string> = { de: "DE", en: "EN", it: "IT", fr: "FR", es: "ES", pt: "PT", ar: "AR" };
@@ -196,11 +211,6 @@ const PRODUCTS: Product[] = [
   },
 ];
 
-const AUCTIONS = [
-  { id: 101, title: "Emerald Crown Suite", status: "Live", image: "[IMAGE_AUCTION]" },
-  { id: 102, title: "Royal Sapphire Pair", status: "closed", image: "[IMAGE_AUCTION]" },
-];
-
 const NAV = [
   { key: "marketplace", href: "/marktplatz" },
   { key: "collections", href: "/kollektionen" },
@@ -208,11 +218,44 @@ const NAV = [
   { key: "gallery", href: "/galerie" },
   { key: "drops", href: "/drops" },
   { key: "vault", href: "/tresor" },
-  { key: "login", href: "/login" },
+  { key: "login", href: "/dashboard?view=login" },
 ];
 
 function imageShell(label: string, ratio = "aspect-[16/9]") {
   return <LuxuryImagePlaceholder label={label} aspectClass={ratio} roundedClass="rounded-3xl" />;
+}
+
+function AuctionsPublicGate({ tr, onNavigate }: { tr: (k: string) => string; onNavigate: (path: string) => void }) {
+  return (
+    <div className="max-w-2xl space-y-6 rounded-3xl border border-amber-500/25 bg-black/40 p-8 md:p-10">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-amber-400/90">{tr("auctions_gate_eyebrow")}</p>
+      <h2 className="font-serif italic text-3xl md:text-4xl text-zinc-100">{tr("auctions_gate_title")}</h2>
+      <p className="text-sm text-zinc-400 leading-relaxed">{tr("auctions_gate_body")}</p>
+      <div className="flex flex-wrap gap-3 pt-2">
+        <button
+          type="button"
+          onClick={() => onNavigate("/dashboard?view=register")}
+          className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500"
+        >
+          {tr("auctions_register_cta")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate("/dashboard?view=login")}
+          className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] border border-zinc-600 text-zinc-200 hover:border-amber-500/50 transition"
+        >
+          {tr("sign_in")}
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate("/marktplatz")}
+          className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] text-zinc-500 hover:text-zinc-300 transition"
+        >
+          {tr("marketplace")}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SiteHeader({
@@ -336,7 +379,7 @@ export function LuxuryPublicSite({ pathname, language, onLanguageChange, onNavig
           <input type="password" className="w-full rounded-xl bg-zinc-900 border border-zinc-800 p-3" placeholder={tr("password")} />
           <button
             type="button"
-            onClick={() => onNavigate("/dashboard")}
+            onClick={() => onNavigate("/dashboard?view=login")}
             className="w-full rounded-full py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500"
           >
             {tr("sign_in")}
@@ -405,20 +448,17 @@ export function LuxuryPublicSite({ pathname, language, onLanguageChange, onNavig
   }
 
   if (auctionIdMatch) {
-    const id = Number(auctionIdMatch[1]);
-    const item = AUCTIONS.find((a) => a.id === id) ?? AUCTIONS[0];
     return (
       <Shell onNavigate={onNavigate} tr={tr} language={L} onLanguageChange={onLanguageChange}>
-        <h1 className="font-serif italic text-5xl">{item.title}</h1>
-        {imageShell(item.image)}
-        <div className="flex gap-3">
-          <button onClick={() => onNavigate("/login")} className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500">
-            {tr("place_bid")}
-          </button>
-          <button onClick={() => onNavigate("/auktionen")} className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] border border-zinc-700">
-            {tr("back_to_auctions")}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("/marktplatz")}
+          className="inline-flex items-center gap-2 text-zinc-400 hover:text-amber-300 text-xs uppercase tracking-widest"
+        >
+          <ArrowLeft className="w-4 h-4" /> {tr("back")}
+        </button>
+        <h1 className="font-serif italic text-5xl">{tr("exclusive_auctions")}</h1>
+        <AuctionsPublicGate tr={tr} onNavigate={onNavigate} />
       </Shell>
     );
   }
@@ -445,19 +485,10 @@ export function LuxuryPublicSite({ pathname, language, onLanguageChange, onNavig
   if (pathname === "/auktionen") {
     return (
       <Shell onNavigate={onNavigate} tr={tr} language={L} onLanguageChange={onLanguageChange}>
-        <h1 className="font-serif italic text-5xl">{tr("exclusive_auctions")}</h1>
-        {imageShell("[IMAGE_AUCTION]")}
-        <div className="grid md:grid-cols-2 gap-6">
-          {AUCTIONS.map((a) => (
-            <div key={a.id} className="rounded-2xl border border-white/10 bg-black/30 p-5 space-y-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">{a.status === "closed" ? tr("status_closed") : "Live"}</p>
-              <h3 className="font-serif italic text-2xl">{a.title}</h3>
-              <div className="flex gap-2">
-                <button onClick={() => onNavigate(`/auktion/${a.id}`)} className="rounded-full px-4 py-2 text-[11px] uppercase tracking-widest border border-zinc-700">{tr("details_view")}</button>
-                <button onClick={() => onNavigate("/login")} className="rounded-full px-4 py-2 text-[11px] uppercase tracking-widest text-black bg-gradient-to-r from-amber-300 to-amber-500">{tr("place_bid")}</button>
-              </div>
-            </div>
-          ))}
+        <div className="space-y-8">
+          <h1 className="font-serif italic text-5xl">{tr("exclusive_auctions")}</h1>
+          <div className="max-w-3xl opacity-90">{imageShell("[IMAGE_AUCTION]", "aspect-[21/9]")}</div>
+          <AuctionsPublicGate tr={tr} onNavigate={onNavigate} />
         </div>
       </Shell>
     );
@@ -488,7 +519,7 @@ export function LuxuryPublicSite({ pathname, language, onLanguageChange, onNavig
             <Clock3 className="w-5 h-5 text-amber-400" />
             <p className="text-sm uppercase tracking-[0.2em]">{tr("countdown")}: 03 : 14 : 28 : 51</p>
           </div>
-          <button onClick={() => onNavigate("/login")} className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500">
+          <button onClick={() => onNavigate("/dashboard?view=login")} className="rounded-full px-6 py-3 text-xs uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-amber-500">
             {tr("secure_now")}
           </button>
         </div>

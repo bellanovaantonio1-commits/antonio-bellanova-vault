@@ -89,7 +89,19 @@ body,
   max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
-  padding: 40px 24px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 24px 14px;
+}
+@media (min-width: 640px) {
+  .luxury-container {
+    padding: 32px 20px;
+  }
+}
+@media (min-width: 1024px) {
+  .luxury-container {
+    padding: 40px 24px;
+  }
 }
 
 /* Display headlines — High Jewelry */

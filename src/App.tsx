@@ -928,6 +928,13 @@ const TRANSLATIONS: any = {
     "auctions.private_auctions": "Private Auktionen",
     "auctions.subtitle": "Live-Gebote für seltene und einzigartige Meisterwerke.",
     "auctions.no_active": "Derzeit keine aktiven Auktionen.",
+    "auctions.guest_gate_title": "Auktionen nur mit persönlichem Konto",
+    "auctions.guest_gate_body": "Private Auktionen stehen nur registrierten Kundinnen und Kunden offen. Bitte legen Sie ein Konto an oder melden Sie sich an — danach können Sie Auktionen einsehen und Gebote abgeben.",
+    "auctions.participation_title": "Registrierung für Auktionsteilnahme",
+    "auctions.participation_body": "Um Auktionen einzusehen und Gebote abzugeben, bestätigen Sie bitte einmalig Ihre Teilnahme an privaten Auktionen. Ohne diese Bestätigung ist der Auktionsbereich nicht freigeschaltet.",
+    "auctions.participation_checkbox": "Ich möchte an privaten Auktionen teilnehmen und nehme die Bedingungen zur Gebotsabgabe zur Kenntnis.",
+    "auctions.participation_confirm": "Auktionen freischalten",
+    "auctions.participation_note": "Die Freigabe gilt für dieses Gerät. Bei Fragen wenden Sie sich an das Atelier.",
     "vault.no_pieces": "Sie besitzen noch keine Stücke.",
     "vault.no_certs": "Noch keine Zertifikate ausgestellt.",
     "vault.reminder_unsigned": "warten auf Ihre Unterschrift.",
@@ -952,6 +959,7 @@ const TRANSLATIONS: any = {
     "nav.collection": "Kollektion",
     "nav.my_vault": "Mein Tresor",
     "nav.legacy_portfolio": "Legacy & Portfolio",
+    "nav.menu_open": "Menü öffnen",
     "nav.kollektion_shop": "Stücke",
     "vault.tab_transactions": "Transaktionen",
     "vault.tab_legacy_vip": "Erbe & Maison",
@@ -2190,6 +2198,13 @@ const TRANSLATIONS: any = {
     "auctions.private_auctions": "Private Auctions",
     "auctions.subtitle": "Live bidding on rare and unique masterpieces.",
     "auctions.no_active": "No active auctions at this time.",
+    "auctions.guest_gate_title": "Auctions require a personal account",
+    "auctions.guest_gate_body": "Private auctions are available to registered clients only. Please create an account or sign in — then you can view auctions and place bids.",
+    "auctions.participation_title": "Register for auction participation",
+    "auctions.participation_body": "To view auctions and place bids, please confirm once that you wish to participate in private auctions. Without this confirmation, the auction area stays locked.",
+    "auctions.participation_checkbox": "I wish to participate in private auctions and acknowledge the bidding terms.",
+    "auctions.participation_confirm": "Unlock auctions",
+    "auctions.participation_note": "This unlock applies to this device. Contact the atelier if you need assistance.",
     "vault.no_pieces": "You don't own any pieces yet.",
     "vault.portfolio_pdf": "Portfolio (PDF)",
     "vault.portfolio_csv": "Portfolio CSV",
@@ -2211,6 +2226,7 @@ const TRANSLATIONS: any = {
     "nav.collection": "Collection",
     "nav.my_vault": "My Vault",
     "nav.legacy_portfolio": "Legacy & Portfolio",
+    "nav.menu_open": "Open menu",
     "nav.kollektion_shop": "Pieces",
     "vault.tab_transactions": "Transactions",
     "vault.tab_legacy_vip": "Legacy & Maison",
@@ -3393,6 +3409,13 @@ const TRANSLATIONS: any = {
     "auctions.private_auctions": "Aste private",
     "auctions.subtitle": "Offerte in diretta su opere rare e uniche.",
     "auctions.no_active": "Nessuna asta attiva.",
+    "auctions.guest_gate_title": "Le aste richiedono un account personale",
+    "auctions.guest_gate_body": "Le aste private sono riservate ai clienti registrati. Creare un account o accedere per visualizzare le aste e fare offerte.",
+    "auctions.participation_title": "Registrazione alla partecipazione alle aste",
+    "auctions.participation_body": "Per vedere le aste e fare offerte, confermare una volta la partecipazione alle aste private. Senza questa conferma l'area resta bloccata.",
+    "auctions.participation_checkbox": "Desidero partecipare alle aste private e prendo atto delle condizioni di offerta.",
+    "auctions.participation_confirm": "Sblocca aste",
+    "auctions.participation_note": "Lo sblocco vale per questo dispositivo. Contattare l'atelier per assistenza.",
     "vault.no_pieces": "Non possiedi ancora opere.",
     "vault.no_certs": "Nessun certificato emesso.",
     "vault.portfolio_pdf": "Portfolio (PDF)",
@@ -3415,6 +3438,7 @@ const TRANSLATIONS: any = {
     "nav.collection": "Collezione",
     "nav.my_vault": "Il mio caveau",
     "nav.legacy_portfolio": "Legacy & portfolio",
+    "nav.menu_open": "Apri menu",
     "nav.kollektion_shop": "Pezzi",
     "vault.tab_transactions": "Transazioni",
     "vault.tab_legacy_vip": "Eredità & Maison",
@@ -4575,6 +4599,8 @@ export default function App() {
   const [showAddressesModal, setShowAddressesModal] = useState(false);
   const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
   const [showAccountRequiredModal, setShowAccountRequiredModal] = useState(false);
+  const [auctionGateBump, setAuctionGateBump] = useState(0);
+  const [auctionTermsChecked, setAuctionTermsChecked] = useState(false);
   const [forcePasswordChangeMode, setForcePasswordChangeMode] = useState(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMarketplacePdfModal, setShowMarketplacePdfModal] = useState(false);
@@ -5546,6 +5572,10 @@ export default function App() {
     const ok = user.role === UserRole.ADMIN || (user as any).role === 'super_admin';
     if (view === 'ai_jewelry_design' && !ok) setView('dashboard');
   }, [user, view]);
+
+  useEffect(() => {
+    if (view !== 'auctions') setAuctionTermsChecked(false);
+  }, [view]);
 
   /**
    * Eingeloggt (inkl. Gast) + ?view=register|login|…: Auth-UI liegt nur unter !user — sonst leerer/weißer Hauptbereich.
@@ -8407,6 +8437,19 @@ export default function App() {
   const closeDrawer = () => setSidebarOpen(false);
   const navItem = (viewKey: string, Icon: any, label: string) => ({ viewKey, Icon, label });
   const isGuest = user.role === UserRole.GUEST || (user as any).is_guest;
+  void auctionGateBump;
+  const auctionCatalogAllowed =
+    !isGuest &&
+    (user.role === UserRole.ADMIN ||
+      (user as any).role === 'super_admin' ||
+      (() => {
+        try {
+          return typeof window !== 'undefined' && localStorage.getItem('ab_auction_participation_v1') === '1';
+        } catch {
+          return false;
+        }
+      })());
+  const needsAuctionParticipationGate = !isGuest && !auctionCatalogAllowed;
   const isLuxuryCollectorNav =
     !isGuest &&
     user.role !== 'admin' &&
@@ -8523,8 +8566,8 @@ export default function App() {
 
   return (
     <div className={`min-h-screen font-sans selection:bg-[rgba(198,163,106,0.25)] ${theme === 'light' ? 'bg-zinc-100 text-zinc-900' : 'bg-[var(--bg-primary)] text-[#F5F5F5]'}`} data-theme={theme}>
-      {/* Desktop Sidebar (hidden on mobile) */}
-      <nav className="hidden md:flex fixed left-0 top-0 h-full w-64 border-r border-[var(--border-soft)] z-50 flex-col backdrop-blur-xl bg-[rgba(10,10,10,0.92)]">
+      {/* Desktop Sidebar: ab lg — darunter Drawer (Tablets & Handys nutzen volle Breite) */}
+      <nav className="hidden lg:flex fixed left-0 top-0 h-full w-64 border-r border-[var(--border-soft)] z-50 flex-col backdrop-blur-xl bg-[rgba(10,10,10,0.92)]">
         <button type="button" onClick={() => setView('dashboard')} className="p-6 flex items-center gap-3 mb-8 w-full text-left rounded-xl hover:bg-white/[0.04] transition-all duration-500">
           <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
             <Diamond className="w-5 h-5 text-[#C6A36A]" />
@@ -8546,8 +8589,8 @@ export default function App() {
       <AnimatePresence>
         {sidebarOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] md:hidden" onClick={closeDrawer} aria-hidden />
-            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[85vw] bg-[rgba(10,10,10,0.96)] backdrop-blur-xl border-r border-[var(--border-soft)] flex flex-col md:hidden">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 z-[55] lg:hidden" onClick={closeDrawer} aria-hidden />
+            <motion.div initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }} transition={{ type: 'tween', duration: 0.28, ease: [0.22, 1, 0.36, 1] }} className="fixed inset-y-0 left-0 z-[60] w-72 max-w-[min(85vw,20rem)] bg-[rgba(10,10,10,0.96)] backdrop-blur-xl border-r border-[var(--border-soft)] flex flex-col lg:hidden touch-pan-y">
               <div className="p-4 flex items-center justify-between border-b border-[var(--border-soft)]">
                 <button type="button" onClick={() => { setView('dashboard'); closeDrawer(); }} className="flex items-center gap-3 text-left rounded-lg hover:bg-white/[0.04] p-1 -m-1 transition-all duration-500">
                   <div className="w-10 h-10 rounded-xl bg-[rgba(198,163,106,0.12)] border border-[rgba(198,163,106,0.22)] flex items-center justify-center shrink-0">
@@ -8574,13 +8617,13 @@ export default function App() {
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="pl-0 md:pl-64 min-h-screen luxury-bg diamond-texture relative">
-        <header className="h-20 border-b border-[var(--border-soft)] flex items-center justify-between px-4 sm:px-6 md:px-8 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <button type="button" onClick={() => setSidebarOpen(true)} className="flex md:hidden p-2 rounded-full hover:bg-white/[0.06] transition-colors shrink-0" aria-label={t('view.dashboard')}>
+      <main className="w-full max-w-[100vw] overflow-x-hidden pl-0 lg:pl-64 min-h-screen luxury-bg diamond-texture relative">
+        <header className="min-h-16 sm:h-20 border-b border-[var(--border-soft)] flex items-center justify-between gap-2 px-3 sm:px-6 lg:px-8 py-2 sm:py-0 glass sticky top-0 z-40 safe-area-top safe-area-left safe-area-right">
+          <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+            <button type="button" onClick={() => setSidebarOpen(true)} className="flex lg:hidden p-2.5 rounded-full hover:bg-white/[0.06] transition-colors shrink-0 min-h-[44px] min-w-[44px] items-center justify-center" aria-label={t('nav.menu_open') || 'Menü'}>
               <Menu className="w-6 h-6 text-[#A0A0A0]" />
             </button>
-            <h2 className="text-xl font-serif italic text-white capitalize shrink-0 flex flex-wrap items-center gap-2">
+            <h2 className="text-base sm:text-xl font-serif italic text-white capitalize min-w-0 flex-1 sm:flex-initial sm:shrink-0 flex flex-wrap items-center gap-2 break-words [overflow-wrap:anywhere]">
               {view === 'maison' ? (maisonBundle?.page?.title || t('view.maison')) : ((t as (k: string) => string)(`view.${view}`) || view)}
               {consultationPanel?.mode === 'client' && (
                 <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 rounded-full border border-[#C6A15B]/35 text-[#C6A15B]/90 whitespace-nowrap font-sans not-italic">
@@ -8621,11 +8664,11 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-6 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-3 lg:gap-6 shrink-0">
             <div className="relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 rounded-full hover:bg-white/[0.06] transition-colors relative"
+                className="p-2 sm:p-2 rounded-full hover:bg-white/[0.06] transition-colors relative min-h-[40px] min-w-[40px] flex items-center justify-center"
               >
                 <Bell className="w-5 h-5 text-[#A0A0A0]" />
                 {notifications.filter(n => !n.is_read).length > 0 && (
@@ -8669,14 +8712,14 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors" aria-label={theme === 'dark' ? t('theme.aria_light') : t('theme.aria_dark')}>
+            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-white/5 transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center" aria-label={theme === 'dark' ? t('theme.aria_light') : t('theme.aria_dark')}>
               {theme === 'dark' ? <Sun className="w-5 h-5 text-zinc-400 hover:text-amber-500" /> : <Moon className="w-5 h-5 text-zinc-500 hover:text-amber-600" />}
             </button>
             <div className="relative" ref={headerSettingsRef}>
               <button
                 type="button"
                 onClick={() => setHeaderSettingsMenuOpen(o => !o)}
-                className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-400 hover:text-amber-500/90"
+                className="p-2 rounded-full hover:bg-white/5 transition-colors text-zinc-400 hover:text-amber-500/90 min-h-[40px] min-w-[40px] flex items-center justify-center"
                 aria-expanded={headerSettingsMenuOpen}
                 aria-haspopup="true"
                 aria-label={t('settings.header_menu') || 'Einstellungen'}
@@ -8766,9 +8809,9 @@ export default function App() {
                 )}
               </AnimatePresence>
             </div>
-            <button type="button" onClick={() => setShowShortcutsModal(true)} className="p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold" title={t('shortcuts.title')}>?</button>
+            <button type="button" onClick={() => setShowShortcutsModal(true)} className="hidden sm:flex p-2 rounded-full hover:bg-white/5 text-zinc-500 hover:text-amber-500 text-xs font-bold min-h-[40px] min-w-[40px] items-center justify-center" title={t('shortcuts.title')}>?</button>
             <div
-              className="group flex items-center gap-4 rounded-xl pl-2 pr-1 py-1 -mr-1 text-left"
+              className="group flex items-center gap-2 sm:gap-4 rounded-xl pl-1 sm:pl-2 pr-1 py-1 -mr-1 text-left min-w-0"
               aria-label={user.name}
             >
               <div className="text-right hidden sm:block">
@@ -10535,6 +10578,39 @@ export default function App() {
 
             {view === 'auctions' && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+                {isGuest && (
+                  <Card className="border-amber-500/30 bg-amber-500/[0.06] space-y-4 p-8" hoverGlow>
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-amber-500/90">{t('guest.dashboard_register_eyebrow')}</p>
+                    <h3 className="text-2xl font-serif italic text-zinc-100">{t('auctions.guest_gate_title')}</h3>
+                    <p className="text-sm text-zinc-400 max-w-2xl leading-relaxed">{t('auctions.guest_gate_body')}</p>
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <Button onClick={() => leaveGuestSessionForAuth('register')}>{t('auth.create_account')}</Button>
+                      <Button variant="outline" onClick={() => leaveGuestSessionForAuth('login')}>{t('auth.sign_in')}</Button>
+                      <Button variant="ghost" className="text-zinc-400" onClick={() => setView('marketplace')}>{t('maison.catalog_full')}</Button>
+                    </div>
+                  </Card>
+                )}
+                {needsAuctionParticipationGate && (
+                  <Card className="border-amber-500/25 bg-zinc-950/80 space-y-5 p-8 max-w-2xl" hoverGlow>
+                    <div className="flex items-start gap-4">
+                      <Gavel className="w-10 h-10 text-amber-500/80 shrink-0 mt-1" />
+                      <div className="space-y-3 min-w-0">
+                        <h3 className="text-2xl font-serif italic text-zinc-100">{t('auctions.participation_title')}</h3>
+                        <p className="text-sm text-zinc-400 leading-relaxed">{t('auctions.participation_body')}</p>
+                      </div>
+                    </div>
+                    <label className="flex items-start gap-3 cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                      <input type="checkbox" className="mt-1 rounded border-zinc-600" checked={auctionTermsChecked} onChange={(e) => setAuctionTermsChecked(e.target.checked)} />
+                      <span className="text-sm text-zinc-300 leading-relaxed">{t('auctions.participation_checkbox')}</span>
+                    </label>
+                    <Button disabled={!auctionTermsChecked} onClick={() => { try { localStorage.setItem('ab_auction_participation_v1', '1'); } catch (_) {} setAuctionGateBump((n) => n + 1); }}>
+                      {t('auctions.participation_confirm')}
+                    </Button>
+                    <p className="text-xs text-zinc-600">{t('auctions.participation_note')}</p>
+                  </Card>
+                )}
+                {auctionCatalogAllowed && (
+                <>
                 {isLuxuryCollectorNav && (
                   <div className="flex flex-wrap gap-2 border-b border-zinc-800/60 pb-4" role="tablist" aria-label={t('nav.collection') || 'Kollektion'}>
                     {([
@@ -10548,13 +10624,13 @@ export default function App() {
                     ))}
                   </div>
                 )}
-                <div className="flex flex-wrap justify-between items-end gap-4">
-                <div className="space-y-2">
-                    <h3 className="text-3xl font-serif italic">{t('auctions.private_auctions')}</h3>
-                    <p className="text-zinc-500">{t('auctions.subtitle')}</p>
+                <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-between sm:items-end gap-4 w-full min-w-0">
+                <div className="space-y-2 min-w-0">
+                    <h3 className="text-2xl sm:text-3xl font-serif italic break-words">{t('auctions.private_auctions')}</h3>
+                    <p className="text-sm sm:text-base text-zinc-500">{t('auctions.subtitle')}</p>
                   </div>
                   {user && (
-                    <select value={filterMarketScope} onChange={e => setFilterMarketScope(e.target.value as typeof filterMarketScope)} className="bg-zinc-900/50 border border-zinc-800 rounded-xl py-2 px-3 text-zinc-200 text-sm">
+                    <select value={filterMarketScope} onChange={e => setFilterMarketScope(e.target.value as typeof filterMarketScope)} className="w-full sm:w-auto min-w-0 max-w-full bg-zinc-900/50 border border-zinc-800 rounded-xl py-2.5 px-3 text-zinc-200 text-sm shrink-0">
                       <option value="all">Alle Auktionen</option>
                       <option value="favorites">{t('filter.favorites_only')}</option>
                       <option value="recent">{t('filter.recent_only')}</option>
@@ -10596,6 +10672,8 @@ export default function App() {
                     </>
                   )}
                 </div>
+                </>
+                )}
               </motion.div>
             )}
 
@@ -16426,18 +16504,20 @@ export default function App() {
 
         {/* Premium Footer */}
         {user && (
-          <footer className="premium-footer mt-16 luxury-container !pt-8 !pb-10 safe-area-bottom">
-            <div className="flex flex-wrap items-center justify-between gap-6 text-[10px] uppercase tracking-[0.15em] text-zinc-500">
-              <div className="flex items-center gap-6">
-                <span className="font-serif italic text-amber-500/80">{t('footer.brand_legal')}</span>
-                <span>{t('footer.address_line')}</span>
-                <button type="button" onClick={() => setView('impressum')} className="hover:text-amber-500/80">{t('legal.imprint')}</button>
-                <button type="button" onClick={() => setView('datenschutz')} className="hover:text-amber-500/80">{t('legal.privacy')}</button>
-                <button type="button" onClick={() => setView('agb')} className="hover:text-amber-500/80">{t('legal.terms')}</button>
-                <button type="button" onClick={() => setView('kontakt')} className="hover:text-amber-500/80">{t('legal.contact')}</button>
-                <button type="button" onClick={() => setView('anfahrt')} className="hover:text-amber-500/80">{t('legal.directions')}</button>
+          <footer className="premium-footer mt-10 sm:mt-16 luxury-container !pt-6 sm:!pt-8 !pb-8 sm:!pb-10 safe-area-bottom">
+            <div className="flex flex-col gap-6 lg:flex-row lg:flex-wrap lg:items-start lg:justify-between text-[10px] uppercase tracking-[0.15em] text-zinc-500">
+              <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2 text-center sm:text-left">
+                <span className="font-serif italic text-amber-500/80 text-xs sm:text-[10px] leading-snug">{t('footer.brand_legal')}</span>
+                <span className="leading-snug">{t('footer.address_line')}</span>
+                <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 gap-y-2">
+                <button type="button" onClick={() => setView('impressum')} className="hover:text-amber-500/80 min-h-[44px] sm:min-h-0 flex items-center">{t('legal.imprint')}</button>
+                <button type="button" onClick={() => setView('datenschutz')} className="hover:text-amber-500/80 min-h-[44px] sm:min-h-0 flex items-center">{t('legal.privacy')}</button>
+                <button type="button" onClick={() => setView('agb')} className="hover:text-amber-500/80 min-h-[44px] sm:min-h-0 flex items-center">{t('legal.terms')}</button>
+                <button type="button" onClick={() => setView('kontakt')} className="hover:text-amber-500/80 min-h-[44px] sm:min-h-0 flex items-center">{t('legal.contact')}</button>
+                <button type="button" onClick={() => setView('anfahrt')} className="hover:text-amber-500/80 min-h-[44px] sm:min-h-0 flex items-center">{t('legal.directions')}</button>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-2 sm:gap-4 text-center lg:text-right">
                 <span>© {new Date().getFullYear()} {t('footer.atelier_short')}</span>
                 <span className="text-amber-500/60">{t('footer.private_vault_tag')}</span>
               </div>
