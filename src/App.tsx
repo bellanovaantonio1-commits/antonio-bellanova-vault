@@ -62,7 +62,7 @@ import { ConsultationChatPanel } from './features/consultation/ConsultationChatP
 import { AdminConsultationSection } from './features/consultation/AdminConsultationSection';
 import { VaultConsultationList } from './features/consultation/VaultConsultationList';
 import { buildLuxuryTimelinePresentation, type PaymentNextHint } from './lib/luxuryClientTimeline';
-import { LuxuryPublicSite, isLuxuryPublicPath } from './features/luxury-public/LuxuryPublicSite';
+import { LuxuryPublicSite, isLuxuryPublicPath, isVaultDeploymentHost } from './features/luxury-public/LuxuryPublicSite';
 import { LuxuryImagePlaceholder } from './components/LuxuryImagePlaceholder';
 import { motion, AnimatePresence } from 'motion/react';
 import { loadStripe } from '@stripe/stripe-js';
@@ -4387,7 +4387,14 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [view, setView] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'dashboard' | 'marketplace' | 'resale' | 'auctions' | 'drops' | 'vault' | 'world' | 'private_gallery' | 'admin' | 'advisor' | 'portfolio' | 'investor' | 'concierge' | 'private_clients' | 'ai_jewelry_design' | 'verify' | 'fractional' | 'impressum' | 'datenschutz' | 'agb' | 'kontakt' | 'anfahrt' | 'bellanova_care' | 'legacy_hub' | 'maison'>(() => {
     if (typeof window === 'undefined') return 'login';
-    const pathname = window.location.pathname || '';
+    let pathname = window.location.pathname || '';
+    /** vault.* Root: echte App statt Luxury-Startseite; /world triggert Gast-Session wie bei „Entdecken“ */
+    if (isVaultDeploymentHost() && (pathname === '/' || pathname === '')) {
+      const u = new URL(window.location.href);
+      u.pathname = '/world';
+      window.history.replaceState({}, '', `${u.pathname}${u.search}${u.hash}`);
+      pathname = '/world';
+    }
     const verifyMatch = pathname.match(/^\/(?:verify|certificate)\/(.+)/);
     if (verifyMatch) return 'verify';
     /** Öffentliche Entdecken-Ansicht — gleiche URL wie nach „Als Gast fortfahren“ */

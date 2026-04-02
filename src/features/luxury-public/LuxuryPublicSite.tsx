@@ -346,7 +346,16 @@ function Shell({
   );
 }
 
+/** Subdomain „vault.*“ = produktive Vault-App (kein statisches Luxury-Marketing-Shell). */
+export function isVaultDeploymentHost(): boolean {
+  if (typeof window === "undefined") return false;
+  if (import.meta.env.VITE_FORCE_VAULT_APP === "true") return true;
+  const h = window.location.hostname.toLowerCase();
+  return h === "vault.antoniobellanova.com" || h.endsWith(".vault.antoniobellanova.com");
+}
+
 export function isLuxuryPublicPath(pathname: string): boolean {
+  if (isVaultDeploymentHost()) return false;
   return (
     pathname === "/" ||
     pathname === "/marktplatz" ||
