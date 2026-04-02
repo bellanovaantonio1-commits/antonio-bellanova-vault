@@ -720,6 +720,14 @@ const TRANSLATIONS: any = {
     "admin.maison_concierge_empty": "Noch keine Maison-Concierge-Threads.",
     "admin.maison_concierge_pick": "Thread wählen, um zu antworten.",
     "admin.tab_settings": "Einstellungen",
+    "admin.nav_group_overview": "Übersicht & Analysen",
+    "admin.nav_group_catalog": "Katalog & Handel",
+    "admin.nav_group_clients": "Kunden & Beratung",
+    "admin.nav_group_private": "Private Clients & Räume",
+    "admin.nav_group_projects": "Projekte & Dokumente",
+    "admin.nav_group_finance": "Investoren & Finanzen",
+    "admin.nav_group_system": "System",
+    "admin.nav_hint": "Menü nach Themen sortiert — so finden Sie jeden Bereich schneller.",
     "admin.stat_revenue": "Gesamtumsatz",
     "admin.stat_active_users": "Aktive Nutzer",
     "admin.stat_pending_approvals": "Ausstehende Genehmigungen",
@@ -2007,6 +2015,14 @@ const TRANSLATIONS: any = {
     "admin.maison_concierge_empty": "No Maison Concierge threads yet.",
     "admin.maison_concierge_pick": "Select a thread to reply.",
     "admin.tab_settings": "Settings",
+    "admin.nav_group_overview": "Overview & analytics",
+    "admin.nav_group_catalog": "Catalog & commerce",
+    "admin.nav_group_clients": "Clients & advisory",
+    "admin.nav_group_private": "Private clients & rooms",
+    "admin.nav_group_projects": "Projects & documents",
+    "admin.nav_group_finance": "Investors & finance",
+    "admin.nav_group_system": "System",
+    "admin.nav_hint": "Grouped by topic — jump to the right area faster.",
     "admin.stat_revenue": "Total revenue",
     "admin.stat_active_users": "Active users",
     "admin.stat_pending_approvals": "Pending approvals",
@@ -3232,6 +3248,14 @@ const TRANSLATIONS: any = {
     "admin.maison_concierge_empty": "Nessun thread Maison Concierge.",
     "admin.maison_concierge_pick": "Scegli un thread per rispondere.",
     "admin.tab_settings": "Impostazioni",
+    "admin.nav_group_overview": "Panoramica e analisi",
+    "admin.nav_group_catalog": "Catalogo e commercio",
+    "admin.nav_group_clients": "Clienti e consulenza",
+    "admin.nav_group_private": "Clienti privati e sale",
+    "admin.nav_group_projects": "Progetti e documenti",
+    "admin.nav_group_finance": "Investitori e finanza",
+    "admin.nav_group_system": "Sistema",
+    "admin.nav_hint": "Raggruppato per tema — accesso più rapido alle sezioni.",
     "admin.stat_revenue": "Fatturato totale",
     "admin.stat_active_users": "Utenti attivi",
     "admin.stat_pending_approvals": "Approvazioni in sospeso",
@@ -4427,6 +4451,17 @@ function ResetPasswordForm({ token, onBack, onSuccess, t }: { token: string; onB
 }
 
 // --- Main App ---
+
+/** Verwaltungsmenü: logische Cluster statt einer langen Tab-Leiste. */
+const ADMIN_NAV_GROUPS: { labelKey: string; tabs: readonly string[] }[] = [
+  { labelKey: "admin.nav_group_overview", tabs: ["overview", "audience", "intelligence"] },
+  { labelKey: "admin.nav_group_catalog", tabs: ["inventory", "resale", "fractional", "drops", "reservations", "curated_maison"] },
+  { labelKey: "admin.nav_group_clients", tabs: ["users", "kunden", "vip_members", "prospects", "advisors", "appointments", "consultation_chats", "concierge"] },
+  { labelKey: "admin.nav_group_private", tabs: ["private_clients", "collector_rooms", "stone_library", "deal_rooms", "vault_requests", "legacy", "collector_reputation"] },
+  { labelKey: "admin.nav_group_projects", tabs: ["projects", "documents", "contract-generator"] },
+  { labelKey: "admin.nav_group_finance", tabs: ["investor_dashboard", "registry", "payments"] },
+  { labelKey: "admin.nav_group_system", tabs: ["settings"] },
+];
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -13082,12 +13117,39 @@ export default function App() {
 
             {view === 'admin' && (
               <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-12">
-                <div className="flex flex-wrap gap-2 border-b border-zinc-800 pb-4">
-                  {(['overview', 'audience', 'inventory', 'consultation_chats', 'users', 'kunden', 'resale', 'fractional', 'drops', 'reservations', 'appointments', 'advisors', 'vip_members', 'projects', 'documents', 'contract-generator', 'curated_maison', 'intelligence', 'legacy', 'vault_requests', 'concierge', 'private_clients', 'collector_rooms', 'stone_library', 'deal_rooms', 'collector_reputation', 'investor_dashboard', 'prospects', 'registry', 'payments', 'settings'] as const).map(tab => (
-                    <button key={tab} type="button" onClick={() => setAdminTab(tab)} className={`px-4 py-2 rounded-lg text-sm font-medium uppercase tracking-wider transition-colors ${adminTab === tab ? 'bg-amber-600/20 text-amber-500 border border-amber-600/40' : 'text-zinc-500 hover:text-zinc-300 border border-transparent'}`}>
-                      {adminTabLabel(tab)}
-                    </button>
-                  ))}
+                <div className="space-y-5 border-b border-zinc-800/90 pb-6">
+                  <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+                    <div>
+                      <h2 className="text-2xl font-serif italic text-zinc-100 tracking-tight">{t('view.admin')}</h2>
+                      <p className="text-xs text-zinc-500 mt-1 max-w-2xl leading-relaxed">{t('admin.nav_hint')}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {ADMIN_NAV_GROUPS.map((group) => (
+                      <div
+                        key={group.labelKey}
+                        className="rounded-2xl border border-zinc-800/90 bg-zinc-950/55 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                      >
+                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600/90">{t(group.labelKey)}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {group.tabs.map((tab) => (
+                            <button
+                              key={tab}
+                              type="button"
+                              onClick={() => setAdminTab(tab as typeof adminTab)}
+                              className={`px-3 py-2 rounded-xl text-[11px] font-semibold uppercase tracking-wider transition-colors min-h-[40px] ${
+                                adminTab === tab
+                                  ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-[0_0_0_1px_rgba(198,163,106,0.12)]'
+                                  : 'text-zinc-400 hover:text-zinc-100 border border-zinc-800 hover:border-zinc-600 bg-zinc-900/45'
+                              }`}
+                            >
+                              {adminTabLabel(tab)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 {(adminTab === 'curated_maison') && (user.role === UserRole.ADMIN || (user as any).role === 'super_admin') && (
                   <AdminCuratedEditor masterpieces={masterpieces} notifyUser={notifyUser} t={t} onCuratedContentChanged={bumpCuratedPublicData} />
